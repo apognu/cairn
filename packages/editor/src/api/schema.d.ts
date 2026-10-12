@@ -26,7 +26,7 @@ export interface paths {
         /** Every live page, ordered by position. */
         get: operations["listPages"];
         put?: never;
-        /** Creates a page under `parent_id` (or at the root). */
+        /** Creates a page, or an external link when `external_url` is set, under `parent_id` (or at the root). */
         post: operations["createPage"];
         delete?: never;
         options?: never;
@@ -43,7 +43,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Changes the title; the URL segment follows it. */
+        /** Changes the title (the URL segment follows it) and, for a link, its target. */
         post: operations["renamePage"];
         /** Deletes a page and its descendants. */
         delete: operations["deletePage"];
@@ -146,6 +146,8 @@ export interface components {
         AssetId: string;
         CreatePage: {
             before?: components["schemas"]["PageId"] | null;
+            /** @description Makes the new node an external link to this URL instead of a page. */
+            external_url?: string | null;
             parent_id?: components["schemas"]["PageId"] | null;
             title: string;
         };
@@ -173,7 +175,10 @@ export interface components {
             /** Format: date-time */
             created_at: string;
             created_by: components["schemas"]["UserId"];
+            /** @description Where a link goes; always `None` for pages. */
+            external_url?: string | null;
             id: components["schemas"]["PageId"];
+            kind: components["schemas"]["PageKind"];
             parent_id?: components["schemas"]["PageId"] | null;
             /** @description Fractional index; siblings sort by this string. */
             position: string;
@@ -185,6 +190,11 @@ export interface components {
         };
         /** @description Stable identity of a page; URLs derive from the tree, never from this. */
         PageId: string;
+        /**
+         * @description What a tree node is: a page of the site or a link to somewhere else.
+         * @enum {string}
+         */
+        PageKind: "page" | "link";
         /** @description An immutable published state of the whole site. */
         Release: {
             base_release_id?: components["schemas"]["ReleaseId"] | null;
@@ -204,6 +214,8 @@ export interface components {
         /** @enum {string} */
         ReleaseStatus: "building" | "live" | "failed";
         RenamePage: {
+            /** @description The new target of a link; refused for pages. */
+            external_url?: string | null;
             title: string;
         };
         /** @description An immutable snapshot of a page's document. */

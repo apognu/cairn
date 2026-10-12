@@ -48,10 +48,12 @@ mod tests {
   fn page(title: &str) -> Page {
     Page {
       id: PageId::new(),
+      kind: yourdocs_core::PageKind::Page,
       parent_id: None,
       position: "80".into(),
       slug: "a".into(),
       title: title.into(),
+      external_url: None,
       created_by: UserId::new(),
       created_at: Timestamp::UNIX_EPOCH,
       updated_at: Timestamp::UNIX_EPOCH,

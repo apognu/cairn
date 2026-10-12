@@ -76,7 +76,7 @@
         }
       },
       "post": {
-        "summary": "Creates a page under `parent_id` (or at the root).",
+        "summary": "Creates a page, or an external link when `external_url` is set, under `parent_id` (or at the root).",
         "operationId": "createPage",
         "requestBody": {
           "content": {
@@ -132,7 +132,7 @@
     },
     "/api/pages/{id}": {
       "post": {
-        "summary": "Changes the title; the URL segment follows it.",
+        "summary": "Changes the title (the URL segment follows it) and, for a link, its target.",
         "operationId": "renamePage",
         "parameters": [
           {
@@ -540,6 +540,13 @@
               }
             ]
           },
+          "external_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Makes the new node an external link to this URL instead of a page."
+          },
           "parent_id": {
             "oneOf": [
               {
@@ -629,6 +636,7 @@
         "description": "A node of the page tree.",
         "required": [
           "id",
+          "kind",
           "position",
           "slug",
           "title",
@@ -644,8 +652,18 @@
           "created_by": {
             "$ref": "#/components/schemas/UserId"
           },
+          "external_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Where a link goes; always `None` for pages."
+          },
           "id": {
             "$ref": "#/components/schemas/PageId"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/PageKind"
           },
           "parent_id": {
             "oneOf": [
@@ -677,6 +695,14 @@
       "PageId": {
         "type": "string",
         "description": "Stable identity of a page; URLs derive from the tree, never from this."
+      },
+      "PageKind": {
+        "type": "string",
+        "description": "What a tree node is: a page of the site or a link to somewhere else.",
+        "enum": [
+          "page",
+          "link"
+        ]
       },
       "Release": {
         "type": "object",
@@ -739,6 +765,13 @@
           "title"
         ],
         "properties": {
+          "external_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The new target of a link; refused for pages."
+          },
           "title": {
             "type": "string"
           }

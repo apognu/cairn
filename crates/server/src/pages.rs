@@ -25,11 +25,15 @@ struct CreatePage {
   title: String,
   /// Insert before this sibling; the page goes last when absent.
   before: Option<PageId>,
+  /// Makes the new node an external link to this URL instead of a page.
+  external_url: Option<String>,
 }
 
 #[derive(Deserialize, ToSchema)]
 struct RenamePage {
   title: String,
+  /// The new target of a link; refused for pages.
+  external_url: Option<String>,
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -49,7 +53,7 @@ async fn list(State(state): State<AppState>) -> Result<Json<Vec<Page>>, AppError
   Ok(Json(yourdocs_store::list_pages(&state.db).await?))
 }
 
-/// Creates a page under `parent_id` (or at the root).
+/// Creates a page, or an external link when `external_url` is set, under `parent_id` (or at the root).
 #[utoipa::path(post, path = "/api/pages", operation_id = "createPage", request_body = CreatePage, responses(
   (status = 201, body = Page),
   (status = 404, body = ErrorBody, description = "unknown parent"),
@@ -58,12 +62,16 @@ async fn list(State(state): State<AppState>) -> Result<Json<Vec<Page>>, AppError
 ))]
 #[instrument(skip_all)]
 async fn create(State(state): State<AppState>, CurrentUser(user): CurrentUser, Json(body): Json<CreatePage>) -> Result<(StatusCode, Json<Page>), AppError> {
-  let page = yourdocs_store::create_page(&state.db, user, body.parent_id, &body.title, placement(body.before)).await?;
+  let place = placement(body.before);
+  let page = match &body.external_url {
+    Some(url) => yourdocs_store::create_link(&state.db, user, body.parent_id, &body.title, url, place).await?,
+    None => yourdocs_store::create_page(&state.db, user, body.parent_id, &body.title, place).await?,
+  };
 
   Ok((StatusCode::CREATED, Json(page)))
 }
 
-/// Changes the title; the URL segment follows it.
+/// Changes the title (the URL segment follows it) and, for a link, its target.
 #[utoipa::path(post, path = "/api/pages/{id}", operation_id = "renamePage", params(("id" = PageId, Path)), request_body = RenamePage, responses(
   (status = 200, body = Page),
   (status = 404, body = ErrorBody),
@@ -72,7 +80,12 @@ async fn create(State(state): State<AppState>, CurrentUser(user): CurrentUser, J
 ))]
 #[instrument(skip_all, fields(page_id = %id))]
 async fn rename(State(state): State<AppState>, Path(id): Path<PageId>, Json(body): Json<RenamePage>) -> Result<Json<Page>, AppError> {
-  Ok(Json(yourdocs_store::rename_page(&state.db, id, &body.title).await?))
+  let page = match &body.external_url {
+    Some(url) => yourdocs_store::edit_link(&state.db, id, &body.title, url).await?,
+    None => yourdocs_store::rename_page(&state.db, id, &body.title).await?,
+  };
+
+  Ok(Json(page))
 }
 
 /// Moves a page and its subtree under another parent.
@@ -110,6 +123,7 @@ mod tests {
       parent_id: None,
       title: "Intro".into(),
       before: None,
+      external_url: None,
     };
 
     let (status, Json(page)) = create(State(state), CurrentUser(local_user_id()), Json(body)).await.unwrap();

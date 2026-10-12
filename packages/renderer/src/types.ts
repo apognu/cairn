@@ -8,7 +8,8 @@ export type DocNode = {
   text?: string;
 };
 
-export type NavNode = { id: string; title: string; href: string; children: NavNode[] };
+/** `external` marks a link that leaves the site. */
+export type NavNode = { id: string; title: string; href: string; external?: boolean; children: NavNode[] };
 
 /** Everything outside the document that a page needs to render. Built by the server, never fetched during render. */
 export type RenderContext = {

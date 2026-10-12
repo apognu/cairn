@@ -3,7 +3,7 @@ use std::{collections::HashMap, sync::Arc};
 use futures_util::{StreamExt, TryStreamExt, stream};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
-use yourdocs_core::{AssetId, AssetStore, Broadcast, ContentStore, Document, Event, Page, PageId, Release, ReleaseStatus, RevisionId, UserId, original_key};
+use yourdocs_core::{AssetId, AssetStore, Broadcast, ContentStore, Document, Event, Page, PageId, PageKind, Release, ReleaseStatus, RevisionId, UserId, original_key};
 use yourdocs_render::{Pool, Shell, highlight_css};
 use yourdocs_store::{DatabaseConnection, add_release_pages, assets_by_ids, create_release, list_pages, load_settings, set_release_status};
 
@@ -85,16 +85,17 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
   pub async fn publish(&self, user: UserId) -> Result<Release, PublishError> {
     let _turn = self.running.lock().await;
 
-    let pages = list_pages(&self.db).await?;
-    let sources = self.sources(pages, user).await?;
+    let tree_pages = list_pages(&self.db).await?;
+    // Links are navigation only: nothing to render, nothing in the sitemap.
+    let sources = self.sources(tree_pages.iter().filter(|p| p.kind == PageKind::Page).cloned().collect(), user).await?;
 
-    let tree: Vec<Value> = sources
+    let tree: Vec<Value> = tree_pages
       .iter()
-      .map(|s| json!({ "id": s.page.id, "parent_id": s.page.parent_id, "slug": s.page.slug, "title": s.page.title }))
+      .map(|p| json!({ "id": p.id, "kind": p.kind, "parent_id": p.parent_id, "slug": p.slug, "title": p.title, "external_url": p.external_url }))
       .collect();
     let release = create_release(&self.db, user, Value::Array(tree).to_string(), "[]".into()).await?;
 
-    match self.build_and_deploy(&release, &sources).await {
+    match self.build_and_deploy(&release, &tree_pages, &sources).await {
       Ok(hashes) => {
         add_release_pages(&self.db, release.id, hashes).await?;
         set_release_status(&self.db, release.id, ReleaseStatus::Live).await?;
@@ -133,10 +134,10 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
   }
 
   /// Renders everything, then deploys. Nothing reaches the target unless every page rendered.
-  async fn build_and_deploy(&self, release: &Release, sources: &[PageSource]) -> Result<Vec<(PageId, RevisionId, String)>, PublishError> {
+  async fn build_and_deploy(&self, release: &Release, tree_pages: &[Page], sources: &[PageSource]) -> Result<Vec<(PageId, RevisionId, String)>, PublishError> {
     let pages: Vec<Page> = sources.iter().map(|s| s.page.clone()).collect();
-    let urls = page_urls(&pages);
-    let nav = nav_tree(&pages, &urls);
+    let urls = page_urls(tree_pages);
+    let nav = nav_tree(tree_pages, &urls);
     let settings = load_settings(&self.db).await?;
     let site_name = settings.site_name.clone();
     let today = jiff::Zoned::now().date().to_string();

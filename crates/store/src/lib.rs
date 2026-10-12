@@ -16,4 +16,4 @@ pub use content::SqlContentStore;
 pub use migration::migrate;
 pub use releases::{add_release_pages, create_release, get_setting, latest_live_release, load_settings, save_settings, set_release_status, set_setting};
 pub use sea_orm::DatabaseConnection;
-pub use tree::{create_page, delete_page, list_pages, move_page, rename_page};
+pub use tree::{create_link, create_page, delete_page, edit_link, list_pages, move_page, rename_page};

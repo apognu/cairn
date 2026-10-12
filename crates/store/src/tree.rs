@@ -1,7 +1,7 @@
 use fractional_index::FractionalIndex;
 use jiff::Timestamp;
 use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set};
-use yourdocs_core::{Page, PageId, Placement, UserId, slugify};
+use yourdocs_core::{Page, PageId, PageKind, Placement, UserId, slugify};
 
 use crate::{
   StoreError,
@@ -16,6 +16,17 @@ pub async fn list_pages(db: &DatabaseConnection) -> Result<Vec<Page>, StoreError
 }
 
 pub async fn create_page(db: &DatabaseConnection, user: UserId, parent: Option<PageId>, title: &str, placement: Placement) -> Result<Page, StoreError> {
+  insert(db, user, parent, title, None, placement).await
+}
+
+/// Adds an external link to the navigation, which behaves like a page that has no content.
+pub async fn create_link(db: &DatabaseConnection, user: UserId, parent: Option<PageId>, title: &str, url: &str, placement: Placement) -> Result<Page, StoreError> {
+  let url = check_url(url)?;
+
+  insert(db, user, parent, title, Some(url), placement).await
+}
+
+async fn insert(db: &DatabaseConnection, user: UserId, parent: Option<PageId>, title: &str, url: Option<String>, placement: Placement) -> Result<Page, StoreError> {
   let pages = list_pages(db).await?;
   check_parent(&pages, parent)?;
 
@@ -25,11 +36,12 @@ pub async fn create_page(db: &DatabaseConnection, user: UserId, parent: Option<P
 
   let row = page::ActiveModel {
     id: Set(PageId::new().as_uuid()),
-    kind: Set("page".into()),
+    kind: Set(if url.is_some() { PageKind::Link } else { PageKind::Page }.as_str().into()),
     parent_id: Set(parent.map(|p| p.as_uuid())),
     position: Set(position),
     slug: Set(slug),
     title: Set(title.to_string()),
+    external_url: Set(url),
     created_by: Set(user.as_uuid()),
     created_at: Set(now.clone()),
     updated_at: Set(now),
@@ -51,6 +63,32 @@ pub async fn rename_page(db: &DatabaseConnection, id: PageId, title: &str) -> Re
     id: Set(id.as_uuid()),
     title: Set(title.to_string()),
     slug: Set(slug),
+    updated_at: Set(Timestamp::now().to_string()),
+    ..Default::default()
+  }
+  .update(db)
+  .await?;
+
+  into_page(row)
+}
+
+/// Changes where a link points, and its title.
+pub async fn edit_link(db: &DatabaseConnection, id: PageId, title: &str, url: &str) -> Result<Page, StoreError> {
+  let pages = list_pages(db).await?;
+  let current = find(&pages, id)?;
+
+  if current.kind != PageKind::Link {
+    return Err(StoreError::Invalid("only links have a URL".into()));
+  }
+
+  let url = check_url(url)?;
+  let slug = unique_slug(&pages, current.parent_id, title, Some(id))?;
+
+  let row = page::ActiveModel {
+    id: Set(id.as_uuid()),
+    title: Set(title.to_string()),
+    slug: Set(slug),
+    external_url: Set(Some(url)),
     updated_at: Set(Timestamp::now().to_string()),
     ..Default::default()
   }
@@ -111,9 +149,22 @@ fn find(pages: &[Page], id: PageId) -> Result<&Page, StoreError> {
 }
 
 fn check_parent(pages: &[Page], parent: Option<PageId>) -> Result<(), StoreError> {
-  match parent {
-    Some(parent) => find(pages, parent).map(|_| ()),
-    None => Ok(()),
+  let Some(parent) = parent else { return Ok(()) };
+
+  match find(pages, parent)?.kind {
+    PageKind::Page => Ok(()),
+    PageKind::Link => Err(StoreError::Invalid("a link cannot have pages under it".into())),
+  }
+}
+
+/// Links go to absolute http(s) URLs; anything else (`javascript:`, relative paths) is refused.
+fn check_url(url: &str) -> Result<String, StoreError> {
+  let url = url.trim();
+  let rest = url.strip_prefix("https://").or_else(|| url.strip_prefix("http://"));
+
+  match rest {
+    Some(rest) if !rest.is_empty() && !rest.starts_with('/') && !url.contains(char::is_whitespace) && url.len() <= 2048 => Ok(url.to_string()),
+    _ => Err(StoreError::Invalid("a link needs an absolute http or https URL".into())),
   }
 }
 
@@ -172,12 +223,19 @@ fn position_for(pages: &[Page], parent: Option<PageId>, moving: Option<PageId>, 
 fn into_page(row: page::Model) -> Result<Page, StoreError> {
   let parse = |s: &str| s.parse::<Timestamp>().map_err(|e| StoreError::Invalid(format!("bad timestamp: {e}")));
 
+  let kind = match row.kind.as_str() {
+    "link" => PageKind::Link,
+    _ => PageKind::Page,
+  };
+
   Ok(Page {
     id: row.id.into(),
+    kind,
     parent_id: row.parent_id.map(Into::into),
     position: row.position,
     slug: row.slug,
     title: row.title,
+    external_url: row.external_url,
     created_by: row.created_by.into(),
     created_at: parse(&row.created_at)?,
     updated_at: parse(&row.updated_at)?,
@@ -243,5 +301,28 @@ mod tests {
 
     assert_eq!(delete_page(&db, b.id).await.unwrap().len(), 2);
     assert_eq!(titles(&db, None).await, ["The Guide"]);
+  }
+
+  #[tokio::test]
+  async fn links_hold_a_url_and_no_children() {
+    let db = test_db().await;
+    let user = UserId::new();
+
+    let section = create_page(&db, user, None, "Integrations", Placement::Last).await.unwrap();
+    let link = create_link(&db, user, Some(section.id), "Status page", "https://status.example.com", Placement::Last).await.unwrap();
+    assert_eq!(link.kind, PageKind::Link);
+    assert_eq!(link.external_url.as_deref(), Some("https://status.example.com"));
+
+    for bad in ["javascript:alert(1)", "/relative", "https://", "https://a b.c", "ftp://x.y"] {
+      let err = create_link(&db, user, None, "Bad", bad, Placement::Last).await.unwrap_err();
+      assert!(matches!(err, StoreError::Invalid(_)), "{bad}");
+    }
+
+    let err = create_page(&db, user, Some(link.id), "Child", Placement::Last).await.unwrap_err();
+    assert!(matches!(err, StoreError::Invalid(_)));
+
+    let edited = edit_link(&db, link.id, "Status", "http://status.example.com/").await.unwrap();
+    assert_eq!((edited.title.as_str(), edited.external_url.as_deref()), ("Status", Some("http://status.example.com/")));
+    assert!(matches!(edit_link(&db, section.id, "X", "https://x.y").await, Err(StoreError::Invalid(_))));
   }
 }

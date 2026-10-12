@@ -19,7 +19,7 @@ pub use broadcast::{Broadcast, Event, LocalBroadcast};
 pub use document::{Document, Mark, Node};
 pub use error::CoreError;
 pub use id::{AssetId, PageId, ReleaseId, RevisionId, UserId};
-pub use page::{Page, Placement, slugify};
+pub use page::{Page, PageKind, Placement, slugify};
 pub use release::{Release, ReleaseStatus};
 pub use settings::Settings;
 pub use storage::{AssetStore, ContentStore, Draft, Revision, original_key};

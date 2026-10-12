@@ -1,14 +1,15 @@
 use std::collections::HashMap;
 
 use serde_json::{Value, json};
-use yourdocs_core::{AssetId, Document, Page, PageId};
+use yourdocs_core::{AssetId, Document, Page, PageId, PageKind};
 
-/// The public URL of every page: the slugs of the page and its ancestors, with a trailing slash.
+/// The public URL of every page (links have none): the slugs of the page and its ancestors, with a trailing slash.
 pub(crate) fn page_urls(pages: &[Page]) -> HashMap<PageId, String> {
   let by_id: HashMap<PageId, &Page> = pages.iter().map(|p| (p.id, p)).collect();
 
   pages
     .iter()
+    .filter(|page| page.kind == PageKind::Page)
     .map(|page| {
       let mut segments = vec![page.slug.as_str()];
       let mut parent = page.parent_id;
@@ -33,13 +34,20 @@ pub(crate) fn output_path(url: &str) -> String {
   format!("{}index.html", url.trim_start_matches('/'))
 }
 
-/// The navigation tree for the page context, in the order of `pages` (which is by position).
+/// The navigation tree for the page context, in the order of `pages` (which is by position). Links point outside the site.
 pub(crate) fn nav_tree(pages: &[Page], urls: &HashMap<PageId, String>) -> Vec<Value> {
   fn children(pages: &[Page], urls: &HashMap<PageId, String>, parent: Option<PageId>) -> Vec<Value> {
     pages
       .iter()
       .filter(|p| p.parent_id == parent)
-      .map(|p| json!({ "id": p.id, "title": p.title, "href": urls[&p.id], "children": children(pages, urls, Some(p.id)) }))
+      .filter_map(|p| {
+        let (href, external) = match &p.external_url {
+          Some(url) => (url.as_str(), true),
+          None => (urls.get(&p.id)?.as_str(), false),
+        };
+
+        Some(json!({ "id": p.id, "title": p.title, "href": href, "external": external, "children": children(pages, urls, Some(p.id)) }))
+      })
       .collect()
   }
 
@@ -67,10 +75,12 @@ mod tests {
   fn page(slug: &str, parent: Option<PageId>) -> Page {
     Page {
       id: PageId::new(),
+      kind: PageKind::Page,
       parent_id: parent,
       position: "80".into(),
       slug: slug.into(),
       title: slug.into(),
+      external_url: None,
       created_by: UserId::new(),
       created_at: Timestamp::UNIX_EPOCH,
       updated_at: Timestamp::UNIX_EPOCH,
@@ -90,6 +100,23 @@ mod tests {
 
     let nav = nav_tree(&pages, &urls);
     assert_eq!(nav[0]["children"][0]["href"], "/guide/install/");
+  }
+
+  #[test]
+  fn links_appear_in_the_navigation_but_have_no_url() {
+    let guide = page("guide", None);
+    let link = Page {
+      kind: PageKind::Link,
+      external_url: Some("https://status.example.com".into()),
+      ..page("status", Some(guide.id))
+    };
+    let pages = vec![guide.clone(), link.clone()];
+    let urls = page_urls(&pages);
+
+    assert!(!urls.contains_key(&link.id));
+    let nav = nav_tree(&pages, &urls);
+    assert_eq!(nav[0]["children"][0]["href"], "https://status.example.com");
+    assert_eq!(nav[0]["children"][0]["external"], true);
   }
 
   #[test]
