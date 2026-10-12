@@ -1,6 +1,8 @@
+use std::collections::HashMap;
+
 use jiff::Timestamp;
 use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set, sea_query::OnConflict};
-use yourdocs_core::{AssetId, PageId, Release, ReleaseId, ReleaseStatus, RevisionId, Settings, UserId};
+use yourdocs_core::{AssetId, Page, PageId, Release, ReleaseId, ReleaseStatus, RevisionId, Settings, UserId};
 
 use crate::{
   StoreError,
@@ -65,6 +67,34 @@ pub async fn latest_live_release(db: &DatabaseConnection) -> Result<Option<Relea
     Some(row) => Ok(Some(into_release(db, row).await?)),
     None => Ok(None),
   }
+}
+
+/// What the live release published: its tree and redirect rules as frozen at the time, and the revision of each page.
+pub struct LiveRelease {
+  pub pages: Vec<Page>,
+  pub redirects: Vec<(String, String)>,
+  pub revisions: HashMap<PageId, RevisionId>,
+}
+
+/// The state of the latest live release, or `None` before the first publish. A snapshot this version cannot read counts as empty,
+/// so everything shows as new rather than hiding changes.
+pub async fn live_release(db: &DatabaseConnection) -> Result<Option<LiveRelease>, StoreError> {
+  let Some(row) = release::Entity::find()
+    .filter(release::Column::Status.eq(ReleaseStatus::Live.as_str()))
+    .order_by_desc(release::Column::Id)
+    .one(db)
+    .await?
+  else {
+    return Ok(None);
+  };
+
+  let revisions = release_page::Entity::find().filter(release_page::Column::ReleaseId.eq(row.id)).all(db).await?;
+
+  Ok(Some(LiveRelease {
+    pages: serde_json::from_str(&row.tree_snapshot).unwrap_or_default(),
+    redirects: serde_json::from_str(&row.redirects_snapshot).unwrap_or_default(),
+    revisions: revisions.into_iter().map(|r| (r.page_id.into(), r.revision_id.into())).collect(),
+  }))
 }
 
 async fn into_release(db: &DatabaseConnection, row: release::Model) -> Result<Release, StoreError> {

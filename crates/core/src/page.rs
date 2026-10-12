@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
 
@@ -49,6 +51,32 @@ pub enum Placement {
   Last,
   /// Right before the given sibling.
   Before(PageId),
+}
+
+/// The public URL of every page (links have none): the slugs of the page and its ancestors, with a trailing slash.
+pub fn page_urls(pages: &[Page]) -> HashMap<PageId, String> {
+  let by_id: HashMap<PageId, &Page> = pages.iter().map(|p| (p.id, p)).collect();
+
+  pages
+    .iter()
+    .filter(|page| page.kind == PageKind::Page)
+    .map(|page| {
+      let mut segments = vec![page.slug.as_str()];
+      let mut parent = page.parent_id;
+
+      // The tree has no cycles (moves are checked), but a bound keeps corrupt data from hanging a publish.
+      while let Some(id) = parent
+        && segments.len() < 64
+        && let Some(ancestor) = by_id.get(&id)
+      {
+        segments.push(ancestor.slug.as_str());
+        parent = ancestor.parent_id;
+      }
+
+      segments.reverse();
+      (page.id, format!("/{}/", segments.join("/")))
+    })
+    .collect()
 }
 
 /// Turns a title into a URL segment: lowercase ASCII letters and digits separated by single dashes.

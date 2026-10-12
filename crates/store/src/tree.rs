@@ -1,11 +1,12 @@
 use fractional_index::FractionalIndex;
 use jiff::Timestamp;
 use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set};
-use yourdocs_core::{Page, PageId, PageKind, Placement, UserId, slugify};
+use yourdocs_core::{OldUrls, Page, PageId, PageKind, Placement, RedirectOrigin, UserId, page_urls, slugify};
 
 use crate::{
   StoreError,
   entity::page::{self, Column},
+  redirects::{forget_redirects_from, redirect_to_page},
 };
 
 /// All live pages, ordered by parent then position.
@@ -53,8 +54,8 @@ async fn insert(db: &DatabaseConnection, user: UserId, parent: Option<PageId>, t
   into_page(row)
 }
 
-/// Changes the title and re-derives the slug from it.
-pub async fn rename_page(db: &DatabaseConnection, id: PageId, title: &str) -> Result<Page, StoreError> {
+/// Changes the title and re-derives the slug from it. The URLs of the page and its subtree change with it.
+pub async fn rename_page(db: &DatabaseConnection, id: PageId, title: &str, old: OldUrls) -> Result<Page, StoreError> {
   let pages = list_pages(db).await?;
   let current = find(&pages, id)?;
   let slug = unique_slug(&pages, current.parent_id, title, Some(id))?;
@@ -68,6 +69,8 @@ pub async fn rename_page(db: &DatabaseConnection, id: PageId, title: &str) -> Re
   }
   .update(db)
   .await?;
+
+  settle_urls(db, &pages, old, RedirectOrigin::Rename).await?;
 
   into_page(row)
 }
@@ -99,7 +102,7 @@ pub async fn edit_link(db: &DatabaseConnection, id: PageId, title: &str, url: &s
 }
 
 /// Moves a page, with its subtree, under `parent` (`None` for the root level).
-pub async fn move_page(db: &DatabaseConnection, id: PageId, parent: Option<PageId>, placement: Placement) -> Result<Page, StoreError> {
+pub async fn move_page(db: &DatabaseConnection, id: PageId, parent: Option<PageId>, placement: Placement, old: OldUrls) -> Result<Page, StoreError> {
   let pages = list_pages(db).await?;
   let current = find(&pages, id)?;
   check_parent(&pages, parent)?;
@@ -124,6 +127,8 @@ pub async fn move_page(db: &DatabaseConnection, id: PageId, parent: Option<PageI
   .update(db)
   .await?;
 
+  settle_urls(db, &pages, old, RedirectOrigin::Move).await?;
+
   into_page(row)
 }
 
@@ -142,6 +147,25 @@ pub async fn delete_page(db: &DatabaseConnection, id: PageId) -> Result<Vec<Page
     .await?;
 
   Ok(doomed)
+}
+
+/// After a move or rename: pages whose URL changed get a redirect from the old one (unless `old` says to forget it),
+/// and redirects that start at a path a page now occupies are dropped. `before` is the tree as it was.
+async fn settle_urls(db: &DatabaseConnection, before: &[Page], old: OldUrls, origin: RedirectOrigin) -> Result<(), StoreError> {
+  let after = list_pages(db).await?;
+  let (urls_before, urls_after) = (page_urls(before), page_urls(&after));
+
+  if old == OldUrls::Redirect {
+    for (id, from) in &urls_before {
+      if let Some(to) = urls_after.get(id)
+        && to != from
+      {
+        redirect_to_page(db, from, *id, origin).await?;
+      }
+    }
+  }
+
+  forget_redirects_from(db, urls_after.into_values().collect()).await
 }
 
 fn find(pages: &[Page], id: PageId) -> Result<&Page, StoreError> {
@@ -263,12 +287,12 @@ mod tests {
     assert_eq!(titles(&db, None).await, ["Z", "A", "B", "C"]);
 
     // Moving under another parent and back keeps order and does not disturb the old siblings.
-    let moved = move_page(&db, c.id, Some(a.id), Placement::Last).await.unwrap();
+    let moved = move_page(&db, c.id, Some(a.id), Placement::Last, OldUrls::Redirect).await.unwrap();
     assert_eq!(moved.parent_id, Some(a.id));
     assert_eq!(titles(&db, None).await, ["Z", "A", "B"]);
     assert_eq!(titles(&db, Some(a.id)).await, ["C"]);
 
-    move_page(&db, c.id, None, Placement::Before(a.id)).await.unwrap();
+    move_page(&db, c.id, None, Placement::Before(a.id), OldUrls::Redirect).await.unwrap();
     assert_eq!(titles(&db, None).await, ["Z", "C", "A", "B"]);
   }
 
@@ -282,7 +306,7 @@ mod tests {
     let c = create_page(&db, user, Some(b.id), "C", Placement::Last).await.unwrap();
 
     for target in [a.id, b.id, c.id] {
-      let err = move_page(&db, a.id, Some(target), Placement::Last).await.unwrap_err();
+      let err = move_page(&db, a.id, Some(target), Placement::Last, OldUrls::Redirect).await.unwrap_err();
       assert!(matches!(err, StoreError::Invalid(_)), "{err}");
     }
   }
@@ -296,8 +320,8 @@ mod tests {
     let b = create_page(&db, user, None, "Other", Placement::Last).await.unwrap();
     create_page(&db, user, Some(b.id), "Child", Placement::Last).await.unwrap();
 
-    assert!(matches!(rename_page(&db, b.id, "guide").await, Err(StoreError::Conflict(_))));
-    assert_eq!(rename_page(&db, a.id, "The Guide").await.unwrap().slug, "the-guide");
+    assert!(matches!(rename_page(&db, b.id, "guide", OldUrls::Redirect).await, Err(StoreError::Conflict(_))));
+    assert_eq!(rename_page(&db, a.id, "The Guide", OldUrls::Redirect).await.unwrap().slug, "the-guide");
 
     assert_eq!(delete_page(&db, b.id).await.unwrap().len(), 2);
     assert_eq!(titles(&db, None).await, ["The Guide"]);
@@ -324,5 +348,38 @@ mod tests {
     let edited = edit_link(&db, link.id, "Status", "http://status.example.com/").await.unwrap();
     assert_eq!((edited.title.as_str(), edited.external_url.as_deref()), ("Status", Some("http://status.example.com/")));
     assert!(matches!(edit_link(&db, section.id, "X", "https://x.y").await, Err(StoreError::Invalid(_))));
+  }
+
+  #[tokio::test]
+  async fn moves_and_renames_leave_redirects_unless_told_not_to() {
+    use crate::redirects::list_redirects;
+
+    let db = test_db().await;
+    let user = UserId::new();
+
+    let guide = create_page(&db, user, None, "Guide", Placement::Last).await.unwrap();
+    let install = create_page(&db, user, Some(guide.id), "Install", Placement::Last).await.unwrap();
+    let other = create_page(&db, user, None, "Other", Placement::Last).await.unwrap();
+    let froms = |redirects: Vec<yourdocs_core::Redirect>| redirects.into_iter().map(|r| r.from_path).collect::<Vec<_>>();
+
+    // A move redirects the page and everything under it.
+    move_page(&db, guide.id, Some(other.id), Placement::Last, OldUrls::Redirect).await.unwrap();
+    assert_eq!(froms(list_redirects(&db).await.unwrap()), ["/guide/", "/guide/install/"]);
+
+    // Moving back gives the paths to the pages again, so the redirects from them go.
+    move_page(&db, guide.id, None, Placement::Last, OldUrls::Redirect).await.unwrap();
+    assert_eq!(froms(list_redirects(&db).await.unwrap()), ["/other/guide/", "/other/guide/install/"]);
+
+    // Without a redirect (Alt-drop) nothing is recorded.
+    move_page(&db, install.id, None, Placement::Last, OldUrls::Forget).await.unwrap();
+    assert_eq!(list_redirects(&db).await.unwrap().len(), 2);
+
+    // A rename that keeps the slug changes no URL.
+    rename_page(&db, other.id, "OTHER", OldUrls::Redirect).await.unwrap();
+    assert_eq!(list_redirects(&db).await.unwrap().len(), 2);
+
+    rename_page(&db, other.id, "Elsewhere", OldUrls::Redirect).await.unwrap();
+    let after = froms(list_redirects(&db).await.unwrap());
+    assert!(after.contains(&"/other/".to_string()) && after.contains(&"/other/guide/".to_string()), "{after:?}");
   }
 }
