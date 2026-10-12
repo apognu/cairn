@@ -35,6 +35,9 @@ for (const scheme of ["light", "dark"] as const) {
         await expect(editor.locator(".feature-tabs[data-ready]")).toBeVisible();
       }
 
+      // Text drawn before the bundled fonts arrive would be measured with the fallback.
+      await Promise.all([published, editor].map((p) => p.evaluate(() => document.fonts.ready)));
+
       // Syntax coloring is added at publish only: flatten it, leaving the same text, before comparing.
       await published.evaluate(() => {
         for (const code of document.querySelectorAll("pre code")) code.replaceChildren(code.textContent ?? "");

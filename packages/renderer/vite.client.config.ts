@@ -6,6 +6,8 @@ export default defineConfig({
   build: {
     outDir: "dist",
     emptyOutDir: false,
+    // Fonts become data URLs in site.css: the publish pipeline writes that one file.
+    assetsInlineLimit: 100_000,
     lib: {
       entry: "src/client.tsx",
       name: "Client",

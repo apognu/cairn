@@ -7,6 +7,8 @@
     "build": "vite build --config vite.config.ts && vite build --config vite.client.config.ts"
   },
   "dependencies": {
+    "@fontsource-variable/hanken-grotesk": "5.2.8",
+    "@fontsource/ibm-plex-mono": "5.2.7",
     "@yourdocs/components": "workspace:*",
     "@yourdocs/sdk": "workspace:*",
     "react": "19.1.1",

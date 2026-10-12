@@ -1,5 +1,30 @@
 /* Theme tokens and the styles of the published site. The editor imports this file too, so both look the same. */
+
+/* Latin subsets only, bundled so readers never contact a font service. The client build inlines them into this file. */
+@font-face {
+  font-family: "Hanken Grotesk";
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("../node_modules/@fontsource-variable/hanken-grotesk/files/hanken-grotesk-latin-wght-normal.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-weight: 400;
+  font-display: swap;
+  src: url("../node_modules/@fontsource/ibm-plex-mono/files/ibm-plex-mono-latin-400-normal.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-weight: 500;
+  font-display: swap;
+  src: url("../node_modules/@fontsource/ibm-plex-mono/files/ibm-plex-mono-latin-500-normal.woff2") format("woff2");
+}
+
 :root {
+  --font-sans: "Hanken Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
   --bg: #ffffff;
   --bg-side: #fafaf9;
   --border: #e3e5e0;
@@ -55,11 +80,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font:
-    16px / 1.6 system-ui,
-    -apple-system,
-    "Segoe UI",
-    sans-serif;
+  font: 16px / 1.6 var(--font-sans);
 }
 
 a {
@@ -156,6 +177,11 @@ a {
   color: var(--text-body);
 }
 
+/* ProseMirror turns ligatures off while editing, so the published page does the same or the two would draw "ffi" differently. */
+.doc-content {
+  font-variant-ligatures: none;
+}
+
 /* ProseMirror edits with pre-wrap; the published page uses it too so both wrap text the same way. */
 .doc-content > div {
   white-space: pre-wrap;
@@ -198,10 +224,7 @@ a {
   border: 1px solid var(--border);
   border-radius: 4px;
   background: var(--code-bg);
-  font:
-    0.86em ui-monospace,
-    "IBM Plex Mono",
-    monospace;
+  font: 0.86em var(--font-mono);
 }
 
 .doc-content pre {
@@ -226,10 +249,7 @@ a {
   padding-bottom: 8px;
   border-bottom: 1px solid var(--border);
   color: var(--muted);
-  font:
-    12.5px ui-monospace,
-    "IBM Plex Mono",
-    monospace;
+  font: 12.5px var(--font-mono);
 }
 
 .doc-content table {
