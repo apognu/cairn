@@ -1,9 +1,14 @@
 import { expect, test } from "bun:test";
-import { buildTree, moveTarget, type Page } from "./tree";
+import { buildTree, type DropZone, dropTarget, moveTarget, type Page, pageUrls } from "./tree";
 
-const page = (id: string, parent_id: string | null = null): Page => ({
+const page = (id: string, parent_id: string | null = null, kind: Page["kind"] = "page"): Page => ({
   id,
+  kind,
   parent_id,
+  external_url: kind === "link" ? "https://example.com" : null,
+  path_override: null,
+  in_header: false,
+  header_position: null,
   position: id,
   slug: id,
   title: id,
@@ -38,4 +43,39 @@ test("button presses map to move requests", () => {
   for (const [id, action, expected] of cases) {
     expect(moveTarget(pages, id, action), `${id} ${action}`).toEqual(expected);
   }
+});
+
+test("drops map to move requests", () => {
+  // a, b(b1, b2, link), c
+  const tree = [page("a"), page("b"), page("b1", "b"), page("b2", "b"), page("l", "b", "link"), page("c")];
+  const cases: [string, string, DropZone, ReturnType<typeof dropTarget>][] = [
+    ["a", "c", "before", { parent_id: null, before: "c" }],
+    ["a", "c", "after", { parent_id: null, before: null }],
+    ["a", "c", "inside", { parent_id: "c", before: null }],
+    // Under a page that has children: first child.
+    ["a", "b", "after", { parent_id: "b", before: "b1" }],
+    ["c", "b2", "after", { parent_id: "b", before: "l" }],
+    ["c", "l", "inside", { parent_id: "b", before: null }],
+    // Nothing to do.
+    ["a", "a", "inside", null],
+    ["b", "b1", "before", null],
+    ["b", "b2", "inside", null],
+    ["a", "b", "before", null],
+    ["b1", "b2", "before", null],
+    ["b1", "b", "after", null],
+  ];
+
+  for (const [drag, over, zone, expected] of cases) {
+    expect(dropTarget(tree, drag, over, zone)).toEqual(expected);
+  }
+});
+
+test("urls follow slugs and custom paths", () => {
+  const tree = [
+    { ...page("guide") },
+    { ...page("hooks", "guide"), path_override: "/hooks/" },
+    { ...page("retries", "hooks") },
+    { ...page("home-link", null, "link") },
+  ];
+  expect(pageUrls(tree)).toEqual({ guide: "/guide", hooks: "/hooks", retries: "/hooks/retries" });
 });

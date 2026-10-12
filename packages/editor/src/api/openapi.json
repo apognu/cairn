@@ -329,6 +329,42 @@
         }
       }
     },
+    "/api/pages/{id}/backlinks": {
+      "get": {
+        "summary": "The pages that link to this one.",
+        "operationId": "getBacklinks",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/PageId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Backlinks"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/pages/{id}/draft": {
       "get": {
         "summary": "The latest saved edits of a page (an empty document if it has none yet).",
@@ -417,6 +453,98 @@
             }
           },
           "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pages/{id}/header": {
+      "put": {
+        "summary": "Shows the page in the site header, or takes it out. A promoted page with subpages gets a sidebar of its own.",
+        "operationId": "setPageHeader",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/PageId"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HeaderBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "links cannot be shown in the header",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pages/{id}/impact": {
+      "get": {
+        "summary": "What deleting a page would affect: its subpages and every page that links into them.",
+        "operationId": "getDeleteImpact",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/PageId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Impact"
+                }
+              }
+            }
+          },
+          "404": {
             "content": {
               "application/json": {
                 "schema": {
@@ -638,6 +766,111 @@
         }
       }
     },
+    "/api/redirects": {
+      "get": {
+        "summary": "Every redirect of the site, with where it leads and whether it is written.",
+        "operationId": "listRedirects",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RedirectEntry"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Adds a redirect by hand.",
+        "operationId": "addRedirect",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewRedirect"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RedirectEntry"
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "the path belongs to a page or another redirect; the message names it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "not a usable path or target, or it would make a loop",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Deletes a redirect.",
+        "operationId": "removeRedirect",
+        "parameters": [
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RedirectEntry"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/settings": {
       "get": {
         "summary": "The site name, logo and accent color.",
@@ -768,6 +1001,65 @@
         "type": "string",
         "description": "An uploaded file."
       },
+      "Backlink": {
+        "type": "object",
+        "description": "A page that links to another.",
+        "required": [
+          "source_id",
+          "source_title",
+          "target_title",
+          "kind"
+        ],
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/LinkKind"
+          },
+          "source_id": {
+            "$ref": "#/components/schemas/PageId"
+          },
+          "source_title": {
+            "type": "string"
+          },
+          "target_title": {
+            "type": "string",
+            "description": "The page it links to (one of the pages below the one asked about, for a delete)."
+          }
+        }
+      },
+      "Backlinks": {
+        "type": "object",
+        "required": [
+          "linked_from"
+        ],
+        "properties": {
+          "linked_from": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Backlink"
+            }
+          }
+        }
+      },
+      "BrokenLink": {
+        "type": "object",
+        "description": "A link from a page that stays to a page that is going away.",
+        "required": [
+          "source_id",
+          "source_title",
+          "target_title"
+        ],
+        "properties": {
+          "source_id": {
+            "$ref": "#/components/schemas/PageId"
+          },
+          "source_title": {
+            "type": "string"
+          },
+          "target_title": {
+            "type": "string"
+          }
+        }
+      },
       "Change": {
         "type": "object",
         "description": "One page with something to publish.",
@@ -818,6 +1110,7 @@
           "edited",
           "renamed",
           "moved",
+          "header",
           "deleted"
         ]
       },
@@ -904,6 +1197,56 @@
           }
         }
       },
+      "HeaderBody": {
+        "type": "object",
+        "required": [
+          "in_header"
+        ],
+        "properties": {
+          "in_header": {
+            "type": "boolean"
+          }
+        }
+      },
+      "Impact": {
+        "type": "object",
+        "required": [
+          "subpages",
+          "linked_from"
+        ],
+        "properties": {
+          "linked_from": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Backlink"
+            },
+            "description": "Pages outside the deleted ones that link to any of them."
+          },
+          "subpages": {
+            "type": "integer",
+            "description": "How many pages go with it.",
+            "minimum": 0
+          }
+        }
+      },
+      "Inactive": {
+        "type": "string",
+        "description": "Why a redirect is not written, if it is not: a page now lives at its path, its page is gone, or it is part of a loop.",
+        "enum": [
+          "page_at_path",
+          "target_gone",
+          "loop"
+        ]
+      },
+      "LinkKind": {
+        "type": "string",
+        "description": "How a page refers to another.",
+        "enum": [
+          "inline",
+          "card",
+          "prop"
+        ]
+      },
       "LostUrl": {
         "type": "object",
         "description": "A URL that works on the live site and will not after publishing.",
@@ -963,6 +1306,35 @@
           }
         }
       },
+      "NewRedirect": {
+        "type": "object",
+        "required": [
+          "from_path"
+        ],
+        "properties": {
+          "from_path": {
+            "type": "string"
+          },
+          "to_page_id": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PageId",
+                "description": "Lead to this page..."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "to_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "...or to this URL or path."
+          }
+        }
+      },
       "Page": {
         "type": "object",
         "description": "A node of the page tree.",
@@ -991,8 +1363,19 @@
             ],
             "description": "Where a link goes; always `None` for pages."
           },
+          "header_position": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Orders the header entries (fractional index, like `position`)."
+          },
           "id": {
             "$ref": "#/components/schemas/PageId"
+          },
+          "in_header": {
+            "type": "boolean",
+            "description": "Shown as an entry of the site header; a page with children also gets a sidebar of its own."
           },
           "kind": {
             "$ref": "#/components/schemas/PageKind"
@@ -1078,9 +1461,17 @@
         "type": "object",
         "required": [
           "changes",
-          "lost_urls"
+          "lost_urls",
+          "broken_links"
         ],
         "properties": {
+          "broken_links": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BrokenLink"
+            },
+            "description": "Links that would point at a deleted page: they render as plain text."
+          },
           "changes": {
             "type": "array",
             "items": {
@@ -1092,6 +1483,47 @@
             "items": {
               "$ref": "#/components/schemas/LostUrl"
             }
+          }
+        }
+      },
+      "RedirectEntry": {
+        "type": "object",
+        "description": "A redirect as the Settings page shows it.",
+        "required": [
+          "from_path",
+          "origin"
+        ],
+        "properties": {
+          "from_path": {
+            "type": "string"
+          },
+          "inactive": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Inactive",
+                "description": "Why it is not written to the site, when it is not."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "origin": {
+            "$ref": "#/components/schemas/RedirectOrigin"
+          },
+          "to": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Where it leads now, after following chains; absent when it is not written."
+          },
+          "to_page_title": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Title of the page it leads to, when it leads to a page."
           }
         }
       },

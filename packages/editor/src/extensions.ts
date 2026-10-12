@@ -7,6 +7,7 @@ import StarterKit from "@tiptap/starter-kit";
 import { featureTabs, whatsNew } from "@yourdocs/components";
 import { type AnyComponent, propsSchema } from "@yourdocs/sdk";
 import { ComponentView } from "./ComponentView";
+import { PageLink, PagePickerTriggers } from "./pageLink";
 import { SlashCommand } from "./slash";
 
 // Built-in nodes must produce the same tags and classes as `renderNode` in @yourdocs/renderer.
@@ -176,7 +177,8 @@ const blockTypes = [
 
 // While editing, a trailing paragraph keeps a place to click after a final block (a table, tabs…); read-only it would add a blank line the published page lacks.
 export const buildExtensions = (editable: boolean) => [
-  StarterKit.configure({ codeBlock: false, link: { openOnClick: false }, trailingNode: editable ? undefined : false }),
+  StarterKit.configure({ codeBlock: false, link: false, trailingNode: editable ? undefined : false }),
+  PageLink,
   CodeWithFileName,
   Table,
   TableRow,
@@ -189,5 +191,5 @@ export const buildExtensions = (editable: boolean) => [
   atomComponent(featureTabs as unknown as AnyComponent),
   atomComponent(whatsNew as unknown as AnyComponent),
   UniqueID.configure({ types: blockTypes }),
-  ...(editable ? [SlashCommand] : []),
+  ...(editable ? [SlashCommand, PagePickerTriggers] : []),
 ];

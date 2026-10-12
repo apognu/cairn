@@ -70,6 +70,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/pages/{id}/backlinks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The pages that link to this one. */
+        get: operations["getBacklinks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/pages/{id}/draft": {
         parameters: {
             query?: never;
@@ -81,6 +98,40 @@ export interface paths {
         get: operations["getDraft"];
         /** Saves a draft. Refused with 409 when `base_revision_id` is not the page's latest revision. */
         put: operations["saveDraft"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pages/{id}/header": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Shows the page in the site header, or takes it out. A promoted page with subpages gets a sidebar of its own. */
+        put: operations["setPageHeader"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pages/{id}/impact": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** What deleting a page would affect: its subpages and every page that links into them. */
+        get: operations["getDeleteImpact"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -157,6 +208,25 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/redirects": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every redirect of the site, with where it leads and whether it is written. */
+        get: operations["listRedirects"];
+        put?: never;
+        /** Adds a redirect by hand. */
+        post: operations["addRedirect"];
+        /** Deletes a redirect. */
+        delete: operations["removeRedirect"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/settings": {
         parameters: {
             query?: never;
@@ -203,6 +273,23 @@ export interface components {
         };
         /** @description An uploaded file. */
         AssetId: string;
+        /** @description A page that links to another. */
+        Backlink: {
+            kind: components["schemas"]["LinkKind"];
+            source_id: components["schemas"]["PageId"];
+            source_title: string;
+            /** @description The page it links to (one of the pages below the one asked about, for a delete). */
+            target_title: string;
+        };
+        Backlinks: {
+            linked_from: components["schemas"]["Backlink"][];
+        };
+        /** @description A link from a page that stays to a page that is going away. */
+        BrokenLink: {
+            source_id: components["schemas"]["PageId"];
+            source_title: string;
+            target_title: string;
+        };
         /** @description One page with something to publish. */
         Change: {
             kinds: components["schemas"]["ChangeKind"][];
@@ -219,7 +306,7 @@ export interface components {
          * @description What changed about a page since the live release.
          * @enum {string}
          */
-        ChangeKind: "new" | "edited" | "renamed" | "moved" | "deleted";
+        ChangeKind: "new" | "edited" | "renamed" | "moved" | "header" | "deleted";
         CreatePage: {
             before?: components["schemas"]["PageId"] | null;
             /** @description Makes the new node an external link to this URL instead of a page. */
@@ -242,6 +329,25 @@ export interface components {
             details: string[];
             message: string;
         };
+        HeaderBody: {
+            in_header: boolean;
+        };
+        Impact: {
+            /** @description Pages outside the deleted ones that link to any of them. */
+            linked_from: components["schemas"]["Backlink"][];
+            /** @description How many pages go with it. */
+            subpages: number;
+        };
+        /**
+         * @description Why a redirect is not written, if it is not: a page now lives at its path, its page is gone, or it is part of a loop.
+         * @enum {string}
+         */
+        Inactive: "page_at_path" | "target_gone" | "loop";
+        /**
+         * @description How a page refers to another.
+         * @enum {string}
+         */
+        LinkKind: "inline" | "card" | "prop";
         /** @description A URL that works on the live site and will not after publishing. */
         LostUrl: {
             path: string;
@@ -256,6 +362,12 @@ export interface components {
         NewAlias: {
             path: string;
         };
+        NewRedirect: {
+            from_path: string;
+            to_page_id?: components["schemas"]["PageId"] | null;
+            /** @description ...or to this URL or path. */
+            to_url?: string | null;
+        };
         /** @description A node of the page tree. */
         Page: {
             /** Format: date-time */
@@ -263,7 +375,11 @@ export interface components {
             created_by: components["schemas"]["UserId"];
             /** @description Where a link goes; always `None` for pages. */
             external_url?: string | null;
+            /** @description Orders the header entries (fractional index, like `position`). */
+            header_position?: string | null;
             id: components["schemas"]["PageId"];
+            /** @description Shown as an entry of the site header; a page with children also gets a sidebar of its own. */
+            in_header?: boolean;
             kind: components["schemas"]["PageKind"];
             parent_id?: components["schemas"]["PageId"] | null;
             /** @description A fixed URL that replaces the one derived from the tree (`/webhooks/`); it stays put when the page moves. */
@@ -293,8 +409,20 @@ export interface components {
             url: string;
         };
         Pending: {
+            /** @description Links that would point at a deleted page: they render as plain text. */
+            broken_links: components["schemas"]["BrokenLink"][];
             changes: components["schemas"]["Change"][];
             lost_urls: components["schemas"]["LostUrl"][];
+        };
+        /** @description A redirect as the Settings page shows it. */
+        RedirectEntry: {
+            from_path: string;
+            inactive?: components["schemas"]["Inactive"] | null;
+            origin: components["schemas"]["RedirectOrigin"];
+            /** @description Where it leads now, after following chains; absent when it is not written. */
+            to?: string | null;
+            /** @description Title of the page it leads to, when it leads to a page. */
+            to_page_title?: string | null;
         };
         /**
          * @description Why a redirect exists.
@@ -632,6 +760,35 @@ export interface operations {
             };
         };
     };
+    getBacklinks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["PageId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Backlinks"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     getDraft: {
         parameters: {
             query?: never;
@@ -702,6 +859,77 @@ export interface operations {
                 };
             };
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    setPageHeader: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["PageId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HeaderBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description links cannot be shown in the header */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    getDeleteImpact: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["PageId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Impact"];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -885,6 +1113,95 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Pending"];
+                };
+            };
+        };
+    };
+    listRedirects: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RedirectEntry"][];
+                };
+            };
+        };
+    };
+    addRedirect: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewRedirect"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RedirectEntry"][];
+                };
+            };
+            /** @description the path belongs to a page or another redirect; the message names it */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description not a usable path or target, or it would make a loop */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    removeRedirect: {
+        parameters: {
+            query: {
+                path: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RedirectEntry"][];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
