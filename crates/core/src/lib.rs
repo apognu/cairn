@@ -5,6 +5,7 @@
 #![forbid(unsafe_code)]
 
 mod asset;
+mod broadcast;
 mod document;
 mod error;
 mod id;
@@ -13,6 +14,7 @@ mod release;
 mod storage;
 
 pub use asset::Asset;
+pub use broadcast::{Broadcast, Event, LocalBroadcast};
 pub use document::{Document, Mark, Node};
 pub use error::CoreError;
 pub use id::{AssetId, PageId, ReleaseId, RevisionId, UserId};

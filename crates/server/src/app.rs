@@ -16,7 +16,8 @@ use sea_orm::DatabaseConnection;
 use serde_json::{Value, json};
 use tracing::instrument;
 use yourdocs_assets::LocalAssetStore;
-use yourdocs_publish::{Bundles, FolderTarget, PublishConfig, PublishTarget, Publisher};
+use yourdocs_core::LocalBroadcast;
+use yourdocs_publish::{Bundles, FolderTarget, PublishConfig, PublishTarget, Publisher, PublisherParts};
 use yourdocs_render::Pool;
 use yourdocs_store::SqlContentStore;
 
@@ -30,7 +31,7 @@ pub struct AppState {
   pub db: DatabaseConnection,
   pub content: SqlContentStore,
   pub assets: Arc<LocalAssetStore>,
-  pub publisher: Arc<Publisher<SqlContentStore, LocalAssetStore>>,
+  pub publisher: Arc<Publisher<SqlContentStore, LocalAssetStore, LocalBroadcast>>,
 }
 
 /// The publisher for a data directory: the pages become a site under `<data_dir>/site`.
@@ -41,7 +42,8 @@ pub(crate) fn publisher(
   pool: Arc<Pool>,
   data_dir: &std::path::Path,
   config: PublishConfig,
-) -> anyhow::Result<Arc<Publisher<SqlContentStore, LocalAssetStore>>> {
+  broadcast: LocalBroadcast,
+) -> anyhow::Result<Arc<Publisher<SqlContentStore, LocalAssetStore, LocalBroadcast>>> {
   let embedded = |name: &str| {
     Assets::get(name)
       .map(|f| f.data.into_owned())
@@ -52,15 +54,16 @@ pub(crate) fn publisher(
     site_css: embedded("site.css")?,
   };
 
-  Ok(Arc::new(Publisher::new(
+  Ok(Arc::new(Publisher::new(PublisherParts {
     db,
     content,
     assets,
     pool,
-    PublishTarget::Folder(FolderTarget::new(data_dir.to_path_buf())),
+    target: PublishTarget::Folder(FolderTarget::new(data_dir.to_path_buf())),
     bundles,
     config,
-  )))
+    broadcast,
+  })))
 }
 
 /// The OpenAPI document and the router serving the same routes, built from one definition.
@@ -207,6 +210,7 @@ pub(crate) async fn test_state_with_dir() -> (AppState, std::path::PathBuf) {
         site_url: "http://localhost:3001".into(),
         pagefind: "pagefind-not-installed".into(),
       },
+      LocalBroadcast::new(),
     )
     .unwrap(),
     pool,

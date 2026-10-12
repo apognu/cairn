@@ -3,7 +3,7 @@ use std::{collections::HashMap, sync::Arc};
 use futures_util::{StreamExt, TryStreamExt, stream};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
-use yourdocs_core::{AssetStore, ContentStore, Document, Page, PageId, Release, ReleaseStatus, RevisionId, UserId, original_key};
+use yourdocs_core::{AssetStore, Broadcast, ContentStore, Document, Event, Page, PageId, Release, ReleaseStatus, RevisionId, UserId, original_key};
 use yourdocs_render::{Pool, Shell, highlight_css};
 use yourdocs_store::{DatabaseConnection, add_release_pages, assets_by_ids, create_release, get_setting, list_pages, set_release_status};
 
@@ -30,8 +30,20 @@ pub struct PublishConfig {
 /// How many pages are in V8 at once. Below the pool's queue size, so a big site never gets "busy" from its own publish.
 const RENDER_CONCURRENCY: usize = 16;
 
+/// Everything a `Publisher` is made of.
+pub struct PublisherParts<C, A, B> {
+  pub db: DatabaseConnection,
+  pub content: C,
+  pub assets: Arc<A>,
+  pub pool: Arc<Pool>,
+  pub target: PublishTarget,
+  pub bundles: Bundles,
+  pub config: PublishConfig,
+  pub broadcast: B,
+}
+
 /// Builds releases: renders every page, assembles the files and hands them to the target.
-pub struct Publisher<C: ContentStore, A: AssetStore> {
+pub struct Publisher<C: ContentStore, A: AssetStore, B: Broadcast> {
   db: DatabaseConnection,
   content: C,
   assets: Arc<A>,
@@ -39,6 +51,7 @@ pub struct Publisher<C: ContentStore, A: AssetStore> {
   target: PublishTarget,
   bundles: Bundles,
   config: PublishConfig,
+  broadcast: B,
   // Releases are built one at a time; a second publish waits for the first.
   running: tokio::sync::Mutex<()>,
 }
@@ -49,16 +62,17 @@ struct PageSource {
   revision: RevisionId,
 }
 
-impl<C: ContentStore, A: AssetStore> Publisher<C, A> {
-  pub fn new(db: DatabaseConnection, content: C, assets: Arc<A>, pool: Arc<Pool>, target: PublishTarget, bundles: Bundles, config: PublishConfig) -> Self {
+impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
+  pub fn new(parts: PublisherParts<C, A, B>) -> Self {
     Self {
-      db,
-      content,
-      assets,
-      pool,
-      target,
-      bundles,
-      config,
+      db: parts.db,
+      content: parts.content,
+      assets: parts.assets,
+      pool: parts.pool,
+      target: parts.target,
+      bundles: parts.bundles,
+      config: parts.config,
+      broadcast: parts.broadcast,
       running: tokio::sync::Mutex::new(()),
     }
   }
@@ -85,6 +99,7 @@ impl<C: ContentStore, A: AssetStore> Publisher<C, A> {
         add_release_pages(&self.db, release.id, hashes).await?;
         set_release_status(&self.db, release.id, ReleaseStatus::Live).await?;
         tracing::info!(release_id = %release.id, pages = sources.len(), "release is live");
+        self.broadcast.send(Event::Published { release: release.id });
 
         Ok(Release {
           status: ReleaseStatus::Live,
@@ -287,14 +302,14 @@ mod tests {
   use std::{path::Path, time::Duration};
 
   use yourdocs_assets::LocalAssetStore;
-  use yourdocs_core::{Placement, UserId};
+  use yourdocs_core::{LocalBroadcast, Placement, UserId};
   use yourdocs_store::{SqlContentStore, connect, create_page};
 
   use super::*;
   use crate::FolderTarget;
 
   struct Fixture {
-    publisher: Publisher<SqlContentStore, LocalAssetStore>,
+    publisher: Publisher<SqlContentStore, LocalAssetStore, LocalBroadcast>,
     db: DatabaseConnection,
     content: SqlContentStore,
     dir: std::path::PathBuf,
@@ -309,21 +324,22 @@ mod tests {
     let pool = Arc::new(Pool::new(&script, 1, 32, Duration::from_secs(5)).unwrap());
     let content = SqlContentStore::new(db.clone());
 
-    let publisher = Publisher::new(
-      db.clone(),
-      content.clone(),
-      Arc::new(LocalAssetStore::new(&dir.join("assets")).unwrap()),
+    let publisher = Publisher::new(PublisherParts {
+      db: db.clone(),
+      content: content.clone(),
+      assets: Arc::new(LocalAssetStore::new(&dir.join("assets")).unwrap()),
       pool,
-      PublishTarget::Folder(FolderTarget::new(dir.join("out"))),
-      Bundles {
+      target: PublishTarget::Folder(FolderTarget::new(dir.join("out"))),
+      bundles: Bundles {
         client_js: b"console.log(1)".to_vec(),
         site_css: b"body{}".to_vec(),
       },
-      PublishConfig {
+      config: PublishConfig {
         site_url: "https://docs.example.com".into(),
         pagefind: std::env::var("PAGEFIND_BIN").unwrap_or_else(|_| concat!(env!("CARGO_MANIFEST_DIR"), "/../../node_modules/.bin/pagefind").into()),
       },
-    );
+      broadcast: LocalBroadcast::new(),
+    });
 
     Fixture { publisher, db, content, dir }
   }

@@ -9,6 +9,7 @@ mod editor;
 mod error;
 mod pages;
 mod publish;
+mod site;
 mod uploads;
 
 use std::{
@@ -34,9 +35,11 @@ pub fn openapi_json() -> anyhow::Result<String> {
 }
 
 /// Runs the editor for local use: no login, every request is the local user, so it only ever listens on a loopback address.
-pub async fn run_dev(bind: SocketAddr, data_dir: PathBuf) -> anyhow::Result<()> {
-  if !bind.ip().is_loopback() {
-    bail!("`dev` has no login and listens on localhost only; {bind} is not a loopback address");
+pub async fn run_dev(bind: SocketAddr, site_bind: SocketAddr, data_dir: PathBuf) -> anyhow::Result<()> {
+  for address in [bind, site_bind] {
+    if !address.ip().is_loopback() {
+      bail!("`dev` has no login and listens on localhost only; {address} is not a loopback address");
+    }
   }
 
   std::fs::create_dir_all(&data_dir).with_context(|| format!("cannot create {}", data_dir.display()))?;
@@ -60,6 +63,8 @@ pub async fn run_dev(bind: SocketAddr, data_dir: PathBuf) -> anyhow::Result<()> 
   let content = yourdocs_store::SqlContentStore::new(db.clone());
   let assets = Arc::new(yourdocs_assets::LocalAssetStore::new(&data_dir.join("assets")).context("cannot open the asset store")?);
 
+  let events = yourdocs_core::LocalBroadcast::new();
+
   let state = AppState {
     publisher: app::publisher(
       db.clone(),
@@ -71,6 +76,7 @@ pub async fn run_dev(bind: SocketAddr, data_dir: PathBuf) -> anyhow::Result<()> 
         site_url: env::var("PUBLIC_URL").unwrap_or_else(|_| "http://localhost:3001".into()).trim_end_matches('/').to_string(),
         pagefind: env::var("PAGEFIND_BIN").unwrap_or_else(|_| "pagefind".into()),
       },
+      events.clone(),
     )?,
     pool,
     docs: Arc::new(RwLock::new(docs)),
@@ -79,8 +85,12 @@ pub async fn run_dev(bind: SocketAddr, data_dir: PathBuf) -> anyhow::Result<()> 
     db,
   };
 
-  let listener = tokio::net::TcpListener::bind(bind).await.with_context(|| format!("cannot bind {bind}"))?;
-  tracing::info!(%bind, "listening");
+  let editor = tokio::net::TcpListener::bind(bind).await.with_context(|| format!("cannot bind {bind}"))?;
+  let site = tokio::net::TcpListener::bind(site_bind).await.with_context(|| format!("cannot bind {site_bind}"))?;
+  tracing::info!(editor = %bind, site = %site_bind, "listening");
 
-  axum::serve(listener, router(state)).await.context("server stopped")
+  let site_router = site::router(data_dir.join("site"), events);
+  tokio::try_join!(axum::serve(editor, router(state)), axum::serve(site, site_router)).context("server stopped")?;
+
+  Ok(())
 }

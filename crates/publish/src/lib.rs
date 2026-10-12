@@ -10,5 +10,5 @@ mod site;
 mod target;
 
 pub use error::PublishError;
-pub use publisher::{Bundles, PublishConfig, Publisher};
+pub use publisher::{Bundles, PublishConfig, Publisher, PublisherParts};
 pub use target::{Capabilities, FolderTarget, OutputFile, PublishTarget};
