@@ -16,3 +16,8 @@ jobs:
       - run: cargo test
       - run: bun run typecheck
       - run: bun run lint
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: cargo build -p yourdocs-server
+      - run: node packages/e2e/node_modules/.bin/playwright install --with-deps chromium
+      - run: bun run --filter @yourdocs/e2e test
