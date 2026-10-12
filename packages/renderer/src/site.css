@@ -46,6 +46,10 @@
   color-scheme: dark;
 }
 
+* {
+  box-sizing: border-box;
+}
+
 body {
   margin: 0;
   background: var(--bg);
@@ -78,6 +82,10 @@ a {
 .site-body {
   display: grid;
   grid-template-columns: 270px minmax(0, 1fr) 220px;
+}
+
+.site[data-embedded] .site-body {
+  grid-template-columns: minmax(0, 1fr) 220px;
 }
 
 .site-nav {
@@ -145,6 +153,12 @@ a {
 
 .doc-content {
   color: var(--text-body);
+}
+
+/* ProseMirror edits with pre-wrap; the published page uses it too so both wrap text the same way. */
+.doc-content > div {
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
 }
 
 .doc-content h1,

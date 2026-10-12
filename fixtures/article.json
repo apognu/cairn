@@ -7,7 +7,7 @@
       "attrs": { "id": "b2" },
       "content": [
         { "type": "text", "text": "Read the " },
-        { "type": "text", "text": "setup guide", "marks": [{ "type": "link", "attrs": { "pageId": "0198f2a0-7c1e-7a3b-9d4e-5b6c7d8e9f01", "anchor": null } }] },
+        { "type": "text", "text": "setup guide", "marks": [{ "type": "link", "attrs": { "href": "https://example.com/setup" } }] },
         { "type": "text", "text": " and use " },
         { "type": "text", "text": "retries", "marks": [{ "type": "bold" }, { "type": "italic" }] },
         { "type": "text", "text": " wisely, e.g. " },
@@ -25,7 +25,7 @@
     },
     {
       "type": "callout",
-      "attrs": { "id": "b6", "tone": "warning", "title": "Heads up" },
+      "attrs": { "id": "b6", "tone": "warning" },
       "content": [{ "type": "paragraph", "attrs": { "id": "b7" }, "content": [{ "type": "text", "text": "Verify signatures." }] }]
     },
     { "type": "codeBlock", "attrs": { "id": "b8", "language": "json", "fileName": "payload.json" }, "content": [{ "type": "text", "text": "{ \"ok\": true }" }] },

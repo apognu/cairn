@@ -44,7 +44,9 @@ pub async fn run_dev(bind: SocketAddr, data_dir: PathBuf) -> anyhow::Result<()> 
 
   // The spike has no storage yet: start with the fixture so a page exists to look at.
   let mut docs = HashMap::new();
-  docs.insert("demo".to_string(), serde_json::from_str(include_str!("../../../fixtures/tabs.json")).context("invalid fixture")?);
+  for (name, source) in [("demo", include_str!("../../../fixtures/tabs.json")), ("article", include_str!("../../../fixtures/article.json"))] {
+    docs.insert(name.to_string(), serde_json::from_str(source).with_context(|| format!("invalid fixture {name}"))?);
+  }
 
   let state = AppState {
     pool: Arc::new(pool),

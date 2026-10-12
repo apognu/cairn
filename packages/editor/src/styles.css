@@ -1,57 +1,8 @@
-:root {
-  --bg: #ffffff;
-  --bg-side: #fafaf9;
-  --border: #e3e5e0;
-  --border-input: #d5d8d2;
-  --text: #16181a;
-  --muted: #5b6168;
-  --accent: #0b6e4f;
-  --hover: #eef0ec;
-  --danger: #b3261e;
-  color-scheme: light;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #121416;
-    --bg-side: #17191c;
-    --border: #2a2e32;
-    --border-input: #3a3f44;
-    --text: #eceeef;
-    --muted: #9aa1a8;
-    --accent: #4cc9a0;
-    --hover: #23272b;
-    --danger: #f2b8b5;
-    color-scheme: dark;
-  }
-}
-
-:root[data-theme="dark"] {
-  --bg: #121416;
-  --bg-side: #17191c;
-  --border: #2a2e32;
-  --border-input: #3a3f44;
-  --text: #eceeef;
-  --muted: #9aa1a8;
-  --accent: #4cc9a0;
-  --hover: #23272b;
-  --danger: #f2b8b5;
-  color-scheme: dark;
-}
-
-* {
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-  background: var(--bg);
-  color: var(--text);
-  font:
-    14px / 1.4 system-ui,
-    -apple-system,
-    "Segoe UI",
-    sans-serif;
+/* The document keeps the site's 16px; only the editor's own chrome is smaller. */
+.topbar,
+.sidebar {
+  font-size: 14px;
+  line-height: 1.4;
 }
 
 button,
@@ -209,12 +160,9 @@ input {
 }
 
 .canvas {
-  padding: 44px 96px;
   overflow-y: auto;
 }
 
-.canvas h1 {
-  margin: 0 0 8px;
-  font-size: 40px;
-  letter-spacing: -0.025em;
+.ProseMirror:focus {
+  outline: none;
 }

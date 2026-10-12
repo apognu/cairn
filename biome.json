@@ -5,7 +5,7 @@
     "lineWidth": 120
   },
   "files": {
-    "includes": ["packages/**", "*.json", "!**/dist", "!**/node_modules", "!**/src/api"]
+    "includes": ["packages/**", "*.json", "!**/dist", "!**/node_modules", "!**/src/api", "!**/test-results"]
   },
   "linter": {
     "rules": {

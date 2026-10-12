@@ -20,8 +20,18 @@ export function renderNode(node: DocNode, ctx: NodeContext, key: number): ReactN
   switch (node.type) {
     case "doc":
       return <div key={key}>{children}</div>;
-    case "paragraph":
-      return <p key={key}>{children}</p>;
+    case "paragraph": {
+      // ProseMirror shows an empty paragraph as one blank line, and a line ending in a hard break as a new line, by adding a
+      // trailing <br>; the published page must too, since a lone trailing <br> collapses.
+      const last = node.content?.at(-1);
+      const trailing = !last || last.type === "hardBreak";
+      return (
+        <p key={key}>
+          {children}
+          {trailing ? <br /> : null}
+        </p>
+      );
+    }
     case "heading": {
       const Tag = `h${Math.min(Math.max(Number(attrs.level ?? 1), 1), 6)}` as "h1";
       return (
@@ -81,11 +91,7 @@ export function renderNode(node: DocNode, ctx: NodeContext, key: number): ReactN
     }
     case "callout":
       return (
-        <Callout
-          key={key}
-          tone={attrs.tone ? String(attrs.tone) : undefined}
-          title={attrs.title ? String(attrs.title) : undefined}
-        >
+        <Callout key={key} tone={attrs.tone ? String(attrs.tone) : undefined}>
           {children}
         </Callout>
       );
@@ -152,7 +158,7 @@ function renderTabs(node: DocNode, ctx: NodeContext, key: number): ReactNode {
     <Tabs key={key} labels={labels}>
       {panels.map((p, i) => (
         // biome-ignore lint/suspicious/noArrayIndexKey: panels are positional
-        <div key={i}>{renderNodes(p.content, ctx)}</div>
+        <Fragment key={i}>{renderNodes(p.content, ctx)}</Fragment>
       ))}
     </Tabs>
   );

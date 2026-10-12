@@ -10,7 +10,7 @@ use axum::{
   http::{HeaderValue, Request, StatusCode, header},
   middleware::{self, Next},
   response::{Html, IntoResponse, Response},
-  routing::{get, post},
+  routing::get,
 };
 use sea_orm::DatabaseConnection;
 use serde_json::{Value, json};
@@ -38,7 +38,7 @@ pub fn api() -> (Router<AppState>, utoipa::openapi::OpenApi) {
 
 pub fn router(state: AppState) -> Router {
   Router::new()
-    .route("/api/docs/{id}", post(save_doc))
+    .route("/api/docs/{id}", get(load_doc).post(save_doc))
     .route("/docs/{id}", get(show_doc))
     .route("/docs/{id}/client", get(show_doc_client_only))
     .route("/assets/client.js", get(client_js))
@@ -70,6 +70,11 @@ async fn save_doc(State(state): State<AppState>, Path(id): Path<String>, Json(do
   state.docs.write().map_err(|_| poisoned())?.insert(id, doc);
 
   Ok(StatusCode::NO_CONTENT)
+}
+
+#[instrument(skip_all, fields(id = %id))]
+async fn load_doc(State(state): State<AppState>, Path(id): Path<String>) -> Result<Json<Value>, AppError> {
+  state.docs.read().map_err(|_| poisoned())?.get(&id).cloned().map(Json).ok_or(AppError::NotFound)
 }
 
 #[instrument(skip_all, fields(id = %id))]
