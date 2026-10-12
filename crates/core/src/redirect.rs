@@ -49,24 +49,56 @@ pub struct Redirect {
   pub created_at: Timestamp,
 }
 
-/// The redirects a build writes, as `(from, to)` pairs sorted by `from`. A redirect is dropped when a page now lives at its path
-/// (the page wins) or when its page is gone; redirects to pages follow the page to wherever it lives now.
-pub fn effective_redirects(redirects: &[Redirect], pages: &[Page]) -> Vec<(String, String)> {
+/// Why a redirect is not written, if it is not: a page now lives at its path, its page is gone, or it is part of a loop.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[serde(rename_all = "snake_case")]
+pub enum Inactive {
+  PageAtPath,
+  TargetGone,
+  Loop,
+}
+
+/// Where `redirect` leads on the built site, or why nowhere. Chains are followed to their end: with /a/ → /b/ and /b/ → /c/,
+/// /a/ goes straight to /c/, so a visitor is redirected once.
+pub fn resolve_redirect(redirect: &Redirect, redirects: &[Redirect], pages: &[Page]) -> Result<String, Inactive> {
   let urls = page_urls(pages);
   let taken: HashSet<&str> = urls.values().map(String::as_str).collect();
 
+  let first_hop = |r: &Redirect| match (&r.to_page_id, &r.to_url) {
+    (Some(id), _) => urls.get(id).cloned().ok_or(Inactive::TargetGone),
+    (None, Some(url)) => Ok(url.clone()),
+    (None, None) => Err(Inactive::TargetGone),
+  };
+
+  if taken.contains(redirect.from_path.as_str()) {
+    return Err(Inactive::PageAtPath);
+  }
+
+  let mut at = first_hop(redirect)?;
+  // A bound longer than any sane chain also catches loops.
+  for _ in 0..16 {
+    // A page at the path ends the chain, whatever redirect also starts there.
+    if taken.contains(at.as_str()) {
+      return Ok(at);
+    }
+    match redirects.iter().find(|r| r.from_path == at) {
+      Some(next) if next.from_path == redirect.from_path => return Err(Inactive::Loop),
+      Some(next) => at = first_hop(next)?,
+      None => return Ok(at),
+    }
+  }
+
+  Err(Inactive::Loop)
+}
+
+/// The redirects a build writes, as `(from, to)` pairs sorted by `from`, each pointing straight at its final destination.
+/// Redirects to pages follow the page to wherever it lives now; the ones that cannot be resolved are left out.
+pub fn effective_redirects(redirects: &[Redirect], pages: &[Page]) -> Vec<(String, String)> {
   let mut rules: Vec<(String, String)> = redirects
     .iter()
-    .filter(|r| !taken.contains(r.from_path.as_str()))
-    .filter_map(|r| {
-      let to = match (&r.to_page_id, &r.to_url) {
-        (Some(id), _) => urls.get(id)?.clone(),
-        (None, Some(url)) => url.clone(),
-        (None, None) => return None,
-      };
-
-      (to != r.from_path).then(|| (r.from_path.clone(), to))
-    })
+    .filter_map(|r| resolve_redirect(r, redirects, pages).ok().map(|to| (r.from_path.clone(), to)))
+    .filter(|(from, to)| from != to)
     .collect();
 
   rules.sort();
@@ -239,6 +271,32 @@ mod tests {
     let rules = effective_redirects(&[redirect("/a/", &a), redirect("/old/", &a)], std::slice::from_ref(&a));
 
     assert_eq!(rules, [("/old/".to_string(), "/a/".to_string())]);
+  }
+
+  #[test]
+  fn chains_are_collapsed_and_loops_dropped() {
+    let c = page("c", None);
+    let to_url = |from: &str, to: &str| Redirect {
+      from_path: from.into(),
+      to_page_id: None,
+      to_url: Some(to.into()),
+      origin: RedirectOrigin::Manual,
+      created_at: Timestamp::UNIX_EPOCH,
+    };
+
+    // /a/ -> /b/ -> /c/ (a page) becomes /a/ -> /c/ directly.
+    let chain = [to_url("/a/", "/b/"), to_url("/b/", "/c/")];
+    let rules = effective_redirects(&chain, std::slice::from_ref(&c));
+    assert_eq!(rules, [("/a/".to_string(), "/c/".to_string()), ("/b/".to_string(), "/c/".to_string())]);
+
+    // Through a redirect to a page that moved.
+    let moved = [to_url("/a/", "/b/"), redirect("/b/", &c)];
+    assert_eq!(effective_redirects(&moved, std::slice::from_ref(&c))[0], ("/a/".to_string(), "/c/".to_string()));
+
+    // A loop leads nowhere, so neither end is written.
+    let looped = [to_url("/x/", "/y/"), to_url("/y/", "/x/")];
+    assert!(effective_redirects(&looped, std::slice::from_ref(&c)).is_empty());
+    assert_eq!(resolve_redirect(&looped[0], &looped, std::slice::from_ref(&c)), Err(Inactive::Loop));
   }
 
   #[test]

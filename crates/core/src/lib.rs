@@ -21,7 +21,7 @@ pub use document::{Document, Mark, Node};
 pub use error::CoreError;
 pub use id::{AssetId, PageId, ReleaseId, RevisionId, UserId};
 pub use page::{Page, PageKind, Placement, page_urls, slugify};
-pub use redirect::{Change, ChangeKind, Live, LostUrl, OldUrls, Pending, Redirect, RedirectOrigin, effective_redirects, pending_changes};
+pub use redirect::{Change, ChangeKind, Inactive, Live, LostUrl, OldUrls, Pending, Redirect, RedirectOrigin, effective_redirects, pending_changes, resolve_redirect};
 pub use release::{Release, ReleaseStatus};
 pub use settings::Settings;
 pub use storage::{AssetStore, ContentStore, Draft, Revision, original_key};

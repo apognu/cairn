@@ -46,6 +46,26 @@ pub(crate) async fn redirect_to_page(db: &DatabaseConnection, from: &str, page: 
   Ok(())
 }
 
+/// Records a redirect to a fixed URL; one from the same path is replaced.
+pub(crate) async fn redirect_to_url(db: &DatabaseConnection, from: &str, url: &str) -> Result<(), StoreError> {
+  redirect::Entity::insert(redirect::ActiveModel {
+    from_path: Set(from.to_string()),
+    to_page_id: Set(None),
+    to_url: Set(Some(url.to_string())),
+    source: Set(RedirectOrigin::Manual.as_str().into()),
+    created_at: Set(Timestamp::now().to_string()),
+  })
+  .on_conflict(
+    OnConflict::column(redirect::Column::FromPath)
+      .update_columns([redirect::Column::ToPageId, redirect::Column::ToUrl, redirect::Column::Source, redirect::Column::CreatedAt])
+      .to_owned(),
+  )
+  .exec(db)
+  .await?;
+
+  Ok(())
+}
+
 /// Drops the redirects that start at paths a page now occupies, so a page moved back never redirects to itself.
 pub(crate) async fn forget_redirects_from(db: &DatabaseConnection, paths: Vec<String>) -> Result<(), StoreError> {
   if !paths.is_empty() {

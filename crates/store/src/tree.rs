@@ -183,7 +183,7 @@ fn check_parent(pages: &[Page], parent: Option<PageId>) -> Result<(), StoreError
 }
 
 /// Links go to absolute http(s) URLs; anything else (`javascript:`, relative paths) is refused.
-fn check_url(url: &str) -> Result<String, StoreError> {
+pub(crate) fn check_url(url: &str) -> Result<String, StoreError> {
   let url = url.trim();
   let rest = url.strip_prefix("https://").or_else(|| url.strip_prefix("http://"));
 

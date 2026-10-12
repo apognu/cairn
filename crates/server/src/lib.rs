@@ -9,6 +9,7 @@ mod editor;
 mod error;
 mod pages;
 mod publish;
+mod redirects;
 mod settings;
 mod site;
 mod uploads;

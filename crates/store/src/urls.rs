@@ -2,13 +2,13 @@
 
 use jiff::Timestamp;
 use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
-use yourdocs_core::{OldUrls, Page, PageId, PageKind, Redirect, RedirectOrigin, page_urls};
+use yourdocs_core::{Inactive, OldUrls, Page, PageId, PageKind, Redirect, RedirectOrigin, page_urls, resolve_redirect};
 
 use crate::{
   StoreError,
   entity::{page, redirect},
-  redirects::{list_redirects, redirect_to_page},
-  tree::{list_pages, settle_urls},
+  redirects::{list_redirects, redirect_to_page, redirect_to_url},
+  tree::{check_url, list_pages, settle_urls},
 };
 
 /// The first path segments the published site uses for its own files.
@@ -132,6 +132,54 @@ pub async fn add_alias(db: &DatabaseConnection, id: PageId, path: &str) -> Resul
   redirect_to_page(db, &path, id, RedirectOrigin::Manual).await
 }
 
+/// Where a hand-made redirect leads.
+pub enum RedirectTarget {
+  Page(PageId),
+  /// An absolute http(s) URL, or a path on this site.
+  Url(String),
+}
+
+/// Adds a redirect from `from` that is not tied to a page's own URL changes: to a page or to a URL.
+pub async fn add_redirect(db: &DatabaseConnection, from: &str, to: RedirectTarget) -> Result<(), StoreError> {
+  let pages = list_pages(db).await?;
+  let redirects = list_redirects(db).await?;
+  let from = normalize_path(from)?;
+
+  let (to_page_id, to_url) = match to {
+    RedirectTarget::Page(id) => (Some(page_for_update(&pages, id)?.id), None),
+    RedirectTarget::Url(url) if url.trim().starts_with('/') => (None, Some(normalize_path(&url)?)),
+    RedirectTarget::Url(url) => (None, Some(check_url(&url)?)),
+  };
+
+  check_free(&pages, &redirects, &from, to_page_id.as_slice())?;
+
+  let candidate = Redirect {
+    from_path: from.clone(),
+    to_page_id,
+    to_url: to_url.clone(),
+    origin: RedirectOrigin::Manual,
+    created_at: Timestamp::now(),
+  };
+  let mut all = redirects;
+  all.push(candidate.clone());
+  if resolve_redirect(&candidate, &all, &pages) == Err(Inactive::Loop) {
+    return Err(StoreError::Invalid(format!("{from} would make a redirect loop")));
+  }
+
+  match (to_page_id, to_url) {
+    (Some(id), _) => redirect_to_page(db, &from, id, RedirectOrigin::Manual).await,
+    (None, Some(url)) => redirect_to_url(db, &from, &url).await,
+    (None, None) => Ok(()),
+  }
+}
+
+/// Deletes a redirect, whoever it points to.
+pub async fn remove_redirect(db: &DatabaseConnection, path: &str) -> Result<(), StoreError> {
+  let result = redirect::Entity::delete_many().filter(redirect::Column::FromPath.eq(path)).exec(db).await?;
+
+  if result.rows_affected == 0 { Err(StoreError::NotFound) } else { Ok(()) }
+}
+
 pub async fn remove_alias(db: &DatabaseConnection, id: PageId, path: &str) -> Result<(), StoreError> {
   let result = redirect::Entity::delete_many()
     .filter(redirect::Column::FromPath.eq(path))
@@ -189,6 +237,29 @@ mod tests {
     add_alias(&db, rollbacks.id, "/undo").await.unwrap();
     remove_alias(&db, rollbacks.id, "/undo/").await.unwrap();
     add_alias(&db, webhooks.id, "/undo").await.unwrap();
+  }
+
+  #[tokio::test]
+  async fn manual_redirects_refuse_clashes_and_loops() {
+    let db = test_db().await;
+    let user = UserId::new();
+    let docs = create_page(&db, user, None, "Docs", Placement::Last).await.unwrap();
+
+    add_redirect(&db, "/old", RedirectTarget::Page(docs.id)).await.unwrap();
+    add_redirect(&db, "/ext", RedirectTarget::Url("https://example.com/x".into())).await.unwrap();
+
+    // Taken by a page, or by a redirect to another place.
+    for (from, to) in [("/docs", "https://example.com"), ("/ext", "/docs")] {
+      assert!(add_redirect(&db, from, RedirectTarget::Url(to.into())).await.is_err(), "{from}");
+    }
+
+    // The second half of a loop is refused.
+    add_redirect(&db, "/loop-b", RedirectTarget::Url("/loop-a".into())).await.unwrap();
+    let err = add_redirect(&db, "/loop-a", RedirectTarget::Url("/loop-b".into())).await.unwrap_err();
+    assert!(matches!(err, StoreError::Invalid(m) if m.contains("loop")));
+
+    remove_redirect(&db, "/ext/").await.unwrap();
+    assert!(matches!(remove_redirect(&db, "/ext/").await, Err(StoreError::NotFound)));
   }
 
   #[tokio::test]
