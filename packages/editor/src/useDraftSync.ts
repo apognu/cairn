@@ -1,7 +1,9 @@
+import { useQueryClient } from "@tanstack/react-query";
 import type { DocNode } from "@yourdocs/renderer";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "./api/client";
 import { type LocalDraft, writeLocal } from "./localDrafts";
+import { PENDING } from "./queries";
 import { contentSignature } from "./signature";
 
 export type SaveStatus = "saved" | "dirty" | "saving" | "conflict" | "error";
@@ -22,6 +24,7 @@ const RETRY_DELAY = 5000;
  * Saves carry the revision they are based on; a refused save (409) stops the sync until the user chooses what to keep.
  */
 export function useDraftSync(pageId: string, initial: InitialDraft) {
+  const queryClient = useQueryClient();
   const [status, setStatus] = useState<SaveStatus>(initial.dirty ? "dirty" : "saved");
   const sync = useRef({
     base: initial.base,
@@ -53,6 +56,7 @@ export function useDraftSync(pageId: string, initial: InitialDraft) {
       const caughtUp = contentSignature(s.doc) === s.savedSignature;
       await writeLocal({ pageId, doc: s.doc, base: s.base, dirty: !caughtUp });
 
+      void queryClient.invalidateQueries({ queryKey: PENDING });
       if (caughtUp) setStatus("saved");
       else {
         setStatus("dirty");
@@ -65,7 +69,7 @@ export function useDraftSync(pageId: string, initial: InitialDraft) {
       setStatus("error");
       s.serverTimer = window.setTimeout(() => void flush(), RETRY_DELAY);
     }
-  }, [pageId]);
+  }, [pageId, queryClient]);
 
   const onChange = useCallback(
     (doc: DocNode) => {

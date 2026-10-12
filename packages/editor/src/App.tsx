@@ -3,8 +3,10 @@ import { useCallback, useEffect, useState } from "react";
 import { FixtureView } from "./FixtureView";
 import { Icon } from "./icons";
 import { PageEditor } from "./PageEditor";
-import { usePages, usePublish, useSettings } from "./queries";
-import { SettingsDialog } from "./SettingsDialog";
+import { PageSettings } from "./PageSettings";
+import { PublishDialog } from "./PublishDialog";
+import { usePages, usePending, useSettings } from "./queries";
+import { type SettingsSection, SettingsView, sectionTitle } from "./SettingsView";
 import { Sidebar } from "./Sidebar";
 import type { Page } from "./tree";
 import type { SaveStatus } from "./useDraftSync";
@@ -43,9 +45,16 @@ function Editor() {
   // The selected page lives in the URL, so a reload comes back to it.
   const [selected, setSelected] = useState(() => new URLSearchParams(window.location.hash.slice(1)).get("page"));
   const [status, setStatus] = useState<SaveStatus | null>(null);
-  const publish = usePublish();
+  const pending = usePending();
+  const [published, setPublished] = useState<number | null>(null);
+  const [showPublish, setShowPublish] = useState(false);
+  const [showPageSettings, setShowPageSettings] = useState(false);
   const settings = useSettings();
-  const [showSettings, setShowSettings] = useState(false);
+  // Settings replace the page tree and the canvas; the section lives in the URL like the selected page does.
+  const [section, setSection] = useState<SettingsSection | null>(() => {
+    const value = new URLSearchParams(window.location.hash.slice(1)).get("settings");
+    return value === "redirects" ? "redirects" : value ? "site" : null;
+  });
 
   // Authors see the site's accent color while they write.
   useEffect(() => {
@@ -60,6 +69,15 @@ function Editor() {
     setSelected(id);
   }, []);
 
+  const openSettings = (next: SettingsSection | null) => {
+    window.history.replaceState(
+      null,
+      "",
+      next ? `#settings=${next}` : selected ? `#page=${selected}` : window.location.pathname,
+    );
+    setSection(next);
+  };
+
   return (
     <div className="shell">
       <header className="topbar">
@@ -67,7 +85,9 @@ function Editor() {
           <Icon name="logo" size={20} />
           <strong>{settings.data?.site_name ?? "Documentation"}</strong>
         </span>
-        <span className="crumbs">{trail.length > 0 ? trail.join(" / ") : "No page selected"}</span>
+        <span className="crumbs">
+          {section ? `Settings / ${sectionTitle[section]}` : trail.length > 0 ? trail.join(" / ") : "No page selected"}
+        </span>
         {status && (
           <output className="save-status" data-status={status}>
             {status === "saved" && <Icon name="check" size={13} />}
@@ -75,31 +95,45 @@ function Editor() {
           </output>
         )}
         <div className="topbar-actions">
-          {publish.isError && (
-            <span role="alert" className="error-text">
-              {publish.error.message}
-            </span>
-          )}
-          {publish.isSuccess && <span className="muted">Published {publish.data.page_count} pages</span>}
+          {published !== null && <span className="muted">Published {published} pages</span>}
           <ThemeToggle />
-          <button type="button" onClick={() => setShowSettings(true)}>
+          {!section && current?.kind === "page" && (
+            <button type="button" onClick={() => setShowPageSettings(true)}>
+              Page settings
+            </button>
+          )}
+          <button type="button" onClick={() => openSettings("site")}>
             Settings
           </button>
-          <button type="button" className="primary" disabled={publish.isPending} onClick={() => publish.mutate()}>
-            {publish.isPending ? "Publishing…" : "Publish"}
+          <button
+            type="button"
+            className="primary"
+            onClick={() => {
+              setPublished(null);
+              setShowPublish(true);
+            }}
+          >
+            {pending.data && pending.data.changes.length > 0 ? `Publish · ${pending.data.changes.length}` : "Publish"}
           </button>
         </div>
       </header>
-      <Sidebar pages={pages.data ?? []} loading={pages.isPending} selected={selected} onSelect={select} />
-      <main className="canvas">
-        {current ? (
-          <PageEditor key={current.id} page={current} onStatus={setStatus} panelHost={panelHost} />
-        ) : (
-          <p className="muted pad">Create a page in the sidebar to get started.</p>
-        )}
-      </main>
-      <aside className="props" aria-label="Component settings" ref={setPanelHost} />
-      {showSettings && <SettingsDialog onClose={() => setShowSettings(false)} />}
+      {section ? (
+        <SettingsView section={section} onSection={openSettings} onClose={() => openSettings(null)} />
+      ) : (
+        <>
+          <Sidebar pages={pages.data ?? []} loading={pages.isPending} selected={selected} onSelect={select} />
+          <main className="canvas">
+            {current ? (
+              <PageEditor key={current.id} page={current} onStatus={setStatus} panelHost={panelHost} />
+            ) : (
+              <p className="muted pad">Create a page in the sidebar to get started.</p>
+            )}
+          </main>
+          <aside className="props" aria-label="Component settings" ref={setPanelHost} />
+        </>
+      )}
+      {showPageSettings && current && <PageSettings page={current} onClose={() => setShowPageSettings(false)} />}
+      {showPublish && <PublishDialog onClose={() => setShowPublish(false)} onPublished={setPublished} />}
     </div>
   );
 }

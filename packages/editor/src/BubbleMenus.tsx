@@ -1,7 +1,8 @@
 import type { Editor } from "@tiptap/core";
 import { useEditorState } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
-import { useId, useState } from "react";
+import { useId } from "react";
+import { PICKER_EVENT, type PickerRequest } from "./pageLink";
 
 const languages = ["bash", "css", "html", "javascript", "json", "python", "rust", "sql", "toml", "typescript", "yaml"];
 
@@ -66,7 +67,6 @@ function ImageTools({ editor }: { editor: Editor }) {
 }
 
 function TextTools({ editor }: { editor: Editor }) {
-  const [linking, setLinking] = useState(false);
   const active = useEditorState({
     editor,
     selector: ({ editor: e }) => ({
@@ -77,32 +77,6 @@ function TextTools({ editor }: { editor: Editor }) {
       link: e.isActive("link"),
     }),
   });
-
-  if (linking) {
-    return (
-      <form
-        className="bubble"
-        onSubmit={(e) => {
-          e.preventDefault();
-          const href = String(new FormData(e.currentTarget).get("href") ?? "").trim();
-          const chain = editor.chain().focus().extendMarkRange("link");
-          (href ? chain.setLink({ href }) : chain.unsetLink()).run();
-          setLinking(false);
-        }}
-      >
-        <input
-          name="href"
-          aria-label="Link address"
-          placeholder="https://…"
-          defaultValue={String(editor.getAttributes("link").href ?? "")}
-        />
-        <button type="submit">Apply</button>
-        <button type="button" onClick={() => setLinking(false)}>
-          Cancel
-        </button>
-      </form>
-    );
-  }
 
   const tool = (label: string, glyph: string, on: boolean, run: () => void) => (
     <button type="button" aria-label={label} aria-pressed={on} onClick={run} onMouseDown={(e) => e.preventDefault()}>
@@ -116,7 +90,12 @@ function TextTools({ editor }: { editor: Editor }) {
       {tool("Italic", "I", active.italic, () => editor.chain().focus().toggleItalic().run())}
       {tool("Strikethrough", "S", active.strike, () => editor.chain().focus().toggleStrike().run())}
       {tool("Code", "</>", active.code, () => editor.chain().focus().toggleCode().run())}
-      {tool("Link", "🔗", active.link, () => setLinking(true))}
+      {tool("Link", "🔗", active.link, () => {
+        const { from, to } = editor.state.selection;
+        editor.view.dom.dispatchEvent(
+          new CustomEvent<PickerRequest>(PICKER_EVENT, { detail: { mode: "selection", from, to } }),
+        );
+      })}
     </div>
   );
 }

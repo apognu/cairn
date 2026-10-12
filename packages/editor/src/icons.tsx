@@ -16,6 +16,7 @@ const paths = {
   image: "M4 5h16v14H4zM4 16l5-5 4 4 3-3 4 4M9 9h.01",
   table: "M4 5h16v14H4zM4 11h16M4 15h16M10 5v14",
   divider: "M4 12h16",
+  move: "M5 9l-3 3 3 3M19 9l3 3-3 3M2 12h20",
 } as const;
 
 export type IconName = keyof typeof paths;

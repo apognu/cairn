@@ -1,5 +1,6 @@
 import type { JsonSchema } from "@yourdocs/sdk";
-import { useId } from "react";
+import { useId, useState } from "react";
+import { PagePicker } from "./PagePicker";
 import { usePages } from "./queries";
 
 type Values = Record<string, unknown>;
@@ -92,7 +93,7 @@ function Field({
     <div className="form-field">
       <label htmlFor={id}>{label}</label>
       {schema["x-field"] === "page" ? (
-        <PageSelect id={id} value={String(value ?? "")} onChange={(next) => onChange(next || undefined)} />
+        <PageField id={id} value={String(value ?? "")} onChange={(next) => onChange(next || undefined)} />
       ) : schema["x-field"] === "date" ? (
         <input
           id={id}
@@ -211,18 +212,33 @@ function summaryOf(entry: unknown): string | undefined {
   return typeof named === "string" && named ? named : undefined;
 }
 
-/** Until the page picker of M2, a plain list of pages: titles for people, IDs in the document. */
-function PageSelect({ id, value, onChange }: { id: string; value: string; onChange: (next: string) => void }) {
+/** A component's page field: the chosen page's title and a button that opens the page picker. */
+function PageField({ id, value, onChange }: { id: string; value: string; onChange: (next: string) => void }) {
   const pages = usePages();
+  const [open, setOpen] = useState(false);
+  const chosen = pages.data?.find((p) => p.id === value);
 
   return (
-    <select id={id} value={value} onChange={(e) => onChange(e.target.value)}>
-      <option value="">No link</option>
-      {pages.data?.map((page) => (
-        <option key={page.id} value={page.id}>
-          {page.title}
-        </option>
-      ))}
-    </select>
+    <div className="page-field">
+      <button type="button" id={id} className="page-field-button" aria-haspopup="dialog" onClick={() => setOpen(true)}>
+        {chosen ? chosen.title : <span className="muted">No link</span>}
+        <span className="link-button">{chosen ? "Change" : "Choose"}</span>
+      </button>
+      {chosen && (
+        <button type="button" className="icon" aria-label="Remove link" onClick={() => onChange("")}>
+          ×
+        </button>
+      )}
+      {open && (
+        <PagePicker
+          style={{ position: "absolute", left: 0, right: 0, top: "100%", width: "auto" }}
+          onClose={() => setOpen(false)}
+          onPage={(page) => {
+            onChange(page.id);
+            setOpen(false);
+          }}
+        />
+      )}
+    </div>
   );
 }
