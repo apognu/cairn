@@ -216,6 +216,7 @@ mod tests {
       slug: slug.into(),
       title: slug.into(),
       external_url: None,
+      path_override: None,
       created_by: UserId::new(),
       created_at: Timestamp::UNIX_EPOCH,
       updated_at: Timestamp::UNIX_EPOCH,

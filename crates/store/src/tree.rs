@@ -43,6 +43,7 @@ async fn insert(db: &DatabaseConnection, user: UserId, parent: Option<PageId>, t
     slug: Set(slug),
     title: Set(title.to_string()),
     external_url: Set(url),
+    path_override: Set(None),
     created_by: Set(user.as_uuid()),
     created_at: Set(now.clone()),
     updated_at: Set(now),
@@ -151,7 +152,7 @@ pub async fn delete_page(db: &DatabaseConnection, id: PageId) -> Result<Vec<Page
 
 /// After a move or rename: pages whose URL changed get a redirect from the old one (unless `old` says to forget it),
 /// and redirects that start at a path a page now occupies are dropped. `before` is the tree as it was.
-async fn settle_urls(db: &DatabaseConnection, before: &[Page], old: OldUrls, origin: RedirectOrigin) -> Result<(), StoreError> {
+pub(crate) async fn settle_urls(db: &DatabaseConnection, before: &[Page], old: OldUrls, origin: RedirectOrigin) -> Result<(), StoreError> {
   let after = list_pages(db).await?;
   let (urls_before, urls_after) = (page_urls(before), page_urls(&after));
 
@@ -260,6 +261,7 @@ fn into_page(row: page::Model) -> Result<Page, StoreError> {
     slug: row.slug,
     title: row.title,
     external_url: row.external_url,
+    path_override: row.path_override,
     created_by: row.created_by.into(),
     created_at: parse(&row.created_at)?,
     updated_at: parse(&row.updated_at)?,
