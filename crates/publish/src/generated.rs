@@ -33,9 +33,13 @@ pub(crate) fn llms_txt(site_name: &str, site_url: &str, pages: &[(&Page, &str)])
   format!("# {site_name}\n\n## Pages\n\n{links}")
 }
 
-/// Redirect rules in the `_redirects` format of Cloudflare and Netlify. For now only the site root, which has no page of its own.
-pub(crate) fn redirects(first_page_url: Option<&str>) -> String {
-  first_page_url.map(|url| format!("/ {url} 302\n")).unwrap_or_default()
+/// Redirect rules in the `_redirects` format of Cloudflare and Netlify: the site root, which has no page of its own,
+/// then each `(from, to)` pair as a permanent redirect.
+pub(crate) fn redirects(first_page_url: Option<&str>, rules: &[(String, String)]) -> String {
+  let root = first_page_url.map(|url| format!("/ {url} 302\n")).unwrap_or_default();
+  let rest: String = rules.iter().map(|(from, to)| format!("{from} {to} 301\n")).collect();
+
+  root + &rest
 }
 
 #[cfg(test)]
@@ -69,7 +73,7 @@ mod tests {
     assert!(sitemap.contains("<loc>https://docs.example.com/guide/</loc><lastmod>1970-01-01</lastmod>"), "{sitemap}");
     assert!(robots("https://docs.example.com").ends_with("Sitemap: https://docs.example.com/sitemap.xml\n"));
     assert_eq!(llms_txt("Docs", "https://d.io", &pages), "# Docs\n\n## Pages\n\n- [Guide v2](https://d.io/guide/)\n");
-    assert_eq!(redirects(Some("/guide/")), "/ /guide/ 302\n");
-    assert_eq!(redirects(None), "");
+    assert_eq!(redirects(Some("/guide/"), &[]), "/ /guide/ 302\n");
+    assert_eq!(redirects(None, &[("/old/".into(), "/guide/".into())]), "/old/ /guide/ 301\n");
   }
 }

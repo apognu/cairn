@@ -8,7 +8,7 @@ use tracing::instrument;
 use utoipa::ToSchema;
 use utoipa_axum::{router::OpenApiRouter, routes};
 use yourdocs_auth::CurrentUser;
-use yourdocs_core::{Page, PageId, Placement};
+use yourdocs_core::{OldUrls, Page, PageId, Placement};
 
 use crate::{
   app::AppState,
@@ -32,6 +32,8 @@ struct CreatePage {
 #[derive(Deserialize, ToSchema)]
 struct RenamePage {
   title: String,
+  /// Keep the old URL working with a redirect. Defaults to true.
+  redirect: Option<bool>,
   /// The new target of a link; refused for pages.
   external_url: Option<String>,
 }
@@ -40,6 +42,12 @@ struct RenamePage {
 struct MovePage {
   parent_id: Option<PageId>,
   before: Option<PageId>,
+  /// Keep the old URLs of the page and its subtree working with redirects. Defaults to true.
+  redirect: Option<bool>,
+}
+
+fn old_urls(redirect: Option<bool>) -> OldUrls {
+  if redirect.unwrap_or(true) { OldUrls::Redirect } else { OldUrls::Forget }
 }
 
 fn placement(before: Option<PageId>) -> Placement {
@@ -82,7 +90,7 @@ async fn create(State(state): State<AppState>, CurrentUser(user): CurrentUser, J
 async fn rename(State(state): State<AppState>, Path(id): Path<PageId>, Json(body): Json<RenamePage>) -> Result<Json<Page>, AppError> {
   let page = match &body.external_url {
     Some(url) => yourdocs_store::edit_link(&state.db, id, &body.title, url).await?,
-    None => yourdocs_store::rename_page(&state.db, id, &body.title).await?,
+    None => yourdocs_store::rename_page(&state.db, id, &body.title, old_urls(body.redirect)).await?,
   };
 
   Ok(Json(page))
@@ -97,7 +105,7 @@ async fn rename(State(state): State<AppState>, Path(id): Path<PageId>, Json(body
 ))]
 #[instrument(skip_all, fields(page_id = %id))]
 async fn move_to(State(state): State<AppState>, Path(id): Path<PageId>, Json(body): Json<MovePage>) -> Result<Json<Page>, AppError> {
-  Ok(Json(yourdocs_store::move_page(&state.db, id, body.parent_id, placement(body.before)).await?))
+  Ok(Json(yourdocs_store::move_page(&state.db, id, body.parent_id, placement(body.before), old_urls(body.redirect)).await?))
 }
 
 /// Deletes a page and its descendants.

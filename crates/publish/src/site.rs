@@ -1,33 +1,7 @@
 use std::collections::HashMap;
 
 use serde_json::{Value, json};
-use yourdocs_core::{AssetId, Document, Page, PageId, PageKind};
-
-/// The public URL of every page (links have none): the slugs of the page and its ancestors, with a trailing slash.
-pub(crate) fn page_urls(pages: &[Page]) -> HashMap<PageId, String> {
-  let by_id: HashMap<PageId, &Page> = pages.iter().map(|p| (p.id, p)).collect();
-
-  pages
-    .iter()
-    .filter(|page| page.kind == PageKind::Page)
-    .map(|page| {
-      let mut segments = vec![page.slug.as_str()];
-      let mut parent = page.parent_id;
-
-      // The tree has no cycles (moves are checked), but a bound keeps corrupt data from hanging a publish.
-      while let Some(id) = parent
-        && segments.len() < 64
-        && let Some(ancestor) = by_id.get(&id)
-      {
-        segments.push(ancestor.slug.as_str());
-        parent = ancestor.parent_id;
-      }
-
-      segments.reverse();
-      (page.id, format!("/{}/", segments.join("/")))
-    })
-    .collect()
-}
+use yourdocs_core::{AssetId, Document, Page, PageId};
 
 /// Where the file for a page URL goes: `/a/b/` is `a/b/index.html`.
 pub(crate) fn output_path(url: &str) -> String {
@@ -68,7 +42,7 @@ pub(crate) fn image_asset_ids(doc: &Document) -> Vec<AssetId> {
 #[cfg(test)]
 mod tests {
   use jiff::Timestamp;
-  use yourdocs_core::UserId;
+  use yourdocs_core::{PageKind, UserId, page_urls};
 
   use super::*;
 

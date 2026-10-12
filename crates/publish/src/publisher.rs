@@ -3,13 +3,13 @@ use std::{collections::HashMap, sync::Arc};
 use futures_util::{StreamExt, TryStreamExt, stream};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
-use yourdocs_core::{AssetId, AssetStore, Broadcast, ContentStore, Document, Event, Page, PageId, PageKind, Release, ReleaseStatus, RevisionId, UserId, original_key};
+use yourdocs_core::{AssetId, AssetStore, Broadcast, ContentStore, Document, Event, Page, PageId, PageKind, Release, ReleaseStatus, RevisionId, UserId, effective_redirects, original_key, page_urls};
 use yourdocs_render::{Pool, Shell, highlight_css};
-use yourdocs_store::{DatabaseConnection, add_release_pages, assets_by_ids, create_release, list_pages, load_settings, set_release_status};
+use yourdocs_store::{DatabaseConnection, add_release_pages, assets_by_ids, create_release, list_pages, list_redirects, load_settings, set_release_status};
 
 use crate::{
   PublishError, generated, search,
-  site::{image_asset_ids, nav_tree, output_path, page_urls},
+  site::{image_asset_ids, nav_tree, output_path},
   target::{OutputFile, PublishTarget},
 };
 
@@ -89,13 +89,17 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
     // Links are navigation only: nothing to render, nothing in the sitemap.
     let sources = self.sources(tree_pages.iter().filter(|p| p.kind == PageKind::Page).cloned().collect(), user).await?;
 
-    let tree: Vec<Value> = tree_pages
-      .iter()
-      .map(|p| json!({ "id": p.id, "kind": p.kind, "parent_id": p.parent_id, "slug": p.slug, "title": p.title, "external_url": p.external_url }))
-      .collect();
-    let release = create_release(&self.db, user, Value::Array(tree).to_string(), "[]".into()).await?;
+    let rules = effective_redirects(&list_redirects(&self.db).await?, &tree_pages);
+    // Frozen with the release: the next "what changed" comparison reads them back.
+    let release = create_release(
+      &self.db,
+      user,
+      serde_json::to_string(&tree_pages).map_err(anyhow::Error::from)?,
+      serde_json::to_string(&rules).map_err(anyhow::Error::from)?,
+    )
+    .await?;
 
-    match self.build_and_deploy(&release, &tree_pages, &sources).await {
+    match self.build_and_deploy(&release, &tree_pages, &rules, &sources).await {
       Ok(hashes) => {
         add_release_pages(&self.db, release.id, hashes).await?;
         set_release_status(&self.db, release.id, ReleaseStatus::Live).await?;
@@ -134,7 +138,7 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
   }
 
   /// Renders everything, then deploys. Nothing reaches the target unless every page rendered.
-  async fn build_and_deploy(&self, release: &Release, tree_pages: &[Page], sources: &[PageSource]) -> Result<Vec<(PageId, RevisionId, String)>, PublishError> {
+  async fn build_and_deploy(&self, release: &Release, tree_pages: &[Page], rules: &[(String, String)], sources: &[PageSource]) -> Result<Vec<(PageId, RevisionId, String)>, PublishError> {
     let pages: Vec<Page> = sources.iter().map(|s| s.page.clone()).collect();
     let urls = page_urls(tree_pages);
     let nav = nav_tree(tree_pages, &urls);
@@ -186,7 +190,7 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
       ("sitemap.xml", generated::sitemap(site_url, &listed)),
       ("robots.txt", generated::robots(site_url)),
       ("llms.txt", generated::llms_txt(&site_name, site_url, &listed)),
-      ("_redirects", generated::redirects(listed.first().map(|(_, url)| *url))),
+      ("_redirects", generated::redirects(listed.first().map(|(_, url)| *url), rules)),
     ];
     files.extend(generated.into_iter().map(|(path, text)| OutputFile {
       path: path.into(),
@@ -433,5 +437,35 @@ mod tests {
     assert_eq!(std::fs::read_to_string(f.dir.join("out/site/page/index.html")).unwrap(), before);
     // No half-written release is left behind either.
     assert_eq!(std::fs::read_dir(f.dir.join("out/releases")).unwrap().count(), 1);
+  }
+
+  #[tokio::test]
+  async fn a_move_redirects_the_old_url_unless_it_is_dropped() {
+    use yourdocs_core::OldUrls;
+    use yourdocs_store::move_page;
+
+    let f = fixture().await;
+    let user = UserId::new();
+    let guide = create_page(&f.db, user, None, "Guide", Placement::Last).await.unwrap();
+    let install = create_page(&f.db, user, Some(guide.id), "Install", Placement::Last).await.unwrap();
+    let setup = create_page(&f.db, user, Some(guide.id), "Setup", Placement::Last).await.unwrap();
+    f.publisher.publish(user).await.unwrap();
+    assert!(crate::pending(&f.db).await.unwrap().changes.is_empty());
+
+    // A normal move keeps the old URL working, and the publish check agrees.
+    move_page(&f.db, install.id, None, Placement::Last, OldUrls::Redirect).await.unwrap();
+    // An Alt-drop does not: its old URL is flagged as 404 after publish.
+    move_page(&f.db, setup.id, None, Placement::Last, OldUrls::Forget).await.unwrap();
+
+    let pending = crate::pending(&f.db).await.unwrap();
+    let lost: Vec<_> = pending.lost_urls.iter().map(|l| l.path.as_str()).collect();
+    assert_eq!(lost, ["/guide/setup/"]);
+    assert!(pending.changes.iter().any(|c| c.title == "Install" && c.redirected));
+
+    f.publisher.publish(user).await.unwrap();
+    let rules = std::fs::read_to_string(f.dir.join("out/site/_redirects")).unwrap();
+    assert!(rules.contains("/guide/install/ /install/ 301\n"), "{rules}");
+    assert!(!rules.contains("/guide/setup/"), "{rules}");
+    assert!(crate::pending(&f.db).await.unwrap().changes.is_empty());
   }
 }
