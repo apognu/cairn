@@ -1,31 +1,41 @@
 use std::collections::HashMap;
 
 use serde_json::{Value, json};
-use yourdocs_core::{AssetId, Document, Page, PageId};
+use yourdocs_core::{AssetId, Document, Page, PageId, header_pages, in_sidebar, sidebar_root};
 
 /// Where the file for a page URL goes: `/a/b/` is `a/b/index.html`.
 pub(crate) fn output_path(url: &str) -> String {
   format!("{}index.html", url.trim_start_matches('/'))
 }
 
-/// The navigation tree for the page context, in the order of `pages` (which is by position). Links point outside the site.
-pub(crate) fn nav_tree(pages: &[Page], urls: &HashMap<PageId, String>) -> Vec<Value> {
-  fn children(pages: &[Page], urls: &HashMap<PageId, String>, parent: Option<PageId>) -> Vec<Value> {
+/// The sidebar for `current` (`None` for pages outside the tree, like the 404 page), in the order of `pages` (which is by position).
+/// A page inside a promoted section sees only that section; other pages see the rest of the site. Links point outside the site.
+pub(crate) fn nav_tree(pages: &[Page], urls: &HashMap<PageId, String>, current: Option<PageId>) -> Vec<Value> {
+  fn children(pages: &[Page], urls: &HashMap<PageId, String>, root: Option<PageId>, parent: Option<PageId>) -> Vec<Value> {
     pages
       .iter()
-      .filter(|p| p.parent_id == parent)
+      .filter(|p| p.parent_id == parent && in_sidebar(pages, root, p))
       .filter_map(|p| {
         let (href, external) = match &p.external_url {
           Some(url) => (url.as_str(), true),
           None => (urls.get(&p.id)?.as_str(), false),
         };
 
-        Some(json!({ "id": p.id, "title": p.title, "href": href, "external": external, "children": children(pages, urls, Some(p.id)) }))
+        Some(json!({ "id": p.id, "title": p.title, "href": href, "external": external, "children": children(pages, urls, root, Some(p.id)) }))
       })
       .collect()
   }
 
-  children(pages, urls, None)
+  let root = sidebar_root(pages, current);
+  children(pages, urls, root, root)
+}
+
+/// The header entries: the promoted pages with their URLs.
+pub(crate) fn header_items(pages: &[Page], urls: &HashMap<PageId, String>) -> Vec<Value> {
+  header_pages(pages)
+    .into_iter()
+    .filter_map(|p| Some(json!({ "id": p.id, "title": p.title, "href": urls.get(&p.id)? })))
+    .collect()
 }
 
 /// The assets an image in the document refers to.
@@ -56,6 +66,8 @@ mod tests {
       title: slug.into(),
       external_url: None,
       path_override: None,
+      in_header: false,
+      header_position: None,
       created_by: UserId::new(),
       created_at: Timestamp::UNIX_EPOCH,
       updated_at: Timestamp::UNIX_EPOCH,
@@ -73,7 +85,7 @@ mod tests {
     assert_eq!(urls[&install.id], "/guide/install/");
     assert_eq!(output_path("/guide/install/"), "guide/install/index.html");
 
-    let nav = nav_tree(&pages, &urls);
+    let nav = nav_tree(&pages, &urls, Some(install.id));
     assert_eq!(nav[0]["children"][0]["href"], "/guide/install/");
   }
 
@@ -89,7 +101,7 @@ mod tests {
     let urls = page_urls(&pages);
 
     assert!(!urls.contains_key(&link.id));
-    let nav = nav_tree(&pages, &urls);
+    let nav = nav_tree(&pages, &urls, None);
     assert_eq!(nav[0]["children"][0]["href"], "https://status.example.com");
     assert_eq!(nav[0]["children"][0]["external"], true);
   }

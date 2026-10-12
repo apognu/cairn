@@ -59,6 +59,8 @@ mod tests {
       title: title.into(),
       external_url: None,
       path_override: None,
+      in_header: false,
+      header_position: None,
       created_by: UserId::new(),
       created_at: Timestamp::UNIX_EPOCH,
       updated_at: Timestamp::UNIX_EPOCH,

@@ -41,6 +41,12 @@ pub struct Page {
   /// A fixed URL that replaces the one derived from the tree (`/webhooks/`); it stays put when the page moves.
   #[serde(default)]
   pub path_override: Option<String>,
+  /// Shown as an entry of the site header; a page with children also gets a sidebar of its own.
+  #[serde(default)]
+  pub in_header: bool,
+  /// Orders the header entries (fractional index, like `position`).
+  #[serde(default)]
+  pub header_position: Option<String>,
   pub created_by: UserId,
   #[cfg_attr(feature = "openapi", schema(value_type = String, format = DateTime))]
   pub created_at: Timestamp,
@@ -119,6 +125,8 @@ mod tests {
       title: slug.into(),
       external_url: None,
       path_override: custom.map(Into::into),
+      in_header: false,
+      header_position: None,
       created_by: UserId::new(),
       created_at: Timestamp::UNIX_EPOCH,
       updated_at: Timestamp::UNIX_EPOCH,

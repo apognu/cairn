@@ -16,7 +16,11 @@ use crate::{
 };
 
 pub(crate) fn routes() -> OpenApiRouter<AppState> {
-  OpenApiRouter::new().routes(routes!(list, create)).routes(routes!(rename, remove)).routes(routes!(move_to))
+  OpenApiRouter::new()
+    .routes(routes!(list, create))
+    .routes(routes!(rename, remove))
+    .routes(routes!(move_to))
+    .routes(routes!(header))
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -106,6 +110,22 @@ async fn rename(State(state): State<AppState>, Path(id): Path<PageId>, Json(body
 #[instrument(skip_all, fields(page_id = %id))]
 async fn move_to(State(state): State<AppState>, Path(id): Path<PageId>, Json(body): Json<MovePage>) -> Result<Json<Page>, AppError> {
   Ok(Json(yourdocs_store::move_page(&state.db, id, body.parent_id, placement(body.before), old_urls(body.redirect)).await?))
+}
+
+#[derive(Deserialize, ToSchema)]
+struct HeaderBody {
+  in_header: bool,
+}
+
+/// Shows the page in the site header, or takes it out. A promoted page with subpages gets a sidebar of its own.
+#[utoipa::path(put, path = "/api/pages/{id}/header", operation_id = "setPageHeader", params(("id" = PageId, Path)), request_body = HeaderBody, responses(
+  (status = 200, body = Page),
+  (status = 404, body = ErrorBody),
+  (status = 422, body = ErrorBody, description = "links cannot be shown in the header"),
+))]
+#[instrument(skip_all, fields(page_id = %id))]
+async fn header(State(state): State<AppState>, Path(id): Path<PageId>, Json(body): Json<HeaderBody>) -> Result<Json<Page>, AppError> {
+  Ok(Json(yourdocs_store::set_in_header(&state.db, id, body.in_header).await?))
 }
 
 /// Deletes a page and its descendants.

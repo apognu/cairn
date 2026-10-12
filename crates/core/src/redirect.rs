@@ -114,6 +114,8 @@ pub enum ChangeKind {
   Edited,
   Renamed,
   Moved,
+  /// Promoted to or taken out of the site header.
+  Header,
   Deleted,
 }
 
@@ -180,6 +182,9 @@ pub fn pending_changes(pages: &[Page], redirects: &[Redirect], drafts: &HashMap<
         }
         if old.slug != page.slug || old.title != page.title {
           kinds.push(ChangeKind::Renamed);
+        }
+        if old.in_header != page.in_header {
+          kinds.push(ChangeKind::Header);
         }
         let edited = match page.kind {
           PageKind::Page => drafts.get(&page.id).is_some_and(|draft| live.revisions.get(&page.id) != Some(draft)),
@@ -249,6 +254,8 @@ mod tests {
       title: slug.into(),
       external_url: None,
       path_override: None,
+      in_header: false,
+      header_position: None,
       created_by: UserId::new(),
       created_at: Timestamp::UNIX_EPOCH,
       updated_at: Timestamp::UNIX_EPOCH,

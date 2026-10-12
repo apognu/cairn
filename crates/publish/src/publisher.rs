@@ -3,13 +3,15 @@ use std::{collections::HashMap, sync::Arc};
 use futures_util::{StreamExt, TryStreamExt, stream};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
-use yourdocs_core::{AssetId, AssetStore, Broadcast, ContentStore, Document, Event, Page, PageId, PageKind, Release, ReleaseStatus, RevisionId, UserId, effective_redirects, original_key, page_urls};
+use yourdocs_core::{
+  AssetId, AssetStore, Broadcast, ContentStore, Document, Event, Page, PageId, PageKind, Release, ReleaseStatus, RevisionId, UserId, effective_redirects, header_section, original_key, page_urls,
+};
 use yourdocs_render::{Pool, Shell, highlight_css};
 use yourdocs_store::{DatabaseConnection, add_release_pages, assets_by_ids, create_release, list_pages, list_redirects, load_settings, set_release_status};
 
 use crate::{
   PublishError, generated, search,
-  site::{image_asset_ids, nav_tree, output_path},
+  site::{header_items, image_asset_ids, nav_tree, output_path},
   target::{OutputFile, PublishTarget},
 };
 
@@ -141,7 +143,7 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
   async fn build_and_deploy(&self, release: &Release, tree_pages: &[Page], rules: &[(String, String)], sources: &[PageSource]) -> Result<Vec<(PageId, RevisionId, String)>, PublishError> {
     let pages: Vec<Page> = sources.iter().map(|s| s.page.clone()).collect();
     let urls = page_urls(tree_pages);
-    let nav = nav_tree(tree_pages, &urls);
+    let header = header_items(tree_pages, &urls);
     let settings = load_settings(&self.db).await?;
     let site_name = settings.site_name.clone();
     let today = jiff::Zoned::now().date().to_string();
@@ -163,7 +165,9 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
           "context": {
             "site": { "name": site_name, "logo": logo },
             "page": { "id": source.page.id, "title": source.page.title },
-            "nav": nav,
+            "nav": nav_tree(tree_pages, &urls, Some(source.page.id)),
+            "header": header,
+            "section": header_section(tree_pages, source.page.id),
             "urls": urls,
             "assets": source_assets(&source.doc, &asset_meta),
             "today": today,
@@ -202,7 +206,7 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
       pool: self.pool.clone(),
       input: json!({
         "doc": { "type": "doc", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "There is no page at this address. Use the navigation or the search to find what you were looking for." }] }] },
-        "context": { "site": { "name": site_name, "logo": logo }, "page": { "title": "Page not found" }, "nav": nav, "urls": urls, "assets": {}, "today": today },
+        "context": { "site": { "name": site_name, "logo": logo }, "page": { "title": "Page not found" }, "nav": nav_tree(tree_pages, &urls, None), "header": header, "urls": urls, "assets": {}, "today": today },
       }),
       title: "Page not found".into(),
       site_name: site_name.clone(),
@@ -467,5 +471,35 @@ mod tests {
     assert!(rules.contains("/guide/install/ /install/ 301\n"), "{rules}");
     assert!(!rules.contains("/guide/setup/"), "{rules}");
     assert!(crate::pending(&f.db).await.unwrap().changes.is_empty());
+  }
+
+  #[tokio::test]
+  async fn promoting_a_page_with_children_scopes_its_sidebar() {
+    use yourdocs_store::set_in_header;
+
+    let f = fixture().await;
+    let user = UserId::new();
+    let guides = create_page(&f.db, user, None, "Guides", Placement::Last).await.unwrap();
+    create_page(&f.db, user, Some(guides.id), "Install", Placement::Last).await.unwrap();
+    create_page(&f.db, user, None, "About", Placement::Last).await.unwrap();
+    set_in_header(&f.db, guides.id, true).await.unwrap();
+    f.publisher.publish(user).await.unwrap();
+
+    let read = |path: &str| std::fs::read_to_string(f.dir.join("out/site").join(path)).unwrap();
+    let sidebar = |html: &str| {
+      let start = html.find("class=\"site-nav\"").unwrap();
+      let end = html[start..].find("</nav>").unwrap();
+      html[start..start + end].to_string()
+    };
+
+    // Inside the section: its pages only. Elsewhere: the rest. Both pages see the header entry.
+    let install = read("guides/install/index.html");
+    assert!(sidebar(&install).contains("/guides/install/") && !sidebar(&install).contains("/about/"), "{}", sidebar(&install));
+    let about = read("about/index.html");
+    assert!(sidebar(&about).contains("/about/") && !sidebar(&about).contains("/guides/"), "{}", sidebar(&about));
+    for html in [&install, &about] {
+      assert!(html.contains("aria-label=\"Sections\"") && html.contains("href=\"/guides/\""));
+    }
+    assert!(install.contains("aria-current=\"page\">Guides"), "the section is marked in the header");
   }
 }

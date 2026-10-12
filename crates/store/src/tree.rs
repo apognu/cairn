@@ -44,6 +44,8 @@ async fn insert(db: &DatabaseConnection, user: UserId, parent: Option<PageId>, t
     title: Set(title.to_string()),
     external_url: Set(url),
     path_override: Set(None),
+    in_header: Set(false),
+    header_position: Set(None),
     created_by: Set(user.as_uuid()),
     created_at: Set(now.clone()),
     updated_at: Set(now),
@@ -72,6 +74,45 @@ pub async fn rename_page(db: &DatabaseConnection, id: PageId, title: &str, old: 
   .await?;
 
   settle_urls(db, &pages, old, RedirectOrigin::Rename).await?;
+
+  into_page(row)
+}
+
+/// Promotes a page to the site header (at the end of it) or takes it out. Pages only: a link has no page to open.
+pub async fn set_in_header(db: &DatabaseConnection, id: PageId, in_header: bool) -> Result<Page, StoreError> {
+  let pages = list_pages(db).await?;
+  let current = find(&pages, id)?;
+
+  if current.kind != PageKind::Page {
+    return Err(StoreError::Invalid("only pages can be shown in the header".into()));
+  }
+
+  let position = if in_header && !current.in_header {
+    let last = pages
+      .iter()
+      .filter(|p| p.in_header)
+      .filter_map(|p| p.header_position.as_deref())
+      .max()
+      .map(|p| FractionalIndex::from_string(p).map_err(|e| StoreError::Invalid(format!("bad position: {e}"))))
+      .transpose()?;
+    Some(
+      FractionalIndex::new(last.as_ref(), None)
+        .ok_or_else(|| StoreError::Invalid("header positions are out of order".into()))?
+        .to_string(),
+    )
+  } else {
+    current.header_position.clone().filter(|_| in_header)
+  };
+
+  let row = page::ActiveModel {
+    id: Set(id.as_uuid()),
+    in_header: Set(in_header),
+    header_position: Set(position),
+    updated_at: Set(Timestamp::now().to_string()),
+    ..Default::default()
+  }
+  .update(db)
+  .await?;
 
   into_page(row)
 }
@@ -262,6 +303,8 @@ fn into_page(row: page::Model) -> Result<Page, StoreError> {
     title: row.title,
     external_url: row.external_url,
     path_override: row.path_override,
+    in_header: row.in_header,
+    header_position: row.header_position,
     created_by: row.created_by.into(),
     created_at: parse(&row.created_at)?,
     updated_at: parse(&row.updated_at)?,
