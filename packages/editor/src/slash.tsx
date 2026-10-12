@@ -95,6 +95,66 @@ export const slashItems: SlashItem[] = [
       })
       .run(),
   ),
+  item("Components", "tabs", "Tabs", "Content in switchable panels", "tabs panels switch", (e, r) =>
+    e
+      .chain()
+      .focus()
+      .deleteRange(r)
+      .insertContent({
+        type: "tabs",
+        content: ["First", "Second"].map((label) => ({
+          type: "tabPanel",
+          attrs: { label },
+          content: [{ type: "paragraph" }],
+        })),
+      })
+      .run(),
+  ),
+  item(
+    "Components",
+    "code",
+    "Code group",
+    "The same code in several languages",
+    "code group tabs languages snippets",
+    (e, r) =>
+      e
+        .chain()
+        .focus()
+        .deleteRange(r)
+        .insertContent({
+          type: "tabs",
+          attrs: { variant: "code" },
+          content: [
+            { label: "npm", language: "bash" },
+            { label: "yarn", language: "bash" },
+          ].map(({ label, language }) => ({
+            type: "tabPanel",
+            attrs: { label },
+            content: [{ type: "codeBlock", attrs: { language } }],
+          })),
+        })
+        .run(),
+  ),
+  item("Components", "numbered", "Steps", "A numbered procedure", "steps procedure numbered how to", (e, r) =>
+    e
+      .chain()
+      .focus()
+      .deleteRange(r)
+      .insertContent({
+        type: "steps",
+        content: ["First step", "Second step"].map((title) => ({
+          type: "step",
+          content: [{ type: "paragraph", content: [{ type: "text", text: title }] }, { type: "paragraph" }],
+        })),
+      })
+      .run(),
+  ),
+  item("Components", "grid", "Cards", "A grid of cards with icons and links", "cards grid icons links", (e, r) =>
+    e.chain().focus().deleteRange(r).insertContent({ type: "cards", attrs: {} }).run(),
+  ),
+  item("Components", "table", "File tree", "Folders and files", "file tree folders files directory", (e, r) =>
+    e.chain().focus().deleteRange(r).insertContent({ type: "fileTree", attrs: {} }).run(),
+  ),
   item("Components", "link", "Link card", "A card for one page", "link card page", (e, r) =>
     e.chain().focus().deleteRange(r).insertContent({ type: "linkCard", attrs: {} }).run(),
   ),
@@ -130,10 +190,14 @@ export const slashItems: SlashItem[] = [
 const groupOrder: SlashItem["group"][] = ["Components", "Basic"];
 
 export function filterSlashItems(query: string): SlashItem[] {
-  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+  const text = query.toLowerCase().trim();
+  const words = text.split(/\s+/).filter(Boolean);
+  // Within a group, an item whose title contains what was typed comes before one that only matches its keywords.
+  const rank = (i: SlashItem) => (i.title.toLowerCase().includes(text) ? 0 : 1);
+
   return slashItems
     .filter((i) => words.every((w) => `${i.title} ${i.keywords}`.toLowerCase().includes(w)))
-    .sort((a, b) => groupOrder.indexOf(a.group) - groupOrder.indexOf(b.group));
+    .sort((a, b) => groupOrder.indexOf(a.group) - groupOrder.indexOf(b.group) || rank(a) - rank(b));
 }
 
 type ListHandle = { onKeyDown: (event: KeyboardEvent) => boolean };

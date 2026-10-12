@@ -4,7 +4,7 @@ import { Table, TableCell, TableHeader, TableRow } from "@tiptap/extension-table
 import UniqueID from "@tiptap/extension-unique-id";
 import { ReactNodeViewRenderer } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import { featureTabs, linkCard, relatedPages, seeAlso, whatsNew } from "@yourdocs/components";
+import { cards, featureTabs, fileTree, linkCard, relatedPages, seeAlso, whatsNew } from "@yourdocs/components";
 import { type AnyComponent, propsSchema } from "@yourdocs/sdk";
 import { ComponentView } from "./ComponentView";
 import { PageLink, PagePickerTriggers } from "./pageLink";
@@ -94,8 +94,18 @@ const Tabs = Node.create({
   group: "block",
   content: "tabPanel+",
   isolating: true,
+  // "code" makes a code group: tabs around code blocks, drawn as one box.
+  addAttributes() {
+    return {
+      variant: {
+        default: null,
+        parseHTML: (el) => (el.classList.contains("tabs-code") ? "code" : null),
+        rendered: false,
+      },
+    };
+  },
   parseHTML: () => [{ tag: "div.tabs" }],
-  renderHTML: () => ["div", { class: "tabs" }, 0],
+  renderHTML: ({ node }) => ["div", { class: node.attrs.variant === "code" ? "tabs tabs-code" : "tabs" }, 0],
   // The tab strip is chrome around the panels, which are ordinary editable content.
   addNodeView() {
     return ({ node: initial }) => {
@@ -103,7 +113,8 @@ const Tabs = Node.create({
       let active = 0;
 
       const dom = document.createElement("div");
-      dom.className = "tabs";
+      const className = () => (node.attrs.variant === "code" ? "tabs tabs-code" : "tabs");
+      dom.className = className();
       const list = document.createElement("div");
       list.className = "tabs-list";
       list.setAttribute("role", "tablist");
@@ -150,6 +161,7 @@ const Tabs = Node.create({
         update(updated) {
           if (updated.type !== node.type) return false;
           node = updated;
+          dom.className = className();
           active = Math.min(active, node.childCount - 1);
           render();
           return true;
@@ -159,6 +171,25 @@ const Tabs = Node.create({
       };
     };
   },
+});
+
+const Step = Node.create({
+  name: "step",
+  // The first paragraph is the step's title; whatever follows is its body.
+  content: "paragraph block*",
+  defining: true,
+  isolating: true,
+  parseHTML: () => [{ tag: "li.step" }],
+  renderHTML: () => ["li", { class: "step" }, 0],
+});
+
+const Steps = Node.create({
+  name: "steps",
+  group: "block",
+  content: "step+",
+  isolating: true,
+  parseHTML: () => [{ tag: "ol.steps" }],
+  renderHTML: () => ["ol", { class: "steps" }, 0],
 });
 
 // Block IDs are kept (and created for new blocks) so documents carry stable IDs.
@@ -173,6 +204,7 @@ const blockTypes = [
   "callout",
   "image",
   "tabs",
+  "steps",
 ];
 
 // While editing, a trailing paragraph keeps a place to click after a final block (a table, tabs…); read-only it would add a blank line the published page lacks.
@@ -188,11 +220,15 @@ export const buildExtensions = (editable: boolean) => [
   Image,
   Tabs,
   TabPanel,
+  Steps,
+  Step,
   atomComponent(featureTabs as unknown as AnyComponent),
   atomComponent(whatsNew as unknown as AnyComponent),
   atomComponent(linkCard as unknown as AnyComponent),
   atomComponent(relatedPages as unknown as AnyComponent),
   atomComponent(seeAlso as unknown as AnyComponent),
+  atomComponent(cards as unknown as AnyComponent),
+  atomComponent(fileTree as unknown as AnyComponent),
   UniqueID.configure({ types: blockTypes }),
   ...(editable ? [SlashCommand, PagePickerTriggers] : []),
 ];

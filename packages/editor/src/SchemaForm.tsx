@@ -101,6 +101,8 @@ function Field({
           value={String(value ?? "")}
           onChange={(e) => onChange(e.target.value || undefined)}
         />
+      ) : schema["x-field"] === "text" ? (
+        <textarea id={id} rows={6} value={String(value ?? "")} onChange={(e) => onChange(e.target.value)} />
       ) : schema.enum ? (
         <select id={id} value={String(value)} onChange={(e) => onChange(e.target.value)}>
           {schema.enum.map((option) => (

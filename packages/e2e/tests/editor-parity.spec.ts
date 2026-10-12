@@ -13,7 +13,7 @@ function differingPixels(a: Buffer, b: Buffer): number {
 
 // The editor (read-only Tiptap) and the published page (V8 render, hydrated) must look the same for every fixture.
 for (const scheme of ["light", "dark"] as const) {
-  for (const fixture of ["demo", "article", "features"]) {
+  for (const fixture of ["demo", "article", "features", "steps", "cards", "filetree", "codegroup"]) {
     test(`${fixture} looks the same in the editor and when published (${scheme})`, async ({ browser }) => {
       const options = { viewport: { width: 1280, height: 900 }, colorScheme: scheme } as const;
       const published = await browser.newPage(options);
