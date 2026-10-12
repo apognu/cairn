@@ -1,0 +1,103 @@
+{
+  "type": "doc",
+  "content": [
+    {
+      "type": "heading",
+      "attrs": {
+        "level": 1
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "Install the CLI"
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Use your package manager."
+        }
+      ]
+    },
+    {
+      "type": "tabs",
+      "attrs": {
+        "variant": "code"
+      },
+      "content": [
+        {
+          "type": "tabPanel",
+          "attrs": {
+            "label": "npm"
+          },
+          "content": [
+            {
+              "type": "codeBlock",
+              "attrs": {
+                "language": "bash"
+              },
+              "content": [
+                {
+                  "type": "text",
+                  "text": "npm install --global halyard"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "tabPanel",
+          "attrs": {
+            "label": "yarn"
+          },
+          "content": [
+            {
+              "type": "codeBlock",
+              "attrs": {
+                "language": "bash"
+              },
+              "content": [
+                {
+                  "type": "text",
+                  "text": "yarn global add halyard"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "tabPanel",
+          "attrs": {
+            "label": "pnpm"
+          },
+          "content": [
+            {
+              "type": "codeBlock",
+              "attrs": {
+                "language": "bash"
+              },
+              "content": [
+                {
+                  "type": "text",
+                  "text": "pnpm add --global halyard"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Then check the version."
+        }
+      ]
+    }
+  ]
+}

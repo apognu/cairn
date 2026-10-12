@@ -96,6 +96,18 @@ export function renderNode(node: DocNode, ctx: NodeContext, key: number): ReactN
           <tbody>{children}</tbody>
         </table>
       );
+    case "steps":
+      return (
+        <ol key={key} className="steps">
+          {children}
+        </ol>
+      );
+    case "step":
+      return (
+        <li key={key} className="step">
+          {children}
+        </li>
+      );
     case "tableRow":
       return <tr key={key}>{children}</tr>;
     case "tableHeader":
@@ -180,7 +192,7 @@ function renderTabs(node: DocNode, ctx: NodeContext, key: number): ReactNode {
   const labels = panels.map((p) => String(p.attrs?.label ?? ""));
 
   return (
-    <Tabs key={key} labels={labels}>
+    <Tabs key={key} labels={labels} variant={node.attrs?.variant === "code" ? "code" : undefined}>
       {panels.map((p, i) => (
         // biome-ignore lint/suspicious/noArrayIndexKey: panels are positional
         <Fragment key={i}>{renderNodes(p.content, ctx)}</Fragment>

@@ -1,0 +1,100 @@
+{
+  "type": "doc",
+  "content": [
+    {
+      "type": "heading",
+      "attrs": {
+        "level": 1
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "Create an endpoint"
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Follow these steps to start receiving events."
+        }
+      ]
+    },
+    {
+      "type": "steps",
+      "content": [
+        {
+          "type": "step",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Open the project settings"
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "In the dashboard, choose your project, then Settings."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "step",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Add the endpoint URL"
+                }
+              ]
+            },
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Paste a public HTTPS URL and pick the events to subscribe to."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "step",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Store the signing secret"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "That is all."
+        }
+      ]
+    }
+  ]
+}

@@ -1,13 +1,14 @@
 import { Children, type ReactNode, useState } from "react";
 
-export type TabsProps = { labels: string[]; children: ReactNode };
+/** `variant: "code"` is a code group: the tabs wrap code blocks and are drawn as one box with them. */
+export type TabsProps = { labels: string[]; variant?: "code"; children: ReactNode };
 
-export function Tabs({ labels, children }: TabsProps) {
+export function Tabs({ labels, variant, children }: TabsProps) {
   const [active, setActive] = useState(0);
   const panels = Children.toArray(children);
 
   return (
-    <div className="tabs">
+    <div className={variant === "code" ? "tabs tabs-code" : "tabs"}>
       <div role="tablist" className="tabs-list">
         {labels.map((label, i) => (
           <button

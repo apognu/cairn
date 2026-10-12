@@ -1,0 +1,73 @@
+{
+  "type": "doc",
+  "content": [
+    {
+      "type": "heading",
+      "attrs": {
+        "level": 1
+      },
+      "content": [
+        {
+          "type": "text",
+          "text": "Where to go next"
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "content": [
+        {
+          "type": "text",
+          "text": "Pick a topic."
+        }
+      ]
+    },
+    {
+      "type": "cards",
+      "attrs": {
+        "columns": "2",
+        "cards": [
+          {
+            "icon": "rocket",
+            "title": "Quickstart",
+            "description": "Deploy your first service in five minutes",
+            "href": "https://example.com/quickstart"
+          },
+          {
+            "icon": "star",
+            "title": "Concepts",
+            "description": "How releases, environments and rollbacks fit together"
+          },
+          {
+            "icon": "plug",
+            "title": "Migrating",
+            "description": "Move from another platform"
+          }
+        ]
+      }
+    },
+    {
+      "type": "cards",
+      "attrs": {
+        "columns": "3",
+        "cards": [
+          {
+            "icon": "star",
+            "title": "One",
+            "description": "First"
+          },
+          {
+            "icon": "star",
+            "title": "Two",
+            "description": "Second"
+          },
+          {
+            "icon": "star",
+            "title": "Three",
+            "description": "Third"
+          }
+        ]
+      }
+    }
+  ]
+}

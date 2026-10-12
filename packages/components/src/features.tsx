@@ -8,6 +8,8 @@ const feature = z.object({
   title: z.string().default("New feature"),
   description: z.string().default(""),
   page: link(),
+  /** A web address, for a card that leaves the site; a page link wins when both are set. */
+  href: z.string().optional().meta({ title: "Web address" }),
   newUntil: date().meta({ title: "New until" }),
 });
 
@@ -16,7 +18,7 @@ type Feature = z.infer<typeof feature>;
 /** The card both feature components use: icon, title, description, and a link to a page when one is set. */
 export function FeatureCard({ feature: f }: { feature: Feature }) {
   const { urls, today } = useRenderEnv();
-  const href = f.page ? urls[f.page] : undefined;
+  const href = f.page ? urls[f.page] : f.href;
   // A date in the past hides the tag at the next render; without a date the tag never shows.
   const isNew = Boolean(f.newUntil) && today !== "" && (f.newUntil as string) >= today;
 

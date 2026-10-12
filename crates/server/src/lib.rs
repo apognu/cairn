@@ -59,6 +59,10 @@ pub async fn run_dev(bind: SocketAddr, site_bind: SocketAddr, data_dir: PathBuf)
     ("demo", include_str!("../../../fixtures/tabs.json")),
     ("article", include_str!("../../../fixtures/article.json")),
     ("features", include_str!("../../../fixtures/features.json")),
+    ("steps", include_str!("../../../fixtures/steps.json")),
+    ("cards", include_str!("../../../fixtures/cards.json")),
+    ("filetree", include_str!("../../../fixtures/filetree.json")),
+    ("codegroup", include_str!("../../../fixtures/codegroup.json")),
   ] {
     docs.insert(name.to_string(), serde_json::from_str(source).with_context(|| format!("invalid fixture {name}"))?);
   }
