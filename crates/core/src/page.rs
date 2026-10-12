@@ -5,6 +5,7 @@ use crate::{PageId, UserId};
 
 /// A node of the page tree.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct Page {
   pub id: PageId,
   pub parent_id: Option<PageId>,
@@ -14,7 +15,9 @@ pub struct Page {
   pub slug: String,
   pub title: String,
   pub created_by: UserId,
+  #[cfg_attr(feature = "openapi", schema(value_type = String, format = DateTime))]
   pub created_at: Timestamp,
+  #[cfg_attr(feature = "openapi", schema(value_type = String, format = DateTime))]
   pub updated_at: Timestamp,
 }
 

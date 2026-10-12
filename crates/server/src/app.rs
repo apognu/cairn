@@ -27,13 +27,22 @@ pub struct AppState {
   pub db: DatabaseConnection,
 }
 
+/// The OpenAPI document and the router serving the same routes, built from one definition.
+pub fn api() -> (Router<AppState>, utoipa::openapi::OpenApi) {
+  let (router, mut spec) = pages::routes().split_for_parts();
+  // The router's default info describes utoipa-axum itself.
+  spec.info = utoipa::openapi::InfoBuilder::new().title("yourdocs").version(env!("CARGO_PKG_VERSION")).build();
+
+  (router, spec)
+}
+
 pub fn router(state: AppState) -> Router {
   Router::new()
     .route("/api/docs/{id}", post(save_doc))
     .route("/docs/{id}", get(show_doc))
     .route("/docs/{id}/client", get(show_doc_client_only))
     .route("/assets/client.js", get(client_js))
-    .merge(pages::routes())
+    .merge(api().0)
     .layer(middleware::from_fn(local_host_only))
     .with_state(state)
 }

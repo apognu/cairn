@@ -3,9 +3,17 @@ use axum::{
   http::StatusCode,
   response::{IntoResponse, Response},
 };
-use serde_json::json;
+use serde::Serialize;
+use utoipa::ToSchema;
 use yourdocs_render::RenderError;
 use yourdocs_store::StoreError;
+
+/// The body of every error response.
+#[derive(Serialize, ToSchema)]
+pub struct ErrorBody {
+  pub message: String,
+  pub details: Vec<String>,
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum AppError {
@@ -43,6 +51,6 @@ impl IntoResponse for AppError {
       self.to_string()
     };
 
-    (status, Json(json!({ "message": message, "details": details }))).into_response()
+    (status, Json(ErrorBody { message, details })).into_response()
   }
 }

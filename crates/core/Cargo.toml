@@ -14,4 +14,9 @@ jiff = { version = "0.2.38", features = ["serde"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 thiserror = "2.0.21"
+utoipa = { version = "6.0.0", optional = true }
 uuid = { version = "1.28.0", features = ["v7", "serde"] }
+
+[features]
+# Derives OpenAPI schemas for the types the HTTP API exposes.
+openapi = ["dep:utoipa"]

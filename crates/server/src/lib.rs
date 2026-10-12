@@ -23,6 +23,11 @@ use crate::{
   assets::Assets,
 };
 
+/// The OpenAPI spec of the HTTP API, as pretty-printed JSON.
+pub fn openapi_json() -> anyhow::Result<String> {
+  app::api().1.to_pretty_json().context("cannot serialize the OpenAPI spec")
+}
+
 /// Runs the editor for local use: no login, every request is the local user, so it only ever listens on a loopback address.
 pub async fn run_dev(bind: SocketAddr, data_dir: PathBuf) -> anyhow::Result<()> {
   if !bind.ip().is_loopback() {

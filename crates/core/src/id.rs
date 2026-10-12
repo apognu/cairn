@@ -9,6 +9,7 @@ macro_rules! id_type {
     $(#[$doc])*
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
     #[serde(transparent)]
+    #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema), schema(value_type = String))]
     pub struct $name(Uuid);
 
     impl $name {

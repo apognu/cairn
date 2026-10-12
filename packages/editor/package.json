@@ -3,6 +3,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "bun scripts/api.ts check && tsc --noEmit",
+    "gen:api": "bun scripts/api.ts write"
+  },
+  "dependencies": {
+    "openapi-fetch": "0.17.0"
+  },
+  "devDependencies": {
+    "openapi-typescript": "7.13.0",
+    "@types/bun": "1.2.21"
   }
 }

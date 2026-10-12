@@ -18,8 +18,10 @@ serde_json = "1"
 thiserror = "2"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "net"] }
 tracing = "0.1"
+utoipa = "6.0.0"
+utoipa-axum = "0.3.0"
 uuid = { version = "1.28.0", features = ["v7"] }
 yourdocs-auth = { version = "0.0.0", path = "../auth" }
-yourdocs-core = { version = "0.0.0", path = "../core" }
+yourdocs-core = { version = "0.0.0", path = "../core", features = ["openapi"] }
 yourdocs-render = { path = "../render" }
 yourdocs-store = { version = "0.0.0", path = "../store" }
