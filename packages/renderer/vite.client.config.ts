@@ -6,6 +6,12 @@ export default defineConfig({
   build: {
     outDir: "dist",
     emptyOutDir: false,
-    lib: { entry: "src/client.tsx", name: "Client", formats: ["iife"], fileName: () => "client.js" },
+    lib: {
+      entry: "src/client.tsx",
+      name: "Client",
+      formats: ["iife"],
+      fileName: () => "client.js",
+      cssFileName: "site",
+    },
   },
 });

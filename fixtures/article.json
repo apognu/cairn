@@ -25,7 +25,7 @@
     },
     {
       "type": "callout",
-      "attrs": { "id": "b6", "name": "callout", "version": 1, "props": { "tone": "warning", "title": null } },
+      "attrs": { "id": "b6", "tone": "warning", "title": "Heads up" },
       "content": [{ "type": "paragraph", "attrs": { "id": "b7" }, "content": [{ "type": "text", "text": "Verify signatures." }] }]
     },
     { "type": "codeBlock", "attrs": { "id": "b8", "language": "json", "fileName": "payload.json" }, "content": [{ "type": "text", "text": "{ \"ok\": true }" }] },

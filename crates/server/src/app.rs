@@ -13,7 +13,7 @@ use axum::{
   routing::{get, post},
 };
 use sea_orm::DatabaseConnection;
-use serde_json::Value;
+use serde_json::{Value, json};
 use tracing::instrument;
 use yourdocs_render::Pool;
 
@@ -42,6 +42,7 @@ pub fn router(state: AppState) -> Router {
     .route("/docs/{id}", get(show_doc))
     .route("/docs/{id}/client", get(show_doc_client_only))
     .route("/assets/client.js", get(client_js))
+    .route("/assets/site.css", get(site_css))
     .merge(api().0)
     .fallback(crate::editor::serve)
     .layer(middleware::from_fn(local_host_only))
@@ -74,7 +75,7 @@ async fn save_doc(State(state): State<AppState>, Path(id): Path<String>, Json(do
 #[instrument(skip_all, fields(id = %id))]
 async fn show_doc(State(state): State<AppState>, Path(id): Path<String>) -> Result<Html<String>, AppError> {
   let doc = state.docs.read().map_err(|_| poisoned())?.get(&id).cloned().ok_or(AppError::NotFound)?;
-  let body = state.pool.render(doc.clone()).await?;
+  let body = state.pool.render(json!({ "doc": doc })).await?;
 
   Ok(Html(page(&body, &doc)))
 }
@@ -87,11 +88,19 @@ async fn show_doc_client_only(State(state): State<AppState>, Path(id): Path<Stri
   Ok(Html(page("", &doc)))
 }
 
-async fn client_js() -> impl IntoResponse {
-  match Assets::get("client.js") {
+async fn client_js() -> Response {
+  embedded("client.js", "text/javascript")
+}
+
+async fn site_css() -> Response {
+  embedded("site.css", "text/css")
+}
+
+fn embedded(name: &str, content_type: &'static str) -> Response {
+  match Assets::get(name) {
     Some(file) => (
       [
-        (header::CONTENT_TYPE, HeaderValue::from_static("text/javascript")),
+        (header::CONTENT_TYPE, HeaderValue::from_static(content_type)),
         (header::CACHE_CONTROL, HeaderValue::from_static("no-cache")),
       ],
       file.data.into_owned(),
@@ -105,19 +114,13 @@ fn poisoned() -> AppError {
   AppError::Render(yourdocs_render::RenderError::Other(anyhow::anyhow!("document store lock poisoned")))
 }
 
-const STYLE: &str = "body{font-family:system-ui,sans-serif;max-width:48rem;margin:2rem auto;padding:0 1rem}\
-.tabs-list{display:flex;gap:.25rem;border-bottom:1px solid #8884}\
-.tabs-tab{font:inherit;padding:.5rem 1rem;border:0;background:none;cursor:pointer;border-bottom:2px solid transparent}\
-.tabs-tab[aria-selected=true]{border-bottom-color:currentColor;font-weight:600}\
-.tabs-panel{padding:1rem 0}";
-
 fn page(body: &str, doc: &Value) -> String {
   // `<` is escaped so the document can never close the script element.
-  let json = doc.to_string().replace('<', "\\u003c");
+  let json = json!({ "doc": doc }).to_string().replace('<', "\\u003c");
 
   format!(
     "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\
-<title>Document</title><style>{STYLE}</style></head><body><div id=\"root\">{body}</div>\
+<title>Document</title><link rel=\"stylesheet\" href=\"/assets/site.css\"></head><body><div id=\"root\">{body}</div>\
 <script type=\"application/json\" id=\"doc\">{json}</script><script src=\"/assets/client.js\" defer></script></body></html>"
   )
 }
@@ -151,6 +154,25 @@ mod tests {
     let Html(html) = show_doc(State(state), Path("a".into())).await.unwrap();
     for expected in ["Linux", "macOS", "id=\"doc\"", "/assets/client.js"] {
       assert!(html.contains(expected), "missing {expected}");
+    }
+  }
+
+  #[tokio::test]
+  async fn every_fixture_renders() {
+    let state = test_state().await;
+    let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../../fixtures");
+
+    for entry in std::fs::read_dir(dir).unwrap() {
+      let path = entry.unwrap().path();
+      let doc: Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+
+      let html = state
+        .pool
+        .render(json!({ "doc": doc, "context": { "page": { "title": "Fixture" } } }))
+        .await
+        .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+
+      assert!(html.contains("class=\"doc-content\""), "{}", path.display());
     }
   }
 

@@ -1,0 +1,293 @@
+/* Theme tokens and the styles of the published site. The editor imports this file too, so both look the same. */
+:root {
+  --bg: #ffffff;
+  --bg-side: #fafaf9;
+  --border: #e3e5e0;
+  --border-input: #d5d8d2;
+  --text: #16181a;
+  --text-body: #24292e;
+  --muted: #5b6168;
+  --accent: #0b6e4f;
+  --hover: #eef0ec;
+  --code-bg: #f2f3f0;
+  --danger: #b3261e;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121416;
+    --bg-side: #17191c;
+    --border: #2a2e32;
+    --border-input: #3a3f44;
+    --text: #eceeef;
+    --text-body: #d6d9db;
+    --muted: #9aa1a8;
+    --accent: #4cc9a0;
+    --hover: #23272b;
+    --code-bg: #1d2024;
+    --danger: #f2b8b5;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #121416;
+  --bg-side: #17191c;
+  --border: #2a2e32;
+  --border-input: #3a3f44;
+  --text: #eceeef;
+  --text-body: #d6d9db;
+  --muted: #9aa1a8;
+  --accent: #4cc9a0;
+  --hover: #23272b;
+  --code-bg: #1d2024;
+  --danger: #f2b8b5;
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font:
+    16px / 1.6 system-ui,
+    -apple-system,
+    "Segoe UI",
+    sans-serif;
+}
+
+a {
+  color: var(--accent);
+}
+
+.site-header {
+  display: flex;
+  align-items: center;
+  height: 52px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.site-name {
+  font-weight: 700;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.site-body {
+  display: grid;
+  grid-template-columns: 270px minmax(0, 1fr) 220px;
+}
+
+.site-nav {
+  padding: 12px 8px;
+  background: var(--bg-side);
+  border-right: 1px solid var(--border);
+  font-size: 14px;
+}
+
+.site-nav ul,
+.site-toc ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.site-nav ul ul {
+  padding-left: 14px;
+}
+
+.site-nav a {
+  display: block;
+  padding: 4px 10px;
+  border-radius: 6px;
+  color: var(--text-body);
+  text-decoration: none;
+}
+
+.site-nav a:hover,
+.site-nav a[aria-current="page"] {
+  background: var(--hover);
+}
+
+.site-nav a[aria-current="page"] {
+  font-weight: 600;
+}
+
+.doc {
+  max-width: 760px;
+  padding: 40px 48px;
+}
+
+.doc-title {
+  margin: 0 0 16px;
+  font-size: 40px;
+  line-height: 1.15;
+  letter-spacing: -0.025em;
+}
+
+.site-toc {
+  padding: 40px 16px;
+  font-size: 13.5px;
+}
+
+.site-toc a {
+  display: block;
+  padding: 2px 0;
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.site-toc li[data-level="3"] {
+  padding-left: 12px;
+}
+
+.doc-content {
+  color: var(--text-body);
+}
+
+.doc-content h1,
+.doc-content h2,
+.doc-content h3 {
+  color: var(--text);
+  line-height: 1.25;
+  letter-spacing: -0.015em;
+}
+
+.doc-content h2 {
+  margin: 1.9em 0 0.5em;
+  font-size: 24px;
+}
+
+.doc-content h3 {
+  margin: 1.6em 0 0.4em;
+  font-size: 19px;
+}
+
+.doc-content p,
+.doc-content ul,
+.doc-content ol {
+  margin: 0 0 1em;
+}
+
+.doc-content blockquote {
+  margin: 0 0 1em;
+  padding-left: 1em;
+  border-left: 3px solid var(--border);
+  color: var(--muted);
+}
+
+.doc-content code {
+  padding: 1px 5px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--code-bg);
+  font:
+    0.86em ui-monospace,
+    "IBM Plex Mono",
+    monospace;
+}
+
+.doc-content pre {
+  margin: 0 0 1em;
+  padding: 14px 16px;
+  overflow-x: auto;
+  border-radius: 8px;
+  background: var(--code-bg);
+}
+
+.doc-content pre code {
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+.doc-content table {
+  width: 100%;
+  margin: 0 0 1em;
+  border-collapse: collapse;
+}
+
+.doc-content th,
+.doc-content td {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.doc-content img {
+  max-width: 100%;
+  height: auto;
+}
+
+.doc-content figure {
+  margin: 0 0 1em;
+}
+
+.doc-content figcaption {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.callout {
+  margin: 0 0 1em;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: 8px;
+  background: var(--bg-side);
+}
+
+.callout[data-tone="warning"] {
+  border-left-color: #b7791f;
+}
+
+.callout > :last-child {
+  margin-bottom: 0;
+}
+
+.callout-title {
+  font-weight: 600;
+}
+
+.tabs-list {
+  display: flex;
+  gap: 0.25rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.tabs-tab {
+  padding: 0.5rem 1rem;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.tabs-tab[aria-selected="true"] {
+  border-bottom-color: currentColor;
+  font-weight: 600;
+}
+
+.tabs-panel {
+  padding: 1rem 0;
+}
+
+@media (max-width: 900px) {
+  .site-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .site-nav,
+  .site-toc {
+    display: none;
+  }
+
+  .doc {
+    padding: 24px 16px;
+  }
+}

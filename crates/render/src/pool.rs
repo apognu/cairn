@@ -42,6 +42,7 @@ impl Pool {
     Ok(Self { queue, timeout })
   }
 
+  /// Renders `{ "doc": …, "context": … }` (the shape `ssr.js` expects) to the page HTML.
   pub async fn render(&self, doc: serde_json::Value) -> Result<String, RenderError> {
     let (reply, response) = oneshot::channel();
 
@@ -97,7 +98,7 @@ mod tests {
 
   #[tokio::test]
   async fn renders_tab_labels() {
-    let doc: serde_json::Value = serde_json::from_str(include_str!("../../../fixtures/tabs.json")).unwrap();
+    let doc = serde_json::json!({ "doc": serde_json::from_str::<serde_json::Value>(include_str!("../../../fixtures/tabs.json")).unwrap() });
     let pool = Pool::new(&script(), 1, 8, Duration::from_secs(5)).unwrap();
     let html = pool.render(doc).await.unwrap();
 
@@ -108,7 +109,7 @@ mod tests {
 
   #[tokio::test(flavor = "multi_thread")]
   async fn hundred_concurrent_renders() {
-    let doc: serde_json::Value = serde_json::from_str(include_str!("../../../fixtures/tabs.json")).unwrap();
+    let doc = serde_json::json!({ "doc": serde_json::from_str::<serde_json::Value>(include_str!("../../../fixtures/tabs.json")).unwrap() });
     let pool = Arc::new(Pool::new(&script(), 4, 256, Duration::from_secs(5)).unwrap());
 
     let started = Instant::now();
