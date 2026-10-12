@@ -1,4 +1,4 @@
 # editor
 
-The editor SPA: Tiptap canvas inside the site layout, page tree, panels and publish dialog.
-Not obvious: it renders the same components as the published site, so it must not diverge from the renderer package.
+The editor SPA (React, TanStack Query, Vite), embedded in the server binary with rust-embed.
+Not obvious: `src/api/` is generated from the server's OpenAPI spec (`bun run gen:api`); `typecheck` fails when it is stale. `bun run build` must run before `cargo build`.

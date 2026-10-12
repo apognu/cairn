@@ -4,6 +4,7 @@
 
 mod app;
 mod assets;
+mod editor;
 mod error;
 mod pages;
 

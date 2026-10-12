@@ -43,6 +43,7 @@ pub fn router(state: AppState) -> Router {
     .route("/docs/{id}/client", get(show_doc_client_only))
     .route("/assets/client.js", get(client_js))
     .merge(api().0)
+    .fallback(crate::editor::serve)
     .layer(middleware::from_fn(local_host_only))
     .with_state(state)
 }

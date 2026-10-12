@@ -4,13 +4,23 @@
   "type": "module",
   "scripts": {
     "typecheck": "bun scripts/api.ts check && tsc --noEmit",
-    "gen:api": "bun scripts/api.ts write"
+    "gen:api": "bun scripts/api.ts write",
+    "build": "vite build",
+    "dev": "vite",
+    "test": "bun test"
   },
   "dependencies": {
-    "openapi-fetch": "0.17.0"
+    "@tanstack/react-query": "5.87.1",
+    "openapi-fetch": "0.17.0",
+    "react": "19.1.1",
+    "react-dom": "19.1.1"
   },
   "devDependencies": {
+    "@types/bun": "1.2.21",
+    "@types/react": "19.1.12",
+    "@types/react-dom": "19.1.9",
+    "@vitejs/plugin-react": "5.0.2",
     "openapi-typescript": "7.13.0",
-    "@types/bun": "1.2.21"
+    "vite": "7.1.5"
   }
 }
