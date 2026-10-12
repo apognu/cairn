@@ -155,8 +155,8 @@ function wrapMark(inner: ReactNode, mark: DocMark, ctx: NodeContext): ReactNode 
     case "code":
       return <code>{inner}</code>;
     case "link": {
-      const byId = attrs.pageId ? ctx.urls[String(attrs.pageId)] : undefined;
-      const href = byId ?? (attrs.href ? String(attrs.href) : undefined);
+      // A link by page ID follows the page: the address saved next to it is only for editors, and goes stale when the page moves.
+      const href = attrs.pageId ? ctx.urls[String(attrs.pageId)] : attrs.href ? String(attrs.href) : undefined;
       const external = href?.startsWith("http");
       // A link to a page without a URL (unpublished or deleted) renders as plain text, never a dead link.
       if (!href) return inner;

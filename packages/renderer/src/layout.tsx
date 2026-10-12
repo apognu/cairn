@@ -3,6 +3,26 @@ import type { Heading } from "./headings";
 import { ThemeToggle } from "./ThemeToggle";
 import type { NavNode, RenderContext } from "./types";
 
+/** The arrow after a link that leaves the site. */
+function ExternalMark() {
+  return (
+    <svg
+      className="external-mark"
+      width="12"
+      height="12"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      role="img"
+      aria-label="External link"
+    >
+      <path d="M7 17L17 7M8 7h9v9" />
+    </svg>
+  );
+}
+
 function NavList({ nodes, currentId }: { nodes: NavNode[]; currentId?: string }) {
   return (
     <ul>
@@ -10,6 +30,7 @@ function NavList({ nodes, currentId }: { nodes: NavNode[]; currentId?: string })
         <li key={node.id}>
           <a href={node.href} aria-current={node.id === currentId ? "page" : undefined}>
             {node.title}
+            {node.external && <ExternalMark />}
           </a>
           {node.children.length > 0 && <NavList nodes={node.children} currentId={currentId} />}
         </li>
@@ -85,6 +106,15 @@ export function SiteLayout({
             )}
             {context.site.name}
           </a>
+          {context.header.length > 0 && (
+            <nav className="site-sections" aria-label="Sections">
+              {context.header.map((item) => (
+                <a key={item.id} href={item.href} aria-current={item.id === context.section ? "page" : undefined}>
+                  {item.title}
+                </a>
+              ))}
+            </nav>
+          )}
           <SearchBox />
           <ThemeToggle />
         </header>

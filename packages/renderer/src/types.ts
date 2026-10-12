@@ -16,6 +16,10 @@ export type RenderContext = {
   site: { name: string; logo?: { src: string; width?: number; height?: number } | null };
   page: { id?: string; title: string };
   nav: NavNode[];
+  /** The pages promoted to the site header, in order. */
+  header: { id: string; title: string; href: string }[];
+  /** The ID of the header entry the page belongs to, if any. */
+  section?: string | null;
   /** Page ID to URL, for links stored by ID. */
   urls: Record<string, string>;
   /** Asset ID to what the published page needs to show it: its URL and, when known, its size. */
@@ -30,6 +34,7 @@ export const defaultContext: RenderContext = {
   site: { name: "yourdocs" },
   page: { title: "" },
   nav: [],
+  header: [],
   urls: {},
   assets: {},
   today: "",
