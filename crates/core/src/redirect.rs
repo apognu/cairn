@@ -142,11 +142,22 @@ pub struct LostUrl {
   pub title: String,
 }
 
+/// A link from a page that stays to a page that is going away.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+pub struct BrokenLink {
+  pub source_id: PageId,
+  pub source_title: String,
+  pub target_title: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct Pending {
   pub changes: Vec<Change>,
   pub lost_urls: Vec<LostUrl>,
+  /// Links that would point at a deleted page: they render as plain text.
+  pub broken_links: Vec<BrokenLink>,
 }
 
 /// The published state to compare against: the tree, the redirects and the revision of each page.
@@ -157,7 +168,7 @@ pub struct Live<'a> {
 }
 
 /// Compares the current tree and drafts with the live release. `drafts` holds each page's latest saved revision.
-pub fn pending_changes(pages: &[Page], redirects: &[Redirect], drafts: &HashMap<PageId, crate::RevisionId>, live: Option<&Live>) -> Pending {
+pub fn pending_changes(pages: &[Page], redirects: &[Redirect], drafts: &HashMap<PageId, crate::RevisionId>, links: &[(PageId, PageId)], live: Option<&Live>) -> Pending {
   let urls = page_urls(pages);
   let rules = effective_redirects(redirects, pages);
   let empty = Live {
@@ -236,7 +247,24 @@ pub fn pending_changes(pages: &[Page], redirects: &[Redirect], drafts: &HashMap<
   lost_urls.sort_by(|a, b| a.path.cmp(&b.path));
   lost_urls.dedup_by(|a, b| a.path == b.path);
 
-  Pending { changes, lost_urls }
+  let broken_links = links
+    .iter()
+    .filter_map(|(source, target)| {
+      let source_page = pages.iter().find(|p| p.id == *source)?;
+      if pages.iter().any(|p| p.id == *target) {
+        return None;
+      }
+      let target_title = live.pages.iter().find(|p| p.id == *target).map_or_else(|| "a deleted page".to_string(), |p| p.title.clone());
+
+      Some(BrokenLink {
+        source_id: *source,
+        source_title: source_page.title.clone(),
+        target_title,
+      })
+    })
+    .collect();
+
+  Pending { changes, lost_urls, broken_links }
 }
 
 #[cfg(test)]
@@ -322,7 +350,7 @@ mod tests {
     let now = [guide.clone(), moved.clone()];
 
     // Moved without a redirect: the old URL is lost and the change says so.
-    let without = pending_changes(&now, &[], &HashMap::new(), Some(&live));
+    let without = pending_changes(&now, &[], &HashMap::new(), &[], Some(&live));
     assert_eq!(
       without.lost_urls,
       [LostUrl {
@@ -335,7 +363,7 @@ mod tests {
     assert!(!without.changes[0].redirected);
 
     // With a redirect it keeps working.
-    let with = pending_changes(&now, &[redirect("/guide/install/", &moved)], &HashMap::new(), Some(&live));
+    let with = pending_changes(&now, &[redirect("/guide/install/", &moved)], &HashMap::new(), &[], Some(&live));
     assert!(with.lost_urls.is_empty());
     assert!(with.changes[0].redirected);
   }
@@ -355,11 +383,15 @@ mod tests {
     };
 
     // The same revision as live: only the missing page shows.
-    let unchanged = pending_changes(std::slice::from_ref(&kept), &[], &HashMap::from([(kept.id, r1)]), Some(&live));
+    let unchanged = pending_changes(std::slice::from_ref(&kept), &[], &HashMap::from([(kept.id, r1)]), &[], Some(&live));
     assert_eq!(unchanged.changes.iter().map(|c| c.title.as_str()).collect::<Vec<_>>(), ["gone"]);
 
     let drafts = HashMap::from([(kept.id, r2)]);
-    let result = pending_changes(&[kept.clone(), fresh.clone()], &[], &drafts, Some(&live));
+    let result = pending_changes(&[kept.clone(), fresh.clone()], &[], &drafts, &[], Some(&live));
+    // A link from a page that stays to the deleted one is reported by title.
+    let broken = pending_changes(std::slice::from_ref(&kept), &[], &drafts, &[(kept.id, gone.id)], Some(&live)).broken_links;
+    assert_eq!((broken[0].source_title.as_str(), broken[0].target_title.as_str()), ("kept", "gone"));
+
     let kinds: Vec<_> = result.changes.iter().map(|c| (c.title.as_str(), c.kinds.clone())).collect();
     assert_eq!(kinds, [("kept", vec![ChangeKind::Edited]), ("fresh", vec![ChangeKind::New]), ("gone", vec![ChangeKind::Deleted])]);
   }

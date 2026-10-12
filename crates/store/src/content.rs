@@ -1,10 +1,11 @@
 use jiff::Timestamp;
 use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set, TransactionTrait};
-use yourdocs_core::{ContentStore, CoreError, Document, Draft, PageId, Revision, RevisionId, UserId};
+use yourdocs_core::{ContentStore, CoreError, Document, Draft, PageId, Revision, RevisionId, UserId, extract_links};
 
 use crate::{
   StoreError,
   entity::{draft, page, revision},
+  links::replace_links,
 };
 
 /// `ContentStore` on the SQL database.
@@ -108,6 +109,9 @@ impl ContentStore for SqlContentStore {
       tx.rollback().await.map_err(other)?;
       return Err(CoreError::Conflict { base });
     }
+
+    // Backlinks and delete warnings read these; they move with the draft or not at all.
+    replace_links(&tx, page, &extract_links(&doc)).await?;
 
     tx.commit().await.map_err(other)?;
 
@@ -240,5 +244,32 @@ mod tests {
     let store = SqlContentStore::new(test_db().await);
 
     assert!(matches!(store.save_draft(PageId::new(), doc("x"), None, UserId::new()).await, Err(CoreError::NotFound)));
+  }
+
+  #[tokio::test]
+  async fn saving_a_draft_records_what_it_links_to() {
+    use crate::{all_links, tree::create_page};
+    use yourdocs_core::{LinkKind, Placement};
+
+    let db = test_db().await;
+    let store = SqlContentStore::new(db.clone());
+    let user = UserId::new();
+    let a = create_page(&db, user, None, "A", Placement::Last).await.unwrap();
+    let b = create_page(&db, user, None, "B", Placement::Last).await.unwrap();
+
+    let with_link = |target: PageId| -> Document {
+      serde_json::from_value(serde_json::json!({ "type": "doc", "content": [{ "type": "paragraph", "content": [
+        { "type": "text", "text": "see", "marks": [{ "type": "link", "attrs": { "pageId": target.to_string() } }] }
+      ] }] }))
+      .unwrap()
+    };
+
+    let draft = store.save_draft(a.id, with_link(b.id), None, user).await.unwrap();
+    let links = all_links(&db).await.unwrap();
+    assert_eq!((links.len(), links[0].source, links[0].target, links[0].kind), (1, a.id, b.id, LinkKind::Inline));
+
+    // A new save replaces the old set; a link to nothing known is not recorded.
+    store.save_draft(a.id, with_link(PageId::new()), draft.base_revision_id, user).await.unwrap();
+    assert!(all_links(&db).await.unwrap().is_empty());
   }
 }
