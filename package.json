@@ -6,6 +6,7 @@
   ],
   "scripts": {
     "typecheck": "bun run --filter '*' typecheck",
+    "build": "bun run --filter '*' build",
     "lint": "biome check ."
   },
   "devDependencies": {

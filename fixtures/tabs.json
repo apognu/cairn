@@ -1,0 +1,14 @@
+{
+  "type": "doc",
+  "content": [
+    { "type": "heading", "attrs": { "level": 1 }, "content": [{ "type": "text", "text": "Install" }] },
+    { "type": "paragraph", "content": [{ "type": "text", "text": "Pick your platform." }] },
+    {
+      "type": "tabs",
+      "content": [
+        { "type": "tabPanel", "attrs": { "label": "Linux" }, "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "Use the package manager." }] }] },
+        { "type": "tabPanel", "attrs": { "label": "macOS" }, "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "Use Homebrew." }] }] }
+      ]
+    }
+  ]
+}
