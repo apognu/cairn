@@ -39,3 +39,7 @@ export function useDeletePage() {
       throw new Error((error as { message?: string }).message ?? `Request failed (${response.status})`);
   });
 }
+
+export function usePublish() {
+  return useMutation({ mutationFn: async () => unwrap(await api.POST("/api/publish")) });
+}

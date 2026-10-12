@@ -18,3 +18,16 @@ pub struct Asset {
   #[cfg_attr(feature = "openapi", schema(value_type = String, format = DateTime))]
   pub created_at: Timestamp,
 }
+
+impl Asset {
+  /// File extension for the published URL, from the sniffed type.
+  pub fn extension(&self) -> &'static str {
+    match self.mime.as_str() {
+      "image/png" => "png",
+      "image/jpeg" => "jpg",
+      "image/gif" => "gif",
+      "image/webp" => "webp",
+      _ => "bin",
+    }
+  }
+}

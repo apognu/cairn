@@ -36,6 +36,10 @@ pub trait ContentStore: Send + Sync {
   fn revision(&self, id: RevisionId) -> impl Future<Output = Result<Revision, CoreError>> + Send;
 
   fn latest_revision(&self, page: PageId) -> impl Future<Output = Result<Option<Revision>, CoreError>> + Send;
+
+  /// The page's latest revision, creating an empty one if it has none. Unlike a save, this leaves the draft alone, so publishing a
+  /// page nobody has edited cannot make an editor's first save look stale.
+  fn ensure_revision(&self, page: PageId, user: UserId) -> impl Future<Output = Result<Revision, CoreError>> + Send;
 }
 
 /// Where uploaded files and their variants live. Bytes are held in memory for now; streaming comes with large uploads.
@@ -48,4 +52,9 @@ pub trait AssetStore: Send + Sync {
   fn exists(&self, key: &str) -> impl Future<Output = Result<bool, CoreError>> + Send;
 
   fn delete(&self, key: &str) -> impl Future<Output = Result<(), CoreError>> + Send;
+}
+
+/// Where the original file of an asset lives in the `AssetStore`.
+pub fn original_key(sha256: &str) -> String {
+  format!("originals/{sha256}")
 }

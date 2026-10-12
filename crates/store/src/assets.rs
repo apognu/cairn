@@ -20,6 +20,13 @@ pub async fn asset_by_id(db: &DatabaseConnection, id: AssetId) -> Result<Asset, 
   into_asset(row.ok_or(StoreError::NotFound)?)
 }
 
+/// The assets with these IDs; unknown IDs are left out.
+pub async fn assets_by_ids(db: &DatabaseConnection, ids: &[AssetId]) -> Result<Vec<Asset>, StoreError> {
+  let rows = asset::Entity::find().filter(asset::Column::Id.is_in(ids.iter().map(|id| id.as_uuid()))).all(db).await?;
+
+  rows.into_iter().map(into_asset).collect()
+}
+
 /// Records an uploaded file, or returns the existing asset when the same bytes were uploaded before. The boolean says which happened.
 pub async fn get_or_create_asset(db: &DatabaseConnection, new: NewAsset) -> Result<(Asset, bool), StoreError> {
   if let Some(existing) = by_hash(db, &new.sha256).await? {

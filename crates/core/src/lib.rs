@@ -9,6 +9,7 @@ mod document;
 mod error;
 mod id;
 mod page;
+mod release;
 mod storage;
 
 pub use asset::Asset;
@@ -16,4 +17,5 @@ pub use document::{Document, Mark, Node};
 pub use error::CoreError;
 pub use id::{AssetId, PageId, ReleaseId, RevisionId, UserId};
 pub use page::{Page, Placement, slugify};
-pub use storage::{AssetStore, ContentStore, Draft, Revision};
+pub use release::{Release, ReleaseStatus};
+pub use storage::{AssetStore, ContentStore, Draft, Revision, original_key};

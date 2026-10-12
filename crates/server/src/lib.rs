@@ -8,6 +8,7 @@ mod drafts;
 mod editor;
 mod error;
 mod pages;
+mod publish;
 mod uploads;
 
 use std::{
@@ -54,11 +55,16 @@ pub async fn run_dev(bind: SocketAddr, data_dir: PathBuf) -> anyhow::Result<()> 
     docs.insert(name.to_string(), serde_json::from_str(source).with_context(|| format!("invalid fixture {name}"))?);
   }
 
+  let pool = Arc::new(pool);
+  let content = yourdocs_store::SqlContentStore::new(db.clone());
+  let assets = Arc::new(yourdocs_assets::LocalAssetStore::new(&data_dir.join("assets")).context("cannot open the asset store")?);
+
   let state = AppState {
-    pool: Arc::new(pool),
+    publisher: app::publisher(db.clone(), content.clone(), assets.clone(), pool.clone(), &data_dir)?,
+    pool,
     docs: Arc::new(RwLock::new(docs)),
-    content: yourdocs_store::SqlContentStore::new(db.clone()),
-    assets: Arc::new(yourdocs_assets::LocalAssetStore::new(&data_dir.join("assets")).context("cannot open the asset store")?),
+    content,
+    assets,
     db,
   };
 

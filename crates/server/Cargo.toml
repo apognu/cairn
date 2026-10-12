@@ -26,5 +26,6 @@ uuid = { version = "1.28.0", features = ["v7"] }
 yourdocs-assets = { version = "0.0.0", path = "../assets" }
 yourdocs-auth = { version = "0.0.0", path = "../auth" }
 yourdocs-core = { version = "0.0.0", path = "../core", features = ["openapi"] }
+yourdocs-publish = { version = "0.0.0", path = "../publish" }
 yourdocs-render = { path = "../render" }
 yourdocs-store = { version = "0.0.0", path = "../store" }

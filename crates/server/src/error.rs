@@ -6,6 +6,7 @@ use axum::{
 use serde::Serialize;
 use utoipa::ToSchema;
 use yourdocs_core::CoreError;
+use yourdocs_publish::PublishError;
 use yourdocs_render::RenderError;
 use yourdocs_store::StoreError;
 
@@ -28,6 +29,8 @@ pub enum AppError {
   Store(#[from] StoreError),
   #[error(transparent)]
   Core(#[from] CoreError),
+  #[error(transparent)]
+  Publish(#[from] PublishError),
 }
 
 impl IntoResponse for AppError {
@@ -43,7 +46,8 @@ impl IntoResponse for AppError {
       AppError::Core(CoreError::NotFound) => (StatusCode::NOT_FOUND, vec![]),
       AppError::Core(CoreError::Conflict { .. }) => (StatusCode::CONFLICT, vec![]),
       AppError::Core(CoreError::Invalid(reason)) => (StatusCode::UNPROCESSABLE_ENTITY, vec![reason.clone()]),
-      AppError::Render(_) | AppError::Store(_) | AppError::Core(_) => (StatusCode::INTERNAL_SERVER_ERROR, vec![]),
+      AppError::Publish(PublishError::Render { .. }) => (StatusCode::UNPROCESSABLE_ENTITY, vec![self.to_string()]),
+      AppError::Render(_) | AppError::Store(_) | AppError::Core(_) | AppError::Publish(_) => (StatusCode::INTERNAL_SERVER_ERROR, vec![]),
     };
 
     if status.is_server_error() {

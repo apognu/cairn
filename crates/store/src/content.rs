@@ -136,6 +136,28 @@ impl ContentStore for SqlContentStore {
 
     row.map(into_revision).transpose()
   }
+
+  async fn ensure_revision(&self, page: PageId, user: UserId) -> Result<Revision, CoreError> {
+    if let Some(latest) = self.latest_revision(page).await? {
+      return Ok(latest);
+    }
+
+    let page_row = page::Entity::find_by_id(page.as_uuid()).one(&self.db).await.map_err(other)?.ok_or(CoreError::NotFound)?;
+    let row = revision::ActiveModel {
+      id: Set(RevisionId::new().as_uuid()),
+      page_id: Set(page.as_uuid()),
+      doc: Set(serde_json::to_string(&Document::empty()).map_err(other)?),
+      title: Set(page_row.title),
+      slug: Set(page_row.slug),
+      author_id: Set(user.as_uuid()),
+      created_at: Set(Timestamp::now().to_string()),
+    }
+    .insert(&self.db)
+    .await
+    .map_err(other)?;
+
+    into_revision(row)
+  }
 }
 
 fn into_draft(row: draft::Model) -> Result<Draft, CoreError> {

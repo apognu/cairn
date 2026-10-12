@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import { FixtureView } from "./FixtureView";
 import { PageEditor } from "./PageEditor";
-import { usePages } from "./queries";
+import { usePages, usePublish } from "./queries";
 import { Sidebar } from "./Sidebar";
 import type { SaveStatus } from "./useDraftSync";
 
@@ -25,6 +25,7 @@ function Editor() {
   // The selected page lives in the URL, so a reload comes back to it.
   const [selected, setSelected] = useState(() => new URLSearchParams(window.location.hash.slice(1)).get("page"));
   const [status, setStatus] = useState<SaveStatus | null>(null);
+  const publish = usePublish();
   const [panelHost, setPanelHost] = useState<HTMLElement | null>(null);
   const current = pages.data?.find((p) => p.id === selected);
 
@@ -39,6 +40,17 @@ function Editor() {
         <strong>yourdocs</strong>
         <span className="muted">{current?.title ?? "No page selected"}</span>
         {status && <output className="muted">{statusText[status]}</output>}
+        <div className="topbar-actions">
+          {publish.isError && (
+            <span role="alert" className="error-text">
+              {publish.error.message}
+            </span>
+          )}
+          {publish.isSuccess && <span className="muted">Published {publish.data.page_count} pages</span>}
+          <button type="button" className="primary" disabled={publish.isPending} onClick={() => publish.mutate()}>
+            {publish.isPending ? "Publishing…" : "Publish"}
+          </button>
+        </div>
       </header>
       <Sidebar pages={pages.data ?? []} loading={pages.isPending} selected={selected} onSelect={select} />
       <main className="canvas">

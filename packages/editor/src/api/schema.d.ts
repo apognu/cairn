@@ -87,6 +87,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Publishes the latest saved draft of every page as a new release. */
+        post: operations["publish"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -150,6 +167,24 @@ export interface components {
         };
         /** @description Stable identity of a page; URLs derive from the tree, never from this. */
         PageId: string;
+        /** @description An immutable published state of the whole site. */
+        Release: {
+            base_release_id?: components["schemas"]["ReleaseId"] | null;
+            /** Format: date-time */
+            created_at: string;
+            created_by: components["schemas"]["UserId"];
+            id: components["schemas"]["ReleaseId"];
+            /**
+             * Format: int32
+             * @description How many pages the release contains.
+             */
+            page_count: number;
+            status: components["schemas"]["ReleaseStatus"];
+        };
+        /** @description An immutable published state of the whole site. */
+        ReleaseId: string;
+        /** @enum {string} */
+        ReleaseStatus: "building" | "live" | "failed";
         RenamePage: {
             title: string;
         };
@@ -484,6 +519,34 @@ export interface operations {
                 };
             };
             /** @description the target is inside the page's own subtree */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    publish: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Release"];
+                };
+            };
+            /** @description a page could not be rendered; nothing was published */
             422: {
                 headers: {
                     [name: string]: unknown;

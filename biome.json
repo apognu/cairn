@@ -5,7 +5,16 @@
     "lineWidth": 120
   },
   "files": {
-    "includes": ["packages/**", "*.json", "!**/dist", "!**/node_modules", "!**/src/api", "!**/test-results"]
+    "includes": [
+      "packages/**",
+      "*.json",
+      "!**/dist",
+      "!**/node_modules",
+      "!**/src/api",
+      "!**/test-results",
+      "!**/.e2e-data",
+      "!**/.yourdocs"
+    ]
   },
   "linter": {
     "rules": {

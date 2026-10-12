@@ -385,6 +385,33 @@
           }
         }
       }
+    },
+    "/api/publish": {
+      "post": {
+        "summary": "Publishes the latest saved draft of every page as a new release.",
+        "operationId": "publish",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Release"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "a page could not be rendered; nothing was published",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -599,6 +626,61 @@
       "PageId": {
         "type": "string",
         "description": "Stable identity of a page; URLs derive from the tree, never from this."
+      },
+      "Release": {
+        "type": "object",
+        "description": "An immutable published state of the whole site.",
+        "required": [
+          "id",
+          "created_by",
+          "created_at",
+          "status",
+          "page_count"
+        ],
+        "properties": {
+          "base_release_id": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ReleaseId",
+                "description": "The live release this one was built on."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_by": {
+            "$ref": "#/components/schemas/UserId"
+          },
+          "id": {
+            "$ref": "#/components/schemas/ReleaseId"
+          },
+          "page_count": {
+            "type": "integer",
+            "format": "int32",
+            "description": "How many pages the release contains.",
+            "minimum": 0
+          },
+          "status": {
+            "$ref": "#/components/schemas/ReleaseStatus"
+          }
+        }
+      },
+      "ReleaseId": {
+        "type": "string",
+        "description": "An immutable published state of the whole site."
+      },
+      "ReleaseStatus": {
+        "type": "string",
+        "enum": [
+          "building",
+          "live",
+          "failed"
+        ]
       },
       "RenamePage": {
         "type": "object",

@@ -16,10 +16,11 @@ use sea_orm::DatabaseConnection;
 use serde_json::{Value, json};
 use tracing::instrument;
 use yourdocs_assets::LocalAssetStore;
+use yourdocs_publish::{Bundles, FolderTarget, PublishTarget, Publisher};
 use yourdocs_render::Pool;
 use yourdocs_store::SqlContentStore;
 
-use crate::{assets::Assets, drafts, error::AppError, pages, uploads};
+use crate::{assets::Assets, drafts, error::AppError, pages, publish, uploads};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -29,11 +30,40 @@ pub struct AppState {
   pub db: DatabaseConnection,
   pub content: SqlContentStore,
   pub assets: Arc<LocalAssetStore>,
+  pub publisher: Arc<Publisher<SqlContentStore, LocalAssetStore>>,
+}
+
+/// The publisher for a data directory: the pages become a site under `<data_dir>/site`.
+pub(crate) fn publisher(
+  db: DatabaseConnection,
+  content: SqlContentStore,
+  assets: Arc<LocalAssetStore>,
+  pool: Arc<Pool>,
+  data_dir: &std::path::Path,
+) -> anyhow::Result<Arc<Publisher<SqlContentStore, LocalAssetStore>>> {
+  let embedded = |name: &str| {
+    Assets::get(name)
+      .map(|f| f.data.into_owned())
+      .ok_or_else(|| anyhow::anyhow!("{name} is not embedded, run `bun run build` first"))
+  };
+  let bundles = Bundles {
+    client_js: embedded("client.js")?,
+    site_css: embedded("site.css")?,
+  };
+
+  Ok(Arc::new(Publisher::new(
+    db,
+    content,
+    assets,
+    pool,
+    PublishTarget::Folder(FolderTarget::new(data_dir.to_path_buf())),
+    bundles,
+  )))
 }
 
 /// The OpenAPI document and the router serving the same routes, built from one definition.
 pub fn api() -> (Router<AppState>, utoipa::openapi::OpenApi) {
-  let (router, mut spec) = pages::routes().merge(drafts::routes()).merge(uploads::routes()).split_for_parts();
+  let (router, mut spec) = pages::routes().merge(drafts::routes()).merge(uploads::routes()).merge(publish::routes()).split_for_parts();
   // The router's default info describes utoipa-axum itself.
   spec.info = utoipa::openapi::InfoBuilder::new().title("yourdocs").version(env!("CARGO_PKG_VERSION")).build();
 
@@ -160,11 +190,16 @@ pub(crate) async fn test_state_with_dir() -> (AppState, std::path::PathBuf) {
   std::fs::create_dir_all(&dir).unwrap();
   let db = yourdocs_store::connect(&dir.join("test.db")).await.unwrap();
 
+  let pool = Arc::new(pool);
+  let content = SqlContentStore::new(db.clone());
+  let assets = Arc::new(LocalAssetStore::new(&dir.join("assets")).unwrap());
+
   let state = AppState {
-    pool: Arc::new(pool),
+    publisher: publisher(db.clone(), content.clone(), assets.clone(), pool.clone(), &dir.join("out")).unwrap(),
+    pool,
     docs: Default::default(),
-    content: SqlContentStore::new(db.clone()),
-    assets: Arc::new(LocalAssetStore::new(&dir.join("assets")).unwrap()),
+    content,
+    assets,
     db,
   };
 

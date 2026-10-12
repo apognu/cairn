@@ -5,11 +5,13 @@
 mod highlight;
 mod platform;
 mod pool;
+mod shell;
 
 use ssr_rs::Ssr;
 
 pub use highlight::highlight_css;
 pub use pool::Pool;
+pub use shell::{Shell, document};
 
 #[derive(Debug, thiserror::Error)]
 pub enum RenderError {

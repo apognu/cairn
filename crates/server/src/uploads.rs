@@ -9,7 +9,7 @@ use tracing::instrument;
 use utoipa_axum::{router::OpenApiRouter, routes};
 use yourdocs_assets::{inspect, sha256_hex};
 use yourdocs_auth::CurrentUser;
-use yourdocs_core::{Asset, AssetId, AssetStore, CoreError};
+use yourdocs_core::{Asset, AssetId, AssetStore, CoreError, original_key};
 use yourdocs_store::{NewAsset, asset_by_id, get_or_create_asset};
 
 use crate::{
@@ -22,10 +22,6 @@ const MAX_UPLOAD: usize = 25 * 1024 * 1024;
 
 pub(crate) fn routes() -> OpenApiRouter<AppState> {
   OpenApiRouter::new().routes(routes!(upload)).layer(DefaultBodyLimit::max(MAX_UPLOAD))
-}
-
-fn key(sha256: &str) -> String {
-  format!("originals/{sha256}")
 }
 
 /// Uploads an image (the request body is the file). Uploading bytes that are already stored returns the existing asset.
@@ -44,7 +40,7 @@ async fn upload(State(state): State<AppState>, CurrentUser(user): CurrentUser, b
   let (sha256, body) = tokio::task::spawn_blocking(move || (sha256_hex(&body), body)).await.map_err(|e| CoreError::Other(e.into()))?;
 
   // The file first, the row second: a row never points at a missing file, and an orphaned file is harmless.
-  let key = key(&sha256);
+  let key = original_key(&sha256);
   if !state.assets.exists(&key).await? {
     state.assets.put(&key, body.to_vec()).await?;
   }
@@ -70,7 +66,7 @@ async fn upload(State(state): State<AppState>, CurrentUser(user): CurrentUser, b
 pub(crate) async fn serve(State(state): State<AppState>, Path(name): Path<String>) -> Result<Response, AppError> {
   let id: AssetId = name.split('.').next().unwrap_or_default().parse().map_err(|_| AppError::Core(CoreError::NotFound))?;
   let asset = asset_by_id(&state.db, id).await?;
-  let bytes = state.assets.get(&key(&asset.sha256)).await?;
+  let bytes = state.assets.get(&original_key(&asset.sha256)).await?;
 
   Ok(
     (
