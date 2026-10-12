@@ -1,0 +1,40 @@
+{
+  "type": "doc",
+  "content": [
+    { "type": "heading", "attrs": { "id": "b1", "level": 1 }, "content": [{ "type": "text", "text": "Webhooks" }] },
+    {
+      "type": "paragraph",
+      "attrs": { "id": "b2" },
+      "content": [
+        { "type": "text", "text": "Read the " },
+        { "type": "text", "text": "setup guide", "marks": [{ "type": "link", "attrs": { "pageId": "0198f2a0-7c1e-7a3b-9d4e-5b6c7d8e9f01", "anchor": null } }] },
+        { "type": "text", "text": " and use " },
+        { "type": "text", "text": "retries", "marks": [{ "type": "bold" }, { "type": "italic" }] },
+        { "type": "text", "text": " wisely, e.g. " },
+        { "type": "text", "text": "POST /hooks", "marks": [{ "type": "code" }] },
+        { "type": "hardBreak" }
+      ]
+    },
+    {
+      "type": "bulletList",
+      "attrs": { "id": "b3" },
+      "content": [
+        { "type": "listItem", "content": [{ "type": "paragraph", "attrs": { "id": "b4" }, "content": [{ "type": "text", "text": "Signed payloads" }] }] },
+        { "type": "listItem", "content": [{ "type": "paragraph", "attrs": { "id": "b5" } }] }
+      ]
+    },
+    {
+      "type": "callout",
+      "attrs": { "id": "b6", "name": "callout", "version": 1, "props": { "tone": "warning", "title": null } },
+      "content": [{ "type": "paragraph", "attrs": { "id": "b7" }, "content": [{ "type": "text", "text": "Verify signatures." }] }]
+    },
+    { "type": "codeBlock", "attrs": { "id": "b8", "language": "json", "fileName": "payload.json" }, "content": [{ "type": "text", "text": "{ \"ok\": true }" }] },
+    { "type": "image", "attrs": { "id": "b9", "assetId": "0198f2a0-7c1e-7a3b-9d4e-5b6c7d8e9f02", "alt": "Diagram", "caption": "" } },
+    {
+      "type": "table",
+      "attrs": { "id": "b10" },
+      "content": [{ "type": "tableRow", "content": [{ "type": "tableHeader", "attrs": { "colspan": 1, "rowspan": 1 }, "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "Event" }] }] }] }]
+    },
+    { "type": "horizontalRule" }
+  ]
+}
