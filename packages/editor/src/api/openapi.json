@@ -221,6 +221,114 @@
         }
       }
     },
+    "/api/pages/{id}/aliases": {
+      "post": {
+        "summary": "Adds an alias: an old URL that redirects to the page.",
+        "operationId": "addAlias",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/PageId"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewAlias"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageUrl"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "the path belongs to another page or alias; the message names it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "not a usable path",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Removes an alias of the page.",
+        "operationId": "removeAlias",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/PageId"
+            }
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageUrl"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/pages/{id}/draft": {
       "get": {
         "summary": "The latest saved edits of a page (an empty document if it has none yet).",
@@ -386,6 +494,106 @@
         }
       }
     },
+    "/api/pages/{id}/url": {
+      "get": {
+        "summary": "The page's URL, custom URL and aliases.",
+        "operationId": "getPageUrl",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/PageId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageUrl"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Sets or clears the page's custom URL.",
+        "operationId": "setPageUrl",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/PageId"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetUrl"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageUrl"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "the URL belongs to another page or alias; the message names it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "not a usable path",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/publish": {
       "post": {
         "summary": "Publishes the latest saved draft of every page as a new release.",
@@ -406,6 +614,23 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/publish/changes": {
+      "get": {
+        "summary": "What the next publish would change compared with the live site, and the live URLs it would break.",
+        "operationId": "pendingChanges",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Pending"
                 }
               }
             }
@@ -467,6 +692,26 @@
   },
   "components": {
     "schemas": {
+      "Alias": {
+        "type": "object",
+        "required": [
+          "path",
+          "origin",
+          "created_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "origin": {
+            "$ref": "#/components/schemas/RedirectOrigin"
+          },
+          "path": {
+            "type": "string"
+          }
+        }
+      },
       "Asset": {
         "type": "object",
         "description": "An uploaded file. The bytes live in the `AssetStore` under the content hash; this is the row that describes them.",
@@ -522,6 +767,59 @@
       "AssetId": {
         "type": "string",
         "description": "An uploaded file."
+      },
+      "Change": {
+        "type": "object",
+        "description": "One page with something to publish.",
+        "required": [
+          "page_id",
+          "title",
+          "kinds",
+          "redirected"
+        ],
+        "properties": {
+          "kinds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChangeKind"
+            }
+          },
+          "new_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The URL after publishing, for pages that still exist."
+          },
+          "old_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The URL in the live release, for pages that were already published."
+          },
+          "page_id": {
+            "$ref": "#/components/schemas/PageId"
+          },
+          "redirected": {
+            "type": "boolean",
+            "description": "Whether the old URL keeps working through a redirect."
+          },
+          "title": {
+            "type": "string"
+          }
+        }
+      },
+      "ChangeKind": {
+        "type": "string",
+        "description": "What changed about a page since the live release.",
+        "enum": [
+          "new",
+          "edited",
+          "renamed",
+          "moved",
+          "deleted"
+        ]
       },
       "CreatePage": {
         "type": "object",
@@ -606,6 +904,22 @@
           }
         }
       },
+      "LostUrl": {
+        "type": "object",
+        "description": "A URL that works on the live site and will not after publishing.",
+        "required": [
+          "path",
+          "title"
+        ],
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        }
+      },
       "MovePage": {
         "type": "object",
         "properties": {
@@ -628,6 +942,24 @@
                 "type": "null"
               }
             ]
+          },
+          "redirect": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Keep the old URLs of the page and its subtree working with redirects. Defaults to true."
+          }
+        }
+      },
+      "NewAlias": {
+        "type": "object",
+        "required": [
+          "path"
+        ],
+        "properties": {
+          "path": {
+            "type": "string"
           }
         }
       },
@@ -675,6 +1007,13 @@
               }
             ]
           },
+          "path_override": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A fixed URL that replaces the one derived from the tree (`/webhooks/`); it stays put when the page moves."
+          },
           "position": {
             "type": "string",
             "description": "Fractional index; siblings sort by this string."
@@ -702,6 +1041,67 @@
         "enum": [
           "page",
           "link"
+        ]
+      },
+      "PageUrl": {
+        "type": "object",
+        "description": "Where a page lives and which old URLs lead to it.",
+        "required": [
+          "url",
+          "derived_url",
+          "aliases"
+        ],
+        "properties": {
+          "aliases": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Alias"
+            }
+          },
+          "custom_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "derived_url": {
+            "type": "string",
+            "description": "The URL it would have without a custom one."
+          },
+          "url": {
+            "type": "string",
+            "description": "The URL the page has now."
+          }
+        }
+      },
+      "Pending": {
+        "type": "object",
+        "required": [
+          "changes",
+          "lost_urls"
+        ],
+        "properties": {
+          "changes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Change"
+            }
+          },
+          "lost_urls": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LostUrl"
+            }
+          }
+        }
+      },
+      "RedirectOrigin": {
+        "type": "string",
+        "description": "Why a redirect exists.",
+        "enum": [
+          "move",
+          "rename",
+          "manual"
         ]
       },
       "Release": {
@@ -772,6 +1172,13 @@
             ],
             "description": "The new target of a link; refused for pages."
           },
+          "redirect": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Keep the old URL working with a redirect. Defaults to true."
+          },
           "title": {
             "type": "string"
           }
@@ -800,6 +1207,25 @@
           },
           "doc": {
             "$ref": "#/components/schemas/Document"
+          }
+        }
+      },
+      "SetUrl": {
+        "type": "object",
+        "properties": {
+          "custom_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The fixed URL, or null to use the one derived from the tree."
+          },
+          "redirect": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Keep the old URLs of the page and the pages below it as redirects. Defaults to true."
           }
         }
       },

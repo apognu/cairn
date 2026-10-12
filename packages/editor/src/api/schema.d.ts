@@ -52,6 +52,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/pages/{id}/aliases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Adds an alias: an old URL that redirects to the page. */
+        post: operations["addAlias"];
+        /** Removes an alias of the page. */
+        delete: operations["removeAlias"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/pages/{id}/draft": {
         parameters: {
             query?: never;
@@ -87,6 +105,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/pages/{id}/url": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The page's URL, custom URL and aliases. */
+        get: operations["getPageUrl"];
+        /** Sets or clears the page's custom URL. */
+        put: operations["setPageUrl"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/publish": {
         parameters: {
             query?: never;
@@ -98,6 +134,23 @@ export interface paths {
         put?: never;
         /** Publishes the latest saved draft of every page as a new release. */
         post: operations["publish"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/publish/changes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** What the next publish would change compared with the live site, and the live URLs it would break. */
+        get: operations["pendingChanges"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -126,6 +179,12 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        Alias: {
+            /** Format: date-time */
+            created_at: string;
+            origin: components["schemas"]["RedirectOrigin"];
+            path: string;
+        };
         /** @description An uploaded file. The bytes live in the `AssetStore` under the content hash; this is the row that describes them. */
         Asset: {
             /** Format: int64 */
@@ -144,6 +203,23 @@ export interface components {
         };
         /** @description An uploaded file. */
         AssetId: string;
+        /** @description One page with something to publish. */
+        Change: {
+            kinds: components["schemas"]["ChangeKind"][];
+            /** @description The URL after publishing, for pages that still exist. */
+            new_url?: string | null;
+            /** @description The URL in the live release, for pages that were already published. */
+            old_url?: string | null;
+            page_id: components["schemas"]["PageId"];
+            /** @description Whether the old URL keeps working through a redirect. */
+            redirected: boolean;
+            title: string;
+        };
+        /**
+         * @description What changed about a page since the live release.
+         * @enum {string}
+         */
+        ChangeKind: "new" | "edited" | "renamed" | "moved" | "deleted";
         CreatePage: {
             before?: components["schemas"]["PageId"] | null;
             /** @description Makes the new node an external link to this URL instead of a page. */
@@ -166,9 +242,19 @@ export interface components {
             details: string[];
             message: string;
         };
+        /** @description A URL that works on the live site and will not after publishing. */
+        LostUrl: {
+            path: string;
+            title: string;
+        };
         MovePage: {
             before?: components["schemas"]["PageId"] | null;
             parent_id?: components["schemas"]["PageId"] | null;
+            /** @description Keep the old URLs of the page and its subtree working with redirects. Defaults to true. */
+            redirect?: boolean | null;
+        };
+        NewAlias: {
+            path: string;
         };
         /** @description A node of the page tree. */
         Page: {
@@ -180,6 +266,8 @@ export interface components {
             id: components["schemas"]["PageId"];
             kind: components["schemas"]["PageKind"];
             parent_id?: components["schemas"]["PageId"] | null;
+            /** @description A fixed URL that replaces the one derived from the tree (`/webhooks/`); it stays put when the page moves. */
+            path_override?: string | null;
             /** @description Fractional index; siblings sort by this string. */
             position: string;
             /** @description Lowercase, unique among siblings. */
@@ -195,6 +283,24 @@ export interface components {
          * @enum {string}
          */
         PageKind: "page" | "link";
+        /** @description Where a page lives and which old URLs lead to it. */
+        PageUrl: {
+            aliases: components["schemas"]["Alias"][];
+            custom_url?: string | null;
+            /** @description The URL it would have without a custom one. */
+            derived_url: string;
+            /** @description The URL the page has now. */
+            url: string;
+        };
+        Pending: {
+            changes: components["schemas"]["Change"][];
+            lost_urls: components["schemas"]["LostUrl"][];
+        };
+        /**
+         * @description Why a redirect exists.
+         * @enum {string}
+         */
+        RedirectOrigin: "move" | "rename" | "manual";
         /** @description An immutable published state of the whole site. */
         Release: {
             base_release_id?: components["schemas"]["ReleaseId"] | null;
@@ -216,6 +322,8 @@ export interface components {
         RenamePage: {
             /** @description The new target of a link; refused for pages. */
             external_url?: string | null;
+            /** @description Keep the old URL working with a redirect. Defaults to true. */
+            redirect?: boolean | null;
             title: string;
         };
         /** @description An immutable snapshot of a page's document. */
@@ -223,6 +331,12 @@ export interface components {
         SaveDraft: {
             base_revision_id?: components["schemas"]["RevisionId"] | null;
             doc: components["schemas"]["Document"];
+        };
+        SetUrl: {
+            /** @description The fixed URL, or null to use the one derived from the tree. */
+            custom_url?: string | null;
+            /** @description Keep the old URLs of the page and the pages below it as redirects. Defaults to true. */
+            redirect?: boolean | null;
         };
         /** @description The site-wide settings of the theme basics. */
         Settings: {
@@ -436,6 +550,88 @@ export interface operations {
             };
         };
     };
+    addAlias: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["PageId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewAlias"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageUrl"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description the path belongs to another page or alias; the message names it */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description not a usable path */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    removeAlias: {
+        parameters: {
+            query: {
+                path: string;
+            };
+            header?: never;
+            path: {
+                id: components["schemas"]["PageId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageUrl"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     getDraft: {
         parameters: {
             query?: never;
@@ -566,6 +762,86 @@ export interface operations {
             };
         };
     };
+    getPageUrl: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["PageId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageUrl"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    setPageUrl: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["PageId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetUrl"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageUrl"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description the URL belongs to another page or alias; the message names it */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description not a usable path */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     publish: {
         parameters: {
             query?: never;
@@ -590,6 +866,25 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    pendingChanges: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Pending"];
                 };
             };
         };

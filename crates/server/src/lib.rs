@@ -12,6 +12,7 @@ mod publish;
 mod settings;
 mod site;
 mod uploads;
+mod urls;
 
 use std::{
   collections::HashMap,
