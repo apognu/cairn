@@ -1295,3 +1295,11 @@ button.primary:disabled {
   background: var(--bg);
   cursor: pointer;
 }
+
+.form-field textarea {
+  padding: 8px 10px;
+  border: 1px solid var(--border-input);
+  border-radius: 6px;
+  background: var(--bg);
+  resize: vertical;
+}

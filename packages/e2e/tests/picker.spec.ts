@@ -84,3 +84,41 @@ test("deleting a linked page lists every page that links to it", async ({ page }
   await expect(confirm.getByRole("list", { name: "Linked from" })).toContainText(second);
   await confirm.getByRole("button", { name: "Cancel" }).click();
 });
+
+test("a link card shows the title and description of the page it points to", async ({ page }) => {
+  const suffix = Math.random().toString(36).slice(2, 8);
+  const [target, host] = [`Card target ${suffix}`, `Card host ${suffix}`];
+
+  await page.goto("/");
+  for (const title of [target, host]) {
+    await page.getByRole("button", { name: "New page" }).click();
+    await page.getByLabel("New page title").fill(title);
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("button", { name: title, exact: true })).toBeVisible();
+  }
+
+  await page.getByRole("button", { name: target, exact: true }).click();
+  await page.getByRole("button", { name: "Page settings" }).click();
+  await page.getByLabel("Description").fill("What the target page is about");
+  await page.getByLabel("Description").blur();
+  await page.getByRole("button", { name: "Close page settings" }).click();
+
+  await page.getByRole("button", { name: host, exact: true }).click();
+  await page.locator(".ProseMirror").click();
+  await page.keyboard.type("/link card");
+  await page.keyboard.press("Enter");
+
+  // A selected atom shows its settings.
+  await page.locator(".ProseMirror .link-card").click();
+  const panel = page.getByRole("complementary", { name: "Component settings" });
+  await panel.getByRole("button", { name: "Page", exact: true }).click();
+  await panel.getByRole("combobox").fill(target);
+  await page
+    .getByRole("option", { name: new RegExp(target) })
+    .getByRole("button")
+    .click();
+
+  const card = page.locator(".ProseMirror .link-card");
+  await expect(card).toContainText(target);
+  await expect(card).toContainText("What the target page is about");
+});

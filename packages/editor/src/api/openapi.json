@@ -365,6 +365,62 @@
         }
       }
     },
+    "/api/pages/{id}/description": {
+      "put": {
+        "summary": "Sets the page's short description, shown on link cards and in its meta tags.",
+        "operationId": "setPageDescription",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/PageId"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DescriptionBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "too long",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/pages/{id}/draft": {
       "get": {
         "summary": "The latest saved edits of a page (an empty document if it has none yet).",
@@ -1153,6 +1209,18 @@
           }
         }
       },
+      "DescriptionBody": {
+        "type": "object",
+        "required": [
+          "description"
+        ],
+        "properties": {
+          "description": {
+            "type": "string",
+            "description": "Up to 300 characters; empty clears it."
+          }
+        }
+      },
       "Document": {
         "description": "A page body: the ProseMirror JSON of the editor, stored and rendered as is.\n\nBlock nodes carry a stable `attrs.id` (Tiptap UniqueID); internal links and components store page IDs and props in `attrs`."
       },
@@ -1355,6 +1423,13 @@
           },
           "created_by": {
             "$ref": "#/components/schemas/UserId"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A short summary, shown on link cards and in the page's meta description."
           },
           "external_url": {
             "type": [

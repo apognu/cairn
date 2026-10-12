@@ -87,6 +87,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/pages/{id}/description": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Sets the page's short description, shown on link cards and in its meta tags. */
+        put: operations["setPageDescription"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/pages/{id}/draft": {
         parameters: {
             query?: never;
@@ -314,6 +331,10 @@ export interface components {
             parent_id?: components["schemas"]["PageId"] | null;
             title: string;
         };
+        DescriptionBody: {
+            /** @description Up to 300 characters; empty clears it. */
+            description: string;
+        };
         /**
          * @description A page body: the ProseMirror JSON of the editor, stored and rendered as is.
          *
@@ -373,6 +394,8 @@ export interface components {
             /** Format: date-time */
             created_at: string;
             created_by: components["schemas"]["UserId"];
+            /** @description A short summary, shown on link cards and in the page's meta description. */
+            description?: string | null;
             /** @description Where a link goes; always `None` for pages. */
             external_url?: string | null;
             /** @description Orders the header entries (fractional index, like `position`). */
@@ -780,6 +803,48 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    setPageDescription: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["PageId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DescriptionBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description too long */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

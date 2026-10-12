@@ -1,5 +1,13 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { useAddAlias, useBacklinks, usePageUrl, useRemoveAlias, useSetCustomUrl, useSetHeader } from "./queries";
+import {
+  useAddAlias,
+  useBacklinks,
+  usePageUrl,
+  useRemoveAlias,
+  useSetCustomUrl,
+  useSetDescription,
+  useSetHeader,
+} from "./queries";
 import type { Page } from "./tree";
 
 const originLabel = { move: "moved", rename: "previous URL", manual: "manual" } as const;
@@ -14,6 +22,8 @@ export function PageSettings({ page, onClose }: { page: Page; onClose: () => voi
   const removeAlias = useRemoveAlias(page.id);
   const setHeader = useSetHeader();
   const backlinks = useBacklinks(page.id);
+  const setDescription = useSetDescription();
+  const [description, setDescriptionText] = useState(page.description ?? "");
   const [custom, setCustomPath] = useState("");
   const [useCustom, setUseCustom] = useState(false);
   const [alias, setAlias] = useState("");
@@ -26,7 +36,7 @@ export function PageSettings({ page, onClose }: { page: Page; onClose: () => voi
   }, [url.data]);
 
   const data = url.data;
-  const error = setCustom.error ?? addAlias.error ?? removeAlias.error ?? setHeader.error;
+  const error = setCustom.error ?? addAlias.error ?? removeAlias.error ?? setHeader.error ?? setDescription.error;
   const saveUrl = (path: string | null) => setCustom.mutate({ custom_url: path });
 
   return (
@@ -129,6 +139,21 @@ export function PageSettings({ page, onClose }: { page: Page; onClose: () => voi
               </button>
             </form>
           </section>
+
+          <div className="form-field">
+            <label htmlFor={`${id}-description`}>Description</label>
+            <textarea
+              id={`${id}-description`}
+              rows={3}
+              maxLength={300}
+              value={description}
+              placeholder="A sentence for link cards and search results"
+              onChange={(e) => setDescriptionText(e.target.value)}
+              onBlur={() =>
+                description !== (page.description ?? "") && setDescription.mutate({ id: page.id, description })
+              }
+            />
+          </div>
 
           <section className="form-field">
             <h3>Linked from</h3>

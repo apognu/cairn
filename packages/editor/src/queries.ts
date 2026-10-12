@@ -58,6 +58,13 @@ export function useMovePage() {
   );
 }
 
+/** Sets the short description link cards show for the page. */
+export function useSetDescription() {
+  return usePageMutation(async ({ id, description }: { id: string; description: string }) =>
+    unwrap(await api.PUT("/api/pages/{id}/description", { params: { path: { id } }, body: { description } })),
+  );
+}
+
 /** Shows a page in the site header (or takes it out). */
 export function useSetHeader() {
   return usePageMutation(async ({ id, in_header }: { id: string; in_header: boolean }) =>
