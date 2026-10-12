@@ -1,3 +1,4 @@
+import { RenderEnvContext } from "@yourdocs/components";
 import { collectHeadings } from "./headings";
 import { SiteLayout } from "./layout";
 import { renderNode } from "./render";
@@ -9,8 +10,10 @@ export function Page({ doc, context }: RenderInput) {
   const { list, byNode } = collectHeadings(doc);
 
   return (
-    <SiteLayout context={full} headings={list}>
-      {renderNode(doc, { urls: full.urls, anchors: byNode }, 0)}
-    </SiteLayout>
+    <RenderEnvContext.Provider value={{ urls: full.urls, today: full.today }}>
+      <SiteLayout context={full} headings={list}>
+        {renderNode(doc, { urls: full.urls, anchors: byNode }, 0)}
+      </SiteLayout>
+    </RenderEnvContext.Provider>
   );
 }

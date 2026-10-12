@@ -1,5 +1,6 @@
 import type { JsonSchema } from "@yourdocs/sdk";
 import { useId } from "react";
+import { usePages } from "./queries";
 
 type Values = Record<string, unknown>;
 
@@ -90,7 +91,16 @@ function Field({
   return (
     <div className="form-field">
       <label htmlFor={id}>{label}</label>
-      {schema.enum ? (
+      {schema["x-field"] === "page" ? (
+        <PageSelect id={id} value={String(value ?? "")} onChange={(next) => onChange(next || undefined)} />
+      ) : schema["x-field"] === "date" ? (
+        <input
+          id={id}
+          type="date"
+          value={String(value ?? "")}
+          onChange={(e) => onChange(e.target.value || undefined)}
+        />
+      ) : schema.enum ? (
         <select id={id} value={String(value)} onChange={(e) => onChange(e.target.value)}>
           {schema.enum.map((option) => (
             <option key={String(option)}>{String(option)}</option>
@@ -160,8 +170,24 @@ function ListField({
         </div>
       ))}
       <button type="button" className="form-add" onClick={() => onChange([...value, defaultFor(item)])}>
-        Add {label.toLowerCase()}
+        Add item
       </button>
     </fieldset>
+  );
+}
+
+/** Until the page picker of M2, a plain list of pages: titles for people, IDs in the document. */
+function PageSelect({ id, value, onChange }: { id: string; value: string; onChange: (next: string) => void }) {
+  const pages = usePages();
+
+  return (
+    <select id={id} value={value} onChange={(e) => onChange(e.target.value)}>
+      <option value="">No link</option>
+      {pages.data?.map((page) => (
+        <option key={page.id} value={page.id}>
+          {page.title}
+        </option>
+      ))}
+    </select>
   );
 }

@@ -4,7 +4,8 @@ import { api } from "./api/client";
 import { unwrap } from "./api/unwrap";
 import { Canvas } from "./Canvas";
 import { readLocal } from "./localDrafts";
-import type { Page } from "./tree";
+import { usePages } from "./queries";
+import { type Page, pageUrls } from "./tree";
 import { type InitialDraft, type SaveStatus, useDraftSync } from "./useDraftSync";
 
 interface Props {
@@ -54,6 +55,7 @@ function Editing({
   panelHost: HTMLElement | null;
 }) {
   const { status, onChange, flush, overwrite } = useDraftSync(page.id, initial);
+  const pages = usePages();
 
   useEffect(() => onStatus(status), [status, onStatus]);
 
@@ -72,7 +74,7 @@ function Editing({
       )}
       <Canvas
         doc={initial.doc}
-        context={{ page: { id: page.id, title: page.title } }}
+        context={{ page: { id: page.id, title: page.title }, urls: pageUrls(pages.data ?? []) }}
         embedded
         onChange={onChange}
         panelHost={panelHost}

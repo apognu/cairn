@@ -1,4 +1,5 @@
 import type { Editor } from "@tiptap/core";
+import { NodeSelection } from "@tiptap/pm/state";
 import { useEditorState } from "@tiptap/react";
 import { componentsByName } from "@yourdocs/components";
 import { propsSchema } from "@yourdocs/sdk";
@@ -10,7 +11,13 @@ export function PropsPanel({ editor, host }: { editor: Editor; host: HTMLElement
   const active = useEditorState({
     editor,
     selector: ({ editor: e }) => {
-      const { $from } = e.state.selection;
+      const { selection } = e.state;
+      // A selected atom (feature tabs, what's new) is the component itself.
+      if (selection instanceof NodeSelection && componentsByName.has(selection.node.type.name)) {
+        return { name: selection.node.type.name, attrs: selection.node.attrs as Record<string, unknown> };
+      }
+
+      const { $from } = selection;
 
       for (let depth = $from.depth; depth > 0; depth--) {
         const node = $from.node(depth);

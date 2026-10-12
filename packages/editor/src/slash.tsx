@@ -45,6 +45,37 @@ export const slashItems: SlashItem[] = [
       .insertContent({ type: "callout", attrs: { tone: "note" }, content: [{ type: "paragraph" }] })
       .run(),
   ),
+  item("Feature tabs", "Cards grouped into tabs", "features tabs cards grid", (e, r) =>
+    e
+      .chain()
+      .focus()
+      .deleteRange(r)
+      .insertContent({
+        type: "featureTabs",
+        attrs: {
+          families: [
+            {
+              label: "Family",
+              features: [
+                { icon: "rocket", title: "Feature", description: "What it does", page: undefined, newUntil: undefined },
+              ],
+            },
+          ],
+        },
+      })
+      .run(),
+  ),
+  item("What's new", "Recently added features", "new whats new features changelog", (e, r) =>
+    e
+      .chain()
+      .focus()
+      .deleteRange(r)
+      .insertContent({
+        type: "whatsNew",
+        attrs: { title: "What's new", items: [{ icon: "star", title: "Feature", description: "What changed" }] },
+      })
+      .run(),
+  ),
   item("Table", "Rows and columns", "table grid", (e, r) =>
     e.chain().focus().deleteRange(r).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(),
   ),

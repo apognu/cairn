@@ -61,3 +61,18 @@ export function moveTarget(pages: Page[], id: string, action: MoveAction): MoveT
     }
   }
 }
+
+/** The public URL of every page, derived from the slugs of its ancestors. */
+export function pageUrls(pages: Page[]): Record<string, string> {
+  const byId = new Map(pages.map((p) => [p.id, p]));
+  const urls: Record<string, string> = {};
+
+  for (const page of pages) {
+    const segments: string[] = [];
+    for (let p: Page | undefined = page; p; p = p.parent_id ? byId.get(p.parent_id) : undefined)
+      segments.unshift(p.slug);
+    urls[page.id] = `/${segments.join("/")}`;
+  }
+
+  return urls;
+}

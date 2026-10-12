@@ -86,3 +86,32 @@ test("a component's settings form edits the document", async ({ page, request })
   const draft = await (await request.get(`/api/pages/${id}/draft`)).json();
   expect(JSON.stringify(draft.doc)).toContain('"tone":"warning"');
 });
+
+test("feature tabs are edited through their settings form", async ({ page }) => {
+  const title = `Features ${Math.random().toString(36).slice(2, 8)}`;
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "New page" }).click();
+  await page.getByLabel("New page title").fill(title);
+  await page.keyboard.press("Enter");
+  await page.getByRole("button", { name: title, exact: true }).click();
+
+  const editor = page.locator(".ProseMirror");
+  await editor.click();
+  await page.keyboard.type("/feature tabs");
+  await page.keyboard.press("Enter");
+
+  // A selected atom shows its form.
+  await editor.locator(".feature-tabs").click();
+  const panel = page.getByRole("complementary", { name: "Component settings" });
+  await expect(panel.getByRole("heading", { name: "Feature tabs" })).toBeVisible();
+
+  await panel.getByLabel("Title").first().fill("Rolling deploys");
+  await expect(editor.locator(".feature-card")).toContainText("Rolling deploys");
+
+  const future = "2099-12-31";
+  await panel.getByLabel("New until").first().fill(future);
+  await expect(editor.locator(".feature-new")).toBeVisible();
+  await panel.getByLabel("New until").first().fill("2000-01-01");
+  await expect(editor.locator(".feature-new")).toHaveCount(0);
+});

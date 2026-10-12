@@ -1,4 +1,5 @@
 import { EditorContent, useEditor } from "@tiptap/react";
+import { RenderEnvContext } from "@yourdocs/components";
 import { collectHeadings, type DocNode, defaultContext, type RenderContext, SiteLayout } from "@yourdocs/renderer";
 import { useEffect, useState } from "react";
 import { BubbleMenus } from "./BubbleMenus";
@@ -39,11 +40,16 @@ export function Canvas({ doc, context, editable = true, embedded = false, onChan
     };
   }, [editor]);
 
+  // The editor shows "new until" dates against today's date, as the publish render does with its own.
+  const full = { ...defaultContext, today: new Date().toISOString().slice(0, 10), ...context };
+
   return (
-    <SiteLayout context={{ ...defaultContext, ...context }} headings={headings} embedded={embedded}>
-      <EditorContent editor={editor} />
-      {editor && editable && <BubbleMenus editor={editor} />}
-      {editor && editable && panelHost && <PropsPanel editor={editor} host={panelHost} />}
-    </SiteLayout>
+    <RenderEnvContext.Provider value={{ urls: full.urls, today: full.today }}>
+      <SiteLayout context={full} headings={headings} embedded={embedded}>
+        <EditorContent editor={editor} />
+        {editor && editable && <BubbleMenus editor={editor} />}
+        {editor && editable && panelHost && <PropsPanel editor={editor} host={panelHost} />}
+      </SiteLayout>
+    </RenderEnvContext.Provider>
   );
 }

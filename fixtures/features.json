@@ -1,0 +1,39 @@
+{
+  "type": "doc",
+  "content": [
+    { "type": "heading", "attrs": { "level": 2 }, "content": [{ "type": "text", "text": "Everything Halyard does" }] },
+    {
+      "type": "featureTabs",
+      "attrs": {
+        "families": [
+          {
+            "label": "Deploying",
+            "features": [
+              { "icon": "rocket", "title": "Rolling deploys", "description": "Replace instances a few at a time", "newUntil": "2099-12-31" },
+              { "icon": "shield", "title": "Rollbacks", "description": "Previous release back in seconds", "newUntil": "2000-01-01" },
+              { "icon": "git", "title": "Blue-green deploys", "description": "Switch all traffic at once" }
+            ]
+          },
+          {
+            "label": "Integrations",
+            "features": [
+              { "icon": "bell", "title": "Slack notifications", "description": "Know when a deploy finishes" },
+              { "icon": "plug", "title": "Webhooks", "description": "Call your own services" }
+            ]
+          }
+        ]
+      }
+    },
+    { "type": "paragraph", "content": [{ "type": "text", "text": "Recently added:" }] },
+    {
+      "type": "whatsNew",
+      "attrs": {
+        "title": "What's new",
+        "items": [
+          { "icon": "bolt", "title": "Faster health checks", "description": "Checks run in parallel", "newUntil": "2099-12-31" },
+          { "icon": "chart", "title": "Deploy metrics", "description": "See duration and failures", "newUntil": "2000-01-01" }
+        ]
+      }
+    }
+  ]
+}

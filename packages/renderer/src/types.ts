@@ -17,6 +17,8 @@ export type RenderContext = {
   nav: NavNode[];
   /** Page ID to URL, for links stored by ID. */
   urls: Record<string, string>;
+  /** `YYYY-MM-DD` of the render, for components that depend on the date. */
+  today: string;
 };
 
 export type RenderInput = { doc: DocNode; context?: Partial<RenderContext> };
@@ -26,4 +28,5 @@ export const defaultContext: RenderContext = {
   page: { title: "" },
   nav: [],
   urls: {},
+  today: "",
 };

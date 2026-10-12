@@ -83,7 +83,7 @@ async fn load_doc(State(state): State<AppState>, Path(id): Path<String>) -> Resu
 #[instrument(skip_all, fields(id = %id))]
 async fn show_doc(State(state): State<AppState>, Path(id): Path<String>) -> Result<Html<String>, AppError> {
   let doc = state.docs.read().map_err(|_| poisoned())?.get(&id).cloned().ok_or(AppError::NotFound)?;
-  let body = state.pool.render(json!({ "doc": doc })).await?;
+  let body = state.pool.render(input(&doc)).await?;
 
   Ok(Html(page(&body, &doc)))
 }
@@ -128,9 +128,14 @@ fn poisoned() -> AppError {
   AppError::Render(yourdocs_render::RenderError::Other(anyhow::anyhow!("document store lock poisoned")))
 }
 
+/// What `ssr.js` and the hydrating client both receive: the same input, or React would see a mismatch.
+fn input(doc: &Value) -> Value {
+  json!({ "doc": doc, "context": { "today": jiff::Zoned::now().date().to_string() } })
+}
+
 fn page(body: &str, doc: &Value) -> String {
   // `<` is escaped so the document can never close the script element.
-  let json = json!({ "doc": doc }).to_string().replace('<', "\\u003c");
+  let json = input(doc).to_string().replace('<', "\\u003c");
 
   format!(
     "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\
@@ -191,6 +196,21 @@ mod tests {
 
       assert!(html.contains("class=\"doc-content\""), "{}", path.display());
     }
+  }
+
+  #[tokio::test]
+  async fn new_tags_disappear_after_their_date() {
+    let state = test_state().await;
+    let doc: Value = serde_json::from_str(include_str!("../../../fixtures/features.json")).unwrap();
+    let render = |today: &'static str| {
+      let (state, doc) = (state.clone(), doc.clone());
+      async move { state.pool.render(json!({ "doc": doc, "context": { "today": today } })).await.unwrap() }
+    };
+
+    // The fixture has one tag dated 2099 and one dated 2000 in each component.
+    assert_eq!(render("2026-10-12").await.matches("class=\"feature-new\"").count(), 2);
+    assert_eq!(render("2099-12-31").await.matches("class=\"feature-new\"").count(), 2);
+    assert_eq!(render("2100-01-01").await.matches("class=\"feature-new\"").count(), 0);
   }
 
   #[tokio::test]

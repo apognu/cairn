@@ -8,6 +8,9 @@
   },
   "devDependencies": {
     "@playwright/test": "1.55.0",
-    "@types/node": "22.18.0"
+    "@types/node": "22.18.0",
+    "@types/pngjs": "6.0.5",
+    "pixelmatch": "7.1.0",
+    "pngjs": "7.0.0"
   }
 }

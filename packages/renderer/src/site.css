@@ -323,3 +323,108 @@ a {
     padding: 24px 16px;
   }
 }
+
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 1em;
+}
+
+.feature-card {
+  display: flex;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  color: inherit;
+  text-decoration: none;
+}
+
+a.feature-card:hover {
+  border-color: var(--accent);
+}
+
+.feature-icon {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: var(--hover);
+  color: var(--accent);
+}
+
+.feature-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.feature-title {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.feature-description {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 13.5px;
+}
+
+.feature-new {
+  margin-left: 8px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--accent);
+  color: var(--bg);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.feature-family {
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+
+.feature-tablist {
+  display: none;
+  gap: 4px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* The tabs only exist once scripts run; before that every family is a section under its heading. */
+.feature-tabs[data-ready] .feature-tablist {
+  display: flex;
+}
+
+.feature-tabs[data-ready] .feature-family {
+  display: none;
+}
+
+.feature-tab {
+  padding: 8px 12px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.feature-tab[aria-selected="true"] {
+  border-bottom-color: var(--accent);
+  color: var(--text);
+  font-weight: 600;
+}
+
+@media (max-width: 600px) {
+  .feature-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

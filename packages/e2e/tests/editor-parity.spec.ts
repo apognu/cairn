@@ -1,8 +1,19 @@
 import { expect, test } from "@playwright/test";
+import pixelmatch from "pixelmatch";
+import { PNG } from "pngjs";
+
+// Anti-aliasing at fractional positions (rounded corners) can differ by a few pixels between the two layouts, so allow a handful.
+function differingPixels(a: Buffer, b: Buffer): number {
+  const left = PNG.sync.read(a);
+  const right = PNG.sync.read(b);
+  if (left.width !== right.width || left.height !== right.height) return Number.POSITIVE_INFINITY;
+
+  return pixelmatch(left.data, right.data, undefined, left.width, left.height, { threshold: 0.1 });
+}
 
 // The editor (read-only Tiptap) and the published page (V8 render, hydrated) must look the same for every fixture.
 for (const scheme of ["light", "dark"] as const) {
-  for (const fixture of ["demo", "article"]) {
+  for (const fixture of ["demo", "article", "features"]) {
     test(`${fixture} looks the same in the editor and when published (${scheme})`, async ({ browser }) => {
       const options = { viewport: { width: 1280, height: 900 }, colorScheme: scheme } as const;
       const published = await browser.newPage(options);
@@ -18,6 +29,12 @@ for (const scheme of ["light", "dark"] as const) {
       await expect(editor.locator(".ProseMirror")).toBeVisible();
       await expect(published.locator(".doc-content")).toBeVisible();
 
+      // Components that enhance themselves once scripts run (feature tabs) must be done before comparing.
+      if (fixture === "features") {
+        await expect(published.locator(".feature-tabs[data-ready]")).toBeVisible();
+        await expect(editor.locator(".feature-tabs[data-ready]")).toBeVisible();
+      }
+
       // Syntax coloring is added at publish only: flatten it, leaving the same text, before comparing.
       await published.evaluate(() => {
         for (const code of document.querySelectorAll("pre code")) code.replaceChildren(code.textContent ?? "");
@@ -26,7 +43,9 @@ for (const scheme of ["light", "dark"] as const) {
       expect(await editor.locator(".doc-content").innerText()).toBe(
         await published.locator(".doc-content").innerText(),
       );
-      expect(await editor.locator(".site").screenshot()).toEqual(await published.locator(".site").screenshot());
+      expect(
+        differingPixels(await editor.locator(".site").screenshot(), await published.locator(".site").screenshot()),
+      ).toBeLessThan(50);
       expect(problems).toEqual([]);
     });
   }

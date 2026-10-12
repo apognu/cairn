@@ -33,6 +33,8 @@ export type JsonSchema = {
   description?: string;
   default?: unknown;
   enum?: unknown[];
+  /** How the editor draws the field: a page picker, a date, an icon… (see `link()`, `icon()`). */
+  "x-field"?: string;
   properties?: Record<string, JsonSchema>;
   items?: JsonSchema;
 };
@@ -40,4 +42,19 @@ export type JsonSchema = {
 /** The JSON Schema of a component's props, which the editor turns into a form. */
 export function propsSchema(component: AnyComponent): JsonSchema {
   return z.toJSONSchema(component.props) as JsonSchema;
+}
+
+/** An optional link to another page, stored as the page's ID so moves and renames never break it. */
+export function link() {
+  return z.string().optional().meta({ title: "Page", "x-field": "page" });
+}
+
+/** One of the given icon names. */
+export function icon<const Names extends readonly [string, ...string[]]>(names: Names) {
+  return z.enum(names).meta({ title: "Icon", "x-field": "icon" });
+}
+
+/** An optional calendar date, `YYYY-MM-DD`. */
+export function date() {
+  return z.string().optional().meta({ "x-field": "date" });
 }

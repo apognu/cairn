@@ -387,3 +387,9 @@ fieldset.bubble {
   padding: 0 10px;
   border-style: dashed;
 }
+
+.ProseMirror-selectednode {
+  outline: 2px solid var(--accent);
+  outline-offset: 6px;
+  border-radius: 12px;
+}
