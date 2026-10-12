@@ -27,3 +27,37 @@ test("nested pages survive a reload", async ({ page }) => {
     await expect(page.getByRole("button", { name, exact: true })).toBeVisible();
   }
 });
+
+test("a page can be dragged under a new parent and an external link added", async ({ page, request }) => {
+  const suffix = Math.random().toString(36).slice(2, 8);
+  const [section, other, mover] = [`Section ${suffix}`, `Other ${suffix}`, `Mover ${suffix}`];
+
+  await page.goto("/");
+  for (const title of [section, other, mover]) {
+    await page.getByRole("button", { name: "New page" }).click();
+    await page.getByLabel("New page title").fill(title);
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("button", { name: title, exact: true })).toBeVisible();
+  }
+
+  // Dropped on the middle of a row, the page becomes its child.
+  await page
+    .getByRole("button", { name: mover, exact: true })
+    .dragTo(page.getByRole("button", { name: section, exact: true }));
+  const pages = await (await request.get("/api/pages")).json();
+  const byTitle = (title: string) => pages.find((p: { title: string }) => p.title === title);
+  expect(byTitle(mover).parent_id).toBe(byTitle(section).id);
+  expect(byTitle(other).parent_id).toBeNull();
+
+  // The link is added from the section's menu and lives under it.
+  await page.getByRole("button", { name: section, exact: true }).hover();
+  await page.getByLabel(`More actions for ${section}`).click();
+  await page.getByRole("button", { name: `Add an external link under ${section}` }).click();
+  await page.getByLabel("New link title").fill(`Status ${suffix}`);
+  await page.getByLabel("Link URL").fill("https://status.example.com");
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("button", { name: `Status ${suffix}`, exact: true })).toBeVisible();
+
+  const links = (await (await request.get("/api/pages")).json()).filter((p: { kind: string }) => p.kind === "link");
+  expect(links.at(-1).external_url).toBe("https://status.example.com");
+});

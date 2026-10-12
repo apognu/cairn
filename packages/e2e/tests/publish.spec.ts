@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
+import { publishAll } from "./helpers";
 
 test("publishing writes one page per page, with its text", async ({ page }) => {
   const slug = `pub-${Math.random().toString(36).slice(2, 8)}`;
@@ -13,8 +14,7 @@ test("publishing writes one page per page, with its text", async ({ page }) => {
   await page.keyboard.type("Hello from the editor");
   await expect(page.getByRole("status")).toHaveText("Saved");
 
-  await page.getByRole("button", { name: "Publish" }).click();
-  await expect(page.getByText(/Published \d+ pages/)).toBeVisible();
+  await publishAll(page);
 
   const html = readFileSync(`.e2e-data/site/${slug}/index.html`, "utf8");
   expect(html).toContain("Hello from the editor");

@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import { publishAll } from "./helpers";
 
 const SITE = "http://127.0.0.1:3001";
 
@@ -14,9 +15,7 @@ async function newPage(page: Page, title: string, text: string) {
 }
 
 async function publish(page: Page) {
-  await page.getByRole("button", { name: "Publish" }).click();
-  await expect(page.getByRole("button", { name: "Publish", exact: true })).toBeEnabled();
-  await expect(page.getByText(/Published \d+ pages/)).toBeVisible();
+  await publishAll(page);
 }
 
 test("the published site serves pages, redirects, the 404 page and search", async ({ page, browser }) => {

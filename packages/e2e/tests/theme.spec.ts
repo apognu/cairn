@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { expect, type Page, test } from "@playwright/test";
+import { publishAll } from "./helpers";
 
 const SITE = "http://127.0.0.1:3001";
 const PNG = Buffer.from(
@@ -23,16 +24,16 @@ test("changing the accent color, name and logo reaches every published page", as
   await newPage(page, first);
   await newPage(page, second);
 
-  await page.getByRole("button", { name: "Settings" }).click();
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
   await page.getByLabel("Site name").fill(`Halyard ${tag}`);
   await page.getByLabel("Accent color (hex)").fill("#aa3300");
   await page.getByLabel("Logo").setInputFiles({ name: "logo.png", mimeType: "image/png", buffer: PNG });
   await expect(page.getByAltText("Current logo")).toBeVisible();
   await page.getByRole("button", { name: "Save", exact: true }).click();
-  await expect(page.getByRole("dialog")).toBeHidden();
+  await expect(page.getByText("Saved. It goes live with the next publish.")).toBeVisible();
+  await page.getByRole("button", { name: "Back to pages" }).click();
 
-  await page.getByRole("button", { name: "Publish", exact: true }).click();
-  await expect(page.getByText(/Published \d+ pages/)).toBeVisible();
+  await publishAll(page);
 
   for (const slug of [first, second]) {
     const html = readFileSync(`.e2e-data/site/${slug}/index.html`, "utf8");
@@ -51,8 +52,7 @@ test("changing the accent color, name and logo reaches every published page", as
 test("the published site follows the system theme and has a toggle that is remembered", async ({ page, browser }) => {
   const slug = `theme-${Math.random().toString(36).slice(2, 8)}`;
   await newPage(page, slug);
-  await page.getByRole("button", { name: "Publish", exact: true }).click();
-  await expect(page.getByText(/Published \d+ pages/)).toBeVisible();
+  await publishAll(page);
 
   const background = (p: Page) => p.evaluate(() => getComputedStyle(document.body).backgroundColor);
   const dark = await (await browser.newContext({ colorScheme: "dark" })).newPage();
@@ -71,8 +71,7 @@ test("the published site follows the system theme and has a toggle that is remem
 test("pages are prefetched on hover and fade between each other", async ({ page, request }) => {
   const slug = `fast-${Math.random().toString(36).slice(2, 8)}`;
   await newPage(page, slug);
-  await page.getByRole("button", { name: "Publish", exact: true }).click();
-  await expect(page.getByText(/Published \d+ pages/)).toBeVisible();
+  await publishAll(page);
 
   const reader = await page.context().newPage();
   await reader.goto(`${SITE}/${slug}/`);

@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import { publishAll } from "./helpers";
 
 // The whole path of the M1 acceptance criteria: write three nested pages with an image and a callout, publish, and read them on the
 // published site with working search.
@@ -48,8 +49,7 @@ test("write, publish and read three nested pages with an image and a callout", a
   await expect(editor.locator("figure img")).toBeVisible();
   await expect(page.getByRole("status")).toHaveText("Saved");
 
-  await page.getByRole("button", { name: "Publish", exact: true }).click();
-  await expect(page.getByText(/Published \d+ pages/)).toBeVisible();
+  await publishAll(page);
 
   const reader = await browser.newPage();
   await reader.goto(`${SITE}/guide-${tag}/install-${tag}/linux-${tag}/`);
