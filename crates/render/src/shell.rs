@@ -4,6 +4,8 @@ use maud::{DOCTYPE, PreEscaped, html};
 pub struct Shell<'a> {
   pub title: &'a str,
   pub site_name: &'a str,
+  /// The page summary for search engines and link previews.
+  pub description: Option<&'a str>,
   /// The HTML `ssr.js` produced.
   pub body: &'a str,
   /// The same input `ssr.js` was given, so the browser can hydrate exactly what was rendered.
@@ -38,6 +40,10 @@ pub fn document(shell: &Shell) -> String {
         meta name="viewport" content="width=device-width,initial-scale=1";
         meta name="color-scheme" content="light dark";
         title { (shell.title) " · " (shell.site_name) }
+        @if let Some(description) = shell.description {
+          meta name="description" content=(description);
+          meta property="og:description" content=(description);
+        }
         meta property="og:title" content=(shell.title);
         meta property="og:site_name" content=(shell.site_name);
         meta property="og:type" content="article";
@@ -71,6 +77,7 @@ mod tests {
     let page = document(&Shell {
       title: "<b>Hi</b>",
       site_name: "Docs",
+      description: Some("A \"quoted\" summary"),
       body: "<p>body</p>",
       input: r#"{"text":"</script><script>alert(1)</script>"}"#,
       stylesheets: &stylesheets,
@@ -83,5 +90,6 @@ mod tests {
     assert!(!page.contains("</script><script>alert"));
     assert!(page.contains("rel=\"stylesheet\" href=\"/assets/site.css\""));
     assert!(page.contains("--accent-base:#0b6e4f"));
+    assert!(page.contains("name=\"description\" content=\"A &quot;quoted&quot; summary\""), "{page}");
   }
 }

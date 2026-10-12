@@ -6,6 +6,7 @@ mod m0002_page_links;
 mod m0003_custom_urls;
 mod m0004_header;
 mod m0005_backlinks;
+mod m0006_description;
 
 struct Migrator;
 
@@ -17,6 +18,7 @@ impl MigratorTrait for Migrator {
       Box::new(m0003_custom_urls::Migration),
       Box::new(m0004_header::Migration),
       Box::new(m0005_backlinks::Migration),
+      Box::new(m0006_description::Migration),
     ]
   }
 }

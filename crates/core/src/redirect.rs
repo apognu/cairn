@@ -198,7 +198,7 @@ pub fn pending_changes(pages: &[Page], redirects: &[Redirect], drafts: &HashMap<
           kinds.push(ChangeKind::Header);
         }
         let edited = match page.kind {
-          PageKind::Page => drafts.get(&page.id).is_some_and(|draft| live.revisions.get(&page.id) != Some(draft)),
+          PageKind::Page => drafts.get(&page.id).is_some_and(|draft| live.revisions.get(&page.id) != Some(draft)) || old.description != page.description,
           PageKind::Link => old.external_url != page.external_url,
         };
         if edited {
@@ -284,6 +284,7 @@ mod tests {
       path_override: None,
       in_header: false,
       header_position: None,
+      description: None,
       created_by: UserId::new(),
       created_at: Timestamp::UNIX_EPOCH,
       updated_at: Timestamp::UNIX_EPOCH,

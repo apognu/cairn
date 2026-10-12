@@ -144,6 +144,13 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
     let pages: Vec<Page> = sources.iter().map(|s| s.page.clone()).collect();
     let urls = page_urls(tree_pages);
     let header = header_items(tree_pages, &urls);
+    // What link cards and other components show about the pages they point to; a rename or new description reaches them at the next publish.
+    let page_info: Value = tree_pages
+      .iter()
+      .filter(|p| p.kind == PageKind::Page)
+      .map(|p| (p.id.to_string(), json!({ "title": p.title, "description": p.description })))
+      .collect::<serde_json::Map<_, _>>()
+      .into();
     let settings = load_settings(&self.db).await?;
     let site_name = settings.site_name.clone();
     let today = jiff::Zoned::now().date().to_string();
@@ -169,11 +176,13 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
             "header": header,
             "section": header_section(tree_pages, source.page.id),
             "urls": urls,
+            "pages": page_info,
             "assets": source_assets(&source.doc, &asset_meta),
             "today": today,
           },
         }),
         title: source.page.title.clone(),
+        description: source.page.description.clone(),
         site_name: site_name.clone(),
         stylesheets: stylesheets.clone(),
         script: script.clone(),
@@ -209,6 +218,7 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
         "context": { "site": { "name": site_name, "logo": logo }, "page": { "title": "Page not found" }, "nav": nav_tree(tree_pages, &urls, None), "header": header, "urls": urls, "assets": {}, "today": today },
       }),
       title: "Page not found".into(),
+      description: None,
       site_name: site_name.clone(),
       stylesheets: stylesheets.clone(),
       script: script.clone(),
@@ -258,6 +268,7 @@ struct RenderJob {
   pool: Arc<Pool>,
   input: Value,
   title: String,
+  description: Option<String>,
   site_name: String,
   stylesheets: Vec<String>,
   script: String,
@@ -272,6 +283,7 @@ async fn render_job(job: RenderJob) -> Result<(OutputFile, (PageId, RevisionId, 
   let html = yourdocs_render::document(&Shell {
     title: &job.title,
     site_name: &job.site_name,
+    description: job.description.as_deref(),
     body: &body,
     input: &job.input.to_string(),
     stylesheets: &job.stylesheets,
@@ -501,5 +513,55 @@ mod tests {
       assert!(html.contains("aria-label=\"Sections\"") && html.contains("href=\"/guides/\""));
     }
     assert!(install.contains("aria-current=\"page\">Guides"), "the section is marked in the header");
+  }
+
+  #[tokio::test]
+  async fn renaming_a_page_updates_every_card_that_points_to_it() {
+    use yourdocs_store::{rename_page, set_description};
+
+    let f = fixture().await;
+    let user = UserId::new();
+    let target = create_page(&f.db, user, None, "Rollbacks", Placement::Last).await.unwrap();
+    set_description(&f.db, target.id, "Put the previous release back.").await.unwrap();
+    let mut sources = Vec::new();
+
+    for title in ["First", "Second"] {
+      let source = create_page(&f.db, user, None, title, Placement::Last).await.unwrap();
+      let card = |kind: &str, attrs: serde_json::Value| serde_json::json!({ "type": kind, "attrs": attrs });
+      let id = target.id.to_string();
+      f.content
+        .save_draft(
+          source.id,
+          doc(serde_json::json!({ "type": "doc", "content": [
+            card("linkCard", serde_json::json!({ "page": id })),
+            card("relatedPages", serde_json::json!({ "title": "Related", "pages": [id] })),
+            card("seeAlso", serde_json::json!({ "pages": [id] })),
+          ] })),
+          None,
+          user,
+        )
+        .await
+        .unwrap();
+      sources.push(source);
+    }
+
+    let read = |slug: &str| std::fs::read_to_string(f.dir.join("out/site").join(slug).join("index.html")).unwrap();
+
+    f.publisher.publish(user).await.unwrap();
+    for slug in ["first", "second"] {
+      let html = read(slug);
+      assert!(
+        html.contains("Rollbacks") && html.contains("Put the previous release back.") && html.contains("href=\"/rollbacks/\""),
+        "{html}"
+      );
+    }
+
+    // The cards have no title of their own: renaming the page is enough.
+    rename_page(&f.db, target.id, "Undo a release", yourdocs_core::OldUrls::Redirect).await.unwrap();
+    f.publisher.publish(user).await.unwrap();
+    for slug in ["first", "second"] {
+      let html = read(slug);
+      assert!(html.contains("Undo a release") && !html.contains(">Rollbacks<") && html.contains("href=\"/undo-a-release/\""), "{html}");
+    }
   }
 }

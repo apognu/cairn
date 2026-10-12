@@ -14,6 +14,7 @@ pub struct Model {
   pub path_override: Option<String>,
   pub in_header: bool,
   pub header_position: Option<String>,
+  pub description: Option<String>,
   pub created_by: Uuid,
   pub created_at: String,
   pub updated_at: String,

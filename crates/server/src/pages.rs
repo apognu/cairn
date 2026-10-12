@@ -21,6 +21,7 @@ pub(crate) fn routes() -> OpenApiRouter<AppState> {
     .routes(routes!(rename, remove))
     .routes(routes!(move_to))
     .routes(routes!(header))
+    .routes(routes!(describe))
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -126,6 +127,23 @@ struct HeaderBody {
 #[instrument(skip_all, fields(page_id = %id))]
 async fn header(State(state): State<AppState>, Path(id): Path<PageId>, Json(body): Json<HeaderBody>) -> Result<Json<Page>, AppError> {
   Ok(Json(yourdocs_store::set_in_header(&state.db, id, body.in_header).await?))
+}
+
+#[derive(Deserialize, ToSchema)]
+struct DescriptionBody {
+  /// Up to 300 characters; empty clears it.
+  description: String,
+}
+
+/// Sets the page's short description, shown on link cards and in its meta tags.
+#[utoipa::path(put, path = "/api/pages/{id}/description", operation_id = "setPageDescription", params(("id" = PageId, Path)), request_body = DescriptionBody, responses(
+  (status = 200, body = Page),
+  (status = 404, body = ErrorBody),
+  (status = 422, body = ErrorBody, description = "too long"),
+))]
+#[instrument(skip_all, fields(page_id = %id))]
+async fn describe(State(state): State<AppState>, Path(id): Path<PageId>, Json(body): Json<DescriptionBody>) -> Result<Json<Page>, AppError> {
+  Ok(Json(yourdocs_store::set_description(&state.db, id, &body.description).await?))
 }
 
 /// Deletes a page and its descendants.

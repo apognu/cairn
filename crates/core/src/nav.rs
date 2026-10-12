@@ -78,6 +78,7 @@ mod tests {
       path_override: None,
       in_header,
       header_position: in_header.then(|| "80".into()),
+      description: None,
       created_by: UserId::new(),
       created_at: Timestamp::UNIX_EPOCH,
       updated_at: Timestamp::UNIX_EPOCH,

@@ -46,6 +46,7 @@ async fn insert(db: &DatabaseConnection, user: UserId, parent: Option<PageId>, t
     path_override: Set(None),
     in_header: Set(false),
     header_position: Set(None),
+    description: Set(None),
     created_by: Set(user.as_uuid()),
     created_at: Set(now.clone()),
     updated_at: Set(now),
@@ -108,6 +109,27 @@ pub async fn set_in_header(db: &DatabaseConnection, id: PageId, in_header: bool)
     id: Set(id.as_uuid()),
     in_header: Set(in_header),
     header_position: Set(position),
+    updated_at: Set(Timestamp::now().to_string()),
+    ..Default::default()
+  }
+  .update(db)
+  .await?;
+
+  into_page(row)
+}
+
+/// Sets the page's summary; an empty one clears it.
+pub async fn set_description(db: &DatabaseConnection, id: PageId, description: &str) -> Result<Page, StoreError> {
+  find(&list_pages(db).await?, id)?;
+  let description = description.trim();
+
+  if description.chars().count() > 300 {
+    return Err(StoreError::Invalid("the description is limited to 300 characters".into()));
+  }
+
+  let row = page::ActiveModel {
+    id: Set(id.as_uuid()),
+    description: Set((!description.is_empty()).then(|| description.to_string())),
     updated_at: Set(Timestamp::now().to_string()),
     ..Default::default()
   }
@@ -305,6 +327,7 @@ fn into_page(row: page::Model) -> Result<Page, StoreError> {
     path_override: row.path_override,
     in_header: row.in_header,
     header_position: row.header_position,
+    description: row.description,
     created_by: row.created_by.into(),
     created_at: parse(&row.created_at)?,
     updated_at: parse(&row.updated_at)?,

@@ -47,6 +47,9 @@ pub struct Page {
   /// Orders the header entries (fractional index, like `position`).
   #[serde(default)]
   pub header_position: Option<String>,
+  /// A short summary, shown on link cards and in the page's meta description.
+  #[serde(default)]
+  pub description: Option<String>,
   pub created_by: UserId,
   #[cfg_attr(feature = "openapi", schema(value_type = String, format = DateTime))]
   pub created_at: Timestamp,
@@ -127,6 +130,7 @@ mod tests {
       path_override: custom.map(Into::into),
       in_header: false,
       header_position: None,
+      description: None,
       created_by: UserId::new(),
       created_at: Timestamp::UNIX_EPOCH,
       updated_at: Timestamp::UNIX_EPOCH,
