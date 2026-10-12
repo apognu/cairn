@@ -9,6 +9,9 @@ jobs:
         with: { components: "rustfmt, clippy" }
       - uses: Swatinem/rust-cache@v2
       - uses: oven-sh/setup-bun@v2
+      # Pagefind's launcher (used by the publish tests) and Playwright run on Node.
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
       - run: bun install --frozen-lockfile
       - run: bun run build
       - run: cargo fmt --check
@@ -16,8 +19,7 @@ jobs:
       - run: cargo test
       - run: bun run typecheck
       - run: bun run lint
-      - uses: actions/setup-node@v4
-        with: { node-version: 22 }
-      - run: cargo build -p yourdocs-server
+      - run: bun test
+      - run: cargo build -p yourdocs-cli
       - run: node packages/e2e/node_modules/.bin/playwright install --with-deps chromium
       - run: bun run --filter @yourdocs/e2e test

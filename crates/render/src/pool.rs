@@ -52,7 +52,7 @@ impl Pool {
     })?;
 
     // A timeout abandons the wait, but V8 keeps running the job until it returns.
-    // TODO(M1.15): terminate the isolate on timeout, not needed for the spike
+    // TODO(M2.17): terminate the isolate on timeout; until then a runaway render keeps its worker busy
     match tokio::time::timeout(self.timeout, response).await {
       Ok(Ok(result)) => result,
       Ok(Err(_)) => Err(RenderError::Invalid("render worker stopped".into())),

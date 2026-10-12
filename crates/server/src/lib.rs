@@ -95,3 +95,19 @@ pub async fn run_dev(bind: SocketAddr, site_bind: SocketAddr, data_dir: PathBuf)
 
   Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  // `dev` has no login, so listening beyond this machine would hand the editor to anyone on the network.
+  #[tokio::test]
+  async fn dev_refuses_addresses_other_than_loopback() {
+    for (editor, site) in [("0.0.0.0:0", "127.0.0.1:0"), ("127.0.0.1:0", "192.168.1.5:0"), ("[::]:0", "127.0.0.1:0")] {
+      let result = run_dev(editor.parse().unwrap(), site.parse().unwrap(), std::env::temp_dir().join("yourdocs-refused")).await;
+      let error = result.expect_err("must refuse").to_string();
+
+      assert!(error.contains("loopback"), "{error}");
+    }
+  }
+}
