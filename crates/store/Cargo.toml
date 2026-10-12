@@ -7,3 +7,14 @@ publish.workspace = true
 
 [lints]
 workspace = true
+
+[dependencies]
+anyhow = "1.0.104"
+async-trait = "0.1.92"
+sea-orm = { version = "2.0.4", default-features = false, features = ["sqlx-sqlite", "runtime-tokio-rustls", "macros", "with-uuid"] }
+sea-orm-migration = { version = "2.0.4", default-features = false, features = ["sqlx-sqlite", "runtime-tokio-rustls"] }
+thiserror = "2.0.21"
+tokio = { version = "1.53.2", features = ["macros", "rt"] }
+tracing = "0.1.44"
+uuid = { version = "1.28.0", features = ["v7"] }
+yourdocs-core = { version = "0.0.0", path = "../core" }
