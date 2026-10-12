@@ -1,11 +1,17 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{
+  collections::{HashMap, HashSet},
+  sync::{
+    Arc,
+    atomic::{AtomicUsize, Ordering},
+  },
+};
 
 use futures_util::{StreamExt, TryStreamExt, stream};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use yourdocs_core::{
-  AssetId, AssetStore, Broadcast, ContentStore, Document, Event, Page, PageId, PageKind, Release, ReleaseStatus, RevisionId, UserId, effective_redirects, header_section, original_key, page_urls,
-  variant_key,
+  AssetId, AssetStore, Broadcast, ContentStore, Document, Event, Page, PageId, PageKind, Release, ReleaseStatus, RevisionId, UserId, effective_redirects, extract_links, header_section, original_key,
+  page_urls, variant_key,
 };
 use yourdocs_render::{Pool, Shell, highlight_css};
 use yourdocs_store::{DatabaseConnection, add_release_pages, assets_by_ids, create_release, list_pages, list_redirects, load_settings, set_release_status};
@@ -59,6 +65,8 @@ pub struct Publisher<C: ContentStore, A: AssetStore, B: Broadcast> {
   broadcast: B,
   // Releases are built one at a time; a second publish waits for the first.
   running: tokio::sync::Mutex<()>,
+  /// How many pages went through V8 since startup; pages whose output could be reused are not counted.
+  renders: Arc<AtomicUsize>,
 }
 
 struct PageSource {
@@ -81,7 +89,13 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
       config: parts.config,
       broadcast: parts.broadcast,
       running: tokio::sync::Mutex::new(()),
+      renders: Arc::new(AtomicUsize::new(0)),
     }
+  }
+
+  /// How many pages have been rendered in V8 since startup. A publish that changes one page adds one.
+  pub fn renders(&self) -> usize {
+    self.renders.load(Ordering::Relaxed)
   }
 
   pub fn target(&self) -> &PublishTarget {
@@ -151,12 +165,12 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
     let urls = page_urls(tree_pages);
     let header = header_items(tree_pages, &urls);
     // What link cards and other components show about the pages they point to; a rename or new description reaches them at the next publish.
-    let page_info: Value = tree_pages
+    let url_values: serde_json::Map<String, Value> = urls.iter().map(|(id, url)| (id.to_string(), Value::String(url.clone()))).collect();
+    let page_info = tree_pages
       .iter()
       .filter(|p| p.kind == PageKind::Page)
       .map(|p| (p.id.to_string(), json!({ "title": p.title, "description": p.description })))
-      .collect::<serde_json::Map<_, _>>()
-      .into();
+      .collect::<serde_json::Map<String, Value>>();
     let settings = load_settings(&self.db).await?;
     let site_name = settings.site_name.clone();
     let today = jiff::Zoned::now().date().to_string();
@@ -174,6 +188,15 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
       .map(|source| {
         let nav = nav_tree(tree_pages, &urls, Some(source.page.id));
         let (previous, next) = previous_next(&nav, source.page.id);
+        // Only what the page refers to goes into its context: renaming one page must not change the input of every other, or nothing
+        // could be reused.
+        let referenced: HashSet<String> = extract_links(&source.doc).into_iter().map(|l| l.target.to_string()).collect();
+        // The date only matters to components that count down to one, and it changes every day.
+        let today = if serde_json::to_string(&source.doc.0).is_ok_and(|json| json.contains("\"newUntil\"")) {
+          today.as_str()
+        } else {
+          ""
+        };
 
         RenderJob {
           pool: self.pool.clone(),
@@ -190,8 +213,8 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
               "markdown": format!("/{}", markdown_path(&urls[&source.page.id])),
               "header": header,
               "section": header_section(tree_pages, source.page.id),
-              "urls": urls,
-              "pages": page_info,
+              "urls": only(&url_values, &referenced),
+              "pages": only(&page_info, &referenced),
               "assets": source_assets(&source.doc, &asset_meta),
               "today": today,
             },
@@ -209,7 +232,10 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
       })
       .collect();
 
-    let rendered: Vec<(OutputFile, (PageId, RevisionId, String))> = stream::iter(jobs.into_iter().map(render_job)).buffer_unordered(RENDER_CONCURRENCY).try_collect().await?;
+    let rendered: Vec<(OutputFile, (PageId, RevisionId, String))> = stream::iter(jobs.into_iter().map(|job| render_job(job, self.assets.clone(), self.renders.clone())))
+      .buffer_unordered(RENDER_CONCURRENCY)
+      .try_collect()
+      .await?;
 
     let (mut files, hashes): (Vec<_>, Vec<_>) = rendered.into_iter().unzip();
 
@@ -249,7 +275,7 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
       pool: self.pool.clone(),
       input: json!({
         "doc": { "type": "doc", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "There is no page at this address. Use the navigation or the search to find what you were looking for." }] }] },
-        "context": { "site": { "name": site_name, "logo": logo }, "page": { "title": "Page not found" }, "nav": nav_tree(tree_pages, &urls, None), "header": header, "urls": urls, "assets": {}, "today": today },
+        "context": { "site": { "name": site_name, "logo": logo }, "page": { "title": "Page not found" }, "nav": nav_tree(tree_pages, &urls, None), "header": header, "urls": {}, "assets": {}, "today": "" },
       }),
       title: "Page not found".into(),
       description: None,
@@ -261,7 +287,7 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
       revision: RevisionId::new(),
       path: "404.html".into(),
     };
-    files.push(render_job(not_found).await?.0);
+    files.push(render_job(not_found, self.assets.clone(), self.renders.clone()).await?.0);
 
     let html: Vec<&OutputFile> = files.iter().filter(|f| f.path.ends_with(".html")).collect();
     if let Some(index) = search::build_index(&self.config.pagefind, release.id, &html).await? {
@@ -327,28 +353,55 @@ struct RenderJob {
   path: String,
 }
 
-async fn render_job(job: RenderJob) -> Result<(OutputFile, (PageId, RevisionId, String)), PublishError> {
-  let body = job.pool.render(job.input.clone()).await.map_err(|source| PublishError::Render { page: job.title.clone(), source })?;
-  let html = yourdocs_render::document(&Shell {
-    title: &job.title,
-    site_name: &job.site_name,
-    description: job.description.as_deref(),
-    body: &body,
-    input: &job.input.to_string(),
-    stylesheets: &job.stylesheets,
-    script: &job.script,
-    accent: &job.accent,
-  });
+/// Renders one page, or reuses what an identical render produced before. The cache is content addressed: the key is a hash of everything the
+/// HTML depends on (the render input, the page's own title and description, the site name and accent, the stylesheets and script), so the same
+/// key always means the same file and nothing ever has to be invalidated.
+async fn render_job<A: AssetStore>(job: RenderJob, cache: Arc<A>, renders: Arc<AtomicUsize>) -> Result<(OutputFile, (PageId, RevisionId, String)), PublishError> {
+  let key = {
+    let mut digest = Sha256::new();
+    for part in [
+      &job.input.to_string(),
+      &job.title,
+      job.description.as_deref().unwrap_or_default(),
+      &job.site_name,
+      &job.stylesheets.join(","),
+      &job.script,
+      &job.accent,
+    ] {
+      digest.update(part.as_bytes());
+      digest.update([0]);
+    }
+    format!("renders/{}.html", digest.finalize().iter().map(|b| format!("{b:02x}")).collect::<String>())
+  };
 
-  let hash = Sha256::digest(html.as_bytes()).iter().map(|b| format!("{b:02x}")).collect();
+  let bytes = if cache.exists(&key).await? {
+    cache.get(&key).await?
+  } else {
+    let body = job.pool.render(job.input.clone()).await.map_err(|source| PublishError::Render { page: job.title.clone(), source })?;
+    renders.fetch_add(1, Ordering::Relaxed);
+    let html = yourdocs_render::document(&Shell {
+      title: &job.title,
+      site_name: &job.site_name,
+      description: job.description.as_deref(),
+      body: &body,
+      input: &job.input.to_string(),
+      stylesheets: &job.stylesheets,
+      script: &job.script,
+      accent: &job.accent,
+    });
+    cache.put(&key, html.clone().into_bytes()).await?;
 
-  Ok((
-    OutputFile {
-      path: job.path,
-      bytes: html.into_bytes(),
-    },
-    (job.page_id, job.revision, hash),
-  ))
+    html.into_bytes()
+  };
+
+  let hash = Sha256::digest(&bytes).iter().map(|b| format!("{b:02x}")).collect();
+
+  Ok((OutputFile { path: job.path, bytes }, (job.page_id, job.revision, hash)))
+}
+
+/// The entries of `map` for the IDs in `only`.
+fn only(map: &serde_json::Map<String, Value>, ids: &HashSet<String>) -> Value {
+  Value::Object(map.iter().filter(|(id, _)| ids.contains(*id)).map(|(id, v)| (id.clone(), v.clone())).collect())
 }
 
 fn source_assets(doc: &Document, meta: &HashMap<String, Value>) -> Value {
@@ -720,5 +773,46 @@ mod tests {
     for width in [480, 960, 1200] {
       assert!(site.join(format!("_a/{}-{width}.webp", asset.id)).is_file(), "missing the {width}px file");
     }
+  }
+
+  #[tokio::test]
+  async fn publishing_after_editing_one_page_renders_only_that_page() {
+    use yourdocs_store::rename_page;
+
+    let f = fixture().await;
+    let user = UserId::new();
+    let paragraph = |text: &str| doc(serde_json::json!({ "type": "doc", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": text }] }] }));
+
+    let mut drafts = Vec::new();
+    for title in ["One", "Two", "Three"] {
+      let page = create_page(&f.db, user, None, title, Placement::Last).await.unwrap();
+      let draft = f.content.save_draft(page.id, paragraph("first version"), None, user).await.unwrap();
+      drafts.push((page, draft));
+    }
+
+    // The first publish renders everything: three pages and the 404 page.
+    f.publisher.publish(user).await.unwrap();
+    assert_eq!(f.publisher.renders(), 4);
+
+    // Publishing again with nothing changed renders nothing.
+    f.publisher.publish(user).await.unwrap();
+    assert_eq!(f.publisher.renders(), 4);
+
+    // Editing one page renders that page only, and the site still has every page.
+    let (page, draft) = &drafts[1];
+    f.content.save_draft(page.id, paragraph("second version"), draft.base_revision_id, user).await.unwrap();
+    f.publisher.publish(user).await.unwrap();
+    assert_eq!(f.publisher.renders(), 5);
+
+    let site = f.dir.join("out/site");
+    assert!(std::fs::read_to_string(site.join("two/index.html")).unwrap().contains("second version"));
+    assert!(std::fs::read_to_string(site.join("one/index.html")).unwrap().contains("first version"));
+    assert!(std::fs::read_to_string(site.join("three/index.html")).unwrap().contains("first version"));
+
+    // A rename changes the navigation of the pages around it, so they render again; the page itself too.
+    rename_page(&f.db, drafts[0].0.id, "Uno", yourdocs_core::OldUrls::Redirect).await.unwrap();
+    f.publisher.publish(user).await.unwrap();
+    assert_eq!(f.publisher.renders(), 5 + 4);
+    assert!(std::fs::read_to_string(site.join("three/index.html")).unwrap().contains(">Uno<"));
   }
 }
