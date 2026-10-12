@@ -25,7 +25,43 @@ export function BubbleMenus({ editor }: { editor: Editor }) {
       >
         <CodeBlockTools editor={editor} />
       </BubbleMenu>
+      <BubbleMenu
+        editor={editor}
+        shouldShow={({ editor: e }) => e.isEditable && e.isActive("image")}
+        options={{ placement: "bottom" }}
+      >
+        <ImageTools editor={editor} />
+      </BubbleMenu>
     </>
+  );
+}
+
+function ImageTools({ editor }: { editor: Editor }) {
+  const attrs = useEditorState({
+    editor,
+    selector: ({ editor: e }) => ({
+      alt: String(e.getAttributes("image").alt ?? ""),
+      caption: String(e.getAttributes("image").caption ?? ""),
+    }),
+  });
+  const set = (name: "alt" | "caption", value: string) =>
+    editor
+      .chain()
+      .updateAttributes("image", { [name]: value })
+      .run();
+
+  return (
+    <fieldset className="bubble">
+      <legend className="sr-only">Image</legend>
+      <label>
+        Alt text
+        <input value={attrs.alt} onChange={(e) => set("alt", e.target.value)} />
+      </label>
+      <label>
+        Caption
+        <input value={attrs.caption} onChange={(e) => set("caption", e.target.value)} />
+      </label>
+    </fieldset>
   );
 }
 

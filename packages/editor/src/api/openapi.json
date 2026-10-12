@@ -5,6 +5,57 @@
     "version": "0.0.0"
   },
   "paths": {
+    "/api/assets": {
+      "post": {
+        "summary": "Uploads an image (the request body is the file). Uploading bytes that are already stored returns the existing asset.",
+        "operationId": "uploadAsset",
+        "requestBody": {
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "the same file was already stored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Asset"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "stored as a new asset",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Asset"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "the file is too large"
+          },
+          "422": {
+            "description": "not a supported image",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/pages": {
       "get": {
         "summary": "Every live page, ordered by position.",
@@ -338,6 +389,62 @@
   },
   "components": {
     "schemas": {
+      "Asset": {
+        "type": "object",
+        "description": "An uploaded file. The bytes live in the `AssetStore` under the content hash; this is the row that describes them.",
+        "required": [
+          "id",
+          "sha256",
+          "mime",
+          "bytes",
+          "uploaded_by",
+          "created_at"
+        ],
+        "properties": {
+          "bytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "height": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "id": {
+            "$ref": "#/components/schemas/AssetId"
+          },
+          "mime": {
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string",
+            "description": "Hex SHA-256 of the file: two uploads of the same bytes are one asset."
+          },
+          "uploaded_by": {
+            "$ref": "#/components/schemas/UserId"
+          },
+          "width": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
+      "AssetId": {
+        "type": "string",
+        "description": "An uploaded file."
+      },
       "CreatePage": {
         "type": "object",
         "required": [

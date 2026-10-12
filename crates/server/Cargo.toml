@@ -11,6 +11,7 @@ workspace = true
 [dependencies]
 anyhow = "1"
 axum = "0.8"
+bytes = "1.12.1"
 jiff = "0.2.38"
 rust-embed = { version = "8", features = ["include-exclude", "mime-guess"] }
 sea-orm = { version = "2.0.4", default-features = false, features = ["sqlx-sqlite", "runtime-tokio-rustls"] }
@@ -22,6 +23,7 @@ tracing = "0.1"
 utoipa = "6.0.0"
 utoipa-axum = "0.3.0"
 uuid = { version = "1.28.0", features = ["v7"] }
+yourdocs-assets = { version = "0.0.0", path = "../assets" }
 yourdocs-auth = { version = "0.0.0", path = "../auth" }
 yourdocs-core = { version = "0.0.0", path = "../core", features = ["openapi"] }
 yourdocs-render = { path = "../render" }

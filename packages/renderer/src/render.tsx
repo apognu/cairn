@@ -2,7 +2,11 @@ import { componentsByName, Tabs } from "@yourdocs/components";
 import { Fragment, type ReactNode } from "react";
 import type { DocMark, DocNode, RenderContext } from "./types";
 
-export type NodeContext = { urls: RenderContext["urls"]; anchors: WeakMap<DocNode, string> };
+export type NodeContext = {
+  urls: RenderContext["urls"];
+  assets: RenderContext["assets"];
+  anchors: WeakMap<DocNode, string>;
+};
 
 export function renderNodes(nodes: DocNode[] = [], ctx: NodeContext): ReactNode[] {
   return nodes.map((node, i) => renderNode(node, ctx, i));
@@ -70,14 +74,22 @@ export function renderNode(node: DocNode, ctx: NodeContext, key: number): ReactN
       return <br key={key} />;
     case "horizontalRule":
       return <hr key={key} />;
-    case "image":
+    case "image": {
+      // The URL and size come from the asset's metadata, so the image reserves its space before it loads.
+      const asset = ctx.assets[String(attrs.assetId)];
       return (
         <figure key={key}>
-          {/* TODO(M1.14): resolve through asset metadata (srcset, size); the original is enough until uploads exist */}
-          <img src={`/_a/${String(attrs.assetId)}`} alt={String(attrs.alt ?? "")} loading="lazy" />
+          <img
+            src={asset?.src ?? `/_a/${String(attrs.assetId)}`}
+            alt={String(attrs.alt ?? "")}
+            width={asset?.width}
+            height={asset?.height}
+            loading="lazy"
+          />
           {attrs.caption ? <figcaption>{String(attrs.caption)}</figcaption> : null}
         </figure>
       );
+    }
     case "table":
       return (
         <table key={key}>

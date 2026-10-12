@@ -17,6 +17,8 @@ export type RenderContext = {
   nav: NavNode[];
   /** Page ID to URL, for links stored by ID. */
   urls: Record<string, string>;
+  /** Asset ID to what the published page needs to show it: its URL and, when known, its size. */
+  assets: Record<string, { src: string; width?: number; height?: number }>;
   /** `YYYY-MM-DD` of the render, for components that depend on the date. */
   today: string;
 };
@@ -28,5 +30,6 @@ export const defaultContext: RenderContext = {
   page: { title: "" },
   nav: [],
   urls: {},
+  assets: {},
   today: "",
 };

@@ -4,12 +4,14 @@
 
 #![forbid(unsafe_code)]
 
+mod asset;
 mod document;
 mod error;
 mod id;
 mod page;
 mod storage;
 
+pub use asset::Asset;
 pub use document::{Document, Mark, Node};
 pub use error::CoreError;
 pub use id::{AssetId, PageId, ReleaseId, RevisionId, UserId};

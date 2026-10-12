@@ -2,6 +2,7 @@ import { type Editor, Extension, type Range } from "@tiptap/core";
 import { ReactRenderer } from "@tiptap/react";
 import Suggestion, { type SuggestionKeyDownProps, type SuggestionProps } from "@tiptap/suggestion";
 import { forwardRef, useEffect, useImperativeHandle, useState } from "react";
+import { pickAndInsertImages } from "./upload";
 
 export interface SlashItem {
   title: string;
@@ -76,6 +77,10 @@ export const slashItems: SlashItem[] = [
       })
       .run(),
   ),
+  item("Image", "Upload a picture", "image picture photo upload figure", (e, r) => {
+    e.chain().focus().deleteRange(r).run();
+    pickAndInsertImages(e);
+  }),
   item("Table", "Rows and columns", "table grid", (e, r) =>
     e.chain().focus().deleteRange(r).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(),
   ),

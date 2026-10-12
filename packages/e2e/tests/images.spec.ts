@@ -1,0 +1,60 @@
+import { expect, test } from "@playwright/test";
+
+// A 1x1 PNG.
+const PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg==",
+  "base64",
+);
+
+test("uploading the same file twice stores it once", async ({ request }) => {
+  // A file unique to this run, so the first upload really creates an asset.
+  const unique = Buffer.concat([PNG, Buffer.from(Math.random().toString())]);
+  const send = () =>
+    request.post("/api/assets", { data: unique, headers: { "content-type": "application/octet-stream" } });
+
+  const first = await send();
+  const second = await send();
+
+  expect(first.status()).toBe(201);
+  expect(second.status()).toBe(200);
+  expect((await first.json()).id).toBe((await second.json()).id);
+});
+
+test("only images are accepted", async ({ request }) => {
+  const response = await request.post("/api/assets", {
+    data: "<svg onload=alert(1)>",
+    headers: { "content-type": "image/svg+xml" },
+  });
+
+  expect(response.status()).toBe(422);
+});
+
+test("an image can be inserted from the slash menu and given alt text", async ({ page, request }) => {
+  const title = `Images ${Math.random().toString(36).slice(2, 8)}`;
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "New page" }).click();
+  await page.getByLabel("New page title").fill(title);
+  await page.keyboard.press("Enter");
+  await page.getByRole("button", { name: title, exact: true }).click();
+  const id = new URL(page.url()).hash.replace("#page=", "");
+
+  const editor = page.locator(".ProseMirror");
+  await editor.click();
+  const chooser = page.waitForEvent("filechooser");
+  await page.keyboard.type("/image");
+  await page.keyboard.press("Enter");
+  await (await chooser).setFiles({ name: "dot.png", mimeType: "image/png", buffer: PNG });
+
+  const image = editor.locator("figure img");
+  await expect(image).toHaveAttribute("src", /^\/_a\/[0-9a-f-]{36}$/);
+  await expect(image).toHaveJSProperty("naturalWidth", 1);
+
+  await image.click();
+  await page.getByLabel("Alt text").fill("A single pixel");
+  await expect(image).toHaveAttribute("alt", "A single pixel");
+
+  await expect(page.getByRole("status")).toHaveText("Saved");
+  const draft = await (await request.get(`/api/pages/${id}/draft`)).json();
+  expect(JSON.stringify(draft.doc)).toContain("A single pixel");
+});

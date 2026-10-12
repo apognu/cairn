@@ -8,6 +8,7 @@ mod drafts;
 mod editor;
 mod error;
 mod pages;
+mod uploads;
 
 use std::{
   collections::HashMap,
@@ -57,6 +58,7 @@ pub async fn run_dev(bind: SocketAddr, data_dir: PathBuf) -> anyhow::Result<()> 
     pool: Arc::new(pool),
     docs: Arc::new(RwLock::new(docs)),
     content: yourdocs_store::SqlContentStore::new(db.clone()),
+    assets: Arc::new(yourdocs_assets::LocalAssetStore::new(&data_dir.join("assets")).context("cannot open the asset store")?),
     db,
   };
 

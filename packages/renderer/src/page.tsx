@@ -12,7 +12,7 @@ export function Page({ doc, context }: RenderInput) {
   return (
     <RenderEnvContext.Provider value={{ urls: full.urls, today: full.today }}>
       <SiteLayout context={full} headings={list}>
-        {renderNode(doc, { urls: full.urls, anchors: byNode }, 0)}
+        {renderNode(doc, { urls: full.urls, assets: full.assets, anchors: byNode }, 0)}
       </SiteLayout>
     </RenderEnvContext.Provider>
   );

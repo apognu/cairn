@@ -15,10 +15,11 @@ use axum::{
 use sea_orm::DatabaseConnection;
 use serde_json::{Value, json};
 use tracing::instrument;
+use yourdocs_assets::LocalAssetStore;
 use yourdocs_render::Pool;
 use yourdocs_store::SqlContentStore;
 
-use crate::{assets::Assets, drafts, error::AppError, pages};
+use crate::{assets::Assets, drafts, error::AppError, pages, uploads};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -27,11 +28,12 @@ pub struct AppState {
   pub docs: Arc<RwLock<HashMap<String, Value>>>,
   pub db: DatabaseConnection,
   pub content: SqlContentStore,
+  pub assets: Arc<LocalAssetStore>,
 }
 
 /// The OpenAPI document and the router serving the same routes, built from one definition.
 pub fn api() -> (Router<AppState>, utoipa::openapi::OpenApi) {
-  let (router, mut spec) = pages::routes().merge(drafts::routes()).split_for_parts();
+  let (router, mut spec) = pages::routes().merge(drafts::routes()).merge(uploads::routes()).split_for_parts();
   // The router's default info describes utoipa-axum itself.
   spec.info = utoipa::openapi::InfoBuilder::new().title("yourdocs").version(env!("CARGO_PKG_VERSION")).build();
 
@@ -46,6 +48,7 @@ pub fn router(state: AppState) -> Router {
     .route("/assets/client.js", get(client_js))
     .route("/assets/site.css", get(site_css))
     .route("/assets/code.css", get(code_css))
+    .route("/_a/{name}", get(uploads::serve))
     .merge(api().0)
     .fallback(crate::editor::serve)
     .layer(middleware::from_fn(local_host_only))
@@ -146,19 +149,26 @@ fn page(body: &str, doc: &Value) -> String {
 
 #[cfg(test)]
 pub(crate) async fn test_state() -> AppState {
+  test_state_with_dir().await.0
+}
+
+#[cfg(test)]
+pub(crate) async fn test_state_with_dir() -> (AppState, std::path::PathBuf) {
   let script = Assets::get("ssr.js").expect("ssr.js is missing, run `bun run build` first");
   let pool = Pool::new(std::str::from_utf8(&script.data).unwrap(), 1, 8, std::time::Duration::from_secs(5)).unwrap();
   let dir = std::env::temp_dir().join(format!("yourdocs-server-{}", uuid::Uuid::now_v7()));
   std::fs::create_dir_all(&dir).unwrap();
-
   let db = yourdocs_store::connect(&dir.join("test.db")).await.unwrap();
 
-  AppState {
+  let state = AppState {
     pool: Arc::new(pool),
     docs: Default::default(),
     content: SqlContentStore::new(db.clone()),
+    assets: Arc::new(LocalAssetStore::new(&dir.join("assets")).unwrap()),
     db,
-  }
+  };
+
+  (state, dir)
 }
 
 #[cfg(test)]

@@ -1,10 +1,11 @@
 import { EditorContent, useEditor } from "@tiptap/react";
 import { RenderEnvContext } from "@yourdocs/components";
 import { collectHeadings, type DocNode, defaultContext, type RenderContext, SiteLayout } from "@yourdocs/renderer";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { BubbleMenus } from "./BubbleMenus";
 import { buildExtensions } from "./extensions";
 import { PropsPanel } from "./PropsPanel";
+import { insertImages } from "./upload";
 
 interface Props {
   doc: DocNode;
@@ -26,7 +27,25 @@ export function Canvas({ doc, context, editable = true, embedded = false, onChan
     editable,
     onUpdate: ({ editor: e }) => onChange?.(e.getJSON() as DocNode),
     onBlur: () => onBlur?.(),
+    editorProps: {
+      // Pasted or dropped pictures are uploaded and inserted where they landed.
+      handlePaste: (_view, event) => {
+        const files = Array.from(event.clipboardData?.files ?? []).filter((f) => f.type.startsWith("image/"));
+        if (files.length === 0 || !editorRef.current) return false;
+        void insertImages(editorRef.current, files);
+        return true;
+      },
+      handleDrop: (view, event) => {
+        const files = Array.from(event.dataTransfer?.files ?? []).filter((f) => f.type.startsWith("image/"));
+        if (files.length === 0 || !editorRef.current) return false;
+        const at = view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos;
+        void insertImages(editorRef.current, files, at);
+        return true;
+      },
+    },
   });
+  const editorRef = useRef(editor);
+  editorRef.current = editor;
   const [headings, setHeadings] = useState(() => collectHeadings(doc).list);
 
   useEffect(() => {
