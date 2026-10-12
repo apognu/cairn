@@ -1,0 +1,5 @@
+{
+  "formatter": { "indentStyle": "space", "indentWidth": 2, "lineWidth": 120 },
+  "files": { "includes": ["packages/**", "*.json", "!**/dist", "!**/node_modules"] },
+  "linter": { "rules": { "recommended": true } }
+}
