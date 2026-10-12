@@ -4,7 +4,7 @@ import { Table, TableCell, TableHeader, TableRow } from "@tiptap/extension-table
 import UniqueID from "@tiptap/extension-unique-id";
 import { ReactNodeViewRenderer } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import { featureTabs, whatsNew } from "@yourdocs/components";
+import { featureTabs, linkCard, relatedPages, seeAlso, whatsNew } from "@yourdocs/components";
 import { type AnyComponent, propsSchema } from "@yourdocs/sdk";
 import { ComponentView } from "./ComponentView";
 import { PageLink, PagePickerTriggers } from "./pageLink";
@@ -190,6 +190,9 @@ export const buildExtensions = (editable: boolean) => [
   TabPanel,
   atomComponent(featureTabs as unknown as AnyComponent),
   atomComponent(whatsNew as unknown as AnyComponent),
+  atomComponent(linkCard as unknown as AnyComponent),
+  atomComponent(relatedPages as unknown as AnyComponent),
+  atomComponent(seeAlso as unknown as AnyComponent),
   UniqueID.configure({ types: blockTypes }),
   ...(editable ? [SlashCommand, PagePickerTriggers] : []),
 ];

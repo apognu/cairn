@@ -74,7 +74,15 @@ function Editing({
       )}
       <Canvas
         doc={initial.doc}
-        context={{ page: { id: page.id, title: page.title }, urls: pageUrls(pages.data ?? []) }}
+        context={{
+          page: { id: page.id, title: page.title },
+          urls: pageUrls(pages.data ?? []),
+          pages: Object.fromEntries(
+            (pages.data ?? [])
+              .filter((p) => p.kind === "page")
+              .map((p) => [p.id, { title: p.title, description: p.description }]),
+          ),
+        }}
         embedded
         onChange={onChange}
         panelHost={panelHost}

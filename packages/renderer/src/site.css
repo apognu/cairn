@@ -553,3 +553,77 @@ a.feature-card:hover {
     navigation: none;
   }
 }
+
+/* Link cards, related pages and see-also: all read what they show from the target page. */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+  margin-bottom: 1em;
+}
+
+.link-card {
+  display: block;
+  margin-bottom: 1em;
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--text);
+  text-decoration: none;
+}
+
+.card-grid .link-card {
+  margin-bottom: 0;
+}
+
+a.link-card:hover {
+  border-color: var(--accent);
+}
+
+.link-card[data-empty] {
+  border-style: dashed;
+  color: var(--muted);
+}
+
+.link-card-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 600;
+  font-size: 15.5px;
+}
+
+.link-card-title svg {
+  color: var(--muted);
+}
+
+.link-card-description {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 14.5px;
+  line-height: 1.5;
+}
+
+.related-title {
+  margin: 2em 0 14px;
+  font-size: 18px;
+}
+
+.see-also {
+  margin: 1.2em 0;
+  padding: 12px 16px;
+  border-left: 3px solid var(--accent);
+  border-radius: 0 8px 8px 0;
+  background: var(--bg-side);
+}
+
+.see-also ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}

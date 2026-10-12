@@ -95,6 +95,25 @@ export const slashItems: SlashItem[] = [
       })
       .run(),
   ),
+  item("Components", "link", "Link card", "A card for one page", "link card page", (e, r) =>
+    e.chain().focus().deleteRange(r).insertContent({ type: "linkCard", attrs: {} }).run(),
+  ),
+  item("Components", "info", "See also", "Links to related pages", "see also related links callout", (e, r) =>
+    e
+      .chain()
+      .focus()
+      .deleteRange(r)
+      .insertContent({ type: "seeAlso", attrs: { pages: [] } })
+      .run(),
+  ),
+  item("Components", "grid", "Related pages", "Cards linking to other pages", "related pages cards", (e, r) =>
+    e
+      .chain()
+      .focus()
+      .deleteRange(r)
+      .insertContent({ type: "relatedPages", attrs: { title: "Related", pages: [] } })
+      .run(),
+  ),
   item("Basic", "image", "Image", "Upload a picture", "image picture photo upload figure", (e, r) => {
     e.chain().focus().deleteRange(r).run();
     pickAndInsertImages(e);

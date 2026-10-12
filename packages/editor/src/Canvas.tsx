@@ -103,7 +103,7 @@ export function Canvas({ doc, context, editable = true, embedded = false, onChan
   };
 
   return (
-    <RenderEnvContext.Provider value={{ urls: full.urls, today: full.today }}>
+    <RenderEnvContext.Provider value={{ urls: full.urls, pages: full.pages, editing: editable, today: full.today }}>
       <SiteLayout context={full} headings={headings} embedded={embedded}>
         <EditorContent editor={editor} />
         {editor && editable && <BubbleMenus editor={editor} />}

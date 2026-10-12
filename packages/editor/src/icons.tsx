@@ -16,6 +16,8 @@ const paths = {
   image: "M4 5h16v14H4zM4 16l5-5 4 4 3-3 4 4M9 9h.01",
   table: "M4 5h16v14H4zM4 11h16M4 15h16M10 5v14",
   divider: "M4 12h16",
+  link: "M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1",
+  grid: "M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z",
   move: "M5 9l-3 3 3 3M19 9l3 3-3 3M2 12h20",
 } as const;
 
