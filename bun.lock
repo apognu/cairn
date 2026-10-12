@@ -9,6 +9,9 @@
         "typescript": "5.9.2",
       },
     },
+    "packages/builder": {
+      "name": "@yourdocs/builder",
+    },
     "packages/components": {
       "name": "@yourdocs/components",
       "dependencies": {
@@ -24,6 +27,9 @@
         "@playwright/test": "1.55.0",
         "@types/node": "22.18.0",
       },
+    },
+    "packages/editor": {
+      "name": "@yourdocs/editor",
     },
     "packages/renderer": {
       "name": "@yourdocs/renderer",
@@ -175,9 +181,13 @@
 
     "@types/react-dom": ["@types/react-dom@19.1.9", "", { "peerDependencies": { "@types/react": "^19.0.0" } }, "sha512-qXRuZaOsAdXKFyOhRBg6Lqqc0yay13vN7KrIg4L7N4aaHN68ma9OK3NE1BoDFgFOTfM7zg+3/8+2n8rLUH3OKQ=="],
 
+    "@yourdocs/builder": ["@yourdocs/builder@workspace:packages/builder"],
+
     "@yourdocs/components": ["@yourdocs/components@workspace:packages/components"],
 
     "@yourdocs/e2e": ["@yourdocs/e2e@workspace:packages/e2e"],
+
+    "@yourdocs/editor": ["@yourdocs/editor@workspace:packages/editor"],
 
     "@yourdocs/renderer": ["@yourdocs/renderer@workspace:packages/renderer"],
 

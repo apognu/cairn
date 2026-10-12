@@ -1156,6 +1156,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d135d17ab770252ad95e9a872d365cf3090e3be864a34ab46f48555993efc904"
 
 [[package]]
+name = "yourdocs-assets"
+version = "0.0.0"
+
+[[package]]
+name = "yourdocs-auth"
+version = "0.0.0"
+
+[[package]]
+name = "yourdocs-cli"
+version = "0.0.0"
+
+[[package]]
+name = "yourdocs-core"
+version = "0.0.0"
+
+[[package]]
+name = "yourdocs-publish"
+version = "0.0.0"
+
+[[package]]
 name = "yourdocs-render"
 version = "0.0.0"
 dependencies = [
@@ -1180,6 +1200,10 @@ dependencies = [
  "tracing-subscriber",
  "yourdocs-render",
 ]
+
+[[package]]
+name = "yourdocs-store"
+version = "0.0.0"
 
 [[package]]
 name = "zmij"
