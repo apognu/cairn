@@ -1,7 +1,9 @@
 import { mergeAttributes, Node } from "@tiptap/core";
+import CodeBlock from "@tiptap/extension-code-block";
 import { Table, TableCell, TableHeader, TableRow } from "@tiptap/extension-table";
 import UniqueID from "@tiptap/extension-unique-id";
 import StarterKit from "@tiptap/starter-kit";
+import { SlashCommand } from "./slash";
 
 // Built-in nodes must produce the same tags and classes as `renderNode` in @yourdocs/renderer.
 
@@ -36,6 +38,20 @@ const Image = Node.create({
     const image = ["img", { src: `/_a/${assetId}`, alt: alt ?? "", loading: "lazy" }];
 
     return caption ? ["figure", {}, image, ["figcaption", {}, caption]] : ["figure", {}, image];
+  },
+});
+
+// The file name is shown as a caption above the code (a CSS rule on `pre[data-file-name]`), so it travels as a data attribute.
+const CodeWithFileName = CodeBlock.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      fileName: {
+        default: null,
+        parseHTML: (el) => el.getAttribute("data-file-name"),
+        renderHTML: (attrs) => (attrs.fileName ? { "data-file-name": attrs.fileName } : {}),
+      },
+    };
   },
 });
 
@@ -138,7 +154,8 @@ const blockTypes = [
 
 // While editing, a trailing paragraph keeps a place to click after a final block (a table, tabs…); read-only it would add a blank line the published page lacks.
 export const buildExtensions = (editable: boolean) => [
-  StarterKit.configure({ link: { openOnClick: false }, trailingNode: editable ? undefined : false }),
+  StarterKit.configure({ codeBlock: false, link: { openOnClick: false }, trailingNode: editable ? undefined : false }),
+  CodeWithFileName,
   Table,
   TableRow,
   TableHeader,
@@ -148,4 +165,5 @@ export const buildExtensions = (editable: boolean) => [
   Tabs,
   TabPanel,
   UniqueID.configure({ types: blockTypes }),
+  ...(editable ? [SlashCommand] : []),
 ];

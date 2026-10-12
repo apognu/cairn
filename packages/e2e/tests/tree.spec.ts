@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 test("nested pages survive a reload", async ({ page }) => {
-  const suffix = Date.now().toString(36);
+  const suffix = Math.random().toString(36).slice(2, 8);
   const names = [`Guide ${suffix}`, `Install ${suffix}`, `Linux ${suffix}`];
 
   await page.goto("/");

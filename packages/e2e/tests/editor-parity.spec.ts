@@ -18,6 +18,11 @@ for (const scheme of ["light", "dark"] as const) {
       await expect(editor.locator(".ProseMirror")).toBeVisible();
       await expect(published.locator(".doc-content")).toBeVisible();
 
+      // Syntax coloring is added at publish only: flatten it, leaving the same text, before comparing.
+      await published.evaluate(() => {
+        for (const code of document.querySelectorAll("pre code")) code.replaceChildren(code.textContent ?? "");
+      });
+
       expect(await editor.locator(".doc-content").innerText()).toBe(
         await published.locator(".doc-content").innerText(),
       );

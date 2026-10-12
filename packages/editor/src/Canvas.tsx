@@ -1,6 +1,7 @@
 import { EditorContent, useEditor } from "@tiptap/react";
 import { collectHeadings, type DocNode, defaultContext, type RenderContext, SiteLayout } from "@yourdocs/renderer";
 import { useEffect, useState } from "react";
+import { BubbleMenus } from "./BubbleMenus";
 import { buildExtensions } from "./extensions";
 
 interface Props {
@@ -30,6 +31,7 @@ export function Canvas({ doc, context, editable = true, embedded = false }: Prop
   return (
     <SiteLayout context={{ ...defaultContext, ...context }} headings={headings} embedded={embedded}>
       <EditorContent editor={editor} />
+      {editor && editable && <BubbleMenus editor={editor} />}
     </SiteLayout>
   );
 }

@@ -56,7 +56,13 @@ export function renderNode(node: DocNode, ctx: NodeContext, key: number): ReactN
       const language = attrs.language ? String(attrs.language) : undefined;
       return (
         <pre key={key} data-file-name={attrs.fileName ? String(attrs.fileName) : undefined}>
-          <code className={language ? `language-${language}` : undefined}>{children}</code>
+          {/* The server colors this block after rendering (syntect), so React must not reconcile its contents when hydrating. */}
+          <code
+            className={language ? `language-${language}` : undefined}
+            suppressHydrationWarning
+            // biome-ignore lint/security/noDangerouslySetInnerHtml: the text is escaped by escapeHtml
+            dangerouslySetInnerHTML={{ __html: escapeHtml(textOf(node)) }}
+          />
         </pre>
       );
     }
@@ -98,6 +104,14 @@ export function renderNode(node: DocNode, ctx: NodeContext, key: number): ReactN
     default:
       throw new Error(`unknown node type: ${node.type}`);
   }
+}
+
+function textOf(node: DocNode): string {
+  return node.text ?? (node.content ?? []).map(textOf).join("");
+}
+
+function escapeHtml(text: string): string {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 function spanOf(value: unknown): number | undefined {

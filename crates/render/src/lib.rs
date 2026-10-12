@@ -2,11 +2,13 @@
 
 #![forbid(unsafe_code)]
 
+mod highlight;
 mod platform;
 mod pool;
 
 use ssr_rs::Ssr;
 
+pub use highlight::highlight_css;
 pub use pool::Pool;
 
 #[derive(Debug, thiserror::Error)]
@@ -36,6 +38,9 @@ impl Renderer {
   pub(crate) fn render(&mut self, doc: &serde_json::Value) -> Result<String, RenderError> {
     let params = serde_json::to_string(doc).map_err(|e| RenderError::Other(e.into()))?;
 
-    self.ssr.render_to_string(Some(&params)).map_err(|e| RenderError::Invalid(e.to_string()))
+    let html = self.ssr.render_to_string(Some(&params)).map_err(|e| RenderError::Invalid(e.to_string()))?;
+
+    // On the worker thread, not in the async handler: highlighting is CPU work.
+    Ok(highlight::highlight_code_blocks(&html))
   }
 }

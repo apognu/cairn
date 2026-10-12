@@ -217,6 +217,20 @@ a {
   background: none;
 }
 
+/* Shown by both the editor and the published page, from the attribute the code block carries. */
+.doc-content pre[data-file-name]::before {
+  content: attr(data-file-name);
+  display: block;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+  font:
+    12.5px ui-monospace,
+    "IBM Plex Mono",
+    monospace;
+}
+
 .doc-content table {
   width: 100%;
   margin: 0 0 1em;
@@ -256,6 +270,10 @@ a {
 
 .callout[data-tone="warning"] {
   border-left-color: #b7791f;
+}
+
+.callout[data-tone="tip"] {
+  border-left-color: #2f855a;
 }
 
 .callout > :last-child {

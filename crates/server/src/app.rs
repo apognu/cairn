@@ -1,6 +1,6 @@
 use std::{
   collections::HashMap,
-  sync::{Arc, RwLock},
+  sync::{Arc, LazyLock, RwLock},
 };
 
 use axum::{
@@ -43,6 +43,7 @@ pub fn router(state: AppState) -> Router {
     .route("/docs/{id}/client", get(show_doc_client_only))
     .route("/assets/client.js", get(client_js))
     .route("/assets/site.css", get(site_css))
+    .route("/assets/code.css", get(code_css))
     .merge(api().0)
     .fallback(crate::editor::serve)
     .layer(middleware::from_fn(local_host_only))
@@ -97,6 +98,12 @@ async fn client_js() -> Response {
   embedded("client.js", "text/javascript")
 }
 
+async fn code_css() -> Response {
+  static CSS: LazyLock<String> = LazyLock::new(yourdocs_render::highlight_css);
+
+  ([(header::CONTENT_TYPE, "text/css"), (header::CACHE_CONTROL, "no-cache")], CSS.as_str()).into_response()
+}
+
 async fn site_css() -> Response {
   embedded("site.css", "text/css")
 }
@@ -125,7 +132,7 @@ fn page(body: &str, doc: &Value) -> String {
 
   format!(
     "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\
-<title>Document</title><link rel=\"stylesheet\" href=\"/assets/site.css\"></head><body><div id=\"root\">{body}</div>\
+<title>Document</title><link rel=\"stylesheet\" href=\"/assets/site.css\"><link rel=\"stylesheet\" href=\"/assets/code.css\"></head><body><div id=\"root\">{body}</div>\
 <script type=\"application/json\" id=\"doc\">{json}</script><script src=\"/assets/client.js\" defer></script></body></html>"
   )
 }
