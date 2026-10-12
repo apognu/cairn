@@ -420,3 +420,77 @@ button.primary:disabled {
   opacity: 0.6;
   cursor: default;
 }
+
+.topbar-actions button:not(.primary):not(.theme-toggle) {
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--border-input);
+  border-radius: 7px;
+  background: var(--bg);
+  cursor: pointer;
+}
+
+.settings {
+  width: 420px;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.settings::backdrop {
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.settings h2 {
+  margin: 0 0 16px;
+  font-size: 17px;
+}
+
+.row-inline {
+  display: flex;
+  gap: 8px;
+}
+
+.row-inline input[type="color"] {
+  width: 44px;
+  padding: 2px;
+}
+
+.logo-preview {
+  max-height: 40px;
+  max-width: 160px;
+  align-self: flex-start;
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.dialog-actions button:not(.primary) {
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--border-input);
+  border-radius: 7px;
+  background: var(--bg);
+  cursor: pointer;
+}
+
+/* Nested forms must not push the panel wider than itself. */
+.props {
+  overflow-x: hidden;
+}
+
+.form-group,
+.form-item > :first-child,
+.form-field {
+  min-width: 0;
+}
+
+.form-field input,
+.form-field select {
+  width: 100%;
+}

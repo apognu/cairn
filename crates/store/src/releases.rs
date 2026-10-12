@@ -1,6 +1,6 @@
 use jiff::Timestamp;
 use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set, sea_query::OnConflict};
-use yourdocs_core::{PageId, Release, ReleaseId, ReleaseStatus, RevisionId, UserId};
+use yourdocs_core::{AssetId, PageId, Release, ReleaseId, ReleaseStatus, RevisionId, Settings, UserId};
 
 use crate::{
   StoreError,
@@ -96,6 +96,27 @@ pub async fn set_setting(db: &DatabaseConnection, key: &str, value: &str) -> Res
   Ok(())
 }
 
+/// The theme settings, with defaults for anything not saved yet.
+pub async fn load_settings(db: &DatabaseConnection) -> Result<Settings, StoreError> {
+  let defaults = Settings::default();
+
+  Ok(Settings {
+    site_name: get_setting(db, "site.name").await?.unwrap_or(defaults.site_name),
+    logo_asset_id: get_setting(db, "site.logo").await?.and_then(|id| id.parse::<AssetId>().ok()),
+    accent: get_setting(db, "site.accent").await?.unwrap_or(defaults.accent),
+  })
+}
+
+pub async fn save_settings(db: &DatabaseConnection, settings: &Settings) -> Result<(), StoreError> {
+  settings.validate().map_err(StoreError::Invalid)?;
+
+  set_setting(db, "site.name", settings.site_name.trim()).await?;
+  set_setting(db, "site.accent", &settings.accent.to_lowercase()).await?;
+  set_setting(db, "site.logo", &settings.logo_asset_id.map(|id| id.to_string()).unwrap_or_default()).await?;
+
+  Ok(())
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -118,5 +139,15 @@ mod tests {
     set_setting(&db, "site.name", "A").await.unwrap();
     set_setting(&db, "site.name", "B").await.unwrap();
     assert_eq!(get_setting(&db, "site.name").await.unwrap().as_deref(), Some("B"));
+
+    let saved = Settings {
+      site_name: " Halyard ".into(),
+      logo_asset_id: Some(AssetId::new()),
+      accent: "#AABBCC".into(),
+    };
+    save_settings(&db, &saved).await.unwrap();
+    let loaded = load_settings(&db).await.unwrap();
+    assert_eq!((loaded.site_name.as_str(), loaded.accent.as_str(), loaded.logo_asset_id), ("Halyard", "#aabbcc", saved.logo_asset_id));
+    assert!(matches!(save_settings(&db, &Settings { accent: "nope".into(), ..saved }).await, Err(StoreError::Invalid(_))));
   }
 }

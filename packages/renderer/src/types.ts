@@ -12,7 +12,7 @@ export type NavNode = { id: string; title: string; href: string; children: NavNo
 
 /** Everything outside the document that a page needs to render. Built by the server, never fetched during render. */
 export type RenderContext = {
-  site: { name: string };
+  site: { name: string; logo?: { src: string; width?: number; height?: number } | null };
   page: { id?: string; title: string };
   nav: NavNode[];
   /** Page ID to URL, for links stored by ID. */

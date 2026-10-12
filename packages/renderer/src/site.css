@@ -7,7 +7,8 @@
   --text: #16181a;
   --text-body: #24292e;
   --muted: #5b6168;
-  --accent: #0b6e4f;
+  --accent-base: #0b6e4f;
+  --accent: var(--accent-base);
   --hover: #eef0ec;
   --code-bg: #f2f3f0;
   --danger: #b3261e;
@@ -23,7 +24,7 @@
     --text: #eceeef;
     --text-body: #d6d9db;
     --muted: #9aa1a8;
-    --accent: #4cc9a0;
+    --accent: color-mix(in srgb, var(--accent-base) 55%, white);
     --hover: #23272b;
     --code-bg: #1d2024;
     --danger: #f2b8b5;
@@ -39,7 +40,7 @@
   --text: #eceeef;
   --text-body: #d6d9db;
   --muted: #9aa1a8;
-  --accent: #4cc9a0;
+  --accent: color-mix(in srgb, var(--accent-base) 55%, white);
   --hover: #23272b;
   --code-bg: #1d2024;
   --danger: #f2b8b5;
@@ -461,4 +462,46 @@ a.feature-card:hover {
 
 .site-search .pagefind-ui__drawer.pagefind-ui__hidden {
   display: none;
+}
+
+.site-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.site-logo {
+  height: 24px;
+  width: auto;
+}
+
+.theme-toggle {
+  margin-left: 12px;
+  padding: 4px 10px;
+  border: 1px solid var(--border-input);
+  border-radius: 7px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+/* Pages fade into each other where the browser supports it; the header and sidebar stay where they are. */
+@view-transition {
+  navigation: auto;
+}
+
+.site-header {
+  view-transition-name: site-header;
+}
+
+.site-nav {
+  view-transition-name: site-nav;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  @view-transition {
+    navigation: none;
+  }
 }

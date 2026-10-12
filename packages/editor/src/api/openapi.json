@@ -412,6 +412,57 @@
           }
         }
       }
+    },
+    "/api/settings": {
+      "get": {
+        "summary": "The site name, logo and accent color.",
+        "operationId": "getSettings",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Settings"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Saves the settings. They reach the published site with the next publish.",
+        "operationId": "saveSettings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Settings"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Settings"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -716,6 +767,34 @@
           },
           "doc": {
             "$ref": "#/components/schemas/Document"
+          }
+        }
+      },
+      "Settings": {
+        "type": "object",
+        "description": "The site-wide settings of the theme basics.",
+        "required": [
+          "site_name",
+          "accent"
+        ],
+        "properties": {
+          "accent": {
+            "type": "string",
+            "description": "`#rrggbb`."
+          },
+          "logo_asset_id": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AssetId",
+                "description": "An uploaded image shown before the site name in the header."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "site_name": {
+            "type": "string"
           }
         }
       },

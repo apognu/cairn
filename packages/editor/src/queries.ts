@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./api/client";
+import type { components } from "./api/schema";
 import { unwrap } from "./api/unwrap";
 import type { MoveTarget } from "./tree";
 
@@ -42,4 +43,18 @@ export function useDeletePage() {
 
 export function usePublish() {
   return useMutation({ mutationFn: async () => unwrap(await api.POST("/api/publish")) });
+}
+
+export function useSettings() {
+  return useQuery({ queryKey: ["settings"], queryFn: async () => unwrap(await api.GET("/api/settings")) });
+}
+
+export function useSaveSettings() {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (settings: components["schemas"]["Settings"]) =>
+      unwrap(await api.PUT("/api/settings", { body: settings })),
+    onSuccess: (saved) => client.setQueryData(["settings"], saved),
+  });
 }

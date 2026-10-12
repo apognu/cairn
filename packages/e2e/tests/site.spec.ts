@@ -42,10 +42,13 @@ test("the published site serves pages, redirects, the 404 page and search", asyn
   expect(missing?.status()).toBe(404);
   await expect(reader.getByText("There is no page at this address")).toBeVisible();
 
-  // Search finds the page by its text.
-  await reader.goto(`${SITE}/${slug}/`);
-  await reader.getByPlaceholder("Search").fill("zebrafish");
-  await expect(reader.locator(".pagefind-ui__result-link", { hasText: slug })).toBeVisible();
+  // Search finds the page by its text. Other tests publish at the same time and the index files are replaced with each release,
+  // so a search that started on the previous release is tried again from a fresh page load.
+  await expect(async () => {
+    await reader.goto(`${SITE}/${slug}/`);
+    await reader.getByPlaceholder("Search").fill("zebrafish");
+    await expect(reader.locator(".pagefind-ui__result-link", { hasText: slug })).toBeVisible({ timeout: 2000 });
+  }).toPass();
 });
 
 test("an open tab of the site reloads after a publish", async ({ page, browser }) => {

@@ -1,7 +1,9 @@
-import { useCallback, useState } from "react";
+import { ThemeToggle } from "@yourdocs/renderer";
+import { useCallback, useEffect, useState } from "react";
 import { FixtureView } from "./FixtureView";
 import { PageEditor } from "./PageEditor";
-import { usePages, usePublish } from "./queries";
+import { usePages, usePublish, useSettings } from "./queries";
+import { SettingsDialog } from "./SettingsDialog";
 import { Sidebar } from "./Sidebar";
 import type { SaveStatus } from "./useDraftSync";
 
@@ -26,6 +28,13 @@ function Editor() {
   const [selected, setSelected] = useState(() => new URLSearchParams(window.location.hash.slice(1)).get("page"));
   const [status, setStatus] = useState<SaveStatus | null>(null);
   const publish = usePublish();
+  const settings = useSettings();
+  const [showSettings, setShowSettings] = useState(false);
+
+  // Authors see the site's accent color while they write.
+  useEffect(() => {
+    if (settings.data) document.documentElement.style.setProperty("--accent-base", settings.data.accent);
+  }, [settings.data]);
   const [panelHost, setPanelHost] = useState<HTMLElement | null>(null);
   const current = pages.data?.find((p) => p.id === selected);
 
@@ -47,6 +56,10 @@ function Editor() {
             </span>
           )}
           {publish.isSuccess && <span className="muted">Published {publish.data.page_count} pages</span>}
+          <ThemeToggle />
+          <button type="button" onClick={() => setShowSettings(true)}>
+            Settings
+          </button>
           <button type="button" className="primary" disabled={publish.isPending} onClick={() => publish.mutate()}>
             {publish.isPending ? "Publishing…" : "Publish"}
           </button>
@@ -61,6 +74,7 @@ function Editor() {
         )}
       </main>
       <aside className="props" aria-label="Component settings" ref={setPanelHost} />
+      {showSettings && <SettingsDialog onClose={() => setShowSettings(false)} />}
     </div>
   );
 }

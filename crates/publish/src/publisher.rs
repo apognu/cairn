@@ -3,9 +3,9 @@ use std::{collections::HashMap, sync::Arc};
 use futures_util::{StreamExt, TryStreamExt, stream};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
-use yourdocs_core::{AssetStore, Broadcast, ContentStore, Document, Event, Page, PageId, Release, ReleaseStatus, RevisionId, UserId, original_key};
+use yourdocs_core::{AssetId, AssetStore, Broadcast, ContentStore, Document, Event, Page, PageId, Release, ReleaseStatus, RevisionId, UserId, original_key};
 use yourdocs_render::{Pool, Shell, highlight_css};
-use yourdocs_store::{DatabaseConnection, add_release_pages, assets_by_ids, create_release, get_setting, list_pages, set_release_status};
+use yourdocs_store::{DatabaseConnection, add_release_pages, assets_by_ids, create_release, list_pages, load_settings, set_release_status};
 
 use crate::{
   PublishError, generated, search,
@@ -137,10 +137,12 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
     let pages: Vec<Page> = sources.iter().map(|s| s.page.clone()).collect();
     let urls = page_urls(&pages);
     let nav = nav_tree(&pages, &urls);
-    let site_name = get_setting(&self.db, "site.name").await?.unwrap_or_else(|| "Documentation".into());
+    let settings = load_settings(&self.db).await?;
+    let site_name = settings.site_name.clone();
     let today = jiff::Zoned::now().date().to_string();
 
-    let (asset_files, asset_meta) = self.asset_files(sources).await?;
+    let (asset_files, asset_meta) = self.asset_files(sources, settings.logo_asset_id).await?;
+    let logo = settings.logo_asset_id.and_then(|id| asset_meta.get(&id.to_string()).cloned());
 
     let bundle_files = bundle_files(&self.bundles);
     let stylesheets: Vec<String> = bundle_files.iter().filter(|(name, _)| name.ends_with(".css")).map(|(name, _)| format!("/{name}")).collect();
@@ -154,7 +156,7 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
         input: json!({
           "doc": source.doc,
           "context": {
-            "site": { "name": site_name },
+            "site": { "name": site_name, "logo": logo },
             "page": { "id": source.page.id, "title": source.page.title },
             "nav": nav,
             "urls": urls,
@@ -166,6 +168,7 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
         site_name: site_name.clone(),
         stylesheets: stylesheets.clone(),
         script: script.clone(),
+        accent: settings.accent.clone(),
         page_id: source.page.id,
         revision: source.revision,
         path: output_path(&urls[&source.page.id]),
@@ -194,12 +197,13 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
       pool: self.pool.clone(),
       input: json!({
         "doc": { "type": "doc", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "There is no page at this address. Use the navigation or the search to find what you were looking for." }] }] },
-        "context": { "site": { "name": site_name }, "page": { "title": "Page not found" }, "nav": nav, "urls": urls, "assets": {}, "today": today },
+        "context": { "site": { "name": site_name, "logo": logo }, "page": { "title": "Page not found" }, "nav": nav, "urls": urls, "assets": {}, "today": today },
       }),
       title: "Page not found".into(),
       site_name: site_name.clone(),
       stylesheets: stylesheets.clone(),
       script: script.clone(),
+      accent: settings.accent.clone(),
       page_id: PageId::new(),
       revision: RevisionId::new(),
       path: "404.html".into(),
@@ -220,8 +224,8 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
   }
 
   /// The image files the pages use, and what the renderer needs to know about them.
-  async fn asset_files(&self, sources: &[PageSource]) -> Result<(Vec<OutputFile>, HashMap<String, Value>), PublishError> {
-    let mut ids: Vec<_> = sources.iter().flat_map(|s| image_asset_ids(&s.doc)).collect();
+  async fn asset_files(&self, sources: &[PageSource], logo: Option<AssetId>) -> Result<(Vec<OutputFile>, HashMap<String, Value>), PublishError> {
+    let mut ids: Vec<_> = sources.iter().flat_map(|s| image_asset_ids(&s.doc)).chain(logo).collect();
     ids.sort();
     ids.dedup();
 
@@ -248,6 +252,7 @@ struct RenderJob {
   site_name: String,
   stylesheets: Vec<String>,
   script: String,
+  accent: String,
   page_id: PageId,
   revision: RevisionId,
   path: String,
@@ -262,6 +267,7 @@ async fn render_job(job: RenderJob) -> Result<(OutputFile, (PageId, RevisionId, 
     input: &job.input.to_string(),
     stylesheets: &job.stylesheets,
     script: &job.script,
+    accent: &job.accent,
   });
 
   let hash = Sha256::digest(html.as_bytes()).iter().map(|b| format!("{b:02x}")).collect();

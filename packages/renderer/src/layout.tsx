@@ -1,5 +1,6 @@
 import { type ReactNode, useEffect, useRef } from "react";
 import type { Heading } from "./headings";
+import { ThemeToggle } from "./ThemeToggle";
 import type { NavNode, RenderContext } from "./types";
 
 function NavList({ nodes, currentId }: { nodes: NavNode[]; currentId?: string }) {
@@ -73,9 +74,19 @@ export function SiteLayout({
       {!embedded && (
         <header className="site-header">
           <a href="/" className="site-name">
+            {context.site.logo && (
+              <img
+                className="site-logo"
+                src={context.site.logo.src}
+                width={context.site.logo.width}
+                height={context.site.logo.height}
+                alt=""
+              />
+            )}
             {context.site.name}
           </a>
           <SearchBox />
+          <ThemeToggle />
         </header>
       )}
       <div className="site-body">
