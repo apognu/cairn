@@ -5,6 +5,7 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use yourdocs_core::{
   AssetId, AssetStore, Broadcast, ContentStore, Document, Event, Page, PageId, PageKind, Release, ReleaseStatus, RevisionId, UserId, effective_redirects, header_section, original_key, page_urls,
+  variant_key,
 };
 use yourdocs_render::{Pool, Shell, highlight_css};
 use yourdocs_store::{DatabaseConnection, add_release_pages, assets_by_ids, create_release, list_pages, list_redirects, load_settings, set_release_status};
@@ -290,7 +291,22 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
         bytes: self.assets.get(&original_key(&asset.sha256)).await?,
         path: path.clone(),
       });
-      meta.insert(asset.id.to_string(), json!({ "src": format!("/{path}"), "width": asset.width, "height": asset.height }));
+
+      // The WebP copies for `srcset`, narrowest first; the original stays as the fallback `src`.
+      let mut srcset = Vec::new();
+      for variant in &asset.variants {
+        let variant_path = format!("_a/{}-{}.webp", asset.id, variant.width);
+        files.push(OutputFile {
+          bytes: self.assets.get(&variant_key(&asset.sha256, variant.width)).await?,
+          path: variant_path.clone(),
+        });
+        srcset.push(format!("/{variant_path} {}w", variant.width));
+      }
+
+      meta.insert(
+        asset.id.to_string(),
+        json!({ "src": format!("/{path}"), "width": asset.width, "height": asset.height, "srcset": srcset.join(", "), "placeholder": asset.placeholder }),
+      );
     }
 
     Ok((files, meta))
@@ -630,5 +646,79 @@ mod tests {
     assert_eq!(std::fs::read_to_string(site.join("guide/install/linux.md")).unwrap(), "# Linux\n\n## Packages\n\nUse `apt`\n");
     let llms = std::fs::read_to_string(site.join("llms.txt")).unwrap();
     assert!(llms.contains("(https://docs.example.com/guide/install/linux.md)"), "{llms}");
+  }
+
+  #[tokio::test]
+  async fn images_are_published_with_webp_variants_and_a_srcset() {
+    use std::io::Cursor;
+
+    use yourdocs_assets::{inspect, process, sha256_hex};
+    use yourdocs_core::{AssetStore, AssetVariant, original_key, variant_key};
+    use yourdocs_store::{NewAsset, get_or_create_asset};
+
+    let f = fixture().await;
+    let user = UserId::new();
+    let store = LocalAssetStore::new(&f.dir.join("assets")).unwrap();
+
+    // What an upload does: the original, its WebP copies and the row that lists them.
+    let mut png = Vec::new();
+    image::RgbImage::from_pixel(1200, 600, image::Rgb([30, 90, 160]))
+      .write_to(&mut Cursor::new(&mut png), image::ImageFormat::Png)
+      .unwrap();
+    let info = inspect(&png).unwrap();
+    let processed = process(&png, &info).unwrap();
+    let sha = sha256_hex(&png);
+    store.put(&original_key(&sha), png.clone()).await.unwrap();
+    let mut variants = Vec::new();
+    for v in processed.variants {
+      store.put(&variant_key(&sha, v.width), v.bytes.clone()).await.unwrap();
+      variants.push(AssetVariant {
+        width: v.width,
+        height: v.height,
+        bytes: v.bytes.len() as u64,
+      });
+    }
+    let (asset, _) = get_or_create_asset(
+      &f.db,
+      NewAsset {
+        sha256: sha,
+        mime: info.mime.into(),
+        width: Some(info.width),
+        height: Some(info.height),
+        bytes: png.len() as u64,
+        variants,
+        placeholder: Some(processed.placeholder),
+        uploaded_by: user,
+      },
+    )
+    .await
+    .unwrap();
+
+    let page = create_page(&f.db, user, None, "Pictures", Placement::Last).await.unwrap();
+    f.content
+      .save_draft(
+        page.id,
+        doc(serde_json::json!({ "type": "doc", "content": [{ "type": "image", "attrs": { "assetId": asset.id.to_string(), "alt": "A blue field" } }] })),
+        None,
+        user,
+      )
+      .await
+      .unwrap();
+    f.publisher.publish(user).await.unwrap();
+
+    let site = f.dir.join("out/site");
+    let html = std::fs::read_to_string(site.join("pictures/index.html")).unwrap();
+    for expected in [
+      format!("/_a/{}-480.webp 480w", asset.id),
+      format!("/_a/{}-960.webp 960w", asset.id),
+      format!("/_a/{}-1200.webp 1200w", asset.id),
+      "sizes=\"(min-width: 800px) 760px, 100vw\"".into(),
+      "background-color:#1e5aa0".into(),
+    ] {
+      assert!(html.contains(&expected), "missing {expected} in {html}");
+    }
+    for width in [480, 960, 1200] {
+      assert!(site.join(format!("_a/{}-{width}.webp", asset.id)).is_file(), "missing the {width}px file");
+    }
   }
 }

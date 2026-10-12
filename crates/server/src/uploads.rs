@@ -7,10 +7,10 @@ use axum::{
 };
 use tracing::instrument;
 use utoipa_axum::{router::OpenApiRouter, routes};
-use yourdocs_assets::{inspect, sha256_hex};
+use yourdocs_assets::{check_size, inspect, process, sha256_hex};
 use yourdocs_auth::CurrentUser;
-use yourdocs_core::{Asset, AssetId, AssetStore, CoreError, original_key};
-use yourdocs_store::{NewAsset, asset_by_id, get_or_create_asset};
+use yourdocs_core::{Asset, AssetId, AssetStore, AssetVariant, CoreError, original_key, variant_key};
+use yourdocs_store::{NewAsset, asset_by_hash, asset_by_id, get_or_create_asset};
 
 use crate::{
   app::AppState,
@@ -29,20 +29,39 @@ pub(crate) fn routes() -> OpenApiRouter<AppState> {
   (status = 201, body = Asset, description = "stored as a new asset"),
   (status = 200, body = Asset, description = "the same file was already stored"),
   (status = 413, description = "the file is too large"),
-  (status = 422, body = ErrorBody, description = "not a supported image"),
+  (status = 422, body = ErrorBody, description = "not a supported image, too many pixels, or damaged"),
 ))]
 #[instrument(skip_all)]
 async fn upload(State(state): State<AppState>, CurrentUser(user): CurrentUser, body: Bytes) -> Result<(StatusCode, Json<Asset>), AppError> {
-  // The type comes from the bytes, never from what the client says it is.
+  // The type and size come from the bytes, never from what the client says; the size is checked before any pixel is decoded.
   let info = inspect(&body)?;
+  check_size(&info)?;
   let bytes = body.len() as u64;
 
   let (sha256, body) = tokio::task::spawn_blocking(move || (sha256_hex(&body), body)).await.map_err(|e| CoreError::Other(e.into()))?;
 
-  // The file first, the row second: a row never points at a missing file, and an orphaned file is harmless.
+  if let Some(existing) = asset_by_hash(&state.db, &sha256).await? {
+    return Ok((StatusCode::OK, Json(existing)));
+  }
+
+  // Decoding and resizing are CPU heavy: never on the async threads.
+  let (source, details) = (body.clone(), info.clone());
+  let processed = tokio::task::spawn_blocking(move || process(&source, &details)).await.map_err(|e| CoreError::Other(e.into()))??;
+
+  // The files first, the row second: a row never points at a missing file, and an orphaned file is harmless.
   let key = original_key(&sha256);
   if !state.assets.exists(&key).await? {
     state.assets.put(&key, body.to_vec()).await?;
+  }
+
+  let mut variants = Vec::with_capacity(processed.variants.len());
+  for variant in processed.variants {
+    state.assets.put(&variant_key(&sha256, variant.width), variant.bytes.clone()).await?;
+    variants.push(AssetVariant {
+      width: variant.width,
+      height: variant.height,
+      bytes: variant.bytes.len() as u64,
+    });
   }
 
   let (asset, created) = get_or_create_asset(
@@ -53,6 +72,8 @@ async fn upload(State(state): State<AppState>, CurrentUser(user): CurrentUser, b
       width: Some(info.width),
       height: Some(info.height),
       bytes,
+      variants,
+      placeholder: Some(processed.placeholder),
       uploaded_by: user,
     },
   )
@@ -92,9 +113,11 @@ mod tests {
   use super::*;
   use crate::app::test_state;
 
+  /// A complete 1x1 PNG: the upload decodes it to make its variants.
   const PNG: &[u8] = &[
     0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06, 0x00, 0x00, 0x00, 0x1f, 0x15, 0xc4,
-    0x89,
+    0x89, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9c, 0x63, 0xf8, 0xcf, 0xc0, 0xf0, 0x1f, 0x00, 0x05, 0x00, 0x01, 0xff, 0x89, 0x99, 0x3d, 0x1d, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45,
+    0x4e, 0x44, 0xae, 0x42, 0x60, 0x82,
   ];
 
   #[tokio::test]
@@ -109,8 +132,11 @@ mod tests {
     assert_eq!(first.id, second.id);
     assert_eq!((first.width, first.height, first.mime.as_str()), (Some(1), Some(1), "image/png"));
 
+    // The original and its one WebP variant, stored once however many times the file is uploaded.
     let files: Vec<_> = walk(&dir.join("assets"));
-    assert_eq!(files.len(), 1, "{files:?}");
+    assert_eq!(files.len(), 2, "{files:?}");
+    assert_eq!(first.variants.len(), 1);
+    assert!(first.placeholder.as_deref().is_some_and(|c| c.starts_with('#')));
 
     let response = serve(State(state), Path(format!("{}.png", first.id))).await.unwrap();
     assert_eq!(response.headers()[header::CONTENT_TYPE], "image/png");
@@ -122,6 +148,19 @@ mod tests {
     let result = upload(State(state), CurrentUser(local_user_id()), Bytes::from_static(b"<svg onload=alert(1)>")).await;
 
     assert!(matches!(result, Err(AppError::Core(CoreError::Invalid(_)))));
+  }
+
+  #[tokio::test]
+  async fn a_pixel_bomb_is_rejected_without_being_decoded() {
+    let state = test_state().await;
+    // The header of a 30000 x 30000 image: a few dozen bytes that would need gigabytes of memory to decode.
+    let mut bomb = PNG.to_vec();
+    bomb[16..20].copy_from_slice(&30_000u32.to_be_bytes());
+    bomb[20..24].copy_from_slice(&30_000u32.to_be_bytes());
+
+    let result = upload(State(state), CurrentUser(local_user_id()), Bytes::from(bomb)).await;
+
+    assert!(matches!(result, Err(AppError::Core(CoreError::Invalid(m))) if m.contains("pixels")));
   }
 
   fn walk(dir: &std::path::Path) -> Vec<std::path::PathBuf> {

@@ -23,5 +23,6 @@ yourdocs-render = { version = "0.0.0", path = "../render" }
 yourdocs-store = { version = "0.0.0", path = "../store" }
 
 [dev-dependencies]
+image = { version = "0.25.10", default-features = false, features = ["png"] }
 uuid = { version = "1.28.0", features = ["v7"] }
 yourdocs-assets = { path = "../assets" }

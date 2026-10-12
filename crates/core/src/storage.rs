@@ -54,6 +54,11 @@ pub trait AssetStore: Send + Sync {
   fn delete(&self, key: &str) -> impl Future<Output = Result<(), CoreError>> + Send;
 }
 
+/// Where the WebP copy of an image, `width` pixels wide, lives in the `AssetStore`.
+pub fn variant_key(sha256: &str, width: u32) -> String {
+  format!("variants/{sha256}-{width}.webp")
+}
+
 /// Where the original file of an asset lives in the `AssetStore`.
 pub fn original_key(sha256: &str) -> String {
   format!("originals/{sha256}")

@@ -1,6 +1,6 @@
 use jiff::Timestamp;
 use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
-use yourdocs_core::{Asset, AssetId, UserId};
+use yourdocs_core::{Asset, AssetId, AssetVariant, UserId};
 
 use crate::{StoreError, entity::asset};
 
@@ -11,6 +11,8 @@ pub struct NewAsset {
   pub width: Option<u32>,
   pub height: Option<u32>,
   pub bytes: u64,
+  pub variants: Vec<AssetVariant>,
+  pub placeholder: Option<String>,
   pub uploaded_by: UserId,
 }
 
@@ -18,6 +20,11 @@ pub async fn asset_by_id(db: &DatabaseConnection, id: AssetId) -> Result<Asset, 
   let row = asset::Entity::find_by_id(id.as_uuid()).one(db).await?;
 
   into_asset(row.ok_or(StoreError::NotFound)?)
+}
+
+/// The asset with this content hash, if those bytes were uploaded before.
+pub async fn asset_by_hash(db: &DatabaseConnection, sha256: &str) -> Result<Option<Asset>, StoreError> {
+  by_hash(db, sha256).await
 }
 
 /// The assets with these IDs; unknown IDs are left out.
@@ -40,8 +47,8 @@ pub async fn get_or_create_asset(db: &DatabaseConnection, new: NewAsset) -> Resu
     width: Set(new.width.map(i64::from)),
     height: Set(new.height.map(i64::from)),
     bytes: Set(new.bytes as i64),
-    variants: Set("[]".into()),
-    placeholder: Set(None),
+    variants: Set(serde_json::to_string(&new.variants).map_err(|e| StoreError::Other(e.into()))?),
+    placeholder: Set(new.placeholder),
     uploaded_by: Set(new.uploaded_by.as_uuid()),
     created_at: Set(Timestamp::now().to_string()),
   }
@@ -72,6 +79,8 @@ fn into_asset(row: asset::Model) -> Result<Asset, StoreError> {
     width: row.width.map(|w| w as u32),
     height: row.height.map(|h| h as u32),
     bytes: row.bytes as u64,
+    variants: serde_json::from_str(&row.variants).map_err(|e| StoreError::Invalid(format!("bad variants: {e}")))?,
+    placeholder: row.placeholder,
     uploaded_by: row.uploaded_by.into(),
     created_at: row.created_at.parse().map_err(|e| StoreError::Invalid(format!("bad timestamp: {e}")))?,
   })
@@ -91,6 +100,8 @@ mod tests {
       width: Some(1),
       height: Some(1),
       bytes: 10,
+      variants: vec![AssetVariant { width: 1, height: 1, bytes: 5 }],
+      placeholder: Some("#112233".into()),
       uploaded_by: UserId::new(),
     };
 
@@ -98,6 +109,7 @@ mod tests {
     let (second, created_again) = get_or_create_asset(&db, new()).await.unwrap();
 
     assert!(created && !created_again);
+    assert_eq!((first.variants.len(), first.placeholder.as_deref()), (1, Some("#112233")));
     assert_eq!(first.id, second.id);
     assert_eq!(asset_by_id(&db, first.id).await.unwrap().mime, "image/png");
   }

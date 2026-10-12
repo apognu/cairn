@@ -13,7 +13,7 @@ mod releases;
 mod tree;
 mod urls;
 
-pub use assets::{NewAsset, asset_by_id, assets_by_ids, get_or_create_asset};
+pub use assets::{NewAsset, asset_by_hash, asset_by_id, assets_by_ids, get_or_create_asset};
 pub use connect::{StoreError, connect};
 pub use content::SqlContentStore;
 pub use links::{StoredLink, all_links};
