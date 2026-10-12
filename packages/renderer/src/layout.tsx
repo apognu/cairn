@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
 import type { Heading } from "./headings";
 import type { NavNode, RenderContext } from "./types";
 
@@ -15,6 +15,42 @@ function NavList({ nodes, currentId }: { nodes: NavNode[]; currentId?: string })
       ))}
     </ul>
   );
+}
+
+type PagefindUI = new (options: { element: HTMLElement; showSubResults: boolean; showImages: boolean }) => unknown;
+
+function load(tag: "script" | "link", url: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const element = document.createElement(tag);
+    if (element instanceof HTMLScriptElement) element.src = url;
+    else if (element instanceof HTMLLinkElement) {
+      element.rel = "stylesheet";
+      element.href = url;
+    }
+    element.onload = () => resolve();
+    element.onerror = () => reject(new Error(`cannot load ${url}`));
+    document.head.append(element);
+  });
+}
+
+/** Search over the Pagefind index of the published site. Loaded after hydration, so it never disturbs the server-rendered markup. */
+function SearchBox() {
+  const container = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const element = container.current;
+    if (!element) return;
+
+    Promise.all([load("link", "/pagefind/pagefind-ui.css"), load("script", "/pagefind/pagefind-ui.js")])
+      .then(() => {
+        const UI = (window as unknown as { PagefindUI?: PagefindUI }).PagefindUI;
+        if (UI && element.childElementCount === 0) new UI({ element, showSubResults: true, showImages: false });
+      })
+      // No index (the editor, a fixture): there is simply no search box.
+      .catch(() => {});
+  }, []);
+
+  return <div className="site-search" ref={container} />;
 }
 
 /** The site chrome around a page body: header, navigation, title and table of contents. */
@@ -39,6 +75,7 @@ export function SiteLayout({
           <a href="/" className="site-name">
             {context.site.name}
           </a>
+          <SearchBox />
         </header>
       )}
       <div className="site-body">
@@ -47,7 +84,7 @@ export function SiteLayout({
             <NavList nodes={context.nav} currentId={context.page.id} />
           </nav>
         )}
-        <main className="doc">
+        <main className="doc" data-pagefind-body={context.page.id ? "" : undefined}>
           {context.page.title ? <h1 className="doc-title">{context.page.title}</h1> : null}
           <div className="doc-content">{children}</div>
         </main>

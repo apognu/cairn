@@ -13,6 +13,7 @@ mod uploads;
 
 use std::{
   collections::HashMap,
+  env,
   net::SocketAddr,
   path::PathBuf,
   sync::{Arc, RwLock},
@@ -60,7 +61,17 @@ pub async fn run_dev(bind: SocketAddr, data_dir: PathBuf) -> anyhow::Result<()> 
   let assets = Arc::new(yourdocs_assets::LocalAssetStore::new(&data_dir.join("assets")).context("cannot open the asset store")?);
 
   let state = AppState {
-    publisher: app::publisher(db.clone(), content.clone(), assets.clone(), pool.clone(), &data_dir)?,
+    publisher: app::publisher(
+      db.clone(),
+      content.clone(),
+      assets.clone(),
+      pool.clone(),
+      &data_dir,
+      yourdocs_publish::PublishConfig {
+        site_url: env::var("PUBLIC_URL").unwrap_or_else(|_| "http://localhost:3001".into()).trim_end_matches('/').to_string(),
+        pagefind: env::var("PAGEFIND_BIN").unwrap_or_else(|_| "pagefind".into()),
+      },
+    )?,
     pool,
     docs: Arc::new(RwLock::new(docs)),
     content,

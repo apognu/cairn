@@ -29,6 +29,11 @@ pub(crate) async fn serve(uri: Uri) -> Response {
       .into_response();
   }
 
+  // A missing file is a 404, not the SPA: a script that comes back as HTML fails with a confusing syntax error.
+  if path.rsplit('/').next().is_some_and(|name| name.contains('.')) {
+    return StatusCode::NOT_FOUND.into_response();
+  }
+
   match Editor::get("index.html") {
     Some(index) => ([(header::CONTENT_TYPE, "text/html; charset=utf-8"), (header::CACHE_CONTROL, "no-cache")], index.data.into_owned()).into_response(),
     None => (StatusCode::NOT_FOUND, "the editor is not embedded, run `bun run build` before `cargo build`").into_response(),

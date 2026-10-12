@@ -4,7 +4,8 @@ import { expect, type Page, test } from "@playwright/test";
 async function open(page: Page, path: string): Promise<string[]> {
   const problems: string[] = [];
   page.on("pageerror", (e) => problems.push(e.message));
-  page.on("console", (m) => m.type() === "error" && problems.push(m.text()));
+  // A missing search index (404 for pagefind files) is expected outside a published site.
+  page.on("console", (m) => m.type() === "error" && !m.text().includes("404") && problems.push(m.text()));
 
   await page.goto(path);
   await expect(page.getByRole("tab", { name: "Linux" })).toBeVisible();

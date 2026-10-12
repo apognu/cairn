@@ -8,7 +8,7 @@ use yourdocs_render::{Pool, Shell, highlight_css};
 use yourdocs_store::{DatabaseConnection, add_release_pages, assets_by_ids, create_release, get_setting, list_pages, set_release_status};
 
 use crate::{
-  PublishError,
+  PublishError, generated, search,
   site::{image_asset_ids, nav_tree, output_path, page_urls},
   target::{OutputFile, PublishTarget},
 };
@@ -17,6 +17,14 @@ use crate::{
 pub struct Bundles {
   pub client_js: Vec<u8>,
   pub site_css: Vec<u8>,
+}
+
+/// Settings that come from the deployment rather than the content.
+pub struct PublishConfig {
+  /// The public address of the site without a trailing slash, for the sitemap and llms.txt.
+  pub site_url: String,
+  /// The Pagefind executable (a path or a name on `PATH`).
+  pub pagefind: String,
 }
 
 /// How many pages are in V8 at once. Below the pool's queue size, so a big site never gets "busy" from its own publish.
@@ -30,6 +38,7 @@ pub struct Publisher<C: ContentStore, A: AssetStore> {
   pool: Arc<Pool>,
   target: PublishTarget,
   bundles: Bundles,
+  config: PublishConfig,
   // Releases are built one at a time; a second publish waits for the first.
   running: tokio::sync::Mutex<()>,
 }
@@ -41,7 +50,7 @@ struct PageSource {
 }
 
 impl<C: ContentStore, A: AssetStore> Publisher<C, A> {
-  pub fn new(db: DatabaseConnection, content: C, assets: Arc<A>, pool: Arc<Pool>, target: PublishTarget, bundles: Bundles) -> Self {
+  pub fn new(db: DatabaseConnection, content: C, assets: Arc<A>, pool: Arc<Pool>, target: PublishTarget, bundles: Bundles, config: PublishConfig) -> Self {
     Self {
       db,
       content,
@@ -49,6 +58,7 @@ impl<C: ContentStore, A: AssetStore> Publisher<C, A> {
       pool,
       target,
       bundles,
+      config,
       running: tokio::sync::Mutex::new(()),
     }
   }
@@ -150,6 +160,42 @@ impl<C: ContentStore, A: AssetStore> Publisher<C, A> {
     let rendered: Vec<(OutputFile, (PageId, RevisionId, String))> = stream::iter(jobs.into_iter().map(render_job)).buffer_unordered(RENDER_CONCURRENCY).try_collect().await?;
 
     let (mut files, hashes): (Vec<_>, Vec<_>) = rendered.into_iter().unzip();
+
+    let listed: Vec<(&Page, &str)> = pages.iter().map(|p| (p, urls[&p.id].as_str())).collect();
+    let site_url = self.config.site_url.as_str();
+    let generated = [
+      ("sitemap.xml", generated::sitemap(site_url, &listed)),
+      ("robots.txt", generated::robots(site_url)),
+      ("llms.txt", generated::llms_txt(&site_name, site_url, &listed)),
+      ("_redirects", generated::redirects(listed.first().map(|(_, url)| *url))),
+    ];
+    files.extend(generated.into_iter().map(|(path, text)| OutputFile {
+      path: path.into(),
+      bytes: text.into_bytes(),
+    }));
+
+    // The page people land on for a URL that does not exist, with the site navigation to find their way.
+    let not_found = RenderJob {
+      pool: self.pool.clone(),
+      input: json!({
+        "doc": { "type": "doc", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "There is no page at this address. Use the navigation or the search to find what you were looking for." }] }] },
+        "context": { "site": { "name": site_name }, "page": { "title": "Page not found" }, "nav": nav, "urls": urls, "assets": {}, "today": today },
+      }),
+      title: "Page not found".into(),
+      site_name: site_name.clone(),
+      stylesheets: stylesheets.clone(),
+      script: script.clone(),
+      page_id: PageId::new(),
+      revision: RevisionId::new(),
+      path: "404.html".into(),
+    };
+    files.push(render_job(not_found).await?.0);
+
+    let html: Vec<&OutputFile> = files.iter().filter(|f| f.path.ends_with(".html")).collect();
+    if let Some(index) = search::build_index(&self.config.pagefind, release.id, &html).await? {
+      files.extend(index);
+    }
+
     files.extend(asset_files);
     files.extend(bundle_files.into_iter().map(|(path, bytes)| OutputFile { path, bytes }));
 
@@ -273,6 +319,10 @@ mod tests {
         client_js: b"console.log(1)".to_vec(),
         site_css: b"body{}".to_vec(),
       },
+      PublishConfig {
+        site_url: "https://docs.example.com".into(),
+        pagefind: std::env::var("PAGEFIND_BIN").unwrap_or_else(|_| concat!(env!("CARGO_MANIFEST_DIR"), "/../../node_modules/.bin/pagefind").into()),
+      },
     );
 
     Fixture { publisher, db, content, dir }
@@ -321,10 +371,19 @@ mod tests {
     assert_eq!((release.status, release.page_count), (ReleaseStatus::Live, 2));
 
     let site = f.dir.join("out/site");
-    assert_eq!(html_files(&site), ["guide/index.html", "guide/install/index.html"]);
+    assert_eq!(html_files(&site), ["404.html", "guide/index.html", "guide/install/index.html"]);
 
     let html = std::fs::read_to_string(site.join("guide/index.html")).unwrap();
     assert!(html.contains("Hello from the guide") && html.contains("href=\"/guide/install/\""), "{html}");
+
+    for generated in ["sitemap.xml", "robots.txt", "llms.txt", "_redirects", "404.html", "pagefind/pagefind.js"] {
+      assert!(site.join(generated).is_file(), "missing {generated}");
+    }
+    assert_eq!(std::fs::read_to_string(site.join("_redirects")).unwrap(), "/ /guide/ 302\n");
+    assert!(std::fs::read_to_string(site.join("sitemap.xml")).unwrap().contains("https://docs.example.com/guide/install/"));
+    // 404 is a page of the site but not a searchable one.
+    assert!(!std::fs::read_to_string(site.join("404.html")).unwrap().contains("data-pagefind-body"));
+    assert!(std::fs::read_to_string(site.join("guide/index.html")).unwrap().contains("data-pagefind-body"));
   }
 
   #[tokio::test]

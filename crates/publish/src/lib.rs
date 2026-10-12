@@ -3,10 +3,12 @@
 #![forbid(unsafe_code)]
 
 mod error;
+mod generated;
 mod publisher;
+mod search;
 mod site;
 mod target;
 
 pub use error::PublishError;
-pub use publisher::{Bundles, Publisher};
+pub use publisher::{Bundles, PublishConfig, Publisher};
 pub use target::{Capabilities, FolderTarget, OutputFile, PublishTarget};

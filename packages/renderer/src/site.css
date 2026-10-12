@@ -428,3 +428,37 @@ a.feature-card:hover {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.site-search {
+  position: relative;
+  width: min(360px, 50%);
+  margin-left: auto;
+  --pagefind-ui-scale: 0.8;
+  --pagefind-ui-primary: var(--accent);
+  --pagefind-ui-text: var(--text);
+  --pagefind-ui-background: var(--bg);
+  --pagefind-ui-border: var(--border-input);
+  --pagefind-ui-tag: var(--hover);
+  --pagefind-ui-border-width: 1px;
+  --pagefind-ui-border-radius: 8px;
+}
+
+/* Results float over the page instead of pushing it down. */
+.site-search .pagefind-ui__drawer {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 30;
+  width: min(560px, 90vw);
+  max-height: 70vh;
+  overflow-y: auto;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  box-shadow: 0 8px 24px rgba(16, 20, 22, 0.18);
+}
+
+.site-search .pagefind-ui__drawer.pagefind-ui__hidden {
+  display: none;
+}

@@ -16,7 +16,7 @@ use sea_orm::DatabaseConnection;
 use serde_json::{Value, json};
 use tracing::instrument;
 use yourdocs_assets::LocalAssetStore;
-use yourdocs_publish::{Bundles, FolderTarget, PublishTarget, Publisher};
+use yourdocs_publish::{Bundles, FolderTarget, PublishConfig, PublishTarget, Publisher};
 use yourdocs_render::Pool;
 use yourdocs_store::SqlContentStore;
 
@@ -40,6 +40,7 @@ pub(crate) fn publisher(
   assets: Arc<LocalAssetStore>,
   pool: Arc<Pool>,
   data_dir: &std::path::Path,
+  config: PublishConfig,
 ) -> anyhow::Result<Arc<Publisher<SqlContentStore, LocalAssetStore>>> {
   let embedded = |name: &str| {
     Assets::get(name)
@@ -58,6 +59,7 @@ pub(crate) fn publisher(
     pool,
     PublishTarget::Folder(FolderTarget::new(data_dir.to_path_buf())),
     bundles,
+    config,
   )))
 }
 
@@ -195,7 +197,18 @@ pub(crate) async fn test_state_with_dir() -> (AppState, std::path::PathBuf) {
   let assets = Arc::new(LocalAssetStore::new(&dir.join("assets")).unwrap());
 
   let state = AppState {
-    publisher: publisher(db.clone(), content.clone(), assets.clone(), pool.clone(), &dir.join("out")).unwrap(),
+    publisher: publisher(
+      db.clone(),
+      content.clone(),
+      assets.clone(),
+      pool.clone(),
+      &dir.join("out"),
+      PublishConfig {
+        site_url: "http://localhost:3001".into(),
+        pagefind: "pagefind-not-installed".into(),
+      },
+    )
+    .unwrap(),
     pool,
     docs: Default::default(),
     content,
