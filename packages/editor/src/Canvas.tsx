@@ -3,6 +3,7 @@ import { collectHeadings, type DocNode, defaultContext, type RenderContext, Site
 import { useEffect, useState } from "react";
 import { BubbleMenus } from "./BubbleMenus";
 import { buildExtensions } from "./extensions";
+import { PropsPanel } from "./PropsPanel";
 
 interface Props {
   doc: DocNode;
@@ -12,10 +13,12 @@ interface Props {
   embedded?: boolean;
   onChange?: (doc: DocNode) => void;
   onBlur?: () => void;
+  /** Where the settings panel of the component under the cursor is drawn. */
+  panelHost?: HTMLElement | null;
 }
 
 /** The page body as ProseMirror, mounted where the published page puts its content. */
-export function Canvas({ doc, context, editable = true, embedded = false, onChange, onBlur }: Props) {
+export function Canvas({ doc, context, editable = true, embedded = false, onChange, onBlur, panelHost }: Props) {
   const editor = useEditor({
     extensions: buildExtensions(editable),
     content: doc,
@@ -40,6 +43,7 @@ export function Canvas({ doc, context, editable = true, embedded = false, onChan
     <SiteLayout context={{ ...defaultContext, ...context }} headings={headings} embedded={embedded}>
       <EditorContent editor={editor} />
       {editor && editable && <BubbleMenus editor={editor} />}
+      {editor && editable && panelHost && <PropsPanel editor={editor} host={panelHost} />}
     </SiteLayout>
   );
 }

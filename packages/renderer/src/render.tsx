@@ -1,4 +1,4 @@
-import { Callout, Tabs } from "@yourdocs/components";
+import { componentsByName, Tabs } from "@yourdocs/components";
 import { Fragment, type ReactNode } from "react";
 import type { DocMark, DocNode, RenderContext } from "./types";
 
@@ -95,14 +95,13 @@ export function renderNode(node: DocNode, ctx: NodeContext, key: number): ReactN
         </Cell>
       );
     }
-    case "callout":
-      return (
-        <Callout key={key} tone={attrs.tone ? String(attrs.tone) : undefined}>
-          {children}
-        </Callout>
-      );
-    default:
-      throw new Error(`unknown node type: ${node.type}`);
+    default: {
+      const component = componentsByName.get(node.type);
+      if (!component) throw new Error(`unknown node type: ${node.type}`);
+
+      // Parsing fills defaults and drops attrs that are not props (block IDs).
+      return <Fragment key={key}>{component.render(component.props.parse(attrs), children)}</Fragment>;
+    }
   }
 }
 

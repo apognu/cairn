@@ -15,6 +15,7 @@
     "packages/components": {
       "name": "@yourdocs/components",
       "dependencies": {
+        "@yourdocs/sdk": "workspace:*",
         "react": "19.1.1",
       },
       "devDependencies": {
@@ -31,19 +32,20 @@
     "packages/editor": {
       "name": "@yourdocs/editor",
       "dependencies": {
-        "@floating-ui/dom": "^1.8.0",
+        "@floating-ui/dom": "1.8.0",
         "@tanstack/react-query": "5.87.1",
         "@tiptap/core": "3.31.4",
-        "@tiptap/extension-bubble-menu": "^3.31.4",
-        "@tiptap/extension-code-block": "^3.31.4",
+        "@tiptap/extension-bubble-menu": "3.31.4",
+        "@tiptap/extension-code-block": "3.31.4",
         "@tiptap/extension-table": "3.31.4",
         "@tiptap/extension-unique-id": "3.31.4",
         "@tiptap/pm": "3.31.4",
         "@tiptap/react": "3.31.4",
         "@tiptap/starter-kit": "3.31.4",
-        "@tiptap/suggestion": "^3.31.4",
+        "@tiptap/suggestion": "3.31.4",
         "@yourdocs/components": "workspace:*",
         "@yourdocs/renderer": "workspace:*",
+        "@yourdocs/sdk": "workspace:*",
         "openapi-fetch": "0.17.0",
         "react": "19.1.1",
         "react-dom": "19.1.1",
@@ -61,6 +63,7 @@
       "name": "@yourdocs/renderer",
       "dependencies": {
         "@yourdocs/components": "workspace:*",
+        "@yourdocs/sdk": "workspace:*",
         "react": "19.1.1",
         "react-dom": "19.1.1",
       },
@@ -72,6 +75,15 @@
     },
     "packages/sdk": {
       "name": "@yourdocs/sdk",
+      "dependencies": {
+        "zod": "4.1.5",
+      },
+      "devDependencies": {
+        "@types/react": "19.1.12",
+      },
+      "peerDependencies": {
+        "react": "19.1.1",
+      },
     },
   },
   "packages": {
@@ -526,6 +538,8 @@
     "yaml-ast-parser": ["yaml-ast-parser@0.0.43", "", {}, "sha512-2PTINUwsRqSd+s8XxKaJWQlUuEMHJQyEuh2edBbW8KNJz0SJPwUSD2zRWqezFEdN7IzAgeuYHFUCF7o8zRdZ0A=="],
 
     "yargs-parser": ["yargs-parser@21.1.1", "", {}, "sha512-tVpsJW7DdjecAiFpbIB1e3qxIQsE6NoPc5/eTdrbbIC4h0LVsWhnoa3g+m2HclBIujHzsxZ4VJVA+GUuc2/LBw=="],
+
+    "zod": ["zod@4.1.5", "", {}, "sha512-rcUUZqlLJgBC33IT3PNMgsCq6TzLQEG/Ei/KTCU0PedSWRMAXoOUN+4t/0H+Q8bdnLPdqUYnvboJT0bn/229qg=="],
 
     "playwright/fsevents": ["fsevents@2.3.2", "", { "os": "darwin" }, "sha512-xiqMQR4xAeHTuB9uWm+fFRcIOgKBMiOBP+eXiyT7jsgVCq1bkVygt00oASowB7EdtpOHaaPgKt812P9ab+DDKA=="],
   }

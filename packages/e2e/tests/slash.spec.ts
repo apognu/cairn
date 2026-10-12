@@ -59,3 +59,30 @@ test("the bubble menu formats a selection", async ({ page }) => {
   await page.getByRole("button", { name: "Bold" }).click();
   await expect(editor.locator("strong")).toHaveText("Make this bold");
 });
+
+test("a component's settings form edits the document", async ({ page, request }) => {
+  const title = `Props ${Math.random().toString(36).slice(2, 8)}`;
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "New page" }).click();
+  await page.getByLabel("New page title").fill(title);
+  await page.keyboard.press("Enter");
+  await page.getByRole("button", { name: title, exact: true }).click();
+  const id = new URL(page.url()).hash.replace("#page=", "");
+
+  const editor = page.locator(".ProseMirror");
+  await editor.click();
+  await page.keyboard.type("/callout");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("Settings test");
+
+  const panel = page.getByRole("complementary", { name: "Component settings" });
+  await expect(panel.getByRole("heading", { name: "Callout" })).toBeVisible();
+  await panel.getByLabel("Type").selectOption("warning");
+  await expect(editor.locator("aside.callout[data-tone='warning']")).toBeVisible();
+
+  // The edit reaches the saved document, not just the screen.
+  await expect(page.getByRole("status")).toHaveText("Saved");
+  const draft = await (await request.get(`/api/pages/${id}/draft`)).json();
+  expect(JSON.stringify(draft.doc)).toContain('"tone":"warning"');
+});

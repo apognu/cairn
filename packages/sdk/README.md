@@ -1,4 +1,4 @@
 # sdk
 
-Component SDK: defineComponent, field helpers and Editable.
-Not obvious: only a version constant for now.
+Component SDK: `defineComponent` (Zod props, pure render) and `propsSchema`, which the editor turns into a settings form.
+Not obvious: field helpers (`link()`, `icon()`), `Editable` and `migrate` are not built yet.

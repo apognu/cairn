@@ -25,6 +25,7 @@ function Editor() {
   // The selected page lives in the URL, so a reload comes back to it.
   const [selected, setSelected] = useState(() => new URLSearchParams(window.location.hash.slice(1)).get("page"));
   const [status, setStatus] = useState<SaveStatus | null>(null);
+  const [panelHost, setPanelHost] = useState<HTMLElement | null>(null);
   const current = pages.data?.find((p) => p.id === selected);
 
   const select = useCallback((id: string | null) => {
@@ -42,11 +43,12 @@ function Editor() {
       <Sidebar pages={pages.data ?? []} loading={pages.isPending} selected={selected} onSelect={select} />
       <main className="canvas">
         {current ? (
-          <PageEditor key={current.id} page={current} onStatus={setStatus} />
+          <PageEditor key={current.id} page={current} onStatus={setStatus} panelHost={panelHost} />
         ) : (
           <p className="muted pad">Create a page in the sidebar to get started.</p>
         )}
       </main>
+      <aside className="props" aria-label="Component settings" ref={setPanelHost} />
     </div>
   );
 }

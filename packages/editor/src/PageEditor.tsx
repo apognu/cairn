@@ -10,10 +10,11 @@ import { type InitialDraft, type SaveStatus, useDraftSync } from "./useDraftSync
 interface Props {
   page: Page;
   onStatus: (status: SaveStatus | null) => void;
+  panelHost: HTMLElement | null;
 }
 
 /** Loads what to edit: the server's draft, or the browser's copy when it holds typing the server has not seen. */
-export function PageEditor({ page, onStatus }: Props) {
+export function PageEditor({ page, onStatus, panelHost }: Props) {
   const draft = useQuery({
     queryKey: ["draft", page.id],
     // Reloading while the user is typing would replace their text.
@@ -38,10 +39,20 @@ export function PageEditor({ page, onStatus }: Props) {
       </p>
     );
 
-  return <Editing page={page} initial={draft.data} onStatus={onStatus} />;
+  return <Editing page={page} initial={draft.data} onStatus={onStatus} panelHost={panelHost} />;
 }
 
-function Editing({ page, initial, onStatus }: { page: Page; initial: InitialDraft; onStatus: Props["onStatus"] }) {
+function Editing({
+  page,
+  initial,
+  onStatus,
+  panelHost,
+}: {
+  page: Page;
+  initial: InitialDraft;
+  onStatus: Props["onStatus"];
+  panelHost: HTMLElement | null;
+}) {
   const { status, onChange, flush, overwrite } = useDraftSync(page.id, initial);
 
   useEffect(() => onStatus(status), [status, onStatus]);
@@ -64,6 +75,7 @@ function Editing({ page, initial, onStatus }: { page: Page; initial: InitialDraf
         context={{ page: { id: page.id, title: page.title } }}
         embedded
         onChange={onChange}
+        panelHost={panelHost}
         onBlur={() => void flush()}
       />
     </>

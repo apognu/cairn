@@ -4,9 +4,8 @@ import { BubbleMenu } from "@tiptap/react/menus";
 import { useId, useState } from "react";
 
 const languages = ["bash", "css", "html", "javascript", "json", "python", "rust", "sql", "toml", "typescript", "yaml"];
-const tones = ["note", "tip", "warning"];
 
-/** Floating tools: formatting for a text selection, settings for the code block or callout the cursor is in. */
+/** Floating tools: formatting for a text selection, settings for the code block the cursor is in. */
 export function BubbleMenus({ editor }: { editor: Editor }) {
   return (
     <>
@@ -25,13 +24,6 @@ export function BubbleMenus({ editor }: { editor: Editor }) {
         options={{ placement: "top-start" }}
       >
         <CodeBlockTools editor={editor} />
-      </BubbleMenu>
-      <BubbleMenu
-        editor={editor}
-        shouldShow={({ editor: e }) => e.isEditable && e.isActive("callout")}
-        options={{ placement: "top-start" }}
-      >
-        <CalloutTools editor={editor} />
       </BubbleMenu>
     </>
   );
@@ -123,30 +115,6 @@ function CodeBlockTools({ editor }: { editor: Editor }) {
       <label>
         File name
         <input value={attrs.fileName} onChange={(e) => set("fileName", e.target.value)} />
-      </label>
-    </fieldset>
-  );
-}
-
-function CalloutTools({ editor }: { editor: Editor }) {
-  const tone = useEditorState({
-    editor,
-    selector: ({ editor: e }) => String(e.getAttributes("callout").tone ?? "note"),
-  });
-
-  return (
-    <fieldset className="bubble">
-      <legend className="sr-only">Callout</legend>
-      <label>
-        Type
-        <select
-          value={tone}
-          onChange={(e) => editor.chain().updateAttributes("callout", { tone: e.target.value }).run()}
-        >
-          {tones.map((t) => (
-            <option key={t}>{t}</option>
-          ))}
-        </select>
       </label>
     </fieldset>
   );
