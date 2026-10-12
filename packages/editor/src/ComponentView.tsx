@@ -7,6 +7,8 @@ export function ComponentView({ node }: NodeViewProps) {
   const parsed = definition?.props.safeParse(node.attrs);
 
   return (
-    <NodeViewWrapper>{definition && parsed?.success ? definition.render(parsed.data, null) : null}</NodeViewWrapper>
+    <NodeViewWrapper data-label={definition?.title}>
+      {definition && parsed?.success ? definition.render(parsed.data, null) : null}
+    </NodeViewWrapper>
   );
 }

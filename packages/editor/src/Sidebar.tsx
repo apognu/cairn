@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Icon } from "./icons";
 import { useCreatePage, useDeletePage, useMovePage, useRenamePage } from "./queries";
 import { buildTree, type MoveAction, moveTarget, type Page, type TreeNode } from "./tree";
 
@@ -17,6 +18,7 @@ type Editing =
 export function Sidebar({ pages, loading, selected, onSelect }: Props) {
   const [editing, setEditing] = useState<Editing | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
   const create = useCreatePage();
   const rename = useRenamePage();
   const move = useMovePage();
@@ -51,13 +53,21 @@ export function Sidebar({ pages, loading, selected, onSelect }: Props) {
       if (selected === id) onSelect(null);
     });
 
+  const needle = query.trim().toLowerCase();
+  const search = needle ? pages.filter((p) => p.title.toLowerCase().includes(needle)) : null;
+
   const renderNode = (node: TreeNode, depth: number) => {
     const { page } = node;
     const isEditing = editing && "id" in editing && editing.id === page.id;
 
     return (
       <li key={page.id}>
-        <div className="row" style={{ paddingLeft: 10 + depth * 16 }} data-selected={selected === page.id}>
+        <div
+          className="row"
+          style={{ paddingLeft: rowIndent(depth) }}
+          data-depth={Math.min(depth, 1)}
+          data-selected={selected === page.id}
+        >
           {isEditing && editing.kind === "rename" ? (
             <TitleForm initial={page.title} label="Page title" onSubmit={submit} onCancel={() => setEditing(null)} />
           ) : (
@@ -87,20 +97,31 @@ export function Sidebar({ pages, loading, selected, onSelect }: Props) {
                 glyph="+"
                 onClick={() => setEditing({ kind: "create", parent: page.id })}
               />
-              <IconButton
-                label={`Rename ${page.title}`}
-                glyph="✎"
-                onClick={() => setEditing({ kind: "rename", id: page.id })}
-              />
-              <IconButton label={`Move ${page.title} up`} glyph="↑" onClick={() => doMove(page.id, "up")} />
-              <IconButton label={`Move ${page.title} down`} glyph="↓" onClick={() => doMove(page.id, "down")} />
-              <IconButton label={`Indent ${page.title}`} glyph="→" onClick={() => doMove(page.id, "indent")} />
-              <IconButton label={`Outdent ${page.title}`} glyph="←" onClick={() => doMove(page.id, "outdent")} />
-              <IconButton
-                label={`Delete ${page.title}`}
-                glyph="×"
-                onClick={() => setEditing({ kind: "delete", id: page.id })}
-              />
+              <details className="menu">
+                <summary aria-label={`More actions for ${page.title}`} title="More actions">
+                  ⋯
+                </summary>
+                <div className="menu-pop">
+                  <MenuItem
+                    label={`Rename ${page.title}`}
+                    text="Rename"
+                    onClick={() => setEditing({ kind: "rename", id: page.id })}
+                  />
+                  <MenuItem label={`Move ${page.title} up`} text="Move up" onClick={() => doMove(page.id, "up")} />
+                  <MenuItem
+                    label={`Move ${page.title} down`}
+                    text="Move down"
+                    onClick={() => doMove(page.id, "down")}
+                  />
+                  <MenuItem label={`Indent ${page.title}`} text="Indent" onClick={() => doMove(page.id, "indent")} />
+                  <MenuItem label={`Outdent ${page.title}`} text="Outdent" onClick={() => doMove(page.id, "outdent")} />
+                  <MenuItem
+                    label={`Delete ${page.title}`}
+                    text="Delete…"
+                    onClick={() => setEditing({ kind: "delete", id: page.id })}
+                  />
+                </div>
+              </details>
             </span>
           )}
         </div>
@@ -108,7 +129,7 @@ export function Sidebar({ pages, loading, selected, onSelect }: Props) {
           <ul>
             {node.children.map((child) => renderNode(child, depth + 1))}
             {editing?.kind === "create" && editing.parent === page.id && (
-              <li style={{ paddingLeft: 10 + (depth + 1) * 16 }}>
+              <li style={{ paddingLeft: rowIndent(depth + 1) }}>
                 <TitleForm initial="" label="New page title" onSubmit={submit} onCancel={() => setEditing(null)} />
               </li>
             )}
@@ -121,8 +142,21 @@ export function Sidebar({ pages, loading, selected, onSelect }: Props) {
   return (
     <nav className="sidebar" aria-label="Pages">
       <div className="sidebar-head">
-        <span>Pages</span>
-        <IconButton label="New page" glyph="+" onClick={() => setEditing({ kind: "create", parent: null })} />
+        <input
+          type="search"
+          aria-label="Find a page"
+          placeholder="Find a page"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+        <button
+          type="button"
+          className="new-page"
+          aria-label="New page"
+          onClick={() => setEditing({ kind: "create", parent: null })}
+        >
+          <Icon name="plus" size={15} />
+        </button>
       </div>
       {error && (
         <p role="alert" className="error">
@@ -131,9 +165,11 @@ export function Sidebar({ pages, loading, selected, onSelect }: Props) {
       )}
       {loading && <p className="muted pad">Loading…</p>}
       <ul className="tree">
-        {buildTree(pages).map((node) => renderNode(node, 0))}
+        {(search ? search.map((page) => ({ page, children: [] })) : buildTree(pages)).map((node) =>
+          renderNode(node, search ? 1 : 0),
+        )}
         {editing?.kind === "create" && editing.parent === null && (
-          <li style={{ paddingLeft: 10 }}>
+          <li style={{ paddingLeft: rowIndent(0) }}>
             <TitleForm initial="" label="New page title" onSubmit={submit} onCancel={() => setEditing(null)} />
           </li>
         )}
@@ -142,10 +178,28 @@ export function Sidebar({ pages, loading, selected, onSelect }: Props) {
   );
 }
 
+/** Top-level pages are the section headings of the sidebar; everything below is indented under them. */
+const rowIndent = (depth: number) => (depth === 0 ? 10 : 26 + (depth - 1) * 16);
+
 function IconButton({ label, glyph, onClick }: { label: string; glyph: string; onClick: () => void }) {
   return (
     <button type="button" className="icon" aria-label={label} title={label} onClick={onClick}>
       <span aria-hidden="true">{glyph}</span>
+    </button>
+  );
+}
+
+function MenuItem({ label, text, onClick }: { label: string; text: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      onClick={(e) => {
+        e.currentTarget.closest("details")?.removeAttribute("open");
+        onClick();
+      }}
+    >
+      {text}
     </button>
   );
 }

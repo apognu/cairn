@@ -82,7 +82,7 @@ test("pages are prefetched on hover and fade between each other", async ({ page,
   await expect(reader.locator(`link[rel="prefetch"][href$="${href}"]`)).toHaveCount(1);
 
   const css = await (
-    await request.get(`${SITE}${await reader.locator('link[href*="site-"]').getAttribute("href")}`)
+    await request.get(`${SITE}${await reader.locator('link[rel="stylesheet"][href*="site-"]').getAttribute("href")}`)
   ).text();
   expect(css).toContain("@view-transition");
   expect(await reader.locator('script[type="speculationrules"]').count()).toBe(1);

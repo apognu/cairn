@@ -1,17 +1,29 @@
 import { type Editor, Extension, type Range } from "@tiptap/core";
 import { ReactRenderer } from "@tiptap/react";
 import Suggestion, { type SuggestionKeyDownProps, type SuggestionProps } from "@tiptap/suggestion";
-import { forwardRef, useEffect, useImperativeHandle, useState } from "react";
+import { Fragment, forwardRef, useEffect, useImperativeHandle, useState } from "react";
+import { Icon, type IconName } from "./icons";
 import { pickAndInsertImages } from "./upload";
 
 export interface SlashItem {
+  group: "Components" | "Basic";
+  icon: IconName;
   title: string;
   hint: string;
   keywords: string;
   run: (editor: Editor, range: Range) => void;
 }
 
-const item = (title: string, hint: string, keywords: string, run: SlashItem["run"]): SlashItem => ({
+const item = (
+  group: SlashItem["group"],
+  icon: IconName,
+  title: string,
+  hint: string,
+  keywords: string,
+  run: SlashItem["run"],
+): SlashItem => ({
+  group,
+  icon,
   title,
   hint,
   keywords,
@@ -20,33 +32,39 @@ const item = (title: string, hint: string, keywords: string, run: SlashItem["run
 
 // Every command first removes the typed "/query".
 export const slashItems: SlashItem[] = [
-  item("Heading 2", "Section title", "h2 heading title", (e, r) =>
+  item("Basic", "heading", "Heading 2", "Section title", "h2 heading title", (e, r) =>
     e.chain().focus().deleteRange(r).setNode("heading", { level: 2 }).run(),
   ),
-  item("Heading 3", "Subsection title", "h3 heading subtitle", (e, r) =>
+  item("Basic", "heading", "Heading 3", "Subsection title", "h3 heading subtitle", (e, r) =>
     e.chain().focus().deleteRange(r).setNode("heading", { level: 3 }).run(),
   ),
-  item("Bulleted list", "A list of points", "ul bullet list", (e, r) =>
+  item("Basic", "list", "Bulleted list", "A list of points", "ul bullet list", (e, r) =>
     e.chain().focus().deleteRange(r).toggleBulletList().run(),
   ),
-  item("Numbered list", "Steps in order", "ol numbered list", (e, r) =>
+  item("Basic", "numbered", "Numbered list", "Steps in order", "ol numbered list", (e, r) =>
     e.chain().focus().deleteRange(r).toggleOrderedList().run(),
   ),
-  item("Quote", "Set a passage apart", "blockquote quote", (e, r) =>
+  item("Basic", "quote", "Quote", "Set a passage apart", "blockquote quote", (e, r) =>
     e.chain().focus().deleteRange(r).toggleBlockquote().run(),
   ),
-  item("Code block", "Code with a language and file name", "code snippet pre", (e, r) =>
+  item("Basic", "code", "Code block", "Code with a language and file name", "code snippet pre", (e, r) =>
     e.chain().focus().deleteRange(r).setCodeBlock().run(),
   ),
-  item("Callout", "A highlighted note, tip or warning", "callout note tip warning aside admonition", (e, r) =>
-    e
-      .chain()
-      .focus()
-      .deleteRange(r)
-      .insertContent({ type: "callout", attrs: { tone: "note" }, content: [{ type: "paragraph" }] })
-      .run(),
+  item(
+    "Components",
+    "info",
+    "Callout",
+    "A highlighted note, tip or warning",
+    "callout note tip warning aside admonition",
+    (e, r) =>
+      e
+        .chain()
+        .focus()
+        .deleteRange(r)
+        .insertContent({ type: "callout", attrs: { tone: "note" }, content: [{ type: "paragraph" }] })
+        .run(),
   ),
-  item("Feature tabs", "Cards grouped into tabs", "features tabs cards grid", (e, r) =>
+  item("Components", "tabs", "Feature tabs", "Cards grouped into tabs", "features tabs cards grid", (e, r) =>
     e
       .chain()
       .focus()
@@ -66,7 +84,7 @@ export const slashItems: SlashItem[] = [
       })
       .run(),
   ),
-  item("What's new", "Recently added features", "new whats new features changelog", (e, r) =>
+  item("Components", "sparkle", "What's new", "Recently added features", "new whats new features changelog", (e, r) =>
     e
       .chain()
       .focus()
@@ -77,21 +95,26 @@ export const slashItems: SlashItem[] = [
       })
       .run(),
   ),
-  item("Image", "Upload a picture", "image picture photo upload figure", (e, r) => {
+  item("Basic", "image", "Image", "Upload a picture", "image picture photo upload figure", (e, r) => {
     e.chain().focus().deleteRange(r).run();
     pickAndInsertImages(e);
   }),
-  item("Table", "Rows and columns", "table grid", (e, r) =>
+  item("Basic", "table", "Table", "Rows and columns", "table grid", (e, r) =>
     e.chain().focus().deleteRange(r).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(),
   ),
-  item("Divider", "A horizontal rule", "hr divider rule line", (e, r) =>
+  item("Basic", "divider", "Divider", "A horizontal rule", "hr divider rule line", (e, r) =>
     e.chain().focus().deleteRange(r).setHorizontalRule().run(),
   ),
 ];
 
+// Components come first, as in the menu design; the sort is stable, so each group keeps its order.
+const groupOrder: SlashItem["group"][] = ["Components", "Basic"];
+
 export function filterSlashItems(query: string): SlashItem[] {
   const words = query.toLowerCase().split(/\s+/).filter(Boolean);
-  return slashItems.filter((i) => words.every((w) => `${i.title} ${i.keywords}`.toLowerCase().includes(w)));
+  return slashItems
+    .filter((i) => words.every((w) => `${i.title} ${i.keywords}`.toLowerCase().includes(w)))
+    .sort((a, b) => groupOrder.indexOf(a.group) - groupOrder.indexOf(b.group));
 }
 
 type ListHandle = { onKeyDown: (event: KeyboardEvent) => boolean };
@@ -127,22 +150,38 @@ const SlashList = forwardRef<ListHandle, SuggestionProps<SlashItem, SlashItem>>(
       tabIndex={-1}
     >
       {items.map((it, i) => (
-        <button
-          type="button"
-          role="option"
-          id={`slash-${i}`}
-          key={it.title}
-          aria-selected={i === active}
-          // Mouse down, not click: a click would first move focus out of the editor and close the menu.
-          onMouseDown={(e) => {
-            e.preventDefault();
-            command(it);
-          }}
-        >
-          <strong>{it.title}</strong>
-          <span className="muted">{it.hint}</span>
-        </button>
+        <Fragment key={it.title}>
+          {items[i - 1]?.group !== it.group && (
+            <div className="slash-group" role="presentation">
+              {it.group}
+            </div>
+          )}
+          <button
+            type="button"
+            role="option"
+            id={`slash-${i}`}
+            aria-selected={i === active}
+            // Mouse down, not click: a click would first move focus out of the editor and close the menu.
+            onMouseDown={(e) => {
+              e.preventDefault();
+              command(it);
+            }}
+          >
+            <span className="slash-icon">
+              <Icon name={it.icon} />
+            </span>
+            <span className="slash-text">
+              <strong>{it.title}</strong>
+              <span className="muted">{it.hint}</span>
+            </span>
+          </button>
+        </Fragment>
       ))}
+      <div className="slash-foot" aria-hidden="true">
+        <span>↑↓ to move</span>
+        <span>↵ to insert</span>
+        <span>Type to filter</span>
+      </div>
     </div>
   );
 });

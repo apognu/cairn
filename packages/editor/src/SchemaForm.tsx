@@ -136,44 +136,79 @@ function ListField({
   };
 
   return (
-    <fieldset className="form-group">
+    <fieldset className="form-group list-group">
       <legend>{label}</legend>
       {value.map((entry, i) => (
         // biome-ignore lint/suspicious/noArrayIndexKey: list items have no identity of their own
-        <div className="form-item" key={i}>
-          <Field label={`${label} ${i + 1}`} schema={item} value={entry} onChange={(next) => replace(i, next)} />
-          <div className="form-item-actions">
-            <button
-              type="button"
-              aria-label={`Move ${label} ${i + 1} up`}
-              disabled={i === 0}
-              onClick={() => move(i, i - 1)}
-            >
-              ↑
-            </button>
-            <button
-              type="button"
-              aria-label={`Move ${label} ${i + 1} down`}
-              disabled={i === value.length - 1}
-              onClick={() => move(i, i + 1)}
-            >
-              ↓
-            </button>
-            <button
-              type="button"
-              aria-label={`Remove ${label} ${i + 1}`}
-              onClick={() => onChange(value.filter((_, j) => j !== i))}
-            >
-              ×
-            </button>
+        <details className="form-item" key={i} open={i === 0}>
+          <summary>
+            <span className="grip" aria-hidden="true">
+              ⠿
+            </span>
+            <span className="form-item-title">{summaryOf(entry) ?? `${label} ${i + 1}`}</span>
+            <span className="form-item-actions">
+              <button
+                type="button"
+                aria-label={`Move ${label} ${i + 1} up`}
+                disabled={i === 0}
+                onClick={(e) => {
+                  e.preventDefault();
+                  move(i, i - 1);
+                }}
+              >
+                ↑
+              </button>
+              <button
+                type="button"
+                aria-label={`Move ${label} ${i + 1} down`}
+                disabled={i === value.length - 1}
+                onClick={(e) => {
+                  e.preventDefault();
+                  move(i, i + 1);
+                }}
+              >
+                ↓
+              </button>
+              <button
+                type="button"
+                aria-label={`Remove ${label} ${i + 1}`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  onChange(value.filter((_, j) => j !== i));
+                }}
+              >
+                ×
+              </button>
+            </span>
+          </summary>
+          <div className="form-item-body">
+            {item.type === "object" ? (
+              <SchemaForm
+                schema={item}
+                value={(entry ?? {}) as Values}
+                onChange={(name, next) => replace(i, { ...(entry as Values), [name]: next })}
+              />
+            ) : (
+              <Field label={`${label} ${i + 1}`} schema={item} value={entry} onChange={(next) => replace(i, next)} />
+            )}
           </div>
-        </div>
+        </details>
       ))}
       <button type="button" className="form-add" onClick={() => onChange([...value, defaultFor(item)])}>
-        Add item
+        + Add item
       </button>
     </fieldset>
   );
+}
+
+/** What a collapsed list item is called: its label, title or name when it has one. */
+function summaryOf(entry: unknown): string | undefined {
+  if (typeof entry === "string") return entry || undefined;
+  if (typeof entry !== "object" || entry === null) return undefined;
+
+  const record = entry as Values;
+  const named = record.label ?? record.title ?? record.name;
+  return typeof named === "string" && named ? named : undefined;
 }
 
 /** Until the page picker of M2, a plain list of pages: titles for people, IDs in the document. */

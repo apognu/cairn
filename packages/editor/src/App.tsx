@@ -1,10 +1,12 @@
 import { ThemeToggle } from "@yourdocs/renderer";
 import { useCallback, useEffect, useState } from "react";
 import { FixtureView } from "./FixtureView";
+import { Icon } from "./icons";
 import { PageEditor } from "./PageEditor";
 import { usePages, usePublish, useSettings } from "./queries";
 import { SettingsDialog } from "./SettingsDialog";
 import { Sidebar } from "./Sidebar";
+import type { Page } from "./tree";
 import type { SaveStatus } from "./useDraftSync";
 
 const statusText: Record<SaveStatus, string> = {
@@ -22,6 +24,20 @@ export function App() {
   return <Editor />;
 }
 
+/** Titles from the top of the tree down to the page. */
+function breadcrumb(pages: Page[], page: Page): string[] {
+  const trail = [page.title];
+
+  for (
+    let parent = pages.find((p) => p.id === page.parent_id);
+    parent;
+    parent = pages.find((p) => p.id === parent?.parent_id)
+  ) {
+    trail.unshift(parent.title);
+  }
+  return trail;
+}
+
 function Editor() {
   const pages = usePages();
   // The selected page lives in the URL, so a reload comes back to it.
@@ -37,6 +53,7 @@ function Editor() {
   }, [settings.data]);
   const [panelHost, setPanelHost] = useState<HTMLElement | null>(null);
   const current = pages.data?.find((p) => p.id === selected);
+  const trail = current ? breadcrumb(pages.data ?? [], current) : [];
 
   const select = useCallback((id: string | null) => {
     window.history.replaceState(null, "", id ? `#page=${id}` : window.location.pathname);
@@ -46,9 +63,17 @@ function Editor() {
   return (
     <div className="shell">
       <header className="topbar">
-        <strong>yourdocs</strong>
-        <span className="muted">{current?.title ?? "No page selected"}</span>
-        {status && <output className="muted">{statusText[status]}</output>}
+        <span className="brand">
+          <Icon name="logo" size={20} />
+          <strong>{settings.data?.site_name ?? "Documentation"}</strong>
+        </span>
+        <span className="crumbs">{trail.length > 0 ? trail.join(" / ") : "No page selected"}</span>
+        {status && (
+          <output className="save-status" data-status={status}>
+            {status === "saved" && <Icon name="check" size={13} />}
+            {statusText[status]}
+          </output>
+        )}
         <div className="topbar-actions">
           {publish.isError && (
             <span role="alert" className="error-text">

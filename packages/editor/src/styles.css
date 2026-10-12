@@ -24,9 +24,13 @@ input {
   padding: 0 10px;
 }
 
+:root {
+  --accent-soft: color-mix(in srgb, var(--accent) 11%, var(--bg));
+}
+
 .shell {
   display: grid;
-  grid-template: 52px 1fr / 300px minmax(0, 1fr) auto;
+  grid-template: 52px 1fr / 270px minmax(0, 1fr) auto;
   height: 100vh;
 }
 
@@ -39,6 +43,35 @@ input {
   border-bottom: 1px solid var(--border);
 }
 
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+}
+
+.crumbs {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.save-status {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.save-status svg {
+  color: var(--accent);
+}
+
+.save-status[data-status="conflict"],
+.save-status[data-status="error"] {
+  color: var(--danger);
+}
+
 .sidebar {
   background: var(--bg-side);
   border-right: 1px solid var(--border);
@@ -48,14 +81,31 @@ input {
 
 .sidebar-head {
   display: flex;
+  gap: 6px;
+  margin: 0 2px 6px;
+}
+
+.sidebar-head input {
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--border-input);
+  border-radius: 6px;
+  background: var(--bg);
+  font-size: 13.5px;
+}
+
+.new-page {
+  display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 0 2px 6px 10px;
-  font-size: 11.5px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted);
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border-input);
+  border-radius: 6px;
+  background: var(--bg);
+  cursor: pointer;
 }
 
 .sidebar ul {
@@ -65,6 +115,7 @@ input {
 }
 
 .row {
+  position: relative;
   display: flex;
   align-items: center;
   min-height: 30px;
@@ -91,21 +142,103 @@ input {
   white-space: nowrap;
 }
 
+.row[data-selected="true"] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
 .row[data-selected="true"] .title {
   font-weight: 600;
 }
 
-/* Hidden by opacity, not display, so keyboard users can still tab to the buttons. */
+/* Top-level pages read as the sidebar's section headings. */
+.row[data-depth="0"] {
+  margin-top: 14px;
+}
+
+.row[data-depth="0"] .title {
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.row[data-depth="0"][data-selected="true"] .title {
+  color: var(--accent);
+}
+
+/* Floats over the end of the row so titles keep their width. Hidden by opacity, not display, so keyboard users can still tab to the buttons. */
 .actions {
+  position: absolute;
+  right: 4px;
   display: flex;
   gap: 2px;
+  padding-left: 4px;
+  background: var(--hover);
+  border-radius: 6px;
   opacity: 0;
+  pointer-events: none;
 }
 
 .row:hover .actions,
 .row:focus-within .actions,
-.row[data-selected="true"] .actions {
+.actions:has(.menu[open]) {
   opacity: 1;
+  pointer-events: auto;
+}
+
+.menu {
+  position: relative;
+}
+
+.menu summary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 5px;
+  color: var(--muted);
+  cursor: pointer;
+  list-style: none;
+}
+
+.menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.menu summary:hover {
+  background: var(--border);
+  color: var(--text);
+}
+
+.menu-pop {
+  position: absolute;
+  z-index: 10;
+  top: 28px;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 140px;
+  padding: 4px;
+  border: 1px solid var(--border-input);
+  border-radius: 8px;
+  background: var(--bg);
+  box-shadow: 0 8px 24px rgba(16, 20, 22, 0.18);
+}
+
+.menu-pop button {
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.menu-pop button:hover {
+  background: var(--hover);
 }
 
 .icon {
@@ -172,7 +305,6 @@ input {
   z-index: 20;
 }
 
-.slash-menu,
 .bubble {
   display: flex;
   border: 1px solid var(--border-input);
@@ -184,11 +316,45 @@ input {
 }
 
 .slash-menu {
+  display: flex;
   flex-direction: column;
-  min-width: 260px;
-  max-height: 320px;
+  width: 393px;
+  max-height: 476px;
   overflow-y: auto;
-  padding: 4px;
+  padding: 6px;
+  border: 1px solid var(--border-input);
+  border-radius: 12px;
+  background: var(--bg);
+  box-shadow: 0 12px 32px rgba(16, 20, 22, 0.18);
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.slash-group {
+  padding: 8px 10px 4px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.slash-foot {
+  position: sticky;
+  bottom: -6px;
+  background: var(--bg);
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 4px;
+  padding: 8px 10px 2px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.slash-foot span:last-child {
+  margin-left: auto;
 }
 
 .slash-menu.muted {
@@ -197,11 +363,11 @@ input {
 
 .slash-menu button {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  padding: 6px 10px;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 8px;
   border: 0;
-  border-radius: 6px;
+  border-radius: 8px;
   background: none;
   text-align: left;
   cursor: pointer;
@@ -209,7 +375,34 @@ input {
 
 .slash-menu button[aria-selected="true"],
 .slash-menu button:hover {
-  background: var(--hover);
+  background: var(--accent-soft);
+}
+
+.slash-icon {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--border-input);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text-body);
+}
+
+button[aria-selected="true"] .slash-icon {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.slash-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.slash-text .muted {
+  font-size: 12.5px;
 }
 
 .bubble {
@@ -288,7 +481,7 @@ fieldset.bubble {
 /* Empty until the cursor is in a component, then it takes its width. */
 .props {
   width: 380px;
-  padding: 18px;
+  padding: 18px 18px 24px;
   overflow-y: auto;
   border-left: 1px solid var(--border);
   background: var(--bg-side);
@@ -312,7 +505,7 @@ fieldset.bubble {
 }
 
 .mono {
-  font-family: ui-monospace, "IBM Plex Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
 }
 
@@ -350,23 +543,63 @@ fieldset.bubble {
   padding: 12px;
   border: 1px solid var(--border-input);
   border-radius: 10px;
-  background: var(--bg);
+  background: var(--bg-side);
+}
+
+.list-group {
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+.list-group > legend {
+  padding: 0;
+  margin-bottom: 6px;
 }
 
 .form-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 6px;
+  margin-bottom: 8px;
+  border: 1px solid var(--border-input);
+  border-radius: 8px;
+  background: var(--bg);
 }
 
-.form-item > :first-child {
+.form-item summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.form-item summary::-webkit-details-marker {
+  display: none;
+}
+
+.form-item[open] > summary {
+  font-weight: 600;
+}
+
+.grip {
+  color: var(--muted);
+}
+
+.form-item-title {
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.form-item-body {
+  padding: 4px 12px 0;
 }
 
 .form-item-actions {
   display: flex;
   gap: 2px;
-  padding-top: 22px;
 }
 
 .form-item-actions button,
@@ -378,8 +611,20 @@ fieldset.bubble {
 }
 
 .form-item-actions button {
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
+  border-color: transparent;
+  color: var(--muted);
+}
+
+.form-item-actions button:hover:not(:disabled) {
+  border-color: var(--border-input);
+  color: var(--text);
+}
+
+.form-item-actions button:disabled {
+  opacity: 0.35;
+  cursor: default;
 }
 
 .form-add {
@@ -392,6 +637,25 @@ fieldset.bubble {
   outline: 2px solid var(--accent);
   outline-offset: 6px;
   border-radius: 12px;
+}
+
+/* The name of the selected component, as a tag on its outline. */
+.ProseMirror-selectednode > [data-label] {
+  position: relative;
+}
+
+.ProseMirror-selectednode > [data-label]::before {
+  content: attr(data-label);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: -8px;
+  padding: 3px 8px;
+  border-radius: 6px 6px 0 0;
+  background: var(--accent);
+  color: var(--bg);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
 }
 
 .topbar-actions {
@@ -412,6 +676,7 @@ button.primary {
   border-radius: 7px;
   background: var(--text);
   color: var(--bg);
+  font-size: 13.5px;
   font-weight: 600;
   cursor: pointer;
 }
@@ -431,10 +696,11 @@ button.primary:disabled {
 }
 
 .settings {
-  width: 420px;
-  padding: 20px;
+  width: 480px;
+  padding: 24px;
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 14px;
+  box-shadow: 0 20px 50px rgba(16, 20, 22, 0.3);
   background: var(--bg);
   color: var(--text);
 }
@@ -444,8 +710,9 @@ button.primary:disabled {
 }
 
 .settings h2 {
-  margin: 0 0 16px;
-  font-size: 17px;
+  margin: 0 0 18px;
+  font-size: 20px;
+  letter-spacing: -0.01em;
 }
 
 .row-inline {
