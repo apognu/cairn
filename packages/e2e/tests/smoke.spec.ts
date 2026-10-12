@@ -1,14 +1,10 @@
 import { expect, type Page, test } from "@playwright/test";
-import { publishAll } from "./helpers";
+import { PNG, publishAll } from "./helpers";
 
 // The whole path of the M1 acceptance criteria: write three nested pages with an image and a callout, publish, and read them on the
 // published site with working search.
 
 const SITE = "http://127.0.0.1:3001";
-const PNG = Buffer.from(
-  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg==",
-  "base64",
-);
 
 async function createPage(page: Page, title: string, parent?: string) {
   if (parent) {

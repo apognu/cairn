@@ -1,10 +1,5 @@
 import { expect, test } from "@playwright/test";
-
-// A 1x1 PNG.
-const PNG = Buffer.from(
-  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg==",
-  "base64",
-);
+import { PNG } from "./helpers";
 
 test("uploading the same file twice stores it once", async ({ request }) => {
   // A file unique to this run, so the first upload really creates an asset.
@@ -57,4 +52,28 @@ test("an image can be inserted from the slash menu and given alt text", async ({
   await expect(page.getByRole("status")).toHaveText("Saved");
   const draft = await (await request.get(`/api/pages/${id}/draft`)).json();
   expect(JSON.stringify(draft.doc)).toContain("A single pixel");
+});
+
+test("a picture that claims to be enormous is refused, and normal ones get WebP copies", async ({ request }) => {
+  // The header of a 30000 x 30000 image: a few dozen bytes that would need gigabytes to decode.
+  const bomb = Buffer.from(PNG);
+  bomb.writeUInt32BE(30_000, 16);
+  bomb.writeUInt32BE(30_000, 20);
+  const refused = await request.post("/api/assets", {
+    data: bomb,
+    headers: { "content-type": "application/octet-stream" },
+  });
+
+  expect(refused.status()).toBe(422);
+  expect((await refused.json()).message).toContain("pixels");
+
+  const unique = Buffer.concat([PNG, Buffer.from(Math.random().toString())]);
+  const accepted = await request.post("/api/assets", {
+    data: unique,
+    headers: { "content-type": "application/octet-stream" },
+  });
+  const asset = await accepted.json();
+
+  expect(asset.variants.length).toBeGreaterThan(0);
+  expect(asset.placeholder).toMatch(/^#[0-9a-f]{6}$/);
 });

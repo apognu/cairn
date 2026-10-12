@@ -34,7 +34,10 @@ export type RenderContext = {
   /** Page ID to the title and description other pages show about it, for link cards. */
   pages: Record<string, { title: string; description?: string | null }>;
   /** Asset ID to what the published page needs to show it: its URL and, when known, its size. */
-  assets: Record<string, { src: string; width?: number; height?: number }>;
+  assets: Record<
+    string,
+    { src: string; width?: number; height?: number; srcset?: string; placeholder?: string | null }
+  >;
   /** `YYYY-MM-DD` of the render, for components that depend on the date. */
   today: string;
 };

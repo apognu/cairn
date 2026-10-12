@@ -43,9 +43,10 @@ function ImageTools({ editor }: { editor: Editor }) {
     selector: ({ editor: e }) => ({
       alt: String(e.getAttributes("image").alt ?? ""),
       caption: String(e.getAttributes("image").caption ?? ""),
+      decorative: e.getAttributes("image").decorative === true,
     }),
   });
-  const set = (name: "alt" | "caption", value: string) =>
+  const set = (name: "alt" | "caption" | "decorative", value: string | boolean) =>
     editor
       .chain()
       .updateAttributes("image", { [name]: value })
@@ -56,8 +57,17 @@ function ImageTools({ editor }: { editor: Editor }) {
       <legend className="sr-only">Image</legend>
       <label>
         Alt text
-        <input value={attrs.alt} onChange={(e) => set("alt", e.target.value)} />
+        <input value={attrs.alt} disabled={attrs.decorative} onChange={(e) => set("alt", e.target.value)} />
       </label>
+      <label>
+        <input type="checkbox" checked={attrs.decorative} onChange={(e) => set("decorative", e.target.checked)} />
+        Decorative
+      </label>
+      {!attrs.alt.trim() && !attrs.decorative && (
+        <span role="alert" className="alt-warning">
+          Describe this image for people who cannot see it, or mark it decorative.
+        </span>
+      )}
       <label>
         Caption
         <input value={attrs.caption} onChange={(e) => set("caption", e.target.value)} />

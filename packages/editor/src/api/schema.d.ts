@@ -282,14 +282,27 @@ export interface components {
             height?: number | null;
             id: components["schemas"]["AssetId"];
             mime: string;
+            /** @description The image's average color, `#rrggbb`, shown while it loads. */
+            placeholder?: string | null;
             /** @description Hex SHA-256 of the file: two uploads of the same bytes are one asset. */
             sha256: string;
             uploaded_by: components["schemas"]["UserId"];
+            /** @description The WebP copies made at upload, narrowest first; empty for animated GIFs. */
+            variants?: components["schemas"]["AssetVariant"][];
             /** Format: int32 */
             width?: number | null;
         };
         /** @description An uploaded file. */
         AssetId: string;
+        /** @description One scaled copy of an image, a WebP file in the `AssetStore` (see `variant_key`). */
+        AssetVariant: {
+            /** Format: int64 */
+            bytes: number;
+            /** Format: int32 */
+            height: number;
+            /** Format: int32 */
+            width: number;
+        };
         /** @description A page that links to another. */
         Backlink: {
             kind: components["schemas"]["LinkKind"];
@@ -545,7 +558,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description not a supported image */
+            /** @description not a supported image, too many pixels, or damaged */
             422: {
                 headers: {
                     [name: string]: unknown;

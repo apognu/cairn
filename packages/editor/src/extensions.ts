@@ -35,12 +35,17 @@ const Image = Node.create({
   group: "block",
   atom: true,
   addAttributes() {
-    return { assetId: { default: null }, alt: { default: "" }, caption: { default: "" } };
+    return {
+      assetId: { default: null },
+      alt: { default: "" },
+      caption: { default: "" },
+      decorative: { default: false },
+    };
   },
   parseHTML: () => [{ tag: "figure" }],
   renderHTML: ({ node }) => {
-    const { assetId, alt, caption } = node.attrs;
-    const image = ["img", { src: `/_a/${assetId}`, alt: alt ?? "", loading: "lazy" }];
+    const { assetId, alt, caption, decorative } = node.attrs;
+    const image = ["img", { src: `/_a/${assetId}`, alt: decorative ? "" : (alt ?? ""), loading: "lazy" }];
 
     return caption ? ["figure", {}, image, ["figcaption", {}, caption]] : ["figure", {}, image];
   },

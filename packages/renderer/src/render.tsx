@@ -81,9 +81,16 @@ export function renderNode(node: DocNode, ctx: NodeContext, key: number): ReactN
         <figure key={key}>
           <img
             src={asset?.src ?? `/_a/${String(attrs.assetId)}`}
-            alt={String(attrs.alt ?? "")}
+            // A decorative picture has an empty description on purpose; screen readers then skip it.
+            alt={attrs.decorative ? "" : String(attrs.alt ?? "")}
             width={asset?.width}
             height={asset?.height}
+            // The WebP copies, picked by the browser from the width it needs: the column is at most 760px wide, and a picture is
+            // never shown larger than it is.
+            srcSet={asset?.srcset || undefined}
+            sizes={asset?.srcset ? imageSizes(asset.width) : undefined}
+            // The picture's average color shows while it loads.
+            style={asset?.placeholder ? { backgroundColor: asset.placeholder } : undefined}
             loading="lazy"
           />
           {attrs.caption ? <figcaption>{String(attrs.caption)}</figcaption> : null}
@@ -127,6 +134,11 @@ export function renderNode(node: DocNode, ctx: NodeContext, key: number): ReactN
       return <Fragment key={key}>{component.render(component.props.parse(attrs), children)}</Fragment>;
     }
   }
+}
+
+/** The `sizes` of an image: its own width when that is narrower than the column, else the column (760px) or the viewport. */
+function imageSizes(width: number | undefined): string {
+  return width && width <= 760 ? `(max-width: ${width}px) 100vw, ${width}px` : "(min-width: 800px) 760px, 100vw";
 }
 
 function textOf(node: DocNode): string {

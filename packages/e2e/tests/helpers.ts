@@ -12,3 +12,9 @@ export async function publishAll(page: Page) {
     .click();
   await expect(page.getByText(/Published \d+ pages/)).toBeVisible();
 }
+
+/** A complete 1x1 PNG. Uploads are decoded to make their variants, so a hand-made header is not enough. */
+export const PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==",
+  "base64",
+);

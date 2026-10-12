@@ -1,12 +1,8 @@
 import { readFileSync } from "node:fs";
 import { expect, type Page, test } from "@playwright/test";
-import { publishAll } from "./helpers";
+import { PNG, publishAll } from "./helpers";
 
 const SITE = "http://127.0.0.1:3001";
-const PNG = Buffer.from(
-  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg==",
-  "base64",
-);
 
 async function newPage(page: Page, title: string) {
   await page.goto("/");
@@ -58,12 +54,14 @@ test("the published site follows the system theme and has a toggle that is remem
   const dark = await (await browser.newContext({ colorScheme: "dark" })).newPage();
 
   await dark.goto(`${SITE}/${slug}/`);
-  expect(await background(dark)).toBe("rgb(18, 20, 22)");
+  // Another test's publish reloads open tabs of the site, which can land between the load and the read, so reading is retried.
+  const read = () => background(dark).catch(() => "");
+  await expect.poll(read).toBe("rgb(18, 20, 22)");
 
   // Auto → Light: the choice beats the system setting, and survives a reload without a flash of the other theme.
   await dark.getByRole("button", { name: /Change theme/ }).click();
   await expect(dark.locator("html")).toHaveAttribute("data-theme", "light");
-  expect(await background(dark)).toBe("rgb(255, 255, 255)");
+  await expect.poll(read).toBe("rgb(255, 255, 255)");
   await dark.reload({ waitUntil: "commit" });
   await expect(dark.locator("html")).toHaveAttribute("data-theme", "light");
 });

@@ -44,7 +44,7 @@
             "description": "the file is too large"
           },
           "422": {
-            "description": "not a supported image",
+            "description": "not a supported image, too many pixels, or damaged",
             "content": {
               "application/json": {
                 "schema": {
@@ -1036,12 +1036,26 @@
           "mime": {
             "type": "string"
           },
+          "placeholder": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The image's average color, `#rrggbb`, shown while it loads."
+          },
           "sha256": {
             "type": "string",
             "description": "Hex SHA-256 of the file: two uploads of the same bytes are one asset."
           },
           "uploaded_by": {
             "$ref": "#/components/schemas/UserId"
+          },
+          "variants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AssetVariant"
+            },
+            "description": "The WebP copies made at upload, narrowest first; empty for animated GIFs."
           },
           "width": {
             "type": [
@@ -1056,6 +1070,32 @@
       "AssetId": {
         "type": "string",
         "description": "An uploaded file."
+      },
+      "AssetVariant": {
+        "type": "object",
+        "description": "One scaled copy of an image, a WebP file in the `AssetStore` (see `variant_key`).",
+        "required": [
+          "width",
+          "height",
+          "bytes"
+        ],
+        "properties": {
+          "bytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "height": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "width": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
       },
       "Backlink": {
         "type": "object",

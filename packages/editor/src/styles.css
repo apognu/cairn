@@ -1303,3 +1303,10 @@ button.primary:disabled {
   background: var(--bg);
   resize: vertical;
 }
+
+.alt-warning {
+  max-width: 220px;
+  padding: 0 6px;
+  color: var(--warn-icon);
+  font-size: 12.5px;
+}
