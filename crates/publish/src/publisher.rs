@@ -10,8 +10,10 @@ use yourdocs_render::{Pool, Shell, highlight_css};
 use yourdocs_store::{DatabaseConnection, add_release_pages, assets_by_ids, create_release, list_pages, list_redirects, load_settings, set_release_status};
 
 use crate::{
-  PublishError, generated, search,
-  site::{header_items, image_asset_ids, nav_tree, output_path},
+  PublishError, generated,
+  markdown::{Site, page_markdown},
+  search,
+  site::{breadcrumbs, header_items, image_asset_ids, markdown_path, nav_tree, output_path, previous_next},
   target::{OutputFile, PublishTarget},
 };
 
@@ -62,6 +64,8 @@ struct PageSource {
   page: Page,
   doc: Document,
   revision: RevisionId,
+  /// When the revision being published was saved: the page's "last updated".
+  updated: jiff::Timestamp,
 }
 
 impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
@@ -133,6 +137,7 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
         page,
         doc: revision.doc,
         revision: revision.id,
+        updated: revision.created_at,
       });
     }
 
@@ -165,31 +170,41 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
     // The jobs own their data: borrowed closures here make the future too lifetime-generic for the HTTP handler that awaits it.
     let jobs: Vec<RenderJob> = sources
       .iter()
-      .map(|source| RenderJob {
-        pool: self.pool.clone(),
-        input: json!({
-          "doc": source.doc,
-          "context": {
-            "site": { "name": site_name, "logo": logo },
-            "page": { "id": source.page.id, "title": source.page.title },
-            "nav": nav_tree(tree_pages, &urls, Some(source.page.id)),
-            "header": header,
-            "section": header_section(tree_pages, source.page.id),
-            "urls": urls,
-            "pages": page_info,
-            "assets": source_assets(&source.doc, &asset_meta),
-            "today": today,
-          },
-        }),
-        title: source.page.title.clone(),
-        description: source.page.description.clone(),
-        site_name: site_name.clone(),
-        stylesheets: stylesheets.clone(),
-        script: script.clone(),
-        accent: settings.accent.clone(),
-        page_id: source.page.id,
-        revision: source.revision,
-        path: output_path(&urls[&source.page.id]),
+      .map(|source| {
+        let nav = nav_tree(tree_pages, &urls, Some(source.page.id));
+        let (previous, next) = previous_next(&nav, source.page.id);
+
+        RenderJob {
+          pool: self.pool.clone(),
+          input: json!({
+            "doc": source.doc,
+            "context": {
+              "site": { "name": site_name, "logo": logo },
+              "page": { "id": source.page.id, "title": source.page.title },
+              "nav": nav,
+              "breadcrumbs": breadcrumbs(tree_pages, &urls, source.page.id),
+              "previous": previous,
+              "next": next,
+              "updated": source.updated.to_zoned(jiff::tz::TimeZone::UTC).date().to_string(),
+              "markdown": format!("/{}", markdown_path(&urls[&source.page.id])),
+              "header": header,
+              "section": header_section(tree_pages, source.page.id),
+              "urls": urls,
+              "pages": page_info,
+              "assets": source_assets(&source.doc, &asset_meta),
+              "today": today,
+            },
+          }),
+          title: source.page.title.clone(),
+          description: source.page.description.clone(),
+          site_name: site_name.clone(),
+          stylesheets: stylesheets.clone(),
+          script: script.clone(),
+          accent: settings.accent.clone(),
+          page_id: source.page.id,
+          revision: source.revision,
+          path: output_path(&urls[&source.page.id]),
+        }
       })
       .collect();
 
@@ -208,6 +223,24 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
     files.extend(generated.into_iter().map(|(path, text)| OutputFile {
       path: path.into(),
       bytes: text.into_bytes(),
+    }));
+
+    // Every page also as Markdown, next to its HTML: `/guide/install/` has `/guide/install.md`.
+    let url_strings: HashMap<String, String> = urls.iter().map(|(id, url)| (id.to_string(), url.clone())).collect();
+    let titles: HashMap<String, String> = tree_pages.iter().map(|p| (p.id.to_string(), p.title.clone())).collect();
+    let asset_paths: HashMap<String, String> = asset_meta
+      .iter()
+      .filter_map(|(id, meta)| Some((id.clone(), meta["src"].as_str()?.trim_start_matches('/').to_string())))
+      .collect();
+    let site = Site {
+      url: site_url,
+      urls: &url_strings,
+      titles: &titles,
+      assets: &asset_paths,
+    };
+    files.extend(sources.iter().map(|s| OutputFile {
+      path: markdown_path(&urls[&s.page.id]),
+      bytes: page_markdown(&s.page.title, s.page.description.as_deref(), &s.doc, &site).into_bytes(),
     }));
 
     // The page people land on for a URL that does not exist, with the site navigation to find their way.
@@ -563,5 +596,39 @@ mod tests {
       let html = read(slug);
       assert!(html.contains("Undo a release") && !html.contains(">Rollbacks<") && html.contains("href=\"/undo-a-release/\""), "{html}");
     }
+  }
+
+  #[tokio::test]
+  async fn pages_get_breadcrumbs_neighbours_a_date_and_a_markdown_file() {
+    let f = fixture().await;
+    let user = UserId::new();
+    let guide = create_page(&f.db, user, None, "Guide", Placement::Last).await.unwrap();
+    let install = create_page(&f.db, user, Some(guide.id), "Install", Placement::Last).await.unwrap();
+    let linux = create_page(&f.db, user, Some(install.id), "Linux", Placement::Last).await.unwrap();
+    create_page(&f.db, user, Some(guide.id), "FAQ", Placement::Last).await.unwrap();
+    f.content
+      .save_draft(
+        linux.id,
+        doc(serde_json::json!({ "type": "doc", "content": [
+          { "type": "heading", "attrs": { "level": 2 }, "content": [{ "type": "text", "text": "Packages" }] },
+          { "type": "paragraph", "content": [{ "type": "text", "text": "Use " }, { "type": "text", "text": "apt", "marks": [{ "type": "code" }] }] },
+        ] })),
+        None,
+        user,
+      )
+      .await
+      .unwrap();
+    f.publisher.publish(user).await.unwrap();
+
+    let site = f.dir.join("out/site");
+    let html = std::fs::read_to_string(site.join("guide/install/linux/index.html")).unwrap();
+    assert!(html.contains("aria-label=\"Breadcrumb\""), "{html}");
+    assert!(html.contains("href=\"/guide/install/\">Install</a>") && html.contains("href=\"/guide/\">Guide</a>"));
+    assert!(html.contains("rel=\"prev\"") && html.contains("rel=\"next\""));
+    assert!(html.contains("Last updated ") && html.contains("href=\"/guide/install/linux.md\">View as Markdown"));
+
+    assert_eq!(std::fs::read_to_string(site.join("guide/install/linux.md")).unwrap(), "# Linux\n\n## Packages\n\nUse `apt`\n");
+    let llms = std::fs::read_to_string(site.join("llms.txt")).unwrap();
+    assert!(llms.contains("(https://docs.example.com/guide/install/linux.md)"), "{llms}");
   }
 }

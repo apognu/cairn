@@ -5,6 +5,7 @@
 mod changes;
 mod error;
 mod generated;
+mod markdown;
 mod publisher;
 mod search;
 mod site;

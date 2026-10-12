@@ -26,9 +26,18 @@ pub(crate) fn robots(site_url: &str) -> String {
   format!("User-agent: *\nAllow: /\n\nSitemap: {site_url}/sitemap.xml\n")
 }
 
-/// A plain-text map of the site for language models: https://llmstxt.org
+/// A plain-text map of the site for language models: https://llmstxt.org. Each entry links the Markdown version of the page, with its
+/// description when it has one.
 pub(crate) fn llms_txt(site_name: &str, site_url: &str, pages: &[(&Page, &str)]) -> String {
-  let links: String = pages.iter().map(|(page, url)| format!("- [{}]({site_url}{url})\n", page.title.replace(['[', ']'], ""))).collect();
+  let links: String = pages
+    .iter()
+    .map(|(page, url)| {
+      let title = page.title.replace(['[', ']'], "");
+      let note = page.description.as_deref().map(|d| format!(": {d}")).unwrap_or_default();
+
+      format!("- [{title}]({site_url}{}.md){note}\n", url.trim_end_matches('/'))
+    })
+    .collect();
 
   format!("# {site_name}\n\n## Pages\n\n{links}")
 }
@@ -76,7 +85,7 @@ mod tests {
     let sitemap = sitemap("https://docs.example.com", &pages);
     assert!(sitemap.contains("<loc>https://docs.example.com/guide/</loc><lastmod>1970-01-01</lastmod>"), "{sitemap}");
     assert!(robots("https://docs.example.com").ends_with("Sitemap: https://docs.example.com/sitemap.xml\n"));
-    assert_eq!(llms_txt("Docs", "https://d.io", &pages), "# Docs\n\n## Pages\n\n- [Guide v2](https://d.io/guide/)\n");
+    assert_eq!(llms_txt("Docs", "https://d.io", &pages), "# Docs\n\n## Pages\n\n- [Guide v2](https://d.io/guide.md)\n");
     assert_eq!(redirects(Some("/guide/"), &[]), "/ /guide/ 302\n");
     assert_eq!(redirects(None, &[("/old/".into(), "/guide/".into())]), "/old/ /guide/ 301\n");
   }

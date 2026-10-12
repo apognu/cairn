@@ -30,6 +30,51 @@ pub(crate) fn nav_tree(pages: &[Page], urls: &HashMap<PageId, String>, current: 
   children(pages, urls, root, root)
 }
 
+/// The pages above `page`, outermost first, as `{ title, href }` for the breadcrumb trail. An ancestor without a URL is skipped.
+pub(crate) fn breadcrumbs(pages: &[Page], urls: &HashMap<PageId, String>, page: PageId) -> Vec<Value> {
+  let mut trail = Vec::new();
+  let mut current = pages.iter().find(|p| p.id == page).and_then(|p| p.parent_id);
+
+  // Bounded like the other tree walks, in case the data is corrupt.
+  for _ in 0..64 {
+    let Some(ancestor) = current.and_then(|id| pages.iter().find(|p| p.id == id)) else { break };
+    if let Some(href) = urls.get(&ancestor.id) {
+      trail.push(json!({ "title": ancestor.title, "href": href }));
+    }
+    current = ancestor.parent_id;
+  }
+
+  trail.reverse();
+  trail
+}
+
+/// The pages before and after `page` in the order of the sidebar it appears in (`nav`, as built by `nav_tree`). Links to other sites are skipped.
+pub(crate) fn previous_next(nav: &[Value], page: PageId) -> (Option<Value>, Option<Value>) {
+  fn flatten(nodes: &[Value], into: &mut Vec<Value>) {
+    for node in nodes {
+      if node["external"] != true {
+        into.push(json!({ "id": node["id"], "title": node["title"], "href": node["href"] }));
+      }
+      if let Some(children) = node["children"].as_array() {
+        flatten(children, into);
+      }
+    }
+  }
+
+  let mut flat = Vec::new();
+  flatten(nav, &mut flat);
+  let id = json!(page);
+  let Some(at) = flat.iter().position(|n| n["id"] == id) else { return (None, None) };
+  let card = |n: &Value| json!({ "title": n["title"], "href": n["href"] });
+
+  (at.checked_sub(1).map(|i| card(&flat[i])), flat.get(at + 1).map(card))
+}
+
+/// Where a page's Markdown file goes: `/guide/install/` is `guide/install.md`.
+pub(crate) fn markdown_path(url: &str) -> String {
+  format!("{}.md", url.trim_matches('/'))
+}
+
 /// The header entries: the promoted pages with their URLs.
 pub(crate) fn header_items(pages: &[Page], urls: &HashMap<PageId, String>) -> Vec<Value> {
   header_pages(pages)
@@ -105,6 +150,29 @@ mod tests {
     let nav = nav_tree(&pages, &urls, None);
     assert_eq!(nav[0]["children"][0]["href"], "https://status.example.com");
     assert_eq!(nav[0]["children"][0]["external"], true);
+  }
+
+  #[test]
+  fn breadcrumbs_neighbours_and_markdown_paths() {
+    let guide = page("guide", None);
+    let install = page("install", Some(guide.id));
+    let linux = page("linux", Some(install.id));
+    let faq = page("faq", Some(guide.id));
+    let pages = vec![guide.clone(), install.clone(), linux.clone(), faq.clone()];
+    let urls = page_urls(&pages);
+
+    let trail = breadcrumbs(&pages, &urls, linux.id);
+    assert_eq!(trail.iter().map(|c| c["title"].as_str().unwrap()).collect::<Vec<_>>(), ["guide", "install"]);
+    assert_eq!(trail[1]["href"], "/guide/install/");
+
+    // Order is the tree's, depth first: guide, install, linux, faq.
+    let nav = nav_tree(&pages, &urls, Some(linux.id));
+    let (previous, next) = previous_next(&nav, linux.id);
+    assert_eq!((previous.unwrap()["title"].as_str(), next.unwrap()["title"].as_str()), (Some("install"), Some("faq")));
+    assert_eq!(previous_next(&nav, guide.id).0, None);
+    assert_eq!(previous_next(&nav, faq.id).1, None);
+
+    assert_eq!(markdown_path("/guide/install/"), "guide/install.md");
   }
 
   #[test]
