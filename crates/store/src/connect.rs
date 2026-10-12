@@ -6,6 +6,12 @@ use crate::migration;
 
 #[derive(Debug, thiserror::Error)]
 pub enum StoreError {
+  #[error("not found")]
+  NotFound,
+  #[error("conflict: {0}")]
+  Conflict(String),
+  #[error("invalid: {0}")]
+  Invalid(String),
   #[error(transparent)]
   Db(#[from] DbErr),
   #[error(transparent)]
@@ -24,6 +30,15 @@ pub async fn connect(path: &Path) -> Result<DatabaseConnection, StoreError> {
   migration::migrate(&db).await?;
 
   Ok(db)
+}
+
+/// A fresh migrated database in a throwaway directory.
+#[cfg(test)]
+pub(crate) async fn test_db() -> DatabaseConnection {
+  let dir = std::env::temp_dir().join(format!("yourdocs-store-{}", uuid::Uuid::now_v7()));
+  std::fs::create_dir_all(&dir).unwrap();
+
+  connect(&dir.join("test.db")).await.unwrap()
 }
 
 #[cfg(test)]

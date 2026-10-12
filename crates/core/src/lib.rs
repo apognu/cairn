@@ -7,9 +7,11 @@
 mod document;
 mod error;
 mod id;
+mod page;
 mod storage;
 
 pub use document::{Document, Mark, Node};
 pub use error::CoreError;
 pub use id::{AssetId, PageId, ReleaseId, RevisionId, UserId};
+pub use page::{Page, Placement, slugify};
 pub use storage::{AssetStore, ContentStore, Draft, Revision};

@@ -11,6 +11,8 @@ workspace = true
 [dependencies]
 anyhow = "1.0.104"
 async-trait = "0.1.92"
+fractional_index = "2.0.2"
+jiff = "0.2.38"
 sea-orm = { version = "2.0.4", default-features = false, features = ["sqlx-sqlite", "runtime-tokio-rustls", "macros", "with-uuid"] }
 sea-orm-migration = { version = "2.0.4", default-features = false, features = ["sqlx-sqlite", "runtime-tokio-rustls"] }
 thiserror = "2.0.21"

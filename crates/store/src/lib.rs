@@ -3,7 +3,10 @@
 #![forbid(unsafe_code)]
 
 mod connect;
+mod entity;
 mod migration;
+mod tree;
 
 pub use connect::{StoreError, connect};
 pub use migration::migrate;
+pub use tree::{create_page, delete_page, list_pages, move_page, rename_page};
