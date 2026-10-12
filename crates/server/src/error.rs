@@ -5,15 +5,18 @@ use axum::{
 };
 use serde_json::json;
 use yourdocs_render::RenderError;
+use yourdocs_store::StoreError;
 
 #[derive(Debug, thiserror::Error)]
 pub enum AppError {
-  #[error("document not found")]
+  #[error("not found")]
   NotFound,
   #[error("invalid document")]
   Invalid(Vec<String>),
   #[error(transparent)]
   Render(#[from] RenderError),
+  #[error(transparent)]
+  Store(#[from] StoreError),
 }
 
 impl IntoResponse for AppError {
@@ -23,7 +26,10 @@ impl IntoResponse for AppError {
       AppError::Invalid(details) => (StatusCode::UNPROCESSABLE_ENTITY, details.clone()),
       AppError::Render(RenderError::Busy) => (StatusCode::SERVICE_UNAVAILABLE, vec![]),
       AppError::Render(RenderError::Timeout) => (StatusCode::GATEWAY_TIMEOUT, vec![]),
-      AppError::Render(_) => (StatusCode::INTERNAL_SERVER_ERROR, vec![]),
+      AppError::Store(StoreError::NotFound) => (StatusCode::NOT_FOUND, vec![]),
+      AppError::Store(StoreError::Conflict(_)) => (StatusCode::CONFLICT, vec![]),
+      AppError::Store(StoreError::Invalid(reason)) => (StatusCode::UNPROCESSABLE_ENTITY, vec![reason.clone()]),
+      AppError::Render(_) | AppError::Store(_) => (StatusCode::INTERNAL_SERVER_ERROR, vec![]),
     };
 
     if status.is_server_error() {

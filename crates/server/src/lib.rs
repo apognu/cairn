@@ -5,15 +5,17 @@
 mod app;
 mod assets;
 mod error;
+mod pages;
 
 use std::{
   collections::HashMap,
-  env,
+  net::SocketAddr,
+  path::PathBuf,
   sync::{Arc, RwLock},
   time::Duration,
 };
 
-use anyhow::Context;
+use anyhow::{Context, bail};
 use yourdocs_render::Pool;
 
 use crate::{
@@ -21,13 +23,14 @@ use crate::{
   assets::Assets,
 };
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
-  tracing_subscriber::fmt()
-    .with_env_filter(tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()))
-    .init();
+/// Runs the editor for local use: no login, every request is the local user, so it only ever listens on a loopback address.
+pub async fn run_dev(bind: SocketAddr, data_dir: PathBuf) -> anyhow::Result<()> {
+  if !bind.ip().is_loopback() {
+    bail!("`dev` has no login and listens on localhost only; {bind} is not a loopback address");
+  }
 
-  let bind = env::var("BIND").unwrap_or_else(|_| "127.0.0.1:3000".into());
+  std::fs::create_dir_all(&data_dir).with_context(|| format!("cannot create {}", data_dir.display()))?;
+  let db = yourdocs_store::connect(&data_dir.join("yourdocs.db")).await.context("cannot open the database")?;
 
   let script = Assets::get("ssr.js").context("ssr.js is not embedded, run `bun run build` before `cargo build`")?;
   let script = std::str::from_utf8(&script.data).context("ssr.js is not valid UTF-8")?;
@@ -40,9 +43,10 @@ async fn main() -> anyhow::Result<()> {
   let state = AppState {
     pool: Arc::new(pool),
     docs: Arc::new(RwLock::new(docs)),
+    db,
   };
 
-  let listener = tokio::net::TcpListener::bind(&bind).await.with_context(|| format!("cannot bind {bind}"))?;
+  let listener = tokio::net::TcpListener::bind(bind).await.with_context(|| format!("cannot bind {bind}"))?;
   tracing::info!(%bind, "listening");
 
   axum::serve(listener, router(state)).await.context("server stopped")

@@ -1,4 +1,4 @@
 # server
 
-Axum app: API routes, locks and the embedded editor.
-Not obvious: during M0 it only hosts the render spike; documents are kept in memory.
+Axum app (library): page tree API, the render spike routes and the embedded editor; `run_dev` is its entry point.
+Not obvious: the spike's documents are still in memory until M1.11; `dev` refuses non-loopback binds and non-local Host headers.

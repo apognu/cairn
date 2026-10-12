@@ -5,22 +5,26 @@ use std::{
 
 use axum::{
   Json, Router,
+  body::Body,
   extract::{Path, State},
-  http::{HeaderValue, StatusCode, header},
-  response::{Html, IntoResponse},
+  http::{HeaderValue, Request, StatusCode, header},
+  middleware::{self, Next},
+  response::{Html, IntoResponse, Response},
   routing::{get, post},
 };
+use sea_orm::DatabaseConnection;
 use serde_json::Value;
 use tracing::instrument;
 use yourdocs_render::Pool;
 
-use crate::{assets::Assets, error::AppError};
+use crate::{assets::Assets, error::AppError, pages};
 
 #[derive(Clone)]
 pub struct AppState {
   pub pool: Arc<Pool>,
   // Only held for the length of a map access, never across an await.
   pub docs: Arc<RwLock<HashMap<String, Value>>>,
+  pub db: DatabaseConnection,
 }
 
 pub fn router(state: AppState) -> Router {
@@ -29,7 +33,21 @@ pub fn router(state: AppState) -> Router {
     .route("/docs/{id}", get(show_doc))
     .route("/docs/{id}/client", get(show_doc_client_only))
     .route("/assets/client.js", get(client_js))
+    .merge(pages::routes())
+    .layer(middleware::from_fn(local_host_only))
     .with_state(state)
+}
+
+/// Without a login, a page on another origin could drive the API through a DNS-rebinding name that resolves to 127.0.0.1; refusing foreign Host headers closes that.
+async fn local_host_only(request: Request<Body>, next: Next) -> Response {
+  let host = request.headers().get(header::HOST).and_then(|h| h.to_str().ok()).unwrap_or("");
+  let name = host.rsplit_once(':').filter(|(_, port)| port.chars().all(|c| c.is_ascii_digit())).map_or(host, |(name, _)| name);
+
+  if matches!(name, "localhost" | "127.0.0.1" | "[::1]") {
+    next.run(request).await
+  } else {
+    StatusCode::FORBIDDEN.into_response()
+  }
 }
 
 #[instrument(skip_all, fields(id = %id))]
@@ -95,24 +113,26 @@ fn page(body: &str, doc: &Value) -> String {
 }
 
 #[cfg(test)]
-mod tests {
-  use std::time::Duration;
+pub(crate) async fn test_state() -> AppState {
+  let script = Assets::get("ssr.js").expect("ssr.js is missing, run `bun run build` first");
+  let pool = Pool::new(std::str::from_utf8(&script.data).unwrap(), 1, 8, std::time::Duration::from_secs(5)).unwrap();
+  let dir = std::env::temp_dir().join(format!("yourdocs-server-{}", uuid::Uuid::now_v7()));
+  std::fs::create_dir_all(&dir).unwrap();
 
-  use super::*;
-
-  fn state() -> AppState {
-    let script = Assets::get("ssr.js").expect("ssr.js is missing, run `bun run build` first");
-    let pool = Pool::new(std::str::from_utf8(&script.data).unwrap(), 1, 8, Duration::from_secs(5)).unwrap();
-
-    AppState {
-      pool: Arc::new(pool),
-      docs: Default::default(),
-    }
+  AppState {
+    pool: Arc::new(pool),
+    docs: Default::default(),
+    db: yourdocs_store::connect(&dir.join("test.db")).await.unwrap(),
   }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
 
   #[tokio::test]
   async fn saved_document_is_served_rendered_with_its_data() {
-    let state = state();
+    let state = test_state().await;
     let doc: Value = serde_json::from_str(include_str!("../../../fixtures/tabs.json")).unwrap();
 
     let status = save_doc(State(state.clone()), Path("a".into()), Json(doc)).await.unwrap();
@@ -126,7 +146,7 @@ mod tests {
 
   #[tokio::test]
   async fn unknown_document_and_bad_root_are_rejected() {
-    let state = state();
+    let state = test_state().await;
 
     assert!(matches!(show_doc(State(state.clone()), Path("nope".into())).await, Err(AppError::NotFound)));
     assert!(matches!(

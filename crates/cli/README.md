@@ -1,4 +1,4 @@
 # cli
 
-The yourdocs binary: dev, serve, migrate, export, backup, restore, admin.
-Not obvious: it is the only binary crate once server becomes a library (M1.5).
+The yourdocs binary. Only `dev` exists so far; serve, migrate, export, backup, restore and admin come later.
+Not obvious: it holds no logic, it parses arguments and calls `yourdocs-server`.
