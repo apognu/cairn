@@ -43,6 +43,9 @@ test("write, publish and read three nested pages with an image and a callout", a
   await page.keyboard.press("Enter");
   await (await chooser).setFiles({ name: "step.png", mimeType: "image/png", buffer: PNG });
   await expect(editor.locator("figure img")).toBeVisible();
+  // A picture needs a description before the site can be published.
+  await editor.locator("figure img").click();
+  await page.getByLabel("Alt text").fill("The installer window");
   await expect(page.getByRole("status")).toHaveText("Saved");
 
   await publishAll(page);
@@ -54,6 +57,7 @@ test("write, publish and read three nested pages with an image and a callout", a
   await expect(reader.locator("aside.callout")).toContainText("Run as an administrator.");
   const image = reader.locator(".doc-content figure img");
   await expect(image).toHaveAttribute("src", /^\/_a\/[0-9a-f-]{36}\.png$/);
+  await expect(image).toHaveAttribute("alt", "The installer window");
   await expect(image).toHaveJSProperty("naturalWidth", 1);
 
   // The navigation shows the nesting.

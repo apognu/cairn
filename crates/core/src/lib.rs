@@ -6,6 +6,7 @@
 
 mod asset;
 mod broadcast;
+mod checks;
 mod document;
 mod error;
 mod id;
@@ -19,6 +20,7 @@ mod storage;
 
 pub use asset::{Asset, AssetVariant};
 pub use broadcast::{Broadcast, Event, LocalBroadcast};
+pub use checks::{Problem, ProblemKind, doc_problems, url_problems};
 pub use document::{Document, Mark, Node};
 pub use error::CoreError;
 pub use id::{AssetId, PageId, ReleaseId, RevisionId, UserId};

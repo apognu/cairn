@@ -80,6 +80,16 @@ export function useDeletePage() {
   });
 }
 
+/** The problems that would block a publish now. Asked fresh every time the publish dialog opens. */
+export function useChecks() {
+  return useQuery({
+    queryKey: ["checks"],
+    gcTime: 0,
+    refetchOnMount: "always",
+    queryFn: async () => unwrap(await api.GET("/api/publish/checks")),
+  });
+}
+
 export function usePublish() {
   const client = useQueryClient();
 

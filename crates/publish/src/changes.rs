@@ -1,5 +1,6 @@
-use yourdocs_core::{Live, Pending, pending_changes};
-use yourdocs_store::{DatabaseConnection, all_links, draft_revisions, list_pages, list_redirects, live_release};
+use yourdocs_core::{Document, Live, PageKind, Pending, Problem, ProblemKind, doc_problems, pending_changes, url_problems};
+use yourdocs_render::Pool;
+use yourdocs_store::{DatabaseConnection, all_links, draft_docs, draft_revisions, list_pages, list_redirects, live_release};
 
 use crate::PublishError;
 
@@ -18,4 +19,30 @@ pub async fn pending(db: &DatabaseConnection) -> Result<Pending, PublishError> {
   });
 
   Ok(pending_changes(&pages, &redirects, &drafts, &links, state.as_ref()))
+}
+
+/// Everything that would stop a publish now: links to deleted pages, images without alt text, pages sharing a URL, and blocks or component
+/// settings the renderer cannot take. Each names its page.
+pub async fn check(db: &DatabaseConnection, pool: &Pool) -> Result<Vec<Problem>, PublishError> {
+  let pages: Vec<_> = list_pages(db).await?.into_iter().filter(|p| p.kind == PageKind::Page).collect();
+  let docs = draft_docs(db).await?;
+  let empty = Document::empty();
+  let mut found = url_problems(&pages);
+
+  for page in &pages {
+    let doc = docs.get(&page.id).unwrap_or(&empty);
+    found.extend(doc_problems(page, doc, &pages));
+
+    let value = serde_json::to_value(doc).map_err(anyhow::Error::from)?;
+    for message in pool.validate(&value).await.map_err(|source| PublishError::Render { page: page.title.clone(), source })? {
+      found.push(Problem {
+        page_id: page.id,
+        page_title: page.title.clone(),
+        kind: ProblemKind::InvalidProps,
+        message,
+      });
+    }
+  }
+
+  Ok(found)
 }

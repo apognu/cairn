@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use jiff::Timestamp;
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set, sea_query::OnConflict};
-use yourdocs_core::{PageId, Redirect, RedirectOrigin, RevisionId};
+use yourdocs_core::{Document, PageId, Redirect, RedirectOrigin, RevisionId};
 
 use crate::{
   StoreError,
@@ -80,4 +80,14 @@ pub async fn draft_revisions(db: &DatabaseConnection) -> Result<HashMap<PageId, 
   let rows = draft::Entity::find().all(db).await?;
 
   Ok(rows.into_iter().filter_map(|row| Some((row.page_id.into(), row.base_revision_id?.into()))).collect())
+}
+
+/// The saved document of every page that has a draft. A page nobody has edited has none, which publishes as an empty page.
+pub async fn draft_docs(db: &DatabaseConnection) -> Result<HashMap<PageId, Document>, StoreError> {
+  let rows = draft::Entity::find().all(db).await?;
+
+  rows
+    .into_iter()
+    .map(|row| Ok((row.page_id.into(), serde_json::from_str(&row.doc).map_err(|e| StoreError::Invalid(format!("bad draft document: {e}")))?)))
+    .collect()
 }

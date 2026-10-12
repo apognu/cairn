@@ -212,3 +212,55 @@ function renderTabs(node: DocNode, ctx: NodeContext, key: number): ReactNode {
     </Tabs>
   );
 }
+
+const blockTypes = new Set([
+  "doc",
+  "paragraph",
+  "heading",
+  "bulletList",
+  "orderedList",
+  "listItem",
+  "blockquote",
+  "codeBlock",
+  "text",
+  "hardBreak",
+  "horizontalRule",
+  "image",
+  "table",
+  "tableRow",
+  "tableHeader",
+  "tableCell",
+  "steps",
+  "step",
+  "tabs",
+  "tabPanel",
+]);
+const markTypes = new Set(["bold", "italic", "underline", "strike", "code", "link"]);
+
+/** What would stop this document from rendering: unknown nodes and marks, and component props that do not fit their schema. */
+export function validateDoc(doc: DocNode): string[] {
+  const problems: string[] = [];
+
+  const visit = (node: DocNode) => {
+    const component = componentsByName.get(node.type);
+
+    if (component) {
+      const parsed = component.props.safeParse(node.attrs ?? {});
+      if (!parsed.success) {
+        for (const issue of parsed.error.issues) {
+          problems.push(`${component.title}: ${issue.path.join(".") || "props"} ${issue.message}`);
+        }
+      }
+    } else if (!blockTypes.has(node.type)) {
+      problems.push(`unknown block "${node.type}"`);
+    }
+
+    for (const mark of node.marks ?? []) {
+      if (!markTypes.has(mark.type)) problems.push(`unknown mark "${mark.type}"`);
+    }
+    node.content?.forEach(visit);
+  };
+
+  visit(doc);
+  return problems;
+}

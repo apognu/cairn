@@ -225,6 +225,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/publish/checks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The problems that would stop a publish right now, each naming its page. An empty list means the site can be published. */
+        get: operations["publishChecks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/redirects": {
         parameters: {
             query?: never;
@@ -450,6 +467,18 @@ export interface components {
             changes: components["schemas"]["Change"][];
             lost_urls: components["schemas"]["LostUrl"][];
         };
+        /** @description A problem that stops a publish, with the page it is on. */
+        Problem: {
+            kind: components["schemas"]["ProblemKind"];
+            message: string;
+            page_id: components["schemas"]["PageId"];
+            page_title: string;
+        };
+        /**
+         * @description What a pre-publish check found wrong.
+         * @enum {string}
+         */
+        ProblemKind: "broken_link" | "invalid_props" | "duplicate_url" | "missing_alt";
         /** @description A redirect as the Settings page shows it. */
         RedirectEntry: {
             from_path: string;
@@ -1165,7 +1194,7 @@ export interface operations {
                     "application/json": components["schemas"]["Release"];
                 };
             };
-            /** @description a page could not be rendered; nothing was published */
+            /** @description the checks found problems or a page could not be rendered; nothing was published; the details name each page */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -1191,6 +1220,25 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Pending"];
+                };
+            };
+        };
+    };
+    publishChecks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Problem"][];
                 };
             };
         };

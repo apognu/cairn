@@ -793,7 +793,7 @@
             }
           },
           "422": {
-            "description": "a page could not be rendered; nothing was published",
+            "description": "the checks found problems or a page could not be rendered; nothing was published; the details name each page",
             "content": {
               "application/json": {
                 "schema": {
@@ -815,6 +815,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Pending"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/publish/checks": {
+      "get": {
+        "summary": "The problems that would stop a publish right now, each naming its page. An empty list means the site can be published.",
+        "operationId": "publishChecks",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Problem"
+                  }
                 }
               }
             }
@@ -1600,6 +1620,40 @@
             }
           }
         }
+      },
+      "Problem": {
+        "type": "object",
+        "description": "A problem that stops a publish, with the page it is on.",
+        "required": [
+          "page_id",
+          "page_title",
+          "kind",
+          "message"
+        ],
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/ProblemKind"
+          },
+          "message": {
+            "type": "string"
+          },
+          "page_id": {
+            "$ref": "#/components/schemas/PageId"
+          },
+          "page_title": {
+            "type": "string"
+          }
+        }
+      },
+      "ProblemKind": {
+        "type": "string",
+        "description": "What a pre-publish check found wrong.",
+        "enum": [
+          "broken_link",
+          "invalid_props",
+          "duplicate_url",
+          "missing_alt"
+        ]
       },
       "RedirectEntry": {
         "type": "object",

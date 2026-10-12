@@ -1310,3 +1310,25 @@ button.primary:disabled {
   color: var(--warn-icon);
   font-size: 12.5px;
 }
+
+.publish-problems {
+  display: flex;
+  gap: 12px;
+  margin: 14px 0;
+  padding: 12px 14px;
+  border: 1px solid var(--badge-del);
+  border-radius: 8px;
+  background: var(--badge-del-bg);
+  color: var(--badge-del);
+}
+
+.publish-problems svg {
+  flex: none;
+  margin-top: 2px;
+}
+
+.publish-problems ul {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}

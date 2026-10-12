@@ -106,6 +106,12 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
   pub async fn publish(&self, user: UserId) -> Result<Release, PublishError> {
     let _turn = self.running.lock().await;
 
+    // Nothing is created, rendered or written until the site passes its checks.
+    let problems = crate::changes::check(&self.db, &self.pool).await?;
+    if !problems.is_empty() {
+      return Err(PublishError::Blocked(problems));
+    }
+
     let tree_pages = list_pages(&self.db).await?;
     // Links are navigation only: nothing to render, nothing in the sitemap.
     let sources = self.sources(tree_pages.iter().filter(|p| p.kind == PageKind::Page).cloned().collect(), user).await?;
@@ -551,7 +557,12 @@ mod tests {
       .await
       .unwrap();
 
-    assert!(matches!(f.publisher.publish(user).await, Err(PublishError::Render { .. })));
+    // The checks see the unknown block before anything is rendered, and name the page.
+    let blocked = f.publisher.publish(user).await;
+    assert!(
+      matches!(&blocked, Err(PublishError::Blocked(problems)) if problems[0].page_title == "Page" && problems[0].message.contains("unknown block")),
+      "{blocked:?}"
+    );
     assert_eq!(std::fs::read_to_string(f.dir.join("out/site/page/index.html")).unwrap(), before);
     // No half-written release is left behind either.
     assert_eq!(std::fs::read_dir(f.dir.join("out/releases")).unwrap().count(), 1);
@@ -814,5 +825,57 @@ mod tests {
     f.publisher.publish(user).await.unwrap();
     assert_eq!(f.publisher.renders(), 5 + 4);
     assert!(std::fs::read_to_string(site.join("three/index.html")).unwrap().contains(">Uno<"));
+  }
+
+  #[tokio::test]
+  async fn each_kind_of_problem_blocks_the_publish_and_names_its_page() {
+    use yourdocs_core::ProblemKind;
+
+    let f = fixture().await;
+    let user = UserId::new();
+    let save = |page: PageId, content: serde_json::Value| {
+      let (content_store, doc) = (f.content.clone(), doc(serde_json::json!({ "type": "doc", "content": content })));
+      async move {
+        let base = content_store.draft(page).await.unwrap().and_then(|d| d.base_revision_id);
+        content_store.save_draft(page, doc, base, user).await.unwrap();
+      }
+    };
+
+    let fine = create_page(&f.db, user, None, "Fine", Placement::Last).await.unwrap();
+    let broken = create_page(&f.db, user, None, "Broken links", Placement::Last).await.unwrap();
+    let alt = create_page(&f.db, user, None, "No alt", Placement::Last).await.unwrap();
+    let props = create_page(&f.db, user, None, "Bad props", Placement::Last).await.unwrap();
+    let doomed = create_page(&f.db, user, None, "Doomed", Placement::Last).await.unwrap();
+    let cases = [(&broken, ProblemKind::BrokenLink), (&alt, ProblemKind::MissingAlt), (&props, ProblemKind::InvalidProps)];
+
+    let link = |id: PageId| serde_json::json!({ "type": "paragraph", "content": [{ "type": "text", "text": "see", "marks": [{ "type": "link", "attrs": { "pageId": id.to_string() } }] }] });
+    save(fine.id, serde_json::json!([{ "type": "paragraph" }])).await;
+    save(broken.id, serde_json::json!([link(doomed.id)])).await;
+    save(alt.id, serde_json::json!([{ "type": "image", "attrs": { "assetId": "x", "alt": "" } }])).await;
+    // `columns` must be "2" or "3".
+    save(props.id, serde_json::json!([{ "type": "cards", "attrs": { "columns": "9", "cards": [] } }])).await;
+    yourdocs_store::delete_page(&f.db, doomed.id).await.unwrap();
+
+    let blocked = f.publisher.publish(user).await;
+    let Err(PublishError::Blocked(problems)) = blocked else {
+      panic!("expected the publish to be blocked")
+    };
+
+    for (page, kind) in cases {
+      assert!(
+        problems.iter().any(|p| p.page_title == page.title && p.kind == kind),
+        "{} should be flagged as {kind:?}: {problems:?}",
+        page.title
+      );
+    }
+    assert!(problems.iter().all(|p| p.page_title != "Fine"));
+    // Nothing was published.
+    assert!(!f.dir.join("out/site").exists());
+
+    // Fixing every page lets the publish through.
+    save(broken.id, serde_json::json!([{ "type": "paragraph" }])).await;
+    save(alt.id, serde_json::json!([{ "type": "image", "attrs": { "assetId": "x", "alt": "A chart" } }])).await;
+    save(props.id, serde_json::json!([{ "type": "cards", "attrs": { "columns": "3", "cards": [] } }])).await;
+    f.publisher.publish(user).await.unwrap();
   }
 }

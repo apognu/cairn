@@ -46,6 +46,7 @@ impl IntoResponse for AppError {
       AppError::Core(CoreError::NotFound) => (StatusCode::NOT_FOUND, vec![]),
       AppError::Core(CoreError::Conflict { .. }) => (StatusCode::CONFLICT, vec![]),
       AppError::Core(CoreError::Invalid(reason)) => (StatusCode::UNPROCESSABLE_ENTITY, vec![reason.clone()]),
+      AppError::Publish(PublishError::Blocked(problems)) => (StatusCode::UNPROCESSABLE_ENTITY, problems.iter().map(ToString::to_string).collect()),
       AppError::Publish(PublishError::Render { .. }) => (StatusCode::UNPROCESSABLE_ENTITY, vec![self.to_string()]),
       AppError::Render(_) | AppError::Store(_) | AppError::Core(_) | AppError::Publish(_) => (StatusCode::INTERNAL_SERVER_ERROR, vec![]),
     };

@@ -42,6 +42,14 @@ impl Pool {
     Ok(Self { queue, timeout })
   }
 
+  /// Asks the renderer whether a document would render: unknown blocks and component settings that do not fit their schema. Each
+  /// problem is a sentence; an empty list means the document is fine. Much cheaper than rendering.
+  pub async fn validate(&self, doc: &serde_json::Value) -> Result<Vec<String>, RenderError> {
+    let answer = self.render(serde_json::json!({ "validate": true, "doc": doc })).await?;
+
+    serde_json::from_str(&answer).map_err(|e| RenderError::Invalid(format!("the validation answer is not a list: {e}")))
+  }
+
   /// Renders `{ "doc": …, "context": … }` (the shape `ssr.js` expects) to the page HTML.
   pub async fn render(&self, doc: serde_json::Value) -> Result<String, RenderError> {
     let (reply, response) = oneshot::channel();

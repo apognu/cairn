@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef } from "react";
 import type { components } from "./api/schema";
 import { Icon } from "./icons";
-import { usePending, usePublish } from "./queries";
+import { useChecks, usePending, usePublish } from "./queries";
 
 type Change = components["schemas"]["Change"];
 
@@ -20,6 +20,8 @@ export function PublishDialog({ onClose, onPublished }: { onClose: () => void; o
   const dialog = useRef<HTMLDialogElement>(null);
   const pending = usePending();
   const publish = usePublish();
+  const checks = useChecks();
+  const problems = checks.data ?? [];
 
   useEffect(() => dialog.current?.showModal(), []);
 
@@ -34,6 +36,24 @@ export function PublishDialog({ onClose, onPublished }: { onClose: () => void; o
       <p className="muted">
         {changes.length === 0 ? "Nothing has changed since the live site." : "Compared with the live site."}
       </p>
+
+      {problems.length > 0 && (
+        <div className="publish-problems" role="alert">
+          <Icon name="info" size={18} />
+          <div>
+            <strong>
+              {problems.length === 1 ? "1 problem stops" : `${problems.length} problems stop`} this publish
+            </strong>
+            <ul aria-label="Problems">
+              {problems.map((p) => (
+                <li key={`${p.page_id}-${p.kind}-${p.message}`}>
+                  <strong>{p.page_title}</strong> <span>{p.message}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
 
       {lost.length > 0 && (
         <div className="publish-warning" role="alert">
@@ -110,7 +130,7 @@ export function PublishDialog({ onClose, onPublished }: { onClose: () => void; o
         <button
           type="button"
           className="primary"
-          disabled={publish.isPending || pending.isPending}
+          disabled={publish.isPending || pending.isPending || checks.isPending || problems.length > 0}
           onClick={() =>
             publish.mutate(undefined, {
               onSuccess: (release) => {

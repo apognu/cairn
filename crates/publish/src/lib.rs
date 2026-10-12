@@ -11,7 +11,7 @@ mod search;
 mod site;
 mod target;
 
-pub use changes::pending;
+pub use changes::{check, pending};
 pub use error::PublishError;
 pub use publisher::{Bundles, PublishConfig, Publisher, PublisherParts};
 pub use target::{Capabilities, FolderTarget, OutputFile, PublishTarget};
