@@ -10,11 +10,19 @@ interface Props {
   editable?: boolean;
   /** Leave out the site header and navigation (the editor already has its own). */
   embedded?: boolean;
+  onChange?: (doc: DocNode) => void;
+  onBlur?: () => void;
 }
 
 /** The page body as ProseMirror, mounted where the published page puts its content. */
-export function Canvas({ doc, context, editable = true, embedded = false }: Props) {
-  const editor = useEditor({ extensions: buildExtensions(editable), content: doc, editable });
+export function Canvas({ doc, context, editable = true, embedded = false, onChange, onBlur }: Props) {
+  const editor = useEditor({
+    extensions: buildExtensions(editable),
+    content: doc,
+    editable,
+    onUpdate: ({ editor: e }) => onChange?.(e.getJSON() as DocNode),
+    onBlur: () => onBlur?.(),
+  });
   const [headings, setHeadings] = useState(() => collectHeadings(doc).list);
 
   useEffect(() => {

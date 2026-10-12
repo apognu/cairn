@@ -170,6 +170,105 @@
         }
       }
     },
+    "/api/pages/{id}/draft": {
+      "get": {
+        "summary": "The latest saved edits of a page (an empty document if it has none yet).",
+        "operationId": "getDraft",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/PageId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Saves a draft. Refused with 409 when `base_revision_id` is not the page's latest revision.",
+        "operationId": "saveDraft",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/PageId"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveDraft"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "the page changed since the revision this save was based on",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/pages/{id}/move": {
       "post": {
         "summary": "Moves a page and its subtree under another parent.",
@@ -268,6 +367,31 @@
           },
           "title": {
             "type": "string"
+          }
+        }
+      },
+      "Document": {
+        "description": "A page body: the ProseMirror JSON of the editor, stored and rendered as is.\n\nBlock nodes carry a stable `attrs.id` (Tiptap UniqueID); internal links and components store page IDs and props in `attrs`."
+      },
+      "DraftResponse": {
+        "type": "object",
+        "required": [
+          "doc"
+        ],
+        "properties": {
+          "base_revision_id": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/RevisionId",
+                "description": "The revision this draft is at; the next save must name it."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "doc": {
+            "$ref": "#/components/schemas/Document"
           }
         }
       },
@@ -377,6 +501,32 @@
         "properties": {
           "title": {
             "type": "string"
+          }
+        }
+      },
+      "RevisionId": {
+        "type": "string",
+        "description": "An immutable snapshot of a page's document."
+      },
+      "SaveDraft": {
+        "type": "object",
+        "required": [
+          "doc"
+        ],
+        "properties": {
+          "base_revision_id": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/RevisionId",
+                "description": "The `base_revision_id` of the draft this edit started from, or null if the page had no draft."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "doc": {
+            "$ref": "#/components/schemas/Document"
           }
         }
       },

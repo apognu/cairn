@@ -266,3 +266,21 @@ input {
 fieldset.bubble {
   margin: 0;
 }
+
+.conflict {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 12px 48px 0;
+  padding: 8px 12px;
+  border: 1px solid var(--danger);
+  border-radius: 8px;
+}
+
+.conflict button {
+  border: 1px solid var(--border-input);
+  border-radius: 6px;
+  background: var(--bg);
+  padding: 3px 10px;
+  cursor: pointer;
+}

@@ -4,6 +4,7 @@
 
 mod app;
 mod assets;
+mod drafts;
 mod editor;
 mod error;
 mod pages;
@@ -51,6 +52,7 @@ pub async fn run_dev(bind: SocketAddr, data_dir: PathBuf) -> anyhow::Result<()> 
   let state = AppState {
     pool: Arc::new(pool),
     docs: Arc::new(RwLock::new(docs)),
+    content: yourdocs_store::SqlContentStore::new(db.clone()),
     db,
   };
 

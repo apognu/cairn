@@ -6,7 +6,27 @@ use serde_json::{Map, Value};
 /// Block nodes carry a stable `attrs.id` (Tiptap UniqueID); internal links and components store page IDs and props in `attrs`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema), schema(value_type = serde_json::Value))]
 pub struct Document(pub Node);
+
+impl Document {
+  /// A document with a single empty paragraph: what a new page starts as.
+  pub fn empty() -> Self {
+    Document(Node {
+      kind: "doc".into(),
+      attrs: None,
+      content: Some(vec![Node {
+        kind: "paragraph".into(),
+        attrs: None,
+        content: None,
+        marks: None,
+        text: None,
+      }]),
+      marks: None,
+      text: None,
+    })
+  }
+}
 
 /// A ProseMirror node. Absent fields stay absent when serialized, so a document comes back unchanged.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

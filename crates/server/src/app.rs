@@ -16,8 +16,9 @@ use sea_orm::DatabaseConnection;
 use serde_json::{Value, json};
 use tracing::instrument;
 use yourdocs_render::Pool;
+use yourdocs_store::SqlContentStore;
 
-use crate::{assets::Assets, error::AppError, pages};
+use crate::{assets::Assets, drafts, error::AppError, pages};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -25,11 +26,12 @@ pub struct AppState {
   // Only held for the length of a map access, never across an await.
   pub docs: Arc<RwLock<HashMap<String, Value>>>,
   pub db: DatabaseConnection,
+  pub content: SqlContentStore,
 }
 
 /// The OpenAPI document and the router serving the same routes, built from one definition.
 pub fn api() -> (Router<AppState>, utoipa::openapi::OpenApi) {
-  let (router, mut spec) = pages::routes().split_for_parts();
+  let (router, mut spec) = pages::routes().merge(drafts::routes()).split_for_parts();
   // The router's default info describes utoipa-axum itself.
   spec.info = utoipa::openapi::InfoBuilder::new().title("yourdocs").version(env!("CARGO_PKG_VERSION")).build();
 
@@ -144,10 +146,13 @@ pub(crate) async fn test_state() -> AppState {
   let dir = std::env::temp_dir().join(format!("yourdocs-server-{}", uuid::Uuid::now_v7()));
   std::fs::create_dir_all(&dir).unwrap();
 
+  let db = yourdocs_store::connect(&dir.join("test.db")).await.unwrap();
+
   AppState {
     pool: Arc::new(pool),
     docs: Default::default(),
-    db: yourdocs_store::connect(&dir.join("test.db")).await.unwrap(),
+    content: SqlContentStore::new(db.clone()),
+    db,
   }
 }
 

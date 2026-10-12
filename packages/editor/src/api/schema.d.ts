@@ -35,6 +35,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/pages/{id}/draft": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The latest saved edits of a page (an empty document if it has none yet). */
+        get: operations["getDraft"];
+        /** Saves a draft. Refused with 409 when `base_revision_id` is not the page's latest revision. */
+        put: operations["saveDraft"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/pages/{id}/move": {
         parameters: {
             query?: never;
@@ -60,6 +78,16 @@ export interface components {
             before?: components["schemas"]["PageId"] | null;
             parent_id?: components["schemas"]["PageId"] | null;
             title: string;
+        };
+        /**
+         * @description A page body: the ProseMirror JSON of the editor, stored and rendered as is.
+         *
+         *     Block nodes carry a stable `attrs.id` (Tiptap UniqueID); internal links and components store page IDs and props in `attrs`.
+         */
+        Document: unknown;
+        DraftResponse: {
+            base_revision_id?: components["schemas"]["RevisionId"] | null;
+            doc: components["schemas"]["Document"];
         };
         /** @description The body of every error response. */
         ErrorBody: {
@@ -89,6 +117,12 @@ export interface components {
         PageId: string;
         RenamePage: {
             title: string;
+        };
+        /** @description An immutable snapshot of a page's document. */
+        RevisionId: string;
+        SaveDraft: {
+            base_revision_id?: components["schemas"]["RevisionId"] | null;
+            doc: components["schemas"]["Document"];
         };
         /** @description A user, including the built-in local one. */
         UserId: string;
@@ -237,6 +271,85 @@ export interface operations {
                 content?: never;
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    getDraft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["PageId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DraftResponse"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    saveDraft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["PageId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SaveDraft"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DraftResponse"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description the page changed since the revision this save was based on */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
