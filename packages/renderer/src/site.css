@@ -747,3 +747,76 @@ a.link-card:hover {
 .file-tree-file > span::before {
   content: "·";
 }
+
+/* Above and below the page: where it sits in the tree, when it changed, and the way on. */
+.breadcrumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 6px;
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.breadcrumbs a {
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.breadcrumbs a:hover {
+  color: var(--text);
+}
+
+.breadcrumbs > span:last-child {
+  color: var(--text-body);
+}
+
+.doc-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 16px;
+  margin-bottom: 8px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 13.5px;
+}
+
+.doc-meta a {
+  margin-left: auto;
+  color: var(--muted);
+}
+
+.pager {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 40px;
+}
+
+.pager a {
+  display: block;
+  padding: 14px 18px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.pager a:hover {
+  border-color: var(--accent);
+}
+
+.pager a span {
+  display: block;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.pager a[data-side="next"] {
+  grid-column: 2;
+  text-align: right;
+}

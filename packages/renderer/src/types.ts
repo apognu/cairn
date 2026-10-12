@@ -16,6 +16,15 @@ export type RenderContext = {
   site: { name: string; logo?: { src: string; width?: number; height?: number } | null };
   page: { id?: string; title: string };
   nav: NavNode[];
+  /** The pages above this one, outermost first. */
+  breadcrumbs: { title: string; href: string }[];
+  /** The neighbours in the sidebar order, for the links at the end of the page. */
+  previous?: { title: string; href: string } | null;
+  next?: { title: string; href: string } | null;
+  /** `YYYY-MM-DD` of the revision being published. */
+  updated?: string | null;
+  /** Where this page's Markdown version lives. */
+  markdown?: string | null;
   /** The pages promoted to the site header, in order. */
   header: { id: string; title: string; href: string }[];
   /** The ID of the header entry the page belongs to, if any. */
@@ -36,6 +45,7 @@ export const defaultContext: RenderContext = {
   site: { name: "yourdocs" },
   page: { title: "" },
   nav: [],
+  breadcrumbs: [],
   header: [],
   urls: {},
   pages: {},

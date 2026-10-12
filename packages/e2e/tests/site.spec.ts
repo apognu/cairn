@@ -31,6 +31,15 @@ test("the published site serves pages, redirects, the 404 page and search", asyn
   await reader.goto(`${SITE}/${slug}`);
   await expect(reader).toHaveURL(`${SITE}/${slug}/`);
 
+  // The page shows when it was last updated and offers its Markdown version, which is served next to it.
+  await expect(reader.getByText(/Last updated \d+ \w+ \d{4}/)).toBeVisible();
+  await reader.getByRole("link", { name: "View as Markdown" }).click();
+  await expect(reader).toHaveURL(`${SITE}/${slug}.md`);
+  const markdown = await reader.request.get(`${SITE}/${slug}.md`);
+  expect(markdown.status()).toBe(200);
+  expect(await markdown.text()).toContain(`# ${slug}\n\nZebrafish migration notes`);
+  await reader.goto(`${SITE}/${slug}/`);
+
   // The site root follows the redirect rule to a page.
   await reader.goto(`${SITE}/`);
   await expect(reader.locator(".doc-title")).toBeVisible();

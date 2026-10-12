@@ -39,6 +39,27 @@ function NavList({ nodes, currentId }: { nodes: NavNode[]; currentId?: string })
   );
 }
 
+const months = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+
+/** `2026-10-03` as `3 October 2026`, spelled out here so V8 and every browser agree. */
+function longDate(iso: string): string {
+  const [year, month, day] = iso.split("-").map(Number);
+  return month >= 1 && month <= 12 ? `${day} ${months[month - 1]} ${year}` : iso;
+}
+
 type PagefindUI = new (options: { element: HTMLElement; showSubResults: boolean; showImages: boolean }) => unknown;
 
 function load(tag: "script" | "link", url: string): Promise<void> {
@@ -126,8 +147,45 @@ export function SiteLayout({
           </nav>
         )}
         <main className="doc" data-pagefind-body={context.page.id ? "" : undefined}>
+          {!embedded && context.breadcrumbs.length > 0 && (
+            <nav className="breadcrumbs" aria-label="Breadcrumb" data-pagefind-ignore="">
+              {context.breadcrumbs.map((crumb) => (
+                <span key={crumb.href}>
+                  <a href={crumb.href}>{crumb.title}</a>
+                  <span aria-hidden="true"> / </span>
+                </span>
+              ))}
+              <span>{context.page.title}</span>
+            </nav>
+          )}
           {context.page.title ? <h1 className="doc-title">{context.page.title}</h1> : null}
+          {!embedded && (context.updated || context.markdown) && (
+            <div className="doc-meta" data-pagefind-ignore="">
+              {context.updated && <span>Last updated {longDate(context.updated)}</span>}
+              {context.markdown && <a href={context.markdown}>View as Markdown</a>}
+            </div>
+          )}
           <div className="doc-content">{children}</div>
+          {!embedded && (context.previous || context.next) && (
+            <nav className="pager" aria-label="Previous and next page" data-pagefind-ignore="">
+              {context.previous ? (
+                <a href={context.previous.href} rel="prev">
+                  <span>Previous</span>
+                  {context.previous.title}
+                </a>
+              ) : (
+                <span />
+              )}
+              {context.next ? (
+                <a href={context.next.href} rel="next" data-side="next">
+                  <span>Next</span>
+                  {context.next.title}
+                </a>
+              ) : (
+                <span />
+              )}
+            </nav>
+          )}
         </main>
         <aside className="site-toc" aria-label="On this page">
           {toc.length > 0 && (
