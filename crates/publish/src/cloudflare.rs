@@ -48,8 +48,8 @@ pub struct Version {
 #[derive(Deserialize)]
 struct Envelope<T> {
   result: Option<T>,
-  #[serde(default)]
-  errors: Vec<ApiError>,
+  /// `null` on success.
+  errors: Option<Vec<ApiError>>,
 }
 
 #[derive(Deserialize)]
@@ -60,8 +60,8 @@ struct ApiError {
 #[derive(Deserialize)]
 struct Session {
   jwt: String,
-  #[serde(default)]
-  buckets: Vec<Vec<String>>,
+  /// `null`, not an empty list, when Cloudflare has every file.
+  buckets: Option<Vec<Vec<String>>>,
 }
 
 #[derive(Deserialize)]
@@ -198,14 +198,15 @@ impl CloudflareTarget {
     let session: Session = read(response).await?;
 
     // Nothing to send: Cloudflare has every file already, and the session token is the completion token.
-    if session.buckets.is_empty() {
+    let buckets = session.buckets.unwrap_or_default();
+    if buckets.is_empty() {
       return Ok(session.jwt);
     }
 
     let by_hash: HashMap<&str, &OutputFile> = assets.iter().map(|(file, hash)| (hash.as_str(), *file)).collect();
     let mut completion = None;
 
-    for bucket in &session.buckets {
+    for bucket in &buckets {
       let mut form = multipart::Form::new();
       for wanted in bucket {
         let file = by_hash
@@ -273,10 +274,33 @@ impl CloudflareTarget {
   /// The address a version can be looked at before it is deployed: its own host under the account's `workers.dev` name. Not every account
   /// has one, and a preview without an address is still a version that can be deployed.
   async fn preview_url(&self, version: &str) -> Option<String> {
+    self.enable_previews().await;
+
     let response = self.http.get(self.url("/workers/subdomain")).bearer_auth(&self.config.api_token).send().await.ok()?;
     let subdomain: Subdomain = read(response).await.ok()?;
 
     Some(format!("https://{}-{}.{}.workers.dev", version.split('-').next()?, self.config.worker, subdomain.subdomain))
+  }
+}
+
+impl CloudflareTarget {
+  /// A Worker answers its version addresses only when preview URLs are enabled for it, and they are off by default. Failing to switch
+  /// them on (a token without the right) only leaves the preview without a working address.
+  async fn enable_previews(&self) {
+    let url = self.script("/subdomain");
+    let Ok(response) = self.http.get(&url).bearer_auth(&self.config.api_token).send().await else {
+      return;
+    };
+    let Ok(settings) = read::<Value>(response).await else { return };
+    if settings["previews_enabled"].as_bool() == Some(true) {
+      return;
+    }
+
+    let body = json!({ "enabled": settings["enabled"].as_bool().unwrap_or(true), "previews_enabled": true });
+    match self.http.post(&url).bearer_auth(&self.config.api_token).json(&body).send().await {
+      Ok(response) if response.status().is_success() => tracing::info!(worker = %self.config.worker, "preview URLs enabled for the Worker"),
+      _ => tracing::warn!(worker = %self.config.worker, "could not enable preview URLs for the Worker; its previews will not open"),
+    }
   }
 }
 
@@ -306,10 +330,13 @@ async fn read<T: for<'de> Deserialize<'de>>(response: reqwest::Response) -> Resu
   match envelope {
     Ok(Envelope { result: Some(result), .. }) if status.is_success() => Ok(result),
     Ok(envelope) => {
-      let reasons: Vec<_> = envelope.errors.iter().map(|e| e.message.as_str()).collect();
+      let reasons: Vec<_> = envelope.errors.iter().flatten().map(|e| e.message.as_str()).collect();
       Err(PublishError::Other(anyhow::anyhow!("Cloudflare answered {status}: {}", reasons.join("; "))))
     }
-    Err(_) => Err(PublishError::Other(anyhow::anyhow!("Cloudflare answered {status} with something that is not understood"))),
+    Err(error) => Err(PublishError::Other(anyhow::anyhow!(
+      "Cloudflare answered {status} with something that is not understood ({error}): {}",
+      String::from_utf8_lossy(&bytes).chars().take(300).collect::<String>()
+    ))),
   }
 }
 
@@ -570,5 +597,46 @@ mod tests {
     let error = target.upload(&[file("index.html", "new")]).await.expect_err("no Worker yet");
 
     assert!(error.to_string().contains("does not exist"), "{error}");
+  }
+
+  fn walk(root: &std::path::Path, dir: &std::path::Path) -> Vec<OutputFile> {
+    let mut files = Vec::new();
+    for entry in std::fs::read_dir(dir).unwrap().flatten() {
+      let path = entry.path();
+      if path.is_dir() {
+        files.extend(walk(root, &path));
+      } else {
+        files.push(OutputFile {
+          path: path.strip_prefix(root).unwrap().to_string_lossy().into_owned(),
+          bytes: std::fs::read(&path).unwrap(),
+        });
+      }
+    }
+    files
+  }
+
+  /// Against a real account: `cargo test -p yourdocs-publish live_cloudflare -- --ignored --nocapture` with the `CLOUDFLARE_*` variables set.
+  /// Uploads a one-page site as a version and does not deploy it.
+  #[tokio::test]
+  #[ignore = "needs a Cloudflare account"]
+  async fn live_cloudflare_accepts_an_upload() {
+    let var = |name| std::env::var(name).unwrap_or_else(|_| panic!("{name} is not set"));
+    let target = CloudflareTarget::new(CloudflareConfig {
+      account_id: var("CLOUDFLARE_ACCOUNT_ID"),
+      api_token: var("CLOUDFLARE_API_TOKEN"),
+      worker: var("CLOUDFLARE_WORKER"),
+      api_url: "https://api.cloudflare.com/client/v4".into(),
+    })
+    .unwrap();
+
+    // `LIVE_SITE_DIR`: a built release folder, to see a whole site go up (many files, several buckets).
+    let files = match std::env::var("LIVE_SITE_DIR") {
+      Ok(dir) => walk(std::path::Path::new(&dir), std::path::Path::new(&dir)),
+      Err(_) => vec![file("index.html", "<h1>yourdocs smoke test</h1>"), file("404.html", "not found"), file("_redirects", "/old/ /new/ 301")],
+    };
+    let version = target.upload(&files).await;
+
+    // The version is in the failure message when it does not work, and in the Worker's dashboard when it does.
+    version.unwrap();
   }
 }
