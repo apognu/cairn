@@ -10,6 +10,7 @@ use crate::{
   StoreError,
   entity::{page, release, release_page, revision},
   tree::{into_page, last_header_position, list_pages, position_for},
+  urls::check_page_urls,
 };
 
 /// One saved version of a page.
@@ -130,9 +131,30 @@ pub async fn restore_page(db: &DatabaseConnection, id: PageId) -> Result<(Page, 
   let live = list_pages(db).await?;
 
   let parent = row.parent_id.filter(|p| live.iter().any(|l| l.id.as_uuid() == *p));
+  let subtree: Vec<_> = rows.iter().filter(|r| r.deleted_at == row.deleted_at && (r.id == row.id || descends_from(&rows, r, row.id))).collect();
+
+  // The slug must be free among the new siblings and must not give the page, or anything below it, a URL a live page has now (a custom
+  // URL, say, set after the page was deleted). A clash is dodged with a suffix; one that a suffix cannot fix (deeper down) refuses the restore.
   let mut slug = row.slug.clone();
   let mut n = 1;
-  while live.iter().any(|l| l.parent_id.map(|p| p.as_uuid()) == parent && l.slug == slug) {
+  loop {
+    let mut after = live.clone();
+    for r in &subtree {
+      let mut page = into_page((*r).clone())?;
+      if r.id == row.id {
+        page.parent_id = parent.map(PageId::from);
+        page.slug = slug.clone();
+      }
+      after.push(page);
+    }
+
+    let taken = live.iter().any(|l| l.parent_id.map(|p| p.as_uuid()) == parent && l.slug == slug);
+    match check_page_urls(&live, &after) {
+      Ok(()) if !taken => break,
+      Err(e) if n >= 20 => return Err(e),
+      _ => {}
+    }
+
     n += 1;
     slug = format!("{}-{n}", row.slug);
   }
@@ -151,8 +173,7 @@ pub async fn restore_page(db: &DatabaseConnection, id: PageId) -> Result<(Page, 
 
   // All of the subtree comes back, or none of it.
   let tx = db.begin().await?;
-  let together: Vec<_> = rows.iter().filter(|r| r.deleted_at == row.deleted_at && (r.id == row.id || descends_from(&rows, r, row.id))).collect();
-  for r in together {
+  for r in subtree {
     let mut active = page::ActiveModel {
       id: Set(r.id),
       deleted_at: Set(None),
@@ -183,6 +204,21 @@ mod tests {
     connect::test_db,
     tree::{create_page, delete_page},
   };
+
+  #[tokio::test]
+  async fn a_restored_page_does_not_take_a_custom_url_set_since() {
+    let db = test_db().await;
+    let user = UserId::new();
+
+    let hooks = create_page(&db, user, None, "Hooks", Placement::Last).await.unwrap();
+    delete_page(&db, hooks.id).await.unwrap();
+    let other = create_page(&db, user, None, "Webhooks", Placement::Last).await.unwrap();
+    crate::set_custom_url(&db, other.id, Some("/hooks/"), yourdocs_core::OldUrls::Redirect).await.unwrap();
+
+    let (restored, kept) = restore_page(&db, hooks.id).await.unwrap();
+    assert_eq!(restored.slug, "hooks-2");
+    assert!(!kept);
+  }
 
   #[tokio::test]
   async fn a_restored_page_gets_its_old_place_and_url_back() {

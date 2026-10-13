@@ -7,6 +7,7 @@ use crate::{
   StoreError,
   entity::page::{self, Column},
   redirects::{forget_redirects_from, redirect_to_page},
+  urls::check_page_urls,
 };
 
 /// All live pages, ordered by parent then position.
@@ -34,9 +35,29 @@ async fn insert(db: &DatabaseConnection, user: UserId, parent: Option<PageId>, t
   let slug = unique_slug(&pages, parent, title, None)?;
   let position = position_for(&pages, parent, None, placement)?;
   let now = Timestamp::now().to_string();
+  let id = PageId::new();
+
+  let mut after = pages.clone();
+  after.push(Page {
+    id,
+    kind: if url.is_some() { PageKind::Link } else { PageKind::Page },
+    parent_id: parent,
+    position: position.clone(),
+    slug: slug.clone(),
+    title: title.to_string(),
+    external_url: url.clone(),
+    path_override: None,
+    in_header: false,
+    header_position: None,
+    description: None,
+    created_by: user,
+    created_at: Timestamp::now(),
+    updated_at: Timestamp::now(),
+  });
+  check_page_urls(&pages, &after)?;
 
   let row = page::ActiveModel {
-    id: Set(PageId::new().as_uuid()),
+    id: Set(id.as_uuid()),
     kind: Set(if url.is_some() { PageKind::Link } else { PageKind::Page }.as_str().into()),
     parent_id: Set(parent.map(|p| p.as_uuid())),
     position: Set(position),
@@ -63,6 +84,7 @@ pub async fn rename_page(db: &DatabaseConnection, id: PageId, title: &str, old: 
   let pages = list_pages(db).await?;
   let current = find(&pages, id)?;
   let slug = unique_slug(&pages, current.parent_id, title, Some(id))?;
+  check_page_urls(&pages, &with_place(&pages, id, current.parent_id, &slug))?;
 
   let row = page::ActiveModel {
     id: Set(id.as_uuid()),
@@ -167,6 +189,7 @@ pub async fn move_page(db: &DatabaseConnection, id: PageId, parent: Option<PageI
   }
 
   let slug = unique_slug(&pages, parent, &current.title, Some(id))?;
+  check_page_urls(&pages, &with_place(&pages, id, parent, &slug))?;
   let position = position_for(&pages, parent, Some(id), placement)?;
 
   let row = page::ActiveModel {
@@ -261,6 +284,17 @@ fn ancestors(pages: &[Page], id: PageId) -> Vec<PageId> {
   }
 
   found
+}
+
+/// The tree as it would be with `id` under `parent` with `slug`.
+fn with_place(pages: &[Page], id: PageId, parent: Option<PageId>, slug: &str) -> Vec<Page> {
+  let mut after = pages.to_vec();
+  if let Some(page) = after.iter_mut().find(|p| p.id == id) {
+    page.parent_id = parent;
+    page.slug = slug.to_string();
+  }
+
+  after
 }
 
 fn unique_slug(pages: &[Page], parent: Option<PageId>, title: &str, ignoring: Option<PageId>) -> Result<String, StoreError> {
@@ -383,6 +417,25 @@ mod tests {
       let err = move_page(&db, a.id, Some(target), Placement::Last, OldUrls::Redirect).await.unwrap_err();
       assert!(matches!(err, StoreError::Invalid(_)), "{err}");
     }
+  }
+
+  #[tokio::test]
+  async fn tree_changes_refuse_another_pages_custom_url() {
+    let db = test_db().await;
+    let user = UserId::new();
+
+    let taken = create_page(&db, user, None, "Webhooks", Placement::Last).await.unwrap();
+    crate::set_custom_url(&db, taken.id, Some("/hooks/"), OldUrls::Redirect).await.unwrap();
+    let other = create_page(&db, user, None, "Other", Placement::Last).await.unwrap();
+    let folder = create_page(&db, user, None, "Folder", Placement::Last).await.unwrap();
+
+    // Renaming, creating and moving all end at /hooks/, which the first page holds through its custom URL.
+    let err = rename_page(&db, other.id, "Hooks", OldUrls::Redirect).await.unwrap_err();
+    assert!(matches!(&err, StoreError::Conflict(m) if m.contains("Webhooks")), "{err}");
+    assert!(matches!(create_page(&db, user, None, "hooks", Placement::Last).await, Err(StoreError::Conflict(_))));
+
+    let hooks = create_page(&db, user, Some(folder.id), "Hooks", Placement::Last).await.unwrap();
+    assert!(matches!(move_page(&db, hooks.id, None, Placement::Last, OldUrls::Redirect).await, Err(StoreError::Conflict(_))));
   }
 
   #[tokio::test]

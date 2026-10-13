@@ -58,6 +58,24 @@ fn title_of(pages: &[Page], id: PageId) -> String {
   pages.iter().find(|p| p.id == id).map_or_else(|| "a deleted page".to_string(), |p| format!("“{}”", p.title))
 }
 
+/// Refuses a tree change (`after` is the tree as it would be) that gives a page the URL another page already has, which a sibling-slug
+/// check misses when the other page has a custom URL. Only pages whose URL changes are looked at, so an existing clash never blocks
+/// an unrelated edit.
+pub(crate) fn check_page_urls(before: &[Page], after: &[Page]) -> Result<(), StoreError> {
+  let (urls_before, urls_after) = (page_urls(before), page_urls(after));
+
+  for (id, url) in &urls_after {
+    if urls_before.get(id) == Some(url) {
+      continue;
+    }
+    if let Some((other, _)) = urls_after.iter().find(|(other, u)| *other != id && *u == url) {
+      return Err(StoreError::Conflict(format!("{url} is already the URL of {}", title_of(after, *other))));
+    }
+  }
+
+  Ok(())
+}
+
 /// Why `path` cannot lead to `target`: it is already another page's URL or another redirect's start. `pages` is the tree as it would be.
 fn check_free(pages: &[Page], redirects: &[Redirect], path: &str, target: &[PageId]) -> Result<(), StoreError> {
   for (id, url) in page_urls(pages) {
