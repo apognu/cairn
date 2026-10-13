@@ -53,7 +53,7 @@ fn block(node: &Node, site: &Site) -> String {
 
   match node.kind.as_str() {
     // A paragraph ending in a hard break would leave a stray blank line.
-    "paragraph" => inline(children, site).trim_end().to_string(),
+    "paragraph" => inline(children, site).trim_end().lines().map(escape_line_start).collect::<Vec<_>>().join("\n"),
     "heading" => {
       let level = attr(node, "level").and_then(Value::as_u64).unwrap_or(2).clamp(1, 6);
       // The page title is the one H1; headings in the body start at H2 so the file has a single top level.
@@ -240,6 +240,32 @@ fn escape(text: &str) -> String {
   out
 }
 
+/// A line of running text that would read as a heading, a list item or a rule: `# 1`, `- a`, `+ b`, `2. c`.
+fn escape_line_start(line: &str) -> String {
+  // Every character counted below is ASCII, so counts are byte offsets.
+  let after = |n: usize| line[n..].chars().next().is_none_or(char::is_whitespace);
+  let first = line.chars().next();
+  let run = line.chars().take_while(|c| Some(*c) == first).count();
+  let digits = line.chars().take_while(char::is_ascii_digit).count();
+
+  if matches!(first, Some('#' | '-' | '+' | '=')) && after(run) {
+    format!("\\{line}")
+  } else if (1..=9).contains(&digits) && line[digits..].starts_with(['.', ')']) && after(digits + 1) {
+    format!("{}\\{}", &line[..digits], &line[digits..])
+  } else {
+    line.to_string()
+  }
+}
+
+/// Inline code: a delimiter longer than any run of backticks inside, padded when the code itself starts or ends with one.
+fn code_span(text: &str) -> String {
+  let longest = text.split(|c| c != '`').map(str::len).max().unwrap_or(0);
+  let ticks = "`".repeat(longest + 1);
+  let pad = if text.starts_with('`') || text.ends_with('`') { " " } else { "" };
+
+  format!("{ticks}{pad}{text}{pad}{ticks}")
+}
+
 fn inline(nodes: &[Node], site: &Site) -> String {
   nodes.iter().map(|n| inline_node(n, site)).collect()
 }
@@ -251,7 +277,7 @@ fn inline_node(node: &Node, site: &Site) -> String {
       let marks = node.marks.as_deref().unwrap_or_default();
 
       // Inside code nothing is escaped; elsewhere the text is, and the marks wrap it from the outside in.
-      let mut out = if marks.iter().any(|m| m.kind == "code") { format!("`{text}`") } else { escape(text) };
+      let mut out = if marks.iter().any(|m| m.kind == "code") { code_span(text) } else { escape(text) };
       for mark in marks.iter().rev() {
         out = wrap(out, mark, site);
       }
@@ -270,12 +296,14 @@ fn wrap(inner: String, mark: &Mark, site: &Site) -> String {
     "italic" => format!("*{inner}*"),
     "strike" => format!("~~{inner}~~"),
     "link" => {
-      let by_id = attr("pageId").and_then(|id| site.urls.get(id)).map(|path| format!("{}{path}", site.url));
+      // A link to a section of a page keeps its anchor, as on the site.
+      let anchor = attr("anchor").map(|a| format!("#{a}")).unwrap_or_default();
+      let by_id = attr("pageId").and_then(|id| site.urls.get(id)).map(|path| format!("{}{path}{anchor}", site.url));
       // A link to a page that is gone has no destination: only its words remain.
       match (attr("pageId"), by_id, attr("href")) {
         (Some(_), None, _) => inner,
         (_, Some(url), _) => format!("[{inner}]({url})"),
-        (None, None, Some(href)) => format!("[{inner}]({href})"),
+        (None, None, Some(href)) => format!("[{inner}]({href}{anchor})"),
         _ => inner,
       }
     }
@@ -361,7 +389,15 @@ mod tests {
         { "type": "text", "text": " and " },
         { "type": "text", "text": "a gone page", "marks": [{ "type": "link", "attrs": { "pageId": "00000000-0000-7000-8000-000000000000" } }] },
         { "type": "text", "text": "x", "marks": [{ "type": "bold" }, { "type": "italic" }] },
-      ] }
+      ] },
+      { "type": "paragraph", "content": [
+        { "type": "text", "text": "a ", "marks": [{ "type": "link", "attrs": { "pageId": id, "anchor": "setup" } }] },
+        { "type": "text", "text": "x`y", "marks": [{ "type": "code" }] },
+        { "type": "text", "text": " " },
+        { "type": "text", "text": "`", "marks": [{ "type": "code" }] },
+      ] },
+      { "type": "paragraph", "content": [{ "type": "text", "text": "# not a heading" }, { "type": "hardBreak" }, { "type": "text", "text": "2. not a list" }] },
+      { "type": "paragraph", "content": [{ "type": "text", "text": "- not an item, #hashtag and 2.5 stay" }] },
     ] }))
     .unwrap();
     let urls = HashMap::from([(id.to_string(), "/guide/".to_string())]);
@@ -379,6 +415,16 @@ mod tests {
       },
     );
 
-    assert_eq!(markdown, "# T\n\nAbout.\n\na \\*star\\* and [a page](https://d.io/guide/) and a gone page***x***\n");
+    assert_eq!(
+      markdown,
+      [
+        "# T\n\nAbout.\n",
+        "a \\*star\\* and [a page](https://d.io/guide/) and a gone page***x***\n",
+        "[a ](https://d.io/guide/#setup)``x`y`` `` ` ``\n",
+        "\\# not a heading  \n2\\. not a list\n",
+        "\\- not an item, #hashtag and 2.5 stay\n",
+      ]
+      .join("\n")
+    );
   }
 }
