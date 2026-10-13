@@ -1,8 +1,14 @@
-import type { ApiContext } from "@yourdocs/sdk";
-import { useEffect, useRef } from "react";
+import type { ApiContext, ApiOperation } from "@yourdocs/sdk";
+import { useEffect, useRef, useState } from "react";
 
 type ScalarInstance = { destroy: () => void };
 type ScalarGlobal = { createApiReference: (target: HTMLElement, config: Record<string, unknown>) => ScalarInstance };
+
+/** Where Scalar puts an operation in the address: `#tag/<tag in lower case, dashes for spaces>/<METHOD><path>`. */
+function scalarAnchor(operation: ApiOperation): string {
+  const tag = (operation.tags[0] ?? "default").trim().toLowerCase().replace(/\s+/g, "-");
+  return `tag/${tag}/${operation.method}${operation.path}`;
+}
 
 // One script per page, however many references mount.
 let scalarScript: Promise<ScalarGlobal> | undefined;
@@ -53,13 +59,13 @@ const SCALAR_CSS = `
 }
 `;
 
-function configuration(api: ApiContext): Record<string, unknown> {
+function configuration(api: ApiContext, compact: boolean): Record<string, unknown> {
   return {
     url: api.specUrl,
     theme: "none",
     layout: "modern",
     withDefaultFonts: false,
-    showSidebar: true,
+    showSidebar: !compact,
     hideSearch: true,
     hideDarkModeToggle: true,
     showDeveloperTools: "never",
@@ -75,9 +81,14 @@ function configuration(api: ApiContext): Record<string, unknown> {
   };
 }
 
-/** An API reference: Scalar, mounted once the page runs. JavaScript is required; the server render holds only the mount point. */
-export function ApiReference({ api }: { api: ApiContext }) {
+/**
+ * An API reference: Scalar, mounted once the page runs. JavaScript is required; the server render holds only the mount point. `compact`
+ * leaves out Scalar's own sidebar, for a preview in a narrow column.
+ */
+export function ApiReference({ api, compact = false }: { api: ApiContext; compact?: boolean }) {
   const target = useRef<HTMLDivElement>(null);
+  // The search-only block goes once Scalar is there: its headings carry the same ids as Scalar's own sections.
+  const [mounted, setMounted] = useState(false);
   const { specUrl, scalarUrl } = api;
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: the instance is made once per spec
@@ -90,7 +101,9 @@ export function ApiReference({ api }: { api: ApiContext }) {
 
     loadScalar(scalarUrl)
       .then((scalar) => {
-        if (!cancelled) instance = scalar.createApiReference(element, configuration(api));
+        if (cancelled) return;
+        instance = scalar.createApiReference(element, configuration(api, compact));
+        setMounted(true);
       })
       .catch(() => {
         element.textContent = "The API reference could not be loaded.";
@@ -122,18 +135,20 @@ export function ApiReference({ api }: { api: ApiContext }) {
   return (
     <div className="api-reference">
       <noscript>This API reference needs JavaScript.</noscript>
-      {/* Not shown to anyone: it is what the site search reads, from the merged spec. */}
-      <div hidden>
-        {api.operations.map((operation) => (
-          <section key={`${operation.method} ${operation.path}`}>
-            <h2>
-              {operation.method} {operation.path}
-            </h2>
-            {operation.summary && <p>{operation.summary}</p>}
-            {operation.description && <p>{operation.description}</p>}
-          </section>
-        ))}
-      </div>
+      {/* Not shown to anyone: it is what the site search reads, from the merged spec. Its ids are Scalar's, so a result lands on the operation. */}
+      {!mounted && (
+        <div hidden>
+          {api.operations.map((operation) => (
+            <section key={`${operation.method} ${operation.path}`}>
+              <h2 id={scalarAnchor(operation)}>
+                {operation.method} {operation.path}
+              </h2>
+              {operation.summary && <p>{operation.summary}</p>}
+              {operation.description && <p>{operation.description}</p>}
+            </section>
+          ))}
+        </div>
+      )}
       <div ref={target} className="api-mount" />
     </div>
   );

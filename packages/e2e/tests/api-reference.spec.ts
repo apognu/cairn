@@ -65,4 +65,16 @@ test("an API page shows the merged operations in Scalar inside the site layout, 
   // The header toggle wins over the system setting: system (dark) to light.
   await page.getByRole("button", { name: /Theme: Auto/ }).click();
   await expect(page.locator("body")).toHaveClass(/light-mode/);
+
+  // Search finds an operation, and a click anywhere on its row, not only on the title, lands on it.
+  await page.getByRole("button", { name: /Theme/ }).first().waitFor();
+  await page.locator(".pagefind-ui__search-input").fill("createOrder");
+  const row = page.locator(".pagefind-ui__result-nested").first();
+  await expect(row).toBeVisible();
+  const box = await row.boundingBox();
+  await page.mouse.click((box?.x ?? 0) + (box?.width ?? 0) - 20, (box?.y ?? 0) + (box?.height ?? 0) / 2);
+  await expect(async () => {
+    expect(await page.evaluate(() => location.hash)).toBe("#tag/orders/POST/orders");
+    expect(await page.evaluate(() => scrollY)).toBeGreaterThan(500);
+  }).toPass();
 });

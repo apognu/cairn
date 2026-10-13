@@ -1243,3 +1243,111 @@ dfn.term:not(:has(a)) {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Search results: the whole row is the link, in the colors and sizes of the rest of the site. Pagefind scopes its own rules to generated
+   classes and loads its sheet after this one, so these selectors are long enough to win. */
+.site-search .pagefind-ui__drawer {
+  padding: 6px;
+  border-radius: 10px;
+}
+
+.site-search .pagefind-ui__drawer .pagefind-ui__results-area {
+  margin: 0;
+}
+
+.site-search .pagefind-ui__drawer .pagefind-ui__results-area .pagefind-ui__message {
+  height: auto;
+  margin: 0;
+  padding: 6px 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.site-search .pagefind-ui__drawer .pagefind-ui__results-area .pagefind-ui__results {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.site-search .pagefind-ui__drawer .pagefind-ui__results-area .pagefind-ui__results > .pagefind-ui__result {
+  position: relative;
+  margin: 0;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 6px;
+}
+
+.site-search .pagefind-ui__drawer .pagefind-ui__results-area .pagefind-ui__results > .pagefind-ui__result:hover,
+.site-search .pagefind-ui__drawer .pagefind-ui__results-area .pagefind-ui__results > .pagefind-ui__result:focus-within {
+  background: var(--hover);
+}
+
+.site-search .pagefind-ui__drawer .pagefind-ui__results-area .pagefind-ui__result-inner {
+  margin: 0;
+  gap: 2px;
+}
+
+.site-search .pagefind-ui__drawer .pagefind-ui__results-area .pagefind-ui__result-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.site-search .pagefind-ui__drawer .pagefind-ui__results-area .pagefind-ui__result-link {
+  /* biome-ignore lint/complexity/noImportantStyles: Pagefind's own scoped rule makes the link the positioning box, and its sheet loads after this one */
+  position: static !important;
+  color: var(--text);
+  font-size: inherit;
+  text-decoration: none;
+}
+
+/* Stretches over the row, so clicking anywhere on it follows the link. */
+.site-search .pagefind-ui__drawer .pagefind-ui__results-area .pagefind-ui__result-link::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+
+/* The nesting is a line down the left, not an arrow. */
+.site-search .pagefind-ui__drawer .pagefind-ui__results-area .pagefind-ui__result-link::before {
+  display: none;
+}
+
+.site-search .pagefind-ui__drawer .pagefind-ui__results-area .pagefind-ui__result-excerpt {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.site-search .pagefind-ui__drawer .pagefind-ui__results-area .pagefind-ui__result-nested {
+  position: relative;
+  z-index: 1;
+  box-sizing: border-box;
+  align-self: stretch;
+  width: auto;
+  margin: 4px 0 0 4px;
+  padding: 4px 8px 4px 12px;
+  border-left: 2px solid var(--border);
+  border-radius: 0 6px 6px 0;
+  gap: 2px;
+}
+
+.site-search .pagefind-ui__drawer .pagefind-ui__results-area .pagefind-ui__result-nested:hover {
+  background: color-mix(in srgb, var(--text) 7%, transparent);
+  border-left-color: var(--accent);
+}
+
+.site-search .pagefind-ui__drawer mark {
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: inherit;
+}
+
+.site-search .pagefind-ui__drawer .pagefind-ui__results-area .pagefind-ui__button {
+  margin: 6px 0 2px;
+  border-radius: 6px;
+  font-size: 13px;
+}

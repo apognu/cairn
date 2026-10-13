@@ -233,7 +233,7 @@ export function ApiSettings({ page }: { page: Page }) {
             {error}
           </p>
         )}
-        <div className="row-inline">
+        <div className="row-inline sticky-actions">
           <button type="submit" className="primary" disabled={!dirty || save.isPending}>
             {save.isPending ? "Saving…" : "Save"}
           </button>
@@ -248,6 +248,7 @@ export function ApiSettings({ page }: { page: Page }) {
         {preview ? (
           <ApiReference
             key={version}
+            compact
             api={{
               specUrl: `/api/pages/${page.id}/api-spec?v=${version}`,
               scalarUrl: "/api/scalar.js",
