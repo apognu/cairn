@@ -10,13 +10,13 @@ use futures_util::{StreamExt, TryStreamExt, stream};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use yourdocs_core::{
-  ApiConfig, AssetId, AssetStore, Broadcast, ContentStore, Document, Event, Page, PageId, PageKind, Release, ReleaseStatus, RevisionId, Settings, UserId, effective_redirects, expand, extract_links,
-  header_section, original_key, page_urls, term_anchors, term_refs, variant_key,
+  ApiConfig, AssetId, AssetStore, Broadcast, ContentStore, Document, Event, Page, PageId, PageKind, Release, ReleaseId, ReleaseStatus, RevisionId, Settings, UserId, effective_redirects, expand,
+  extract_links, header_section, original_key, page_urls, term_anchors, term_refs, variant_key,
 };
 use yourdocs_render::{Pool, Shell, highlight_css};
 use yourdocs_store::{
-  DatabaseConnection, ReleaseSpec, add_release_pages, assets_by_ids, create_release, get_setting, latest_live_release, list_api_configs, list_pages, list_redirects, live_release, load_library,
-  load_settings, record_release_specs, release_specs, set_release_status, set_setting,
+  DatabaseConnection, ReleaseSpec, add_release_pages, assets_by_ids, create_release, get_release, get_setting, latest_live_release, list_api_configs, list_pages, list_redirects, live_release,
+  load_library, load_settings, make_release_live, record_release_specs, release_specs, set_release_deployment, set_release_status, set_setting,
 };
 
 use crate::{
@@ -26,7 +26,7 @@ use crate::{
   markdown::{Site, page_markdown},
   search,
   site::{breadcrumbs, header_items, image_asset_ids, markdown_path, nav_tree, output_path, previous_next},
-  target::{OutputFile, PublishTarget},
+  target::{Deployed, OutputFile, PublishTarget},
 };
 
 /// The browser-side files every page links to; embedded in the binary and written into each release.
@@ -147,6 +147,60 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
 
   /// Publishes every page's latest saved draft as a new release and makes it live.
   pub async fn publish(&self, user: UserId) -> Result<Release, PublishError> {
+    self.build(user, true).await
+  }
+
+  /// Builds a release from every page's latest saved draft and hands it to the target without making it live: it can be looked at, and
+  /// then promoted.
+  pub async fn preview(&self, user: UserId) -> Result<Release, PublishError> {
+    if !self.target.capabilities().preview {
+      return Err(PublishError::Core(yourdocs_core::CoreError::Invalid("this publish target has no previews".into())));
+    }
+
+    self.build(user, false).await
+  }
+
+  /// Makes a preview the live site, exactly as it was built. A preview older than the live site is refused: it would put back what
+  /// was published since, and a new preview takes a moment.
+  pub async fn promote(&self, id: ReleaseId) -> Result<Release, PublishError> {
+    let _turn = self.running.lock().await;
+
+    let (release, version) = get_release(&self.db, id).await?;
+    if release.status != ReleaseStatus::Preview {
+      return Err(PublishError::Core(yourdocs_core::CoreError::Invalid("only a preview can be promoted".into())));
+    }
+    if latest_live_release(&self.db).await?.is_some_and(|live| live.id > release.id) {
+      return Err(PublishError::Stale("the site was published after this preview was made; make a new preview".into()));
+    }
+
+    self.target.promote(release.id, version.as_deref()).await?;
+    self.make_live(release.id).await?;
+    tracing::info!(release_id = %release.id, "preview promoted");
+    self.broadcast.send(Event::Published { release: release.id });
+
+    Ok(Release {
+      status: ReleaseStatus::Live,
+      preview_url: None,
+      ..release
+    })
+  }
+
+  async fn make_live(&self, id: ReleaseId) -> Result<(), PublishError> {
+    // The site is already live: a failure here leaves the record behind it, which the log has to say.
+    if let Err(error) = make_release_live(&self.db, id).await {
+      tracing::error!(release_id = %id, %error, "the release is live but could not be marked so");
+      return Err(error.into());
+    }
+    // Every live release is rendered by these bundles; the next start republishes only when they change. Failing to note it only costs
+    // a needless republish, so it does not turn a live release into an error.
+    if let Err(error) = set_setting(&self.db, BUNDLES_SETTING, &self.bundles.hash).await {
+      tracing::warn!(release_id = %id, %error, "could not record the bundles of the live release");
+    }
+
+    Ok(())
+  }
+
+  async fn build(&self, user: UserId, live: bool) -> Result<Release, PublishError> {
     let _turn = self.running.lock().await;
 
     let tree_pages = list_pages(&self.db).await?;
@@ -177,7 +231,7 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
     )
     .await?;
 
-    self.deploy(release, &tree_pages, &rules, &sources, &settings).await
+    self.deploy(release, &tree_pages, &rules, &sources, &settings, live).await
   }
 
   /// Renders the live release again when the bundles changed since it was last rendered: the same pages at the same revisions, the same
@@ -240,32 +294,30 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
       &settings,
     )
     .await?;
-    let release = self.deploy(release, &live.pages, &live.redirects, &sources, &settings).await?;
+    let release = self.deploy(release, &live.pages, &live.redirects, &sources, &settings, true).await?;
     tracing::info!(release_id = %release.id, pages = release.page_count, "republished for new bundles");
 
     Ok(Some(release))
   }
 
-  /// Renders and deploys a release that was just created, then marks it live (or failed).
-  async fn deploy(&self, release: Release, tree_pages: &[Page], rules: &[(String, String)], sources: &[PageSource], settings: &Settings) -> Result<Release, PublishError> {
-    match self.build_and_deploy(&release, tree_pages, rules, sources, settings).await {
-      Ok(()) => {
-        // The site is already live: a failure here leaves the record behind it, which the log has to say.
-        if let Err(error) = set_release_status(&self.db, release.id, ReleaseStatus::Live).await {
-          tracing::error!(release_id = %release.id, %error, "the release is live but could not be marked so");
-          return Err(error.into());
+  /// Renders and hands over a release that was just created, then marks it live, as a preview, or failed.
+  async fn deploy(&self, release: Release, tree_pages: &[Page], rules: &[(String, String)], sources: &[PageSource], settings: &Settings, live: bool) -> Result<Release, PublishError> {
+    match self.build_and_deploy(&release, tree_pages, rules, sources, settings, live).await {
+      Ok(deployed) => {
+        let status = if live { ReleaseStatus::Live } else { ReleaseStatus::Preview };
+        // A live release stays `building` until `make_live` swaps it for the previous live one in one step.
+        let recorded = if live { ReleaseStatus::Building } else { ReleaseStatus::Preview };
+        set_release_deployment(&self.db, release.id, recorded, deployed.version, deployed.preview_url.clone()).await?;
+        if live {
+          self.make_live(release.id).await?;
+          self.broadcast.send(Event::Published { release: release.id });
         }
-        // Every live release is rendered by these bundles; the next start republishes only when they change. Failing to note it only costs
-        // a needless republish, so it does not turn a live release into an error.
-        if let Err(error) = set_setting(&self.db, BUNDLES_SETTING, &self.bundles.hash).await {
-          tracing::warn!(release_id = %release.id, %error, "could not record the bundles of the live release");
-        }
-        tracing::info!(release_id = %release.id, pages = sources.len(), "release is live");
-        self.broadcast.send(Event::Published { release: release.id });
+        tracing::info!(release_id = %release.id, pages = sources.len(), live, "release is built");
 
         Ok(Release {
-          status: ReleaseStatus::Live,
+          status,
           page_count: sources.len() as u32,
+          preview_url: deployed.preview_url,
           ..release
         })
       }
@@ -351,7 +403,7 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
   }
 
   /// Renders everything, then deploys. Nothing reaches the target unless every page rendered.
-  async fn build_and_deploy(&self, release: &Release, tree_pages: &[Page], rules: &[(String, String)], sources: &[PageSource], settings: &Settings) -> Result<(), PublishError> {
+  async fn build_and_deploy(&self, release: &Release, tree_pages: &[Page], rules: &[(String, String)], sources: &[PageSource], settings: &Settings, live: bool) -> Result<Deployed, PublishError> {
     let pages: Vec<Page> = sources.iter().map(|s| s.page.clone()).collect();
     let urls = page_urls(tree_pages);
     let header = header_items(tree_pages, &urls);
@@ -561,6 +613,12 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
     files.extend(asset_files);
     files.extend(bundle_files.into_iter().map(|(path, bytes)| OutputFile { path, bytes }));
 
+    // Before anything is recorded or sent: a target that would refuse the site says so while nothing has happened.
+    let refused = self.target.check(&files);
+    if !refused.is_empty() {
+      return Err(PublishError::Rejected(refused));
+    }
+
     // Recorded before the switch: once the site is live, what it holds must already be known.
     add_release_pages(&self.db, release.id, hashes).await?;
     let specs: Vec<ReleaseSpec> = apis
@@ -574,9 +632,8 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
       })
       .collect();
     record_release_specs(&self.db, release.id, &specs).await?;
-    self.target.publish(release.id, files).await?;
 
-    Ok(())
+    self.target.publish(release.id, files, live).await
   }
 
   /// The image files the pages use, and what the renderer needs to know about them.
@@ -774,6 +831,15 @@ mod tests {
   }
 
   async fn fixture_with(api_hosts: ApiHosts) -> Fixture {
+    fixture_for(api_hosts, false).await
+  }
+
+  /// A publisher whose target is the self-hosted one, which can hold builds that are not live.
+  async fn self_hosted_fixture() -> Fixture {
+    fixture_for(ApiHosts::default(), true).await
+  }
+
+  async fn fixture_for(api_hosts: ApiHosts, self_hosted: bool) -> Fixture {
     let dir = std::env::temp_dir().join(format!("yourdocs-publish-{}", uuid::Uuid::now_v7()));
     std::fs::create_dir_all(&dir).unwrap();
     let db = connect(&dir.join("test.db")).await.unwrap();
@@ -787,7 +853,11 @@ mod tests {
       content: content.clone(),
       assets: Arc::new(LocalAssetStore::new(&dir.join("assets")).unwrap()),
       pool,
-      target: PublishTarget::Folder(FolderTarget::new(dir.join("out"))),
+      target: if self_hosted {
+        PublishTarget::SelfHosted(FolderTarget::new(dir.join("out")))
+      } else {
+        PublishTarget::Folder(FolderTarget::new(dir.join("out")))
+      },
       bundles: Bundles::new("ssr", b"console.log(1)".to_vec(), b"body{}".to_vec(), b"window.Scalar = {}".to_vec()),
       config: PublishConfig {
         site_url: "https://docs.example.com".into(),
@@ -821,6 +891,52 @@ mod tests {
 
     found.sort();
     found
+  }
+
+  #[tokio::test]
+  async fn a_preview_is_built_without_going_live_and_promoting_it_switches_the_site() {
+    let f = self_hosted_fixture().await;
+    let user = UserId::new();
+    create_page(&f.db, user, None, "Guide", Placement::Last).await.unwrap();
+
+    let preview = f.publisher.preview(user).await.unwrap();
+
+    assert_eq!(preview.status, ReleaseStatus::Preview);
+    assert!(f.dir.join("out/releases").join(preview.id.to_string()).join("guide/index.html").is_file(), "the build is on disk");
+    assert!(!f.dir.join("out/site").exists(), "but the site has not switched");
+    assert!(latest_live_release(&f.db).await.unwrap().is_none());
+
+    let live = f.publisher.promote(preview.id).await.unwrap();
+
+    assert_eq!(live.status, ReleaseStatus::Live);
+    assert_eq!(latest_live_release(&f.db).await.unwrap().unwrap().id, preview.id);
+    assert!(f.dir.join("out/site/guide/index.html").is_file(), "the site is the build that was looked at");
+    // Once live, it is not a preview any more.
+    assert!(f.publisher.promote(preview.id).await.is_err());
+  }
+
+  #[tokio::test]
+  async fn a_preview_older_than_the_live_site_cannot_be_promoted() {
+    let f = self_hosted_fixture().await;
+    let user = UserId::new();
+    create_page(&f.db, user, None, "Guide", Placement::Last).await.unwrap();
+
+    let old = f.publisher.preview(user).await.unwrap();
+    let published = f.publisher.publish(user).await.unwrap();
+    let error = f.publisher.promote(old.id).await.expect_err("the site moved on");
+
+    assert!(matches!(error, PublishError::Stale(_)), "{error}");
+    // The newer release is the only live one.
+    let (first, _) = yourdocs_store::get_release(&f.db, old.id).await.unwrap();
+    let (second, _) = yourdocs_store::get_release(&f.db, published.id).await.unwrap();
+    assert_eq!((first.status, second.status), (ReleaseStatus::Preview, ReleaseStatus::Live));
+  }
+
+  #[tokio::test]
+  async fn a_target_without_previews_refuses_one() {
+    let f = fixture().await;
+
+    assert!(f.publisher.preview(UserId::new()).await.is_err());
   }
 
   #[tokio::test]

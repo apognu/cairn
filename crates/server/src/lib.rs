@@ -174,9 +174,10 @@ pub async fn run_serve() -> anyhow::Result<()> {
   let target = match &config.target {
     config::TargetChoice::SelfHosted => yourdocs_publish::PublishTarget::SelfHosted(yourdocs_publish::FolderTarget::new(config.data_dir.clone())),
     config::TargetChoice::Folder(dir) => yourdocs_publish::PublishTarget::Folder(yourdocs_publish::FolderTarget::new(dir.clone())),
+    config::TargetChoice::Cloudflare(cloudflare) => yourdocs_publish::PublishTarget::Cloudflare(yourdocs_publish::CloudflareTarget::new(cloudflare.clone())?),
   };
   let setup = AuthSetup::Oidc(Box::new(config.oidc.clone()), config.github.clone(), redirect);
-  let Runtime { state, .. } = prepare(&config.data_dir, config.public_url.clone(), setup, target).await?;
+  let Runtime { state, .. } = prepare(&config.data_dir, config.site_url.clone(), setup, target).await?;
 
   let listener = tokio::net::TcpListener::bind(config.bind).await.with_context(|| format!("cannot bind {}", config.bind))?;
   tracing::info!(address = %config.bind, public_url = %config.public_url, "listening");

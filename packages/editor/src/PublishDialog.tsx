@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef } from "react";
 import type { components } from "./api/schema";
 import { Icon } from "./icons";
-import { pendingCount, useChecks, usePending, usePublish } from "./queries";
+import { pendingCount, useChecks, usePending, usePreview, usePromote, usePublish, useSiteInfo } from "./queries";
 
 type Change = components["schemas"]["Change"];
 
@@ -22,6 +22,10 @@ export function PublishDialog({ onClose, onPublished }: { onClose: () => void; o
   const publish = usePublish();
   const checks = useChecks();
   const problems = checks.data ?? [];
+  const site = useSiteInfo();
+  const preview = usePreview();
+  const promote = usePromote();
+  const previewed = preview.data;
 
   useEffect(() => dialog.current?.showModal(), []);
 
@@ -133,18 +137,57 @@ export function PublishDialog({ onClose, onPublished }: { onClose: () => void; o
         </table>
       )}
 
-      {publish.isError && (
+      {previewed && (
+        <output className="publish-preview">
+          <span>
+            Preview ready:{" "}
+            <a href={previewed.preview_url ?? `/_preview/${previewed.id}/`} target="_blank" rel="noopener">
+              open it in a new tab
+            </a>
+            . Promote it to make exactly this build the live site.
+          </span>
+        </output>
+      )}
+      {(publish.isError || preview.isError || promote.isError) && (
         <p role="alert" className="error-text">
-          {publish.error.message}
+          {(publish.error ?? preview.error ?? promote.error)?.message}
         </p>
       )}
       <div className="dialog-actions">
         <button type="button" onClick={() => dialog.current?.close()}>
-          Cancel
+          {previewed ? "Close" : "Cancel"}
         </button>
+        {site.data?.capabilities.preview && !previewed && (
+          <button
+            type="button"
+            disabled={
+              preview.isPending || publish.isPending || pending.isPending || checks.isPending || problems.length > 0
+            }
+            onClick={() => preview.mutate()}
+          >
+            {preview.isPending ? "Building preview…" : "Deploy preview"}
+          </button>
+        )}
+        {previewed && (
+          <button
+            type="button"
+            className="primary"
+            disabled={promote.isPending}
+            onClick={() =>
+              promote.mutate(previewed.id, {
+                onSuccess: (release) => {
+                  onPublished(release.page_count);
+                  dialog.current?.close();
+                },
+              })
+            }
+          >
+            {promote.isPending ? "Promoting…" : "Promote to live"}
+          </button>
+        )}
         <button
           type="button"
-          className="primary"
+          className={previewed ? undefined : "primary"}
           disabled={publish.isPending || pending.isPending || checks.isPending || problems.length > 0}
           onClick={() =>
             publish.mutate(undefined, {

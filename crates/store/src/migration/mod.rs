@@ -13,6 +13,7 @@ mod m0009_release_config;
 mod m0010_users;
 mod m0011_sessions;
 mod m0012_api_tokens;
+mod m0013_release_preview;
 
 struct Migrator;
 
@@ -31,6 +32,7 @@ impl MigratorTrait for Migrator {
       Box::new(m0010_users::Migration),
       Box::new(m0011_sessions::Migration),
       Box::new(m0012_api_tokens::Migration),
+      Box::new(m0013_release_preview::Migration),
     ]
   }
 }

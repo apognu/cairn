@@ -4,6 +4,7 @@
 
 mod api;
 mod changes;
+mod cloudflare;
 mod error;
 mod generated;
 mod markdown;
@@ -14,6 +15,7 @@ mod target;
 
 pub use api::{ApiHosts, Fetched, ResolvedApi, ResolvedSpec, SourceFetcher};
 pub use changes::{OperationAnchors, check, pending};
+pub use cloudflare::{CloudflareConfig, CloudflareTarget, Version};
 pub use error::{ApiProblem, PublishError};
 pub use publisher::{Bundles, PublishConfig, Publisher, PublisherParts};
-pub use target::{Capabilities, FolderTarget, OutputFile, PublishTarget};
+pub use target::{Capabilities, Deployed, FolderTarget, OutputFile, PublishTarget};

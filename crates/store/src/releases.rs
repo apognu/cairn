@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use jiff::Timestamp;
-use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set, sea_query::OnConflict};
+use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set, TransactionTrait, sea_query::OnConflict};
 use yourdocs_core::{ApiConfig, AssetId, Page, PageId, Release, ReleaseId, ReleaseStatus, RevisionId, Settings, UserId};
 
 use crate::{
@@ -25,6 +25,7 @@ pub async fn create_release(db: &DatabaseConnection, user: UserId, tree_snapshot
     status: Set(ReleaseStatus::Building.as_str().into()),
     target_version_id: Set(None),
     settings_snapshot: Set(Some(settings)),
+    preview_url: Set(None),
   }
   .insert(db)
   .await?;
@@ -40,6 +41,46 @@ pub async fn set_release_status(db: &DatabaseConnection, id: ReleaseId, status: 
     .await?;
 
   Ok(())
+}
+
+/// Records what the target answered for a release that was handed over: its version there and, for a preview, where to look at it.
+pub async fn set_release_deployment(db: &DatabaseConnection, id: ReleaseId, status: ReleaseStatus, version: Option<String>, preview_url: Option<String>) -> Result<(), StoreError> {
+  release::Entity::update_many()
+    .col_expr(release::Column::Status, status.as_str().into())
+    .col_expr(release::Column::TargetVersionId, version.into())
+    .col_expr(release::Column::PreviewUrl, preview_url.into())
+    .filter(release::Column::Id.eq(id.as_uuid()))
+    .exec(db)
+    .await?;
+
+  Ok(())
+}
+
+/// Makes a release the live one and the previous live release a superseded one, together.
+pub async fn make_release_live(db: &DatabaseConnection, id: ReleaseId) -> Result<(), StoreError> {
+  let transaction = db.begin().await?;
+
+  release::Entity::update_many()
+    .col_expr(release::Column::Status, ReleaseStatus::Superseded.as_str().into())
+    .filter(release::Column::Status.eq(ReleaseStatus::Live.as_str()))
+    .exec(&transaction)
+    .await?;
+  release::Entity::update_many()
+    .col_expr(release::Column::Status, ReleaseStatus::Live.as_str().into())
+    .filter(release::Column::Id.eq(id.as_uuid()))
+    .exec(&transaction)
+    .await?;
+  transaction.commit().await?;
+
+  Ok(())
+}
+
+/// A release and its version at the target.
+pub async fn get_release(db: &DatabaseConnection, id: ReleaseId) -> Result<(Release, Option<String>), StoreError> {
+  let row = release::Entity::find_by_id(id.as_uuid()).one(db).await?.ok_or(StoreError::NotFound)?;
+  let version = row.target_version_id.clone();
+
+  Ok((into_release(db, row).await?, version))
 }
 
 /// Which revision of each page went into a release, and the hash of the HTML built from it.
@@ -122,6 +163,7 @@ async fn into_release(db: &DatabaseConnection, row: release::Model) -> Result<Re
     created_at: row.created_at.parse().map_err(|e| StoreError::Invalid(format!("bad timestamp: {e}")))?,
     status: ReleaseStatus::parse(&row.status).ok_or_else(|| StoreError::Invalid(format!("unknown release status {}", row.status)))?,
     page_count: page_count as u32,
+    preview_url: row.preview_url,
   })
 }
 

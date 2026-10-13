@@ -27,7 +27,7 @@ pub(crate) fn serve_router(state: AppState) -> Router {
   // Only a self-hosted site is served here; a folder target is served by whatever the deployer put in front of it.
   match state.publisher.target() {
     PublishTarget::SelfHosted(_) => router.fallback_service(site::public_router(state.publisher.target().site_dir().expect("a self-hosted target has a site folder"))),
-    PublishTarget::Folder(_) => router,
+    PublishTarget::Folder(_) | PublishTarget::Cloudflare(_) => router,
   }
   .with_state(state)
 }

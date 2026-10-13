@@ -453,6 +453,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/publish/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Builds the latest saved drafts as a release that is not live: it can be looked at (`preview_url` when the target gives it an address of
+         *     its own, `/_preview/<id>/` when it is self-hosted) and then promoted. Only for targets that can do it.
+         */
+        post: operations["publishPreview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/redirects": {
         parameters: {
             query?: never;
@@ -467,6 +487,23 @@ export interface paths {
         post: operations["addRedirect"];
         /** Deletes a redirect. */
         delete: operations["removeRedirect"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/releases/{id}/promote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Makes a preview the live site, exactly as it was built. */
+        post: operations["promoteRelease"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1048,12 +1085,14 @@ export interface components {
              * @description How many pages the release contains.
              */
             page_count: number;
+            /** @description Where a preview can be looked at, when its target gives it an address of its own. */
+            preview_url?: string | null;
             status: components["schemas"]["ReleaseStatus"];
         };
         /** @description An immutable published state of the whole site. */
         ReleaseId: string;
         /** @enum {string} */
-        ReleaseStatus: "building" | "live" | "failed";
+        ReleaseStatus: "building" | "preview" | "live" | "superseded" | "failed";
         RenamePage: {
             /** @description The new target of a link; refused for pages. */
             external_url?: string | null;
@@ -2362,6 +2401,34 @@ export interface operations {
             };
         };
     };
+    publishPreview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Release"];
+                };
+            };
+            /** @description the target has no previews, the checks found problems, or the target would refuse the site */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     listRedirects: {
         parameters: {
             query?: never;
@@ -2442,6 +2509,53 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    promoteRelease: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["ReleaseId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Release"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description the site was published after the preview was made */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description the release is not a preview */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -8,7 +8,12 @@ use crate::{ReleaseId, UserId};
 #[serde(rename_all = "snake_case")]
 pub enum ReleaseStatus {
   Building,
+  /// Built and handed to the target, but not the site: it can be looked at and then promoted.
+  Preview,
+  /// The site as it is now. At most one release is live.
   Live,
+  /// Was live; a later release replaced it.
+  Superseded,
   Failed,
 }
 
@@ -16,13 +21,15 @@ impl ReleaseStatus {
   pub fn as_str(self) -> &'static str {
     match self {
       ReleaseStatus::Building => "building",
+      ReleaseStatus::Preview => "preview",
       ReleaseStatus::Live => "live",
+      ReleaseStatus::Superseded => "superseded",
       ReleaseStatus::Failed => "failed",
     }
   }
 
   pub fn parse(value: &str) -> Option<Self> {
-    [Self::Building, Self::Live, Self::Failed].into_iter().find(|s| s.as_str() == value)
+    [Self::Building, Self::Preview, Self::Live, Self::Superseded, Self::Failed].into_iter().find(|s| s.as_str() == value)
   }
 }
 
@@ -39,4 +46,7 @@ pub struct Release {
   pub status: ReleaseStatus,
   /// How many pages the release contains.
   pub page_count: u32,
+  /// Where a preview can be looked at, when its target gives it an address of its own.
+  #[serde(default)]
+  pub preview_url: Option<String>,
 }

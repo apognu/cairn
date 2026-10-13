@@ -105,6 +105,22 @@ export function usePublish() {
   });
 }
 
+/** Builds the pending changes without making them live. Only targets with previews offer it. */
+export function usePreview() {
+  return useMutation({ mutationFn: async () => unwrap(await api.POST("/api/publish/preview")) });
+}
+
+/** Makes a preview the live site. */
+export function usePromote() {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) =>
+      unwrap(await api.POST("/api/releases/{id}/promote", { params: { path: { id } } })),
+    onSuccess: () => client.invalidateQueries({ queryKey: PENDING }),
+  });
+}
+
 /** Where the published site lives. Fixed for the life of the server. */
 export function useSiteInfo() {
   return useQuery({

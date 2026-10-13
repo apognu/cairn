@@ -19,6 +19,8 @@ pub(crate) struct Config {
 
   // Publishing
   pub(crate) target: TargetChoice,
+  /// Where readers find the site: `PUBLIC_URL` when this server serves it, otherwise wherever the target puts it (`SITE_URL`).
+  pub(crate) site_url: String,
 
   // OIDC
   pub(crate) oidc: OidcSettings,
@@ -45,6 +47,8 @@ pub(crate) enum TargetChoice {
   SelfHosted,
   /// Written to a folder that something else serves.
   Folder(PathBuf),
+  /// Uploaded to a Cloudflare Worker with static assets.
+  Cloudflare(yourdocs_publish::CloudflareConfig),
 }
 
 #[derive(Debug, Clone)]
@@ -179,6 +183,7 @@ impl Config {
     Ok(Self {
       bind: parsed("BIND", "0.0.0.0:8080")?,
       data_dir: var("DATA_DIR").map_or_else(|| PathBuf::from("/data"), PathBuf::from),
+      site_url: var("SITE_URL").map_or_else(|| public_url.clone(), |url| url.trim_end_matches('/').to_string()),
       public_url,
       trusted_proxies: crate::proxy::TrustedProxies::parse(&var("TRUSTED_PROXIES").unwrap_or_default()).map_err(|e| anyhow::anyhow!("TRUSTED_PROXIES: {e}"))?,
       target: match var("PUBLISH_TARGET").as_deref().unwrap_or("self-hosted") {
@@ -188,7 +193,16 @@ impl Config {
             .map(PathBuf::from)
             .context("PUBLISH_TARGET=folder needs PUBLISH_DIR, the folder to write the site to")?,
         ),
-        other => bail!("PUBLISH_TARGET={other} is not available: use self-hosted or folder"),
+        "cloudflare" => TargetChoice::Cloudflare(yourdocs_publish::CloudflareConfig {
+          account_id: required("CLOUDFLARE_ACCOUNT_ID").context("PUBLISH_TARGET=cloudflare needs CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN and CLOUDFLARE_WORKER")?,
+          api_token: required("CLOUDFLARE_API_TOKEN")?,
+          worker: required("CLOUDFLARE_WORKER")?,
+          api_url: var("CLOUDFLARE_API_URL")
+            .unwrap_or_else(|| "https://api.cloudflare.com/client/v4".into())
+            .trim_end_matches('/')
+            .to_string(),
+        }),
+        other => bail!("PUBLISH_TARGET={other} is not available: use self-hosted, folder or cloudflare"),
       },
       github: github(&var)?,
       oidc: OidcSettings {
@@ -270,6 +284,18 @@ mod tests {
       TargetChoice::Folder("/srv/site".into())
     );
     assert!(with(&[("PUBLISH_TARGET", "folder")]).is_err());
+    assert!(with(&[("PUBLISH_TARGET", "cloudflare"), ("CLOUDFLARE_ACCOUNT_ID", "a")]).is_err());
+    let cloudflare = [
+      ("PUBLISH_TARGET", "cloudflare"),
+      ("CLOUDFLARE_ACCOUNT_ID", "a"),
+      ("CLOUDFLARE_API_TOKEN", "t"),
+      ("CLOUDFLARE_WORKER", "docs"),
+      ("SITE_URL", "https://docs.example.org/"),
+    ];
+    let config = with(&cloudflare).unwrap();
+    assert!(matches!(config.target, TargetChoice::Cloudflare(c) if c.worker == "docs"));
+    assert_eq!(config.site_url, "https://docs.example.org", "the site is not served from the editor's address");
+    assert_eq!(with(&[]).unwrap().site_url, "https://docs.example.com");
     assert!(with(&[("PUBLISH_TARGET", "ftp")]).is_err());
   }
 

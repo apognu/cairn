@@ -16,6 +16,12 @@ pub enum PublishError {
   /// API reference pages whose specs could not be resolved; nothing was published.
   #[error("{}", api_summary(.0))]
   Api(Vec<ApiProblem>),
+  /// The publish target would refuse the site (a file too large, too many redirects); nothing was sent.
+  #[error("the publish target cannot take this site: {}", .0.join("; "))]
+  Rejected(Vec<String>),
+  /// A preview that can no longer be promoted as it is.
+  #[error("{0}")]
+  Stale(String),
   #[error(transparent)]
   Store(#[from] StoreError),
   #[error(transparent)]

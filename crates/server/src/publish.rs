@@ -1,10 +1,13 @@
-use axum::{Json, extract::State};
+use axum::{
+  Json,
+  extract::{Path, State},
+};
 use serde::Serialize;
 use tracing::instrument;
 use utoipa::ToSchema;
 use utoipa_axum::{router::OpenApiRouter, routes};
 use yourdocs_auth::CurrentUser;
-use yourdocs_core::{Pending, Problem, Release};
+use yourdocs_core::{Pending, Problem, Release, ReleaseId};
 
 use crate::{
   app::AppState,
@@ -12,7 +15,13 @@ use crate::{
 };
 
 pub(crate) fn routes() -> OpenApiRouter<AppState> {
-  OpenApiRouter::new().routes(routes!(publish)).routes(routes!(changes)).routes(routes!(checks)).routes(routes!(site))
+  OpenApiRouter::new()
+    .routes(routes!(publish))
+    .routes(routes!(preview))
+    .routes(routes!(promote))
+    .routes(routes!(changes))
+    .routes(routes!(checks))
+    .routes(routes!(site))
 }
 
 #[derive(Serialize, ToSchema)]
@@ -49,6 +58,29 @@ async fn site(State(state): State<AppState>) -> Json<SiteInfo> {
 #[instrument(skip_all)]
 async fn publish(State(state): State<AppState>, CurrentUser(user): CurrentUser) -> Result<Json<Release>, AppError> {
   Ok(Json(state.publisher.publish(user).await?))
+}
+
+/// Builds the latest saved drafts as a release that is not live: it can be looked at (`preview_url` when the target gives it an address of
+/// its own, `/_preview/<id>/` when it is self-hosted) and then promoted. Only for targets that can do it.
+#[utoipa::path(post, path = "/api/publish/preview", operation_id = "publishPreview", responses(
+  (status = 200, body = Release),
+  (status = 422, body = ErrorBody, description = "the target has no previews, the checks found problems, or the target would refuse the site"),
+))]
+#[instrument(skip_all)]
+async fn preview(State(state): State<AppState>, CurrentUser(user): CurrentUser) -> Result<Json<Release>, AppError> {
+  Ok(Json(state.publisher.preview(user).await?))
+}
+
+/// Makes a preview the live site, exactly as it was built.
+#[utoipa::path(post, path = "/api/releases/{id}/promote", operation_id = "promoteRelease", params(("id" = ReleaseId, Path)), responses(
+  (status = 200, body = Release),
+  (status = 404, body = ErrorBody),
+  (status = 409, body = ErrorBody, description = "the site was published after the preview was made"),
+  (status = 422, body = ErrorBody, description = "the release is not a preview"),
+))]
+#[instrument(skip_all)]
+async fn promote(State(state): State<AppState>, _user: CurrentUser, Path(id): Path<ReleaseId>) -> Result<Json<Release>, AppError> {
+  Ok(Json(state.publisher.promote(id).await?))
 }
 
 /// What the next publish would change compared with the live site, and the live URLs it would break.

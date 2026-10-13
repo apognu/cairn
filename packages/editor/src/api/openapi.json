@@ -1410,6 +1410,33 @@
         }
       }
     },
+    "/api/publish/preview": {
+      "post": {
+        "summary": "Builds the latest saved drafts as a release that is not live: it can be looked at (`preview_url` when the target gives it an address of\nits own, `/_preview/<id>/` when it is self-hosted) and then promoted. Only for targets that can do it.",
+        "operationId": "publishPreview",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Release"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "the target has no previews, the checks found problems, or the target would refuse the site",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/redirects": {
       "get": {
         "summary": "Every redirect of the site, with where it leads and whether it is written.",
@@ -1504,6 +1531,62 @@
             }
           },
           "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/releases/{id}/promote": {
+      "post": {
+        "summary": "Makes a preview the live site, exactly as it was built.",
+        "operationId": "promoteRelease",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/ReleaseId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Release"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "the site was published after the preview was made",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "the release is not a preview",
             "content": {
               "application/json": {
                 "schema": {
@@ -3125,6 +3208,13 @@
             "description": "How many pages the release contains.",
             "minimum": 0
           },
+          "preview_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Where a preview can be looked at, when its target gives it an address of its own."
+          },
           "status": {
             "$ref": "#/components/schemas/ReleaseStatus"
           }
@@ -3138,7 +3228,9 @@
         "type": "string",
         "enum": [
           "building",
+          "preview",
           "live",
+          "superseded",
           "failed"
         ]
       },
