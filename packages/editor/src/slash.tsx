@@ -1,6 +1,8 @@
 import { type Editor, Extension, type Range } from "@tiptap/core";
 import { ReactRenderer } from "@tiptap/react";
 import Suggestion, { type SuggestionKeyDownProps, type SuggestionProps } from "@tiptap/suggestion";
+import { customComponents } from "@yourdocs/components/custom";
+import { sampleProps } from "@yourdocs/sdk";
 import { Fragment, forwardRef, useEffect, useImperativeHandle, useState } from "react";
 import { Icon, type IconName } from "./icons";
 import { pickAndInsertImages } from "./upload";
@@ -204,6 +206,26 @@ export const slashItems: SlashItem[] = [
 
 // Components come first, as in the menu design; the sort is stable, so each group keeps its order.
 const groupOrder: SlashItem["group"][] = ["Components", "Reusable", "Basic"];
+
+// The deployer's components, from the folder `build-components` bundled. A new one starts with props that satisfy its schema.
+slashItems.push(
+  ...customComponents.map((component) =>
+    item(
+      "Components",
+      "grid",
+      component.title,
+      component.description ?? "Custom component",
+      `${component.name} ${component.keywords ?? ""} custom`,
+      (e, r) =>
+        e
+          .chain()
+          .focus()
+          .deleteRange(r)
+          .insertContent({ type: component.name, attrs: sampleProps(component) })
+          .run(),
+    ),
+  ),
+);
 
 export function filterSlashItems(query: string): SlashItem[] {
   const text = query.toLowerCase().trim();

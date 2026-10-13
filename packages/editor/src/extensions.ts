@@ -15,6 +15,7 @@ import {
   variable,
   whatsNew,
 } from "@yourdocs/components";
+import { customComponents } from "@yourdocs/components/custom";
 import { type AnyComponent, propsSchema, VERSION_ATTR } from "@yourdocs/sdk";
 import { ComponentView } from "./ComponentView";
 import { PageLink, PagePickerTriggers } from "./pageLink";
@@ -314,6 +315,7 @@ export const buildExtensions = (editable: boolean) => [
   atomComponent(fileTree as unknown as AnyComponent),
   atomComponent(variable as unknown as AnyComponent, true),
   atomComponent(snippet as unknown as AnyComponent),
+  ...customComponents.map((component) => atomComponent(component)),
   UniqueID.configure({ types: blockTypes }),
   ...(editable ? [SlashCommand, PagePickerTriggers] : []),
 ];
