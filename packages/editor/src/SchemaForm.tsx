@@ -1,7 +1,7 @@
 import type { JsonSchema } from "@yourdocs/sdk";
 import { useId, useState } from "react";
 import { PagePicker } from "./PagePicker";
-import { usePages } from "./queries";
+import { useLibrary, usePages } from "./queries";
 
 type Values = Record<string, unknown>;
 
@@ -101,6 +101,8 @@ function Field({
           value={String(value ?? "")}
           onChange={(e) => onChange(e.target.value || undefined)}
         />
+      ) : schema["x-field"] === "variable" || schema["x-field"] === "snippet" ? (
+        <LibraryKey id={id} kind={schema["x-field"]} value={String(value ?? "")} onChange={(next) => onChange(next)} />
       ) : schema["x-field"] === "text" ? (
         <textarea id={id} rows={6} value={String(value ?? "")} onChange={(e) => onChange(e.target.value)} />
       ) : schema.enum ? (
@@ -242,5 +244,34 @@ function PageField({ id, value, onChange }: { id: string; value: string; onChang
         />
       )}
     </div>
+  );
+}
+
+/** A component's variable or snippet field: a choice among the library's entries of that kind. */
+function LibraryKey({
+  id,
+  kind,
+  value,
+  onChange,
+}: {
+  id: string;
+  kind: "variable" | "snippet";
+  value: string;
+  onChange: (next: string) => void;
+}) {
+  const library = useLibrary();
+  const keys = library.data?.filter((e) => e.kind === kind).map((e) => e.key) ?? [];
+
+  return (
+    <select id={id} value={value} onChange={(e) => onChange(e.target.value)}>
+      <option value="">Choose a {kind}…</option>
+      {/* An entry that was deleted since still shows, so the choice is visible and can be changed. */}
+      {value && !keys.includes(value) && <option value={value}>{value} (missing)</option>}
+      {keys.map((key) => (
+        <option key={key} value={key}>
+          {key}
+        </option>
+      ))}
+    </select>
   );
 }

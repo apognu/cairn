@@ -77,11 +77,15 @@ test("pages are prefetched on hover and fade between each other", async ({ page,
   await publishAll(page);
 
   const reader = await page.context().newPage();
-  await reader.goto(`${SITE}/${slug}/`);
-  const other = reader.locator(`.site-nav a:not([href="/${slug}/"])`).first();
-  const href = await other.getAttribute("href");
-  await other.hover();
-  await expect(reader.locator(`link[rel="prefetch"][href$="${href}"]`)).toHaveCount(1);
+  let href = "";
+  // A publish by another test reloads open tabs of the site, so the whole look-and-hover is attempted again if the page was replaced.
+  await expect(async () => {
+    await reader.goto(`${SITE}/${slug}/`);
+    const other = reader.locator(`.site-nav a:not([href="/${slug}/"])`).first();
+    href = (await other.getAttribute("href")) ?? "";
+    await other.hover();
+    await expect(reader.locator(`link[rel="prefetch"][href$="${href}"]`)).toHaveCount(1, { timeout: 2000 });
+  }).toPass();
 
   const css = await (
     await request.get(`${SITE}${await reader.locator('link[rel="stylesheet"][href*="site-"]').getAttribute("href")}`)

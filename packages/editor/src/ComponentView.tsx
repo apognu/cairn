@@ -7,7 +7,7 @@ export function ComponentView({ node }: NodeViewProps) {
   const parsed = definition?.props.safeParse(node.attrs);
 
   return (
-    <NodeViewWrapper data-label={definition?.title}>
+    <NodeViewWrapper as={node.isInline ? "span" : "div"} data-label={definition?.title}>
       {definition && parsed?.success ? definition.render(parsed.data, null) : null}
     </NodeViewWrapper>
   );

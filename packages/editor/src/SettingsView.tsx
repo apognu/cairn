@@ -1,9 +1,14 @@
+import { LibrarySettings } from "./LibrarySettings";
 import { RedirectsSettings } from "./RedirectsSettings";
 import { SiteSettings } from "./SiteSettings";
 
-export type SettingsSection = "site" | "redirects";
+export type SettingsSection = "site" | "library" | "redirects";
 
-export const sectionTitle: Record<SettingsSection, string> = { site: "Site and theme", redirects: "Redirects" };
+export const sectionTitle: Record<SettingsSection, string> = {
+  site: "Site and theme",
+  library: "Library",
+  redirects: "Redirects",
+};
 
 /** The settings of the whole site, one section at a time. */
 export function SettingsView({
@@ -38,7 +43,9 @@ export function SettingsView({
           ))}
         </ul>
       </nav>
-      <main className="canvas settings-main">{section === "site" ? <SiteSettings /> : <RedirectsSettings />}</main>
+      <main className="canvas settings-main">
+        {section === "site" ? <SiteSettings /> : section === "library" ? <LibrarySettings /> : <RedirectsSettings />}
+      </main>
     </>
   );
 }

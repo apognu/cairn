@@ -204,3 +204,34 @@ export function useDeleteImpact(id: string) {
     queryFn: async () => unwrap(await api.GET("/api/pages/{id}/impact", { params: { path: { id } } })),
   });
 }
+
+const LIBRARY = ["library"];
+
+/** The variables and snippets of the library. */
+export function useLibrary() {
+  return useQuery({ queryKey: LIBRARY, queryFn: async () => unwrap(await api.GET("/api/library")) });
+}
+
+function useLibraryMutation<V>(run: (vars: V) => Promise<components["schemas"]["LibraryEntry"][]>) {
+  const client = useQueryClient();
+
+  return useMutation({ mutationFn: run, onSuccess: (entries) => client.setQueryData(LIBRARY, entries) });
+}
+
+export function useSaveVariable() {
+  return useLibraryMutation(async ({ key, value }: { key: string; value: string }) =>
+    unwrap(await api.PUT("/api/library/variables/{key}", { params: { path: { key } }, body: { value } })),
+  );
+}
+
+export function useSaveSnippet() {
+  return useLibraryMutation(async ({ key, doc }: { key: string; doc: unknown }) =>
+    unwrap(await api.PUT("/api/library/snippets/{key}", { params: { path: { key } }, body: { doc } })),
+  );
+}
+
+export function useDeleteEntry() {
+  return useLibraryMutation(async (id: string) =>
+    unwrap(await api.DELETE("/api/library/{id}", { params: { path: { id } } })),
+  );
+}

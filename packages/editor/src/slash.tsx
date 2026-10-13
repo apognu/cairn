@@ -6,7 +6,7 @@ import { Icon, type IconName } from "./icons";
 import { pickAndInsertImages } from "./upload";
 
 export interface SlashItem {
-  group: "Components" | "Basic";
+  group: "Components" | "Reusable" | "Basic";
   icon: IconName;
   title: string;
   hint: string;
@@ -110,30 +110,24 @@ export const slashItems: SlashItem[] = [
       })
       .run(),
   ),
-  item(
-    "Components",
-    "code",
-    "Code group",
-    "The same code in several languages",
-    "code group tabs languages snippets",
-    (e, r) =>
-      e
-        .chain()
-        .focus()
-        .deleteRange(r)
-        .insertContent({
-          type: "tabs",
-          attrs: { variant: "code" },
-          content: [
-            { label: "npm", language: "bash" },
-            { label: "yarn", language: "bash" },
-          ].map(({ label, language }) => ({
-            type: "tabPanel",
-            attrs: { label },
-            content: [{ type: "codeBlock", attrs: { language } }],
-          })),
-        })
-        .run(),
+  item("Components", "code", "Code group", "The same code in several languages", "code group tabs languages", (e, r) =>
+    e
+      .chain()
+      .focus()
+      .deleteRange(r)
+      .insertContent({
+        type: "tabs",
+        attrs: { variant: "code" },
+        content: [
+          { label: "npm", language: "bash" },
+          { label: "yarn", language: "bash" },
+        ].map(({ label, language }) => ({
+          type: "tabPanel",
+          attrs: { label },
+          content: [{ type: "codeBlock", attrs: { language } }],
+        })),
+      })
+      .run(),
   ),
   item("Components", "numbered", "Steps", "A numbered procedure", "steps procedure numbered how to", (e, r) =>
     e
@@ -174,6 +168,28 @@ export const slashItems: SlashItem[] = [
       .insertContent({ type: "relatedPages", attrs: { title: "Related", pages: [] } })
       .run(),
   ),
+  item(
+    "Reusable",
+    "link",
+    "Snippet",
+    "Insert shared content, e.g. Prerequisites",
+    "snippet shared reusable include",
+    (e, r) =>
+      e
+        .chain()
+        .focus()
+        .deleteRange(r)
+        .insertContent({ type: "snippet", attrs: { key: "" } })
+        .run(),
+  ),
+  item("Reusable", "code", "Variable", "A value such as the latest version", "variable value reusable", (e, r) =>
+    e
+      .chain()
+      .focus()
+      .deleteRange(r)
+      .insertContent({ type: "variable", attrs: { key: "" } })
+      .run(),
+  ),
   item("Basic", "image", "Image", "Upload a picture", "image picture photo upload figure", (e, r) => {
     e.chain().focus().deleteRange(r).run();
     pickAndInsertImages(e);
@@ -187,7 +203,7 @@ export const slashItems: SlashItem[] = [
 ];
 
 // Components come first, as in the menu design; the sort is stable, so each group keeps its order.
-const groupOrder: SlashItem["group"][] = ["Components", "Basic"];
+const groupOrder: SlashItem["group"][] = ["Components", "Reusable", "Basic"];
 
 export function filterSlashItems(query: string): SlashItem[] {
   const text = query.toLowerCase().trim();

@@ -53,7 +53,7 @@ function Editor() {
   // Settings replace the page tree and the canvas; the section lives in the URL like the selected page does.
   const [section, setSection] = useState<SettingsSection | null>(() => {
     const value = new URLSearchParams(window.location.hash.slice(1)).get("settings");
-    return value === "redirects" ? "redirects" : value ? "site" : null;
+    return value === "redirects" || value === "library" ? value : value ? "site" : null;
   });
 
   // Authors see the site's accent color while they write.

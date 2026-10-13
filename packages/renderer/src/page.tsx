@@ -10,7 +10,9 @@ export function Page({ doc, context }: RenderInput) {
   const { list, byNode } = collectHeadings(doc);
 
   return (
-    <RenderEnvContext.Provider value={{ urls: full.urls, pages: full.pages, editing: false, today: full.today }}>
+    <RenderEnvContext.Provider
+      value={{ urls: full.urls, pages: full.pages, variables: {}, snippets: {}, editing: false, today: full.today }}
+    >
       <SiteLayout context={full} headings={list}>
         {renderNode(doc, { urls: full.urls, assets: full.assets, anchors: byNode }, 0)}
       </SiteLayout>

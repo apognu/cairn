@@ -837,3 +837,17 @@ a.link-card:hover {
   height: 34px;
   font-size: 14px;
 }
+
+/* Library content: a variable reads as part of the sentence, a snippet as the page's own blocks. */
+.variable[data-empty],
+.snippet[data-empty] {
+  padding: 0 4px;
+  border: 1px dashed var(--border-input);
+  border-radius: 4px;
+  color: var(--muted);
+}
+
+.snippet[data-empty] {
+  padding: 10px 14px;
+  margin-bottom: 1em;
+}

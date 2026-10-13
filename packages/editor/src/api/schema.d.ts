@@ -16,6 +16,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/library": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every variable and snippet. */
+        get: operations["listLibrary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/library/snippets/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Creates or changes a snippet. One that would include itself is refused, with the chain in the message. */
+        put: operations["saveSnippet"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/library/variables/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Creates or changes a variable. */
+        put: operations["saveVariable"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/library/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Deletes an entry nobody uses. */
+        delete: operations["deleteLibraryEntry"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/pages": {
         parameters: {
             query?: never;
@@ -375,6 +443,11 @@ export interface components {
             base_revision_id?: components["schemas"]["RevisionId"] | null;
             doc: components["schemas"]["Document"];
         };
+        /**
+         * @description What kind of reusable content an entry is.
+         * @enum {string}
+         */
+        EntryKind: "variable" | "snippet" | "term";
         /** @description The body of every error response. */
         ErrorBody: {
             details: string[];
@@ -394,6 +467,16 @@ export interface components {
          * @enum {string}
          */
         Inactive: "page_at_path" | "target_gone" | "loop";
+        /** @description A variable or snippet of the library, with the pages that use it. */
+        LibraryEntry: {
+            doc?: components["schemas"]["Document"] | null;
+            id: string;
+            key: string;
+            kind: components["schemas"]["EntryKind"];
+            /** @description The value of a variable. */
+            text_value?: string | null;
+            used_in: components["schemas"]["UsedBy"][];
+        };
         /**
          * @description How a page refers to another.
          * @enum {string}
@@ -538,8 +621,18 @@ export interface components {
             logo_asset_id?: components["schemas"]["AssetId"] | null;
             site_name: string;
         };
+        SnippetBody: {
+            doc: components["schemas"]["Document"];
+        };
+        UsedBy: {
+            page_id: components["schemas"]["PageId"];
+            title: string;
+        };
         /** @description A user, including the built-in local one. */
         UserId: string;
+        VariableBody: {
+            value: string;
+        };
     };
     responses: never;
     parameters: never;
@@ -589,6 +682,131 @@ export interface operations {
             };
             /** @description not a supported image, too many pixels, or damaged */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    listLibrary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibraryEntry"][];
+                };
+            };
+        };
+    };
+    saveSnippet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SnippetBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibraryEntry"][];
+                };
+            };
+            /** @description not a usable name, or the snippet would include itself */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    saveVariable: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VariableBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibraryEntry"][];
+                };
+            };
+            /** @description not a usable name */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    deleteLibraryEntry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibraryEntry"][];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description pages or snippets still use it */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

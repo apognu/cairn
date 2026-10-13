@@ -4,7 +4,17 @@ import { Table, TableCell, TableHeader, TableRow } from "@tiptap/extension-table
 import UniqueID from "@tiptap/extension-unique-id";
 import { ReactNodeViewRenderer } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import { cards, featureTabs, fileTree, linkCard, relatedPages, seeAlso, whatsNew } from "@yourdocs/components";
+import {
+  cards,
+  featureTabs,
+  fileTree,
+  linkCard,
+  relatedPages,
+  seeAlso,
+  snippet,
+  variable,
+  whatsNew,
+} from "@yourdocs/components";
 import { type AnyComponent, propsSchema } from "@yourdocs/sdk";
 import { ComponentView } from "./ComponentView";
 import { PageLink, PagePickerTriggers } from "./pageLink";
@@ -66,19 +76,20 @@ const CodeWithFileName = CodeBlock.extend({
 });
 
 /** A component without child content: its whole state is its props, edited in the settings panel. */
-function atomComponent(definition: AnyComponent) {
+function atomComponent(definition: AnyComponent, inline = false) {
   const properties = propsSchema(definition).properties ?? {};
 
   return Node.create({
     name: definition.name,
-    group: "block",
+    group: inline ? "inline" : "block",
+    inline,
     atom: true,
     draggable: true,
     addAttributes() {
       return Object.fromEntries(Object.keys(properties).map((key) => [key, { default: properties[key].default }]));
     },
-    parseHTML: () => [{ tag: `div[data-component="${definition.name}"]` }],
-    renderHTML: () => ["div", { "data-component": definition.name }],
+    parseHTML: () => [{ tag: `${inline ? "span" : "div"}[data-component="${definition.name}"]` }],
+    renderHTML: () => [inline ? "span" : "div", { "data-component": definition.name }],
     addNodeView: () => ReactNodeViewRenderer(ComponentView),
   });
 }
@@ -234,6 +245,8 @@ export const buildExtensions = (editable: boolean) => [
   atomComponent(seeAlso as unknown as AnyComponent),
   atomComponent(cards as unknown as AnyComponent),
   atomComponent(fileTree as unknown as AnyComponent),
+  atomComponent(variable as unknown as AnyComponent, true),
+  atomComponent(snippet as unknown as AnyComponent),
   UniqueID.configure({ types: blockTypes }),
   ...(editable ? [SlashCommand, PagePickerTriggers] : []),
 ];

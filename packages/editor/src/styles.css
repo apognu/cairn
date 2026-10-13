@@ -1413,3 +1413,71 @@ button.primary:disabled {
 .drawer > p.muted {
   font-size: 13px;
 }
+
+.snippet-list {
+  margin: 0 0 10px;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--border-input);
+  border-radius: 8px;
+}
+
+.snippet-list > li {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.snippet-list > li:last-child {
+  border-bottom: 0;
+}
+
+.snippet-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.snippet-head .muted {
+  margin-right: auto;
+}
+
+.snippet-head button:not(.icon) {
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--border-input);
+  border-radius: 6px;
+  background: var(--bg);
+  cursor: pointer;
+}
+
+.snippet-editor {
+  margin-top: 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 16px;
+}
+
+.row-inline input {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border-input);
+  border-radius: 6px;
+  background: var(--bg);
+}
+
+/* A snippet is edited in a box inside the settings page: no site margins, no table of contents. */
+.snippet-editor .site-body {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.snippet-editor .doc {
+  max-width: none;
+  padding: 8px 12px;
+}
+
+.snippet-editor .site-toc {
+  display: none;
+}

@@ -1,12 +1,20 @@
 import { EditorContent, useEditor } from "@tiptap/react";
 import { RenderEnvContext } from "@yourdocs/components";
-import { collectHeadings, type DocNode, defaultContext, type RenderContext, SiteLayout } from "@yourdocs/renderer";
+import {
+  collectHeadings,
+  type DocNode,
+  defaultContext,
+  type RenderContext,
+  renderNodes,
+  SiteLayout,
+} from "@yourdocs/renderer";
 import { useEffect, useRef, useState } from "react";
 import { BubbleMenus } from "./BubbleMenus";
 import { buildExtensions } from "./extensions";
 import { PagePicker } from "./PagePicker";
 import { PropsPanel } from "./PropsPanel";
 import { PICKER_EVENT, type PickerRequest, pageUrlRegistry } from "./pageLink";
+import { useLibrary } from "./queries";
 import { insertImages } from "./upload";
 
 interface Props {
@@ -51,6 +59,7 @@ export function Canvas({ doc, context, editable = true, embedded = false, onChan
   const editorRef = useRef(editor);
   editorRef.current = editor;
   const [picker, setPicker] = useState<{ request: PickerRequest; x: number; y: number } | null>(null);
+  const library = useLibrary();
   const [headings, setHeadings] = useState(() => collectHeadings(doc).list);
 
   useEffect(() => {
@@ -83,6 +92,20 @@ export function Canvas({ doc, context, editable = true, embedded = false, onChan
   // Links by page ID show the page's current URL, whichever page moved since they were made.
   pageUrlRegistry.urls = full.urls;
 
+  // What the library holds, as the editor draws it: a variable's value, a snippet's blocks.
+  const entries = library.data ?? [];
+  const variables = Object.fromEntries(
+    entries.filter((e) => e.kind === "variable").map((e) => [e.key, e.text_value ?? ""]),
+  );
+  const snippets = Object.fromEntries(
+    entries
+      .filter((e) => e.kind === "snippet" && e.doc)
+      .map((e) => [
+        e.key,
+        renderNodes((e.doc as DocNode).content, { urls: full.urls, assets: {}, anchors: new WeakMap() }),
+      ]),
+  );
+
   const linkTo = (link: { href: string; pageId: string | null; text: string }) => {
     if (!editor || !picker) return;
     const { request } = picker;
@@ -105,7 +128,9 @@ export function Canvas({ doc, context, editable = true, embedded = false, onChan
   };
 
   return (
-    <RenderEnvContext.Provider value={{ urls: full.urls, pages: full.pages, editing: editable, today: full.today }}>
+    <RenderEnvContext.Provider
+      value={{ urls: full.urls, pages: full.pages, variables, snippets, editing: editable, today: full.today }}
+    >
       <SiteLayout context={full} headings={headings} embedded={embedded}>
         <EditorContent editor={editor} />
         {editor && editable && <BubbleMenus editor={editor} />}

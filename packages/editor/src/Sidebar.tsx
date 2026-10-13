@@ -70,24 +70,26 @@ export function Sidebar({ pages, loading, selected, onSelect }: Props) {
   }, []);
 
   const submit = (title: string, url?: string, keepOldUrl?: boolean) => {
+    // The form that was submitted closes when its request is done, unless the user has since opened another one.
+    const submitted = editing;
+    const closeIfSame = () => setEditing((now) => (now === submitted ? null : now));
+
     if (editing?.kind === "create") {
       // A page made on purpose is a page to write: open it.
       return create.mutateAsync({ parent_id: editing.parent, title }).then(
         (page) => {
           setError(null);
-          setEditing(null);
+          closeIfSame();
           onSelect(page.id);
         },
         (e: unknown) => setError(e instanceof Error ? e.message : String(e)),
       );
     }
     if (editing?.kind === "create-link" && url) {
-      return run(create.mutateAsync({ parent_id: editing.parent, title, external_url: url }), () => setEditing(null));
+      return run(create.mutateAsync({ parent_id: editing.parent, title, external_url: url }), closeIfSame);
     }
     if (editing?.kind === "rename") {
-      return run(rename.mutateAsync({ id: editing.id, title, external_url: url, redirect: keepOldUrl }), () =>
-        setEditing(null),
-      );
+      return run(rename.mutateAsync({ id: editing.id, title, external_url: url, redirect: keepOldUrl }), closeIfSame);
     }
   };
 
