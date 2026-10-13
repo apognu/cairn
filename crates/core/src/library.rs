@@ -1,4 +1,4 @@
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 
@@ -84,7 +84,7 @@ pub fn term_refs(doc: &Document) -> BTreeSet<String> {
 /// The anchor each term gets on the generated Glossary page: the slug of the term, numbered when two slugs collide, exactly as the renderer
 /// numbers headings. `terms` must be in the order the page lists them.
 pub fn term_anchors(terms: &[String]) -> HashMap<String, String> {
-  let mut seen: HashMap<String, usize> = HashMap::new();
+  let mut taken: HashSet<String> = HashSet::new();
 
   terms
     .iter()
@@ -93,10 +93,14 @@ pub fn term_anchors(terms: &[String]) -> HashMap<String, String> {
         s if s.is_empty() => "section".to_string(),
         s => s,
       };
-      let count = seen.entry(base.clone()).or_default();
-      *count += 1;
+      // The next free number: "C 2" may already hold `c-2` when a second "C" comes.
+      let anchor = (1..)
+        .map(|n| if n == 1 { base.clone() } else { format!("{base}-{n}") })
+        .find(|candidate| !taken.contains(candidate))
+        .unwrap_or_default();
+      taken.insert(anchor.clone());
 
-      (term.clone(), if *count == 1 { base } else { format!("{base}-{count}") })
+      (term.clone(), anchor)
     })
     .collect()
 }
@@ -231,10 +235,11 @@ mod tests {
 
     assert_eq!(term_refs(&doc).into_iter().collect::<Vec<_>>(), ["API", "Blue-green deploy"]);
 
-    let anchors = term_anchors(&["API".into(), "Blue-green deploy".into(), "blue green deploy".into()]);
+    let anchors = term_anchors(&["API".into(), "Blue-green deploy".into(), "blue green deploy".into(), "C 2".into(), "C#".into(), "C++".into()]);
+    let anchor = |term: &str| anchors[term].as_str();
     assert_eq!(
-      (anchors["API"].as_str(), anchors["Blue-green deploy"].as_str(), anchors["blue green deploy"].as_str()),
-      ("api", "blue-green-deploy", "blue-green-deploy-2")
+      [anchor("API"), anchor("Blue-green deploy"), anchor("blue green deploy"), anchor("C 2"), anchor("C#"), anchor("C++")],
+      ["api", "blue-green-deploy", "blue-green-deploy-2", "c-2", "c", "c-3"]
     );
   }
 

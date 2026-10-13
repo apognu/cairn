@@ -17,16 +17,18 @@ function slug(text: string): string {
 export function collectHeadings(doc: DocNode): { list: Heading[]; byNode: WeakMap<DocNode, string> } {
   const list: Heading[] = [];
   const byNode = new WeakMap<DocNode, string>();
-  const seen = new Map<string, number>();
+  const taken = new Set<string>();
 
   const visit = (node: DocNode) => {
     if (node.type === "heading") {
       const text = textOf(node);
       const base = slug(text) || "section";
-      const count = seen.get(base) ?? 0;
-      seen.set(base, count + 1);
+      // The next free number: a heading "Setup 2" may already hold `setup-2` when a second "Setup" comes. `term_anchors` in Rust
+      // numbers glossary entries the same way, and must keep doing so.
+      let anchor = base;
+      for (let n = 2; taken.has(anchor); n++) anchor = `${base}-${n}`;
+      taken.add(anchor);
 
-      const anchor = count === 0 ? base : `${base}-${count + 1}`;
       list.push({ level: Number(node.attrs?.level ?? 1), text, anchor });
       byNode.set(node, anchor);
     }
