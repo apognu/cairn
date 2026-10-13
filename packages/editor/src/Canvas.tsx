@@ -35,8 +35,6 @@ export function Canvas({ doc, context, editable = true, embedded = false, onChan
     extensions: buildExtensions(editable),
     content: doc,
     editable,
-    // Opening a page to edit puts the cursor at the end of it, ready to type.
-    autofocus: editable ? "end" : false,
     onUpdate: ({ editor: e }) => onChange?.(e.getJSON() as DocNode),
     onBlur: () => onBlur?.(),
     editorProps: {
@@ -56,6 +54,18 @@ export function Canvas({ doc, context, editable = true, embedded = false, onChan
       },
     },
   });
+  // Opening a page puts the cursor at the end of it, ready to type, unless the user has already moved on to a field of their own
+  // (the editor loads a moment after the click that opened the page).
+  useEffect(() => {
+    if (!editor || !editable) return;
+    const active = document.activeElement;
+    const typing =
+      active instanceof HTMLInputElement ||
+      active instanceof HTMLTextAreaElement ||
+      active instanceof HTMLSelectElement;
+    if (!typing) editor.commands.focus("end");
+  }, [editor, editable]);
+
   const editorRef = useRef(editor);
   editorRef.current = editor;
   const [picker, setPicker] = useState<{ request: PickerRequest; x: number; y: number } | null>(null);

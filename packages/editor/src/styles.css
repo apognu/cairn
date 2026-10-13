@@ -1481,3 +1481,74 @@ button.primary:disabled {
 .snippet-editor .site-toc {
   display: none;
 }
+
+/* History: a wider drawer with the versions and the lines a restore would add or remove. */
+.wide-drawer {
+  width: 520px;
+}
+
+.versions {
+  margin: 0 0 18px;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--border-input);
+  border-radius: 8px;
+}
+
+.versions li {
+  border-bottom: 1px solid var(--border);
+}
+
+.versions li:last-child {
+  border-bottom: 0;
+}
+
+.versions button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 12px;
+  border: 0;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.versions button[aria-pressed="true"] {
+  background: var(--accent-soft);
+}
+
+.versions .muted {
+  margin-left: auto;
+}
+
+.diff {
+  margin-bottom: 12px;
+  border: 1px solid var(--border-input);
+  border-radius: 8px;
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+}
+
+.diff > div {
+  padding: 4px 10px;
+  white-space: pre-wrap;
+}
+
+.diff [data-kind="added"] {
+  background: var(--badge-new-bg);
+  color: var(--badge-new);
+}
+
+.diff [data-kind="removed"] {
+  background: var(--badge-del-bg);
+  color: var(--badge-del);
+}
+
+.diff {
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+}

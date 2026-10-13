@@ -40,14 +40,17 @@ test("a page can be dragged under a new parent and an external link added", asyn
     await expect(page.getByRole("button", { name: title, exact: true })).toBeVisible();
   }
 
-  // Dropped on the middle of a row, the page becomes its child.
-  await page
-    .getByRole("button", { name: mover, exact: true })
-    .dragTo(page.getByRole("button", { name: section, exact: true }));
-  const pages = await (await request.get("/api/pages")).json();
-  const byTitle = (title: string) => pages.find((p: { title: string }) => p.title === title);
-  expect(byTitle(mover).parent_id).toBe(byTitle(section).id);
-  expect(byTitle(other).parent_id).toBeNull();
+  // Dropped on the middle of a row, the page becomes its child. The tree redraws as the pages load, which can interrupt a drag, so it is
+  // repeated until the server has the move.
+  const byTitle = async (title: string) =>
+    (await (await request.get("/api/pages")).json()).find((p: { title: string }) => p.title === title);
+  await expect(async () => {
+    await page
+      .getByRole("button", { name: mover, exact: true })
+      .dragTo(page.getByRole("button", { name: section, exact: true }));
+    expect((await byTitle(mover)).parent_id).toBe((await byTitle(section)).id);
+  }).toPass();
+  expect((await byTitle(other)).parent_id).toBeNull();
 
   // The link is added from the section's menu and lives under it.
   await page.getByRole("button", { name: section, exact: true }).hover();

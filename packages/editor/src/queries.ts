@@ -241,3 +241,47 @@ export function useDeleteEntry() {
     unwrap(await api.DELETE("/api/library/{id}", { params: { path: { id } } })),
   );
 }
+
+/** The saved versions of a page, newest first. */
+export function useHistory(id: string) {
+  return useQuery({
+    queryKey: ["history", id],
+    gcTime: 0,
+    queryFn: async () => unwrap(await api.GET("/api/pages/{id}/history", { params: { path: { id } } })),
+  });
+}
+
+export function useRevision(id: string | null) {
+  return useQuery({
+    queryKey: ["revision", id],
+    enabled: id !== null,
+    queryFn: async () => unwrap(await api.GET("/api/revisions/{id}", { params: { path: { id: id as string } } })),
+  });
+}
+
+/** Makes an old version the page's draft; the replaced draft stays in the history. */
+export function useRestoreVersion(pageId: string) {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (revision_id: string) =>
+      unwrap(await api.POST("/api/pages/{id}/restore", { params: { path: { id: pageId } }, body: { revision_id } })),
+    onSuccess: () =>
+      Promise.all(["draft", "history", "pending"].map((key) => client.invalidateQueries({ queryKey: [key] }))),
+  });
+}
+
+const TRASH = ["trash"];
+
+export function useTrash() {
+  return useQuery({ queryKey: TRASH, gcTime: 0, queryFn: async () => unwrap(await api.GET("/api/trash")) });
+}
+
+export function useRestoreFromTrash() {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => unwrap(await api.POST("/api/trash/{id}/restore", { params: { path: { id } } })),
+    onSuccess: () => Promise.all([TRASH, PAGES, PENDING].map((queryKey) => client.invalidateQueries({ queryKey }))),
+  });
+}

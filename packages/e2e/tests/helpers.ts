@@ -33,3 +33,8 @@ export const PNG = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==",
   "base64",
 );
+
+/** Stops a tab of the published site from reloading itself when another test publishes (the dev server's live reload). */
+export async function quiet(page: Page) {
+  await page.route("**/__reload", (route) => route.abort());
+}

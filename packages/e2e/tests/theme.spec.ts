@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { expect, type Page, test } from "@playwright/test";
-import { PNG, publishAll } from "./helpers";
+import { PNG, publishAll, quiet } from "./helpers";
 
 const SITE = "http://127.0.0.1:3001";
 
@@ -39,6 +39,7 @@ test("changing the accent color, name and logo reaches every published page", as
   }
 
   const reader = await page.context().newPage();
+  await quiet(reader);
   await reader.goto(`${SITE}/${second}/`);
   // Other tests' publishes reload open tabs of the site, which can land between the load and the read.
   await expect
@@ -57,6 +58,7 @@ test("the published site follows the system theme and has a toggle that is remem
 
   const background = (p: Page) => p.evaluate(() => getComputedStyle(document.body).backgroundColor);
   const dark = await (await browser.newContext({ colorScheme: "dark" })).newPage();
+  await quiet(dark);
 
   await dark.goto(`${SITE}/${slug}/`);
   // Another test's publish reloads open tabs of the site, which can land between the load and the read, so reading is retried.

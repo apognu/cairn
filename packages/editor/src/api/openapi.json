@@ -785,6 +785,45 @@
         }
       }
     },
+    "/api/pages/{id}/history": {
+      "get": {
+        "summary": "The saved versions of a page, newest first.",
+        "operationId": "getHistory",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/PageId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Version"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/pages/{id}/impact": {
       "get": {
         "summary": "What deleting a page would affect: its subpages and every page that links into them.",
@@ -876,6 +915,52 @@
           },
           "422": {
             "description": "the target is inside the page's own subtree",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pages/{id}/restore": {
+      "post": {
+        "summary": "Makes an older version the page's draft. The draft it replaces stays in the history, so the restore can be undone.",
+        "operationId": "restoreRevision",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/PageId"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Restore"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RestoredDraft"
+                }
+              }
+            }
+          },
+          "404": {
             "content": {
               "application/json": {
                 "schema": {
@@ -1156,6 +1241,42 @@
         }
       }
     },
+    "/api/revisions/{id}": {
+      "get": {
+        "summary": "The content of one saved version.",
+        "operationId": "getRevision",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/RevisionId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionContent"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/settings": {
       "get": {
         "summary": "The site name, logo and accent color.",
@@ -1196,6 +1317,62 @@
             }
           },
           "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/trash": {
+      "get": {
+        "summary": "Deleted pages, most recent first.",
+        "operationId": "listTrash",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TrashedPage"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/trash/{id}/restore": {
+      "post": {
+        "summary": "Brings a page back from the trash, with the pages deleted with it.",
+        "operationId": "restoreFromTrash",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/PageId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Restored"
+                }
+              }
+            }
+          },
+          "404": {
             "content": {
               "application/json": {
                 "schema": {
@@ -2048,6 +2225,49 @@
           }
         }
       },
+      "Restore": {
+        "type": "object",
+        "required": [
+          "revision_id"
+        ],
+        "properties": {
+          "revision_id": {
+            "$ref": "#/components/schemas/RevisionId"
+          }
+        }
+      },
+      "Restored": {
+        "type": "object",
+        "required": [
+          "page",
+          "old_place_kept"
+        ],
+        "properties": {
+          "old_place_kept": {
+            "type": "boolean",
+            "description": "False when the old parent was gone or the old URL segment taken, so the page came back somewhere else or under another URL."
+          },
+          "page": {
+            "$ref": "#/components/schemas/Page"
+          }
+        }
+      },
+      "RestoredDraft": {
+        "type": "object",
+        "properties": {
+          "base_revision_id": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/RevisionId",
+                "description": "The new version the draft now is."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
       "RevisionId": {
         "type": "string",
         "description": "An immutable snapshot of a page's document."
@@ -2147,6 +2367,38 @@
           }
         }
       },
+      "TrashedPage": {
+        "type": "object",
+        "description": "A deleted page waiting in the trash.",
+        "required": [
+          "id",
+          "title",
+          "old_url",
+          "deleted_at",
+          "subpages"
+        ],
+        "properties": {
+          "deleted_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "id": {
+            "$ref": "#/components/schemas/PageId"
+          },
+          "old_url": {
+            "type": "string",
+            "description": "The URL it had."
+          },
+          "subpages": {
+            "type": "integer",
+            "description": "How many pages were deleted with it.",
+            "minimum": 0
+          },
+          "title": {
+            "type": "string"
+          }
+        }
+      },
       "UsedBy": {
         "type": "object",
         "required": [
@@ -2173,6 +2425,54 @@
         ],
         "properties": {
           "value": {
+            "type": "string"
+          }
+        }
+      },
+      "Version": {
+        "type": "object",
+        "description": "One saved version of a page.",
+        "required": [
+          "id",
+          "author_id",
+          "created_at",
+          "title"
+        ],
+        "properties": {
+          "author_id": {
+            "$ref": "#/components/schemas/UserId"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "id": {
+            "$ref": "#/components/schemas/RevisionId"
+          },
+          "published_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "When the live site last got this version, if it ever did."
+          },
+          "title": {
+            "type": "string"
+          }
+        }
+      },
+      "VersionContent": {
+        "type": "object",
+        "required": [
+          "doc",
+          "title"
+        ],
+        "properties": {
+          "doc": {
+            "$ref": "#/components/schemas/Document"
+          },
+          "title": {
             "type": "string"
           }
         }

@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { blockLines, diffLines } from "./diff";
 import { buildTree, type DropZone, dropTarget, moveTarget, type Page, pageUrls } from "./tree";
 
 const page = (id: string, parent_id: string | null = null, kind: Page["kind"] = "page"): Page => ({
@@ -78,4 +79,21 @@ test("urls follow slugs and custom paths", () => {
     { ...page("home-link", null, "link") },
   ];
   expect(pageUrls(tree)).toEqual({ guide: "/guide", hooks: "/hooks", retries: "/hooks/retries" });
+});
+
+test("diffs list what a restore adds and removes", () => {
+  const doc = (...texts: string[]) => ({
+    type: "doc",
+    content: texts.map((text) => ({ type: "paragraph", content: [{ type: "text", text }] })),
+  });
+  // The page now: a, b, d. Restoring the version a, c, d removes b and adds c.
+  const current = blockLines(doc("a", "b", "d"));
+  const version = blockLines(doc("a", "c", "d"));
+
+  expect(diffLines(current, version)).toEqual([
+    { kind: "same", text: "a" },
+    { kind: "removed", text: "b" },
+    { kind: "added", text: "c" },
+    { kind: "same", text: "d" },
+  ]);
 });

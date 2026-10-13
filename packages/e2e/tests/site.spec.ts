@@ -1,5 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
-import { publishAll } from "./helpers";
+import { publishAll, quiet } from "./helpers";
 
 const SITE = "http://127.0.0.1:3001";
 
@@ -24,6 +24,7 @@ test("the published site serves pages, redirects, the 404 page and search", asyn
   await publish(page);
 
   const reader = await browser.newPage();
+  await quiet(reader);
 
   // A page, at its clean URL, with and without the trailing slash.
   await reader.goto(`${SITE}/${slug}/`);
@@ -33,12 +34,10 @@ test("the published site serves pages, redirects, the 404 page and search", asyn
 
   // The page shows when it was last updated and offers its Markdown version, which is served next to it.
   await expect(reader.getByText(/Last updated \d+ \w+ \d{4}/)).toBeVisible();
-  await reader.getByRole("link", { name: "View as Markdown" }).click();
-  await expect(reader).toHaveURL(`${SITE}/${slug}.md`);
+  await expect(reader.getByRole("link", { name: "View as Markdown" })).toHaveAttribute("href", `/${slug}.md`);
   const markdown = await reader.request.get(`${SITE}/${slug}.md`);
   expect(markdown.status()).toBe(200);
   expect(await markdown.text()).toContain(`# ${slug}\n\nZebrafish migration notes`);
-  await reader.goto(`${SITE}/${slug}/`);
 
   // The site root follows the redirect rule to a page.
   await reader.goto(`${SITE}/`);

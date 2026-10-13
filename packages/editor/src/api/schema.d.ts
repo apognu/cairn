@@ -224,6 +224,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/pages/{id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The saved versions of a page, newest first. */
+        get: operations["getHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/pages/{id}/impact": {
         parameters: {
             query?: never;
@@ -252,6 +269,23 @@ export interface paths {
         put?: never;
         /** Moves a page and its subtree under another parent. */
         post: operations["movePage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pages/{id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Makes an older version the page's draft. The draft it replaces stays in the history, so the restore can be undone. */
+        post: operations["restoreRevision"];
         delete?: never;
         options?: never;
         head?: never;
@@ -346,6 +380,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/revisions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The content of one saved version. */
+        get: operations["getRevision"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/settings": {
         parameters: {
             query?: never;
@@ -358,6 +409,40 @@ export interface paths {
         /** Saves the settings. They reach the published site with the next publish. */
         put: operations["saveSettings"];
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/trash": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Deleted pages, most recent first. */
+        get: operations["listTrash"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/trash/{id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Brings a page back from the trash, with the pages deleted with it. */
+        post: operations["restoreFromTrash"];
         delete?: never;
         options?: never;
         head?: never;
@@ -619,6 +704,17 @@ export interface components {
             redirect?: boolean | null;
             title: string;
         };
+        Restore: {
+            revision_id: components["schemas"]["RevisionId"];
+        };
+        Restored: {
+            /** @description False when the old parent was gone or the old URL segment taken, so the page came back somewhere else or under another URL. */
+            old_place_kept: boolean;
+            page: components["schemas"]["Page"];
+        };
+        RestoredDraft: {
+            base_revision_id?: components["schemas"]["RevisionId"] | null;
+        };
         /** @description An immutable snapshot of a page's document. */
         RevisionId: string;
         SaveDraft: {
@@ -645,6 +741,17 @@ export interface components {
             definition: string;
             term: string;
         };
+        /** @description A deleted page waiting in the trash. */
+        TrashedPage: {
+            /** Format: date-time */
+            deleted_at: string;
+            id: components["schemas"]["PageId"];
+            /** @description The URL it had. */
+            old_url: string;
+            /** @description How many pages were deleted with it. */
+            subpages: number;
+            title: string;
+        };
         UsedBy: {
             page_id: components["schemas"]["PageId"];
             title: string;
@@ -653,6 +760,23 @@ export interface components {
         UserId: string;
         VariableBody: {
             value: string;
+        };
+        /** @description One saved version of a page. */
+        Version: {
+            author_id: components["schemas"]["UserId"];
+            /** Format: date-time */
+            created_at: string;
+            id: components["schemas"]["RevisionId"];
+            /**
+             * Format: date-time
+             * @description When the live site last got this version, if it ever did.
+             */
+            published_at?: string | null;
+            title: string;
+        };
+        VersionContent: {
+            doc: components["schemas"]["Document"];
+            title: string;
         };
     };
     responses: never;
@@ -1288,6 +1412,35 @@ export interface operations {
             };
         };
     };
+    getHistory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["PageId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Version"][];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     getDeleteImpact: {
         parameters: {
             query?: never;
@@ -1359,6 +1512,39 @@ export interface operations {
             };
             /** @description the target is inside the page's own subtree */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    restoreRevision: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["PageId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Restore"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RestoredDraft"];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1603,6 +1789,35 @@ export interface operations {
             };
         };
     };
+    getRevision: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["RevisionId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VersionContent"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     getSettings: {
         parameters: {
             query?: never;
@@ -1644,6 +1859,54 @@ export interface operations {
                 };
             };
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    listTrash: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrashedPage"][];
+                };
+            };
+        };
+    };
+    restoreFromTrash: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["PageId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Restored"];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

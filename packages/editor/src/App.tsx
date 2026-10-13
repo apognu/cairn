@@ -1,6 +1,7 @@
 import { ThemeToggle } from "@yourdocs/renderer";
 import { useCallback, useEffect, useState } from "react";
 import { FixtureView } from "./FixtureView";
+import { HistoryDrawer } from "./HistoryDrawer";
 import { Icon } from "./icons";
 import { PageEditor } from "./PageEditor";
 import { PageSettings } from "./PageSettings";
@@ -49,11 +50,14 @@ function Editor() {
   const [published, setPublished] = useState<number | null>(null);
   const [showPublish, setShowPublish] = useState(false);
   const [showPageSettings, setShowPageSettings] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  // Bumped when a version is restored, so the editor loads the new draft instead of keeping the old text.
+  const [restores, setRestores] = useState(0);
   const settings = useSettings();
   // Settings replace the page tree and the canvas; the section lives in the URL like the selected page does.
   const [section, setSection] = useState<SettingsSection | null>(() => {
     const value = new URLSearchParams(window.location.hash.slice(1)).get("settings");
-    return value === "redirects" || value === "library" ? value : value ? "site" : null;
+    return value === "redirects" || value === "library" || value === "trash" ? value : value ? "site" : null;
   });
 
   // Authors see the site's accent color while they write.
@@ -98,9 +102,14 @@ function Editor() {
           {published !== null && <span className="muted">Published {published} pages</span>}
           <ThemeToggle />
           {!section && current?.kind === "page" && (
-            <button type="button" onClick={() => setShowPageSettings(true)}>
-              Page settings
-            </button>
+            <>
+              <button type="button" onClick={() => setShowHistory(true)}>
+                History
+              </button>
+              <button type="button" onClick={() => setShowPageSettings(true)}>
+                Page settings
+              </button>
+            </>
           )}
           <button type="button" onClick={() => openSettings("site")}>
             Settings
@@ -124,13 +133,20 @@ function Editor() {
           <Sidebar pages={pages.data ?? []} loading={pages.isPending} selected={selected} onSelect={select} />
           <main className="canvas">
             {current ? (
-              <PageEditor key={current.id} page={current} onStatus={setStatus} panelHost={panelHost} />
+              <PageEditor key={`${current.id}-${restores}`} page={current} onStatus={setStatus} panelHost={panelHost} />
             ) : (
               <p className="muted pad">Create a page in the sidebar to get started.</p>
             )}
           </main>
           <aside className="props" aria-label="Component settings" ref={setPanelHost} />
         </>
+      )}
+      {showHistory && current && (
+        <HistoryDrawer
+          page={current}
+          onClose={() => setShowHistory(false)}
+          onRestored={() => setRestores((n) => n + 1)}
+        />
       )}
       {showPageSettings && current && <PageSettings page={current} onClose={() => setShowPageSettings(false)} />}
       {showPublish && <PublishDialog onClose={() => setShowPublish(false)} onPublished={setPublished} />}
