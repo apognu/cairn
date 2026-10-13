@@ -570,6 +570,48 @@ fieldset.bubble {
   margin: 0;
 }
 
+.bubble-code {
+  gap: 8px;
+  padding: 6px 8px;
+}
+
+.bubble-code label {
+  padding: 0;
+  font-size: 12px;
+}
+
+.bubble-code select,
+.bubble-code input {
+  height: 32px;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.bubble-code input {
+  width: 160px;
+}
+
+.bubble-target {
+  display: flex;
+  flex-direction: column;
+  max-width: 320px;
+  padding: 0 8px;
+}
+
+.bubble-target > * {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bubble-target small {
+  font-size: 12px;
+}
+
+.bubble-broken {
+  color: var(--danger);
+}
+
 .conflict {
   display: flex;
   align-items: center;

@@ -1,11 +1,37 @@
 import { type Editor, isTextSelection } from "@tiptap/core";
 import { useEditorState } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
-import { useEffect, useId, useState } from "react";
-import { PICKER_EVENT, type PickerRequest } from "./pageLink";
-import { useLibrary } from "./queries";
+import { useEffect, useState } from "react";
+import { PICKER_EVENT, type PickerRequest, pageUrlRegistry } from "./pageLink";
+import { useLibrary, usePages } from "./queries";
 
-const languages = ["bash", "css", "html", "javascript", "json", "python", "rust", "sql", "toml", "typescript", "yaml"];
+// Names the highlighter knows, as they are written in the document.
+const languages: [value: string, label: string][] = [
+  ["bash", "Bash"],
+  ["c", "C"],
+  ["cpp", "C++"],
+  ["csharp", "C#"],
+  ["css", "CSS"],
+  ["diff", "Diff"],
+  ["dockerfile", "Dockerfile"],
+  ["go", "Go"],
+  ["html", "HTML"],
+  ["java", "Java"],
+  ["javascript", "JavaScript"],
+  ["json", "JSON"],
+  ["kotlin", "Kotlin"],
+  ["markdown", "Markdown"],
+  ["php", "PHP"],
+  ["python", "Python"],
+  ["ruby", "Ruby"],
+  ["rust", "Rust"],
+  ["sql", "SQL"],
+  ["swift", "Swift"],
+  ["toml", "TOML"],
+  ["typescript", "TypeScript"],
+  ["xml", "XML"],
+  ["yaml", "YAML"],
+];
 
 /** Floating tools: formatting for a text selection, settings for the code block the cursor is in. */
 export function BubbleMenus({ editor }: { editor: Editor }) {
@@ -24,6 +50,14 @@ export function BubbleMenus({ editor }: { editor: Editor }) {
         }
       >
         <TextTools editor={editor} />
+      </BubbleMenu>
+      <BubbleMenu
+        editor={editor}
+        // With words selected the formatting tools show instead; Link there edits the same link.
+        shouldShow={({ editor: e, state }) => e.isEditable && state.selection.empty && e.isActive("link")}
+        options={{ placement: "bottom-start" }}
+      >
+        <LinkTools editor={editor} />
       </BubbleMenu>
       <BubbleMenu
         editor={editor}
@@ -165,8 +199,74 @@ function TextTools({ editor }: { editor: Editor }) {
   );
 }
 
+/** Where the link under the cursor goes, with the ways to change it. */
+function LinkTools({ editor }: { editor: Editor }) {
+  const pages = usePages().data ?? [];
+  const link = useEditorState({
+    editor,
+    selector: ({ editor: e }) => {
+      const attrs = e.getAttributes("link");
+      return {
+        href: String(attrs.href ?? ""),
+        pageId: attrs.pageId ? String(attrs.pageId) : null,
+        anchor: attrs.anchor ? String(attrs.anchor) : null,
+      };
+    },
+  });
+  const page = link.pageId ? pages.find((p) => p.id === link.pageId) : undefined;
+  const url = link.pageId ? pageUrlRegistry.urls[link.pageId] : link.href;
+  const target = link.pageId && !page ? null : (page?.title ?? link.href);
+
+  const change = () => {
+    editor.chain().focus().extendMarkRange("link").run();
+    const { from, to } = editor.state.selection;
+    editor.view.dom.dispatchEvent(
+      new CustomEvent<PickerRequest>(PICKER_EVENT, { detail: { mode: "selection", from, to } }),
+    );
+  };
+  const open = () => {
+    if (!url) return;
+    if (link.pageId) window.open(`${window.location.pathname}#page=${link.pageId}`, "_blank", "noopener");
+    else window.open(url, "_blank", "noopener");
+  };
+
+  return (
+    <div className="bubble" role="toolbar" aria-label="Link">
+      <span className="bubble-target" title={url ?? undefined}>
+        {target === null ? (
+          <span className="bubble-broken">This page no longer exists</span>
+        ) : (
+          <>
+            <strong>{target}</strong>
+            {link.pageId && url && (
+              <small className="muted">
+                {url}
+                {link.anchor ? `#${link.anchor}` : ""}
+              </small>
+            )}
+          </>
+        )}
+      </span>
+      <button type="button" onClick={change} onMouseDown={(e) => e.preventDefault()}>
+        Change
+      </button>
+      {target !== null && (
+        <button type="button" onClick={open} onMouseDown={(e) => e.preventDefault()}>
+          Open
+        </button>
+      )}
+      <button
+        type="button"
+        onClick={() => editor.chain().focus().extendMarkRange("link").unsetMark("link").run()}
+        onMouseDown={(e) => e.preventDefault()}
+      >
+        Remove
+      </button>
+    </div>
+  );
+}
+
 function CodeBlockTools({ editor }: { editor: Editor }) {
-  const listId = useId();
   const attrs = useEditorState({
     editor,
     selector: ({ editor: e }) => ({
@@ -179,22 +279,27 @@ function CodeBlockTools({ editor }: { editor: Editor }) {
       .chain()
       .updateAttributes("codeBlock", { [name]: value || null })
       .run();
+  // A language written some other way (in an imported page, say) stays selectable instead of silently turning to plain text.
+  const known = languages.some(([value]) => value === attrs.language);
 
   return (
-    <fieldset className="bubble">
+    <fieldset className="bubble bubble-code">
       <legend className="sr-only">Code block</legend>
       <label>
         Language
-        <input list={listId} value={attrs.language} onChange={(e) => set("language", e.target.value)} />
+        <select value={attrs.language} onChange={(e) => set("language", e.target.value)}>
+          <option value="">Plain text</option>
+          {!known && attrs.language && <option value={attrs.language}>{attrs.language}</option>}
+          {languages.map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
       </label>
-      <datalist id={listId}>
-        {languages.map((l) => (
-          <option key={l} value={l} />
-        ))}
-      </datalist>
       <label>
         File name
-        <input value={attrs.fileName} onChange={(e) => set("fileName", e.target.value)} />
+        <input value={attrs.fileName} placeholder="Optional" onChange={(e) => set("fileName", e.target.value)} />
       </label>
     </fieldset>
   );
