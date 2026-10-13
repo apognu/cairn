@@ -71,7 +71,7 @@ export function Canvas({
       },
     },
   });
-  // Opening a page puts the cursor at the end of it, ready to type, unless the user has already moved on to a field of their own
+  // Opening a page puts the cursor at the start of it, ready to type, unless the user has already moved on to a field of their own
   // (the editor loads a moment after the click that opened the page).
   useEffect(() => {
     if (!editor || !editable) return;
@@ -80,8 +80,8 @@ export function Canvas({
       active instanceof HTMLInputElement ||
       active instanceof HTMLTextAreaElement ||
       active instanceof HTMLSelectElement;
-    // The caret goes to the end, but the page stays at its top: scrolling to the caret would open a long page at its bottom.
-    if (!typing) editor.commands.focus("end", { scrollIntoView: false });
+    // The caret starts at the top too: from the end, the first arrow key would scroll the whole page down to it.
+    if (!typing) editor.commands.focus("start", { scrollIntoView: false });
     editor.view.dom.closest(".canvas")?.scrollTo({ top: 0 });
   }, [editor, editable]);
 
