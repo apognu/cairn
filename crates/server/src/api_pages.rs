@@ -87,7 +87,8 @@ async fn get_config(State(state): State<AppState>, Path(id): Path<PageId>) -> Re
   Ok(Json(get_api_config(&state.db, id).await?))
 }
 
-/// Saves the sources. The specs themselves are fetched at every publish, so nothing here counts as a pending change.
+/// Saves the sources, merge rules and display settings. They are a pending change of the page until the next publish; the specs themselves
+/// are fetched again at every publish and never are.
 #[utoipa::path(put, path = "/api/pages/{id}/api-config", operation_id = "saveApiConfig", params(("id" = PageId, Path)), request_body = ApiConfig, responses(
   (status = 200, body = ApiConfig),
   (status = 404, body = ErrorBody),

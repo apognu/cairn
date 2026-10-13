@@ -2,25 +2,31 @@ use std::collections::{HashMap, HashSet};
 
 use yourdocs_core::{Document, Live, Operation, PageId, PageKind, Pending, Problem, ProblemKind, doc_problems, expand, pending_changes, term_refs, url_problems};
 use yourdocs_render::Pool;
-use yourdocs_store::{DatabaseConnection, all_links, draft_docs, draft_revisions, latest_live_release, list_pages, list_redirects, live_release, load_library, release_specs};
+use yourdocs_store::{
+  DatabaseConnection, all_links, draft_docs, draft_revisions, latest_live_release, list_api_configs, list_pages, list_redirects, live_release, load_library, load_settings, release_specs,
+};
 
 use crate::PublishError;
 
-/// What publishing now would change on the live site, and which live URLs it would break.
+/// What publishing now would change on the live site, the site settings included, and which live URLs it would break.
 pub async fn pending(db: &DatabaseConnection) -> Result<Pending, PublishError> {
   let pages = list_pages(db).await?;
   let redirects = list_redirects(db).await?;
   let drafts = draft_revisions(db).await?;
   let live = live_release(db).await?;
   let links: Vec<_> = all_links(db).await?.into_iter().map(|l| (l.source, l.target)).collect();
+  let api_configs = list_api_configs(db).await?;
+  let settings = load_settings(db).await?;
 
   let state = live.as_ref().map(|l| Live {
     pages: &l.pages,
     redirects: &l.redirects,
     revisions: &l.revisions,
+    settings: l.settings.as_ref(),
+    api_configs: &l.api_configs,
   });
 
-  Ok(pending_changes(&pages, &redirects, &drafts, &links, state.as_ref()))
+  Ok(pending_changes(&pages, &redirects, &drafts, &links, &api_configs, &settings, state.as_ref()))
 }
 
 /// Everything that would stop a publish now: links to deleted pages, images without alt text, pages sharing a URL, and blocks or component

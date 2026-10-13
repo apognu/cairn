@@ -2,16 +2,18 @@ use std::collections::HashMap;
 
 use jiff::Timestamp;
 use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set, sea_query::OnConflict};
-use yourdocs_core::{AssetId, Page, PageId, Release, ReleaseId, ReleaseStatus, RevisionId, Settings, UserId};
+use yourdocs_core::{ApiConfig, AssetId, Page, PageId, Release, ReleaseId, ReleaseStatus, RevisionId, Settings, UserId};
 
 use crate::{
   StoreError,
-  entity::{release, release_page, setting},
+  entity::{release, release_api_spec, release_page, setting},
 };
 
-/// Starts a release. `tree_snapshot` and `redirects_snapshot` are JSON, frozen with the release so it can be rebuilt or rolled back later.
-pub async fn create_release(db: &DatabaseConnection, user: UserId, tree_snapshot: String, redirects_snapshot: String) -> Result<Release, StoreError> {
+/// Starts a release. `tree_snapshot` and `redirects_snapshot` are JSON; they and the settings are frozen with the release so it can be
+/// rebuilt or rolled back later, and so "what changed" has something to compare with.
+pub async fn create_release(db: &DatabaseConnection, user: UserId, tree_snapshot: String, redirects_snapshot: String, settings: &Settings) -> Result<Release, StoreError> {
   let base = latest_live_release(db).await?;
+  let settings = serde_json::to_string(settings).map_err(|e| StoreError::Other(e.into()))?;
 
   let row = release::ActiveModel {
     id: Set(ReleaseId::new().as_uuid()),
@@ -22,6 +24,7 @@ pub async fn create_release(db: &DatabaseConnection, user: UserId, tree_snapshot
     redirects_snapshot: Set(redirects_snapshot),
     status: Set(ReleaseStatus::Building.as_str().into()),
     target_version_id: Set(None),
+    settings_snapshot: Set(Some(settings)),
   }
   .insert(db)
   .await?;
@@ -69,11 +72,15 @@ pub async fn latest_live_release(db: &DatabaseConnection) -> Result<Option<Relea
   }
 }
 
-/// What the live release published: its tree and redirect rules as frozen at the time, and the revision of each page.
+/// What the live release published: its tree and redirect rules as frozen at the time, the revision of each page, and the settings it was
+/// built with. Releases made before settings were recorded have `None` and no API settings.
 pub struct LiveRelease {
+  pub id: ReleaseId,
   pub pages: Vec<Page>,
   pub redirects: Vec<(String, String)>,
   pub revisions: HashMap<PageId, RevisionId>,
+  pub settings: Option<Settings>,
+  pub api_configs: HashMap<PageId, ApiConfig>,
 }
 
 /// The state of the latest live release, or `None` before the first publish. A snapshot this version cannot read counts as empty,
@@ -89,11 +96,19 @@ pub async fn live_release(db: &DatabaseConnection) -> Result<Option<LiveRelease>
   };
 
   let revisions = release_page::Entity::find().filter(release_page::Column::ReleaseId.eq(row.id)).all(db).await?;
+  let specs = release_api_spec::Entity::find().filter(release_api_spec::Column::ReleaseId.eq(row.id)).all(db).await?;
+  let api_configs = specs
+    .into_iter()
+    .filter_map(|spec| Some((spec.page_id.into(), serde_json::from_str(spec.config.as_deref()?).ok()?)))
+    .collect();
 
   Ok(Some(LiveRelease {
+    id: row.id.into(),
     pages: serde_json::from_str(&row.tree_snapshot).unwrap_or_default(),
     redirects: serde_json::from_str(&row.redirects_snapshot).unwrap_or_default(),
     revisions: revisions.into_iter().map(|r| (r.page_id.into(), r.revision_id.into())).collect(),
+    settings: row.settings_snapshot.as_deref().and_then(|json| serde_json::from_str(json).ok()),
+    api_configs,
   }))
 }
 
@@ -165,14 +180,17 @@ mod tests {
   async fn releases_start_building_and_settings_overwrite() {
     let db = test_db().await;
 
-    let release = create_release(&db, UserId::new(), "[]".into(), "[]".into()).await.unwrap();
+    let release = create_release(&db, UserId::new(), "[]".into(), "[]".into(), &Settings::default()).await.unwrap();
     assert_eq!(release.status, ReleaseStatus::Building);
     assert!(latest_live_release(&db).await.unwrap().is_none());
 
     set_release_status(&db, release.id, ReleaseStatus::Live).await.unwrap();
     let live = latest_live_release(&db).await.unwrap().unwrap();
     assert_eq!(live.id, release.id);
-    assert_eq!(create_release(&db, UserId::new(), "[]".into(), "[]".into()).await.unwrap().base_release_id, Some(release.id));
+    assert_eq!(
+      create_release(&db, UserId::new(), "[]".into(), "[]".into(), &Settings::default()).await.unwrap().base_release_id,
+      Some(release.id)
+    );
 
     assert_eq!(get_setting(&db, "site.name").await.unwrap(), None);
     set_setting(&db, "site.name", "A").await.unwrap();

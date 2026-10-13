@@ -164,7 +164,10 @@ export interface paths {
         };
         /** The sources an API reference page is built from. */
         get: operations["getApiConfig"];
-        /** Saves the sources. The specs themselves are fetched at every publish, so nothing here counts as a pending change. */
+        /**
+         * Saves the sources, merge rules and display settings. They are a pending change of the page until the next publish; the specs themselves
+         *     are fetched again at every publish and never are.
+         */
         put: operations["saveApiConfig"];
         post?: never;
         delete?: never;
@@ -933,6 +936,8 @@ export interface components {
             broken_links: components["schemas"]["BrokenLink"][];
             changes: components["schemas"]["Change"][];
             lost_urls: components["schemas"]["LostUrl"][];
+            /** @description The site settings (name, logos, theme, header links, footer, custom CSS) differ from the live release's. */
+            settings: boolean;
         };
         /** @description A problem that stops a publish, with the page it is on. */
         Problem: {

@@ -12,6 +12,7 @@ pub struct Model {
   pub redirects_snapshot: String,
   pub status: String,
   pub target_version_id: Option<String>,
+  pub settings_snapshot: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

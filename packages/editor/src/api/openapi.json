@@ -584,7 +584,7 @@
         }
       },
       "put": {
-        "summary": "Saves the sources. The specs themselves are fetched at every publish, so nothing here counts as a pending change.",
+        "summary": "Saves the sources, merge rules and display settings. They are a pending change of the page until the next publish; the specs themselves\nare fetched again at every publish and never are.",
         "operationId": "saveApiConfig",
         "parameters": [
           {
@@ -2778,7 +2778,8 @@
         "required": [
           "changes",
           "lost_urls",
-          "broken_links"
+          "broken_links",
+          "settings"
         ],
         "properties": {
           "broken_links": {
@@ -2799,6 +2800,10 @@
             "items": {
               "$ref": "#/components/schemas/LostUrl"
             }
+          },
+          "settings": {
+            "type": "boolean",
+            "description": "The site settings (name, logos, theme, header links, footer, custom CSS) differ from the live release's."
           }
         }
       },

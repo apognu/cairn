@@ -10,7 +10,7 @@ use futures_util::{StreamExt, TryStreamExt, stream};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use yourdocs_core::{
-  ApiConfig, ApiDisplay, AssetId, AssetStore, Broadcast, ContentStore, Document, Event, Page, PageId, PageKind, Release, ReleaseStatus, RevisionId, UserId, effective_redirects, expand, extract_links,
+  ApiConfig, AssetId, AssetStore, Broadcast, ContentStore, Document, Event, Page, PageId, PageKind, Release, ReleaseStatus, RevisionId, Settings, UserId, effective_redirects, expand, extract_links,
   header_section, original_key, page_urls, term_anchors, term_refs, variant_key,
 };
 use yourdocs_render::{Pool, Shell, highlight_css};
@@ -166,20 +166,23 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
     sources.extend(api_sources(&tree_pages, apis));
 
     let rules = effective_redirects(&list_redirects(&self.db).await?, &tree_pages);
-    // Frozen with the release: the next "what changed" comparison reads them back.
+    let settings = load_settings(&self.db).await?;
+    // Frozen with the release: the next "what changed" comparison reads them back, and a re-render uses them.
     let release = create_release(
       &self.db,
       user,
       serde_json::to_string(&tree_pages).map_err(anyhow::Error::from)?,
       serde_json::to_string(&rules).map_err(anyhow::Error::from)?,
+      &settings,
     )
     .await?;
 
-    self.deploy(release, &tree_pages, &rules, &sources).await
+    self.deploy(release, &tree_pages, &rules, &sources, &settings).await
   }
 
-  /// Renders the live release again when the bundles changed since it was last rendered: the same pages at the same revisions, with the new
-  /// components. Nothing unpublished goes out. A failure leaves the live site as it is, and the next start tries again.
+  /// Renders the live release again when the bundles changed since it was last rendered: the same pages at the same revisions, the same
+  /// specs and the same settings, with the new components. Nothing unpublished goes out. A failure leaves the live site as it is, and the
+  /// next start tries again.
   pub async fn republish_for_bundles(&self) -> Result<Option<Release>, PublishError> {
     let _turn = self.running.lock().await;
     if get_setting(&self.db, BUNDLES_SETTING).await?.as_deref() == Some(self.bundles.hash.as_str()) {
@@ -206,43 +209,46 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
       });
     }
 
-    // The specs as they were: a new bundle must not pull in what upstream changed since.
+    // The specs and settings as they were: a new bundle must not pull in what upstream changed since, nor what was saved and not published.
+    // A release made before settings were recorded has only the current ones to go by.
     let recorded = release_specs(&self.db, previous.id).await?;
+    let current = list_api_configs(&self.db).await?;
     let mut apis = Vec::new();
     for spec in recorded {
       let bytes = self.assets.get(&ResolvedApi::store_key(&spec.spec_hash)).await?;
+      let config = spec.config.unwrap_or_else(|| current.get(&spec.page_id).cloned().unwrap_or_default());
       apis.push(ResolvedApi {
         page_id: spec.page_id,
         bytes,
         hash: spec.spec_hash,
         sources: spec.sources,
         operations: spec.operations,
-        display: Default::default(),
+        config,
       });
     }
-    // The display settings are the page's own and not part of what was resolved.
-    let configs = list_api_configs(&self.db).await?;
-    for api in &mut apis {
-      api.display = configs.get(&api.page_id).map(|c| c.display.clone()).unwrap_or_default();
-    }
     sources.extend(api_sources(&live.pages, apis));
+    let settings = match live.settings {
+      Some(settings) => settings,
+      None => load_settings(&self.db).await?,
+    };
 
     let release = create_release(
       &self.db,
       previous.created_by,
       serde_json::to_string(&live.pages).map_err(anyhow::Error::from)?,
       serde_json::to_string(&live.redirects).map_err(anyhow::Error::from)?,
+      &settings,
     )
     .await?;
-    let release = self.deploy(release, &live.pages, &live.redirects, &sources).await?;
+    let release = self.deploy(release, &live.pages, &live.redirects, &sources, &settings).await?;
     tracing::info!(release_id = %release.id, pages = release.page_count, "republished for new bundles");
 
     Ok(Some(release))
   }
 
   /// Renders and deploys a release that was just created, then marks it live (or failed).
-  async fn deploy(&self, release: Release, tree_pages: &[Page], rules: &[(String, String)], sources: &[PageSource]) -> Result<Release, PublishError> {
-    match self.build_and_deploy(&release, tree_pages, rules, sources).await {
+  async fn deploy(&self, release: Release, tree_pages: &[Page], rules: &[(String, String)], sources: &[PageSource], settings: &Settings) -> Result<Release, PublishError> {
+    match self.build_and_deploy(&release, tree_pages, rules, sources, settings).await {
       Ok(()) => {
         // The site is already live: a failure here leaves the record behind it, which the log has to say.
         if let Err(error) = set_release_status(&self.db, release.id, ReleaseStatus::Live).await {
@@ -316,7 +322,7 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
 
     let mut apis = Vec::new();
     let mut problems = Vec::new();
-    for (page, result, display) in results {
+    for (page, result, config) in results {
       match result {
         Ok(spec) => {
           self.assets.put(&ResolvedApi::store_key(&spec.hash), spec.bytes.clone()).await?;
@@ -326,7 +332,7 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
             hash: spec.hash,
             sources: spec.sources,
             operations: spec.operations,
-            display,
+            config,
           });
         }
         Err(message) => problems.push(ApiProblem {
@@ -345,7 +351,7 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
   }
 
   /// Renders everything, then deploys. Nothing reaches the target unless every page rendered.
-  async fn build_and_deploy(&self, release: &Release, tree_pages: &[Page], rules: &[(String, String)], sources: &[PageSource]) -> Result<(), PublishError> {
+  async fn build_and_deploy(&self, release: &Release, tree_pages: &[Page], rules: &[(String, String)], sources: &[PageSource], settings: &Settings) -> Result<(), PublishError> {
     let pages: Vec<Page> = sources.iter().map(|s| s.page.clone()).collect();
     let urls = page_urls(tree_pages);
     let header = header_items(tree_pages, &urls);
@@ -362,7 +368,6 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
     glossary_terms.sort_by_key(|t| t.to_lowercase());
     let anchors = term_anchors(&glossary_terms);
     let glossary_url = if urls.values().any(|u| u == "/glossary/") { "/glossary-terms/" } else { "/glossary/" };
-    let settings = load_settings(&self.db).await?;
     let site_name = settings.site_name.clone();
     let today = jiff::Zoned::now().date().to_string();
 
@@ -382,7 +387,7 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
     let stylesheets: Vec<String> = bundle_files.iter().filter(|(name, _)| name.ends_with(".css")).map(|(name, _)| format!("/{name}")).collect();
     let script = bundle_files.iter().find(|(name, _)| name.ends_with(".js")).map(|(name, _)| format!("/{name}")).unwrap_or_default();
 
-    let betas: HashSet<PageId> = sources.iter().filter_map(|s| s.api.as_ref()).filter(|api| api.display.beta).map(|api| api.page_id).collect();
+    let betas: HashSet<PageId> = sources.iter().filter_map(|s| s.api.as_ref()).filter(|api| api.config.display.beta).map(|api| api.page_id).collect();
 
     // The jobs own their data: borrowed closures here make the future too lifetime-generic for the HTTP handler that awaits it.
     let jobs: Vec<RenderJob> = sources
@@ -565,6 +570,7 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
         spec_hash: api.hash.clone(),
         sources: api.sources.clone(),
         operations: api.operations.clone(),
+        config: Some(api.config.clone()),
       })
       .collect();
     record_release_specs(&self.db, release.id, &specs).await?;
@@ -678,10 +684,10 @@ async fn render_job<A: AssetStore>(job: RenderJob, cache: Arc<A>, renders: Arc<A
   Ok((OutputFile { path: job.path, bytes }, (job.page_id, job.revision, hash)))
 }
 
-async fn resolve_page(fetcher: &SourceFetcher, page: Page, config: ApiConfig) -> (Page, Result<ResolvedSpec, String>, ApiDisplay) {
+async fn resolve_page(fetcher: &SourceFetcher, page: Page, config: ApiConfig) -> (Page, Result<ResolvedSpec, String>, ApiConfig) {
   let result = resolve(fetcher, &config).await;
 
-  (page, result, config.display)
+  (page, result, config)
 }
 
 /// The API pages as sources to render: no document, and an id for a revision that is never recorded.
@@ -708,7 +714,7 @@ fn api_context(api: &ResolvedApi, page_url: &str, scalar_url: Option<&str>) -> V
     "specUrl": format!("/{}", api.spec_path(page_url)),
     "scalarUrl": scalar_url,
     "operations": api.operations,
-    "display": { "servers": api.display.servers, "hideModels": api.display.hide_models, "requestClient": api.display.request_client },
+    "display": { "servers": api.config.display.servers, "hideModels": api.config.display.hide_models, "requestClient": api.config.display.request_client },
   })
 }
 
@@ -1476,6 +1482,42 @@ mod tests {
       assert!(html.contains("<div hidden=\"\">") && html.contains("listOrders summary") && html.contains("/invoices"), "{html}");
       // The page has no revision of its own.
       assert_eq!(release.page_count, 2);
+    }
+
+    #[tokio::test]
+    async fn new_bundles_render_the_published_settings_and_what_was_saved_since_stays_pending() {
+      use yourdocs_core::Settings;
+      use yourdocs_store::{get_api_config, save_settings};
+
+      let (f, _github, api, user) = site().await;
+      f.publisher.publish(user).await.unwrap();
+      assert!(!crate::pending(&f.db).await.unwrap().settings);
+
+      // Saved, not published: a beta pill on the API page, and another site name.
+      let mut config = get_api_config(&f.db, api.id).await.unwrap();
+      config.display.beta = true;
+      save_api_config(&f.db, api.id, &config, user).await.unwrap();
+      let renamed = Settings {
+        site_name: "Unpublished name".into(),
+        ..Settings::default()
+      };
+      save_settings(&f.db, &renamed).await.unwrap();
+      let is_pending = |pending: &yourdocs_core::Pending| pending.settings && pending.changes.iter().any(|c| c.page_id == api.id && c.kinds == [yourdocs_core::ChangeKind::Edited]);
+      assert!(is_pending(&crate::pending(&f.db).await.unwrap()));
+
+      // Other bundles at the next start: the live site is rendered again as it was published.
+      set_setting(&f.db, BUNDLES_SETTING, "other bundles").await.unwrap();
+      f.publisher.republish_for_bundles().await.unwrap().expect("the bundles changed");
+      let html = std::fs::read_to_string(f.dir.join("out/site/orders-api/index.html")).unwrap();
+      assert!(!html.contains("Unpublished name") && !html.contains("Beta"), "{html}");
+      assert!(is_pending(&crate::pending(&f.db).await.unwrap()));
+
+      // The next publish takes them, and nothing is pending any more.
+      f.publisher.publish(user).await.unwrap();
+      let html = std::fs::read_to_string(f.dir.join("out/site/orders-api/index.html")).unwrap();
+      assert!(html.contains("Unpublished name") && html.contains("Beta"));
+      let pending = crate::pending(&f.db).await.unwrap();
+      assert!(!pending.settings && pending.changes.is_empty(), "{pending:?}");
     }
 
     #[tokio::test]

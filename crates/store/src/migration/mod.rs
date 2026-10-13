@@ -9,6 +9,7 @@ mod m0005_backlinks;
 mod m0006_description;
 mod m0007_library;
 mod m0008_api;
+mod m0009_release_config;
 
 struct Migrator;
 
@@ -23,6 +24,7 @@ impl MigratorTrait for Migrator {
       Box::new(m0006_description::Migration),
       Box::new(m0007_library::Migration),
       Box::new(m0008_api::Migration),
+      Box::new(m0009_release_config::Migration),
     ]
   }
 }

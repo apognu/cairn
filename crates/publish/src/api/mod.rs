@@ -8,7 +8,7 @@ pub(crate) mod testing;
 pub use fetch::{ApiHosts, Fetched, SourceFetcher};
 pub use resolve::{ResolvedSpec, resolve};
 
-use yourdocs_core::{ApiDisplay, Operation, PageId, ResolvedSource};
+use yourdocs_core::{ApiConfig, Operation, PageId, ResolvedSource};
 
 /// An API page ready to be rendered: its merged spec and what the release records about it.
 #[derive(Debug, Clone)]
@@ -18,7 +18,8 @@ pub struct ResolvedApi {
   pub hash: String,
   pub sources: Vec<ResolvedSource>,
   pub operations: Vec<Operation>,
-  pub display: ApiDisplay,
+  /// The page's settings the spec was resolved with; the display settings come from here too.
+  pub config: ApiConfig,
 }
 
 impl ResolvedApi {

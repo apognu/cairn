@@ -11,6 +11,7 @@ pub struct Model {
   pub resolved_sources: String,
   pub operations: String,
   pub created_at: String,
+  pub config: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

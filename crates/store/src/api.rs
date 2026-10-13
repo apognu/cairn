@@ -17,6 +17,8 @@ pub struct ReleaseSpec {
   pub spec_hash: String,
   pub sources: Vec<ResolvedSource>,
   pub operations: Vec<Operation>,
+  /// The page's settings at the build; `None` for releases made before they were recorded.
+  pub config: Option<ApiConfig>,
 }
 
 /// The sources of an API page; an API page that was never configured has an empty one.
@@ -67,6 +69,7 @@ pub async fn record_release_specs(db: &DatabaseConnection, release: ReleaseId, s
       resolved_sources: Set(serde_json::to_string(&spec.sources).map_err(bad)?),
       operations: Set(serde_json::to_string(&spec.operations).map_err(bad)?),
       created_at: Set(now.clone()),
+      config: Set(spec.config.as_ref().map(serde_json::to_string).transpose().map_err(bad)?),
     });
   }
   release_api_spec::Entity::insert_many(rows).exec(db).await?;
@@ -85,6 +88,7 @@ pub async fn release_specs(db: &DatabaseConnection, release: ReleaseId) -> Resul
       spec_hash: row.spec_hash,
       sources: serde_json::from_str(&row.resolved_sources).map_err(bad)?,
       operations: serde_json::from_str(&row.operations).map_err(bad)?,
+      config: row.config.as_deref().map(serde_json::from_str).transpose().map_err(bad)?,
     });
   }
 

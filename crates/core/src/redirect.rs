@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
 
-use crate::{Page, PageId, PageKind, page_urls};
+use crate::{ApiConfig, Page, PageId, PageKind, Settings, page_urls};
 
 /// Whether a move or rename keeps the old URL working.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -158,23 +158,40 @@ pub struct Pending {
   pub lost_urls: Vec<LostUrl>,
   /// Links that would point at a deleted page: they render as plain text.
   pub broken_links: Vec<BrokenLink>,
+  /// The site settings (name, logos, theme, header links, footer, custom CSS) differ from the live release's.
+  pub settings: bool,
 }
 
-/// The published state to compare against: the tree, the redirects and the revision of each page.
+/// The published state to compare against: the tree, the redirects, the revision of each page and the settings it was built with. A release
+/// made before settings were recorded has none, and is taken to have the current ones.
 pub struct Live<'a> {
   pub pages: &'a [Page],
   pub redirects: &'a [(String, String)],
   pub revisions: &'a HashMap<PageId, crate::RevisionId>,
+  pub settings: Option<&'a Settings>,
+  pub api_configs: &'a HashMap<PageId, ApiConfig>,
 }
 
-/// Compares the current tree and drafts with the live release. `drafts` holds each page's latest saved revision.
-pub fn pending_changes(pages: &[Page], redirects: &[Redirect], drafts: &HashMap<PageId, crate::RevisionId>, links: &[(PageId, PageId)], live: Option<&Live>) -> Pending {
+/// Compares the current tree, drafts and settings with the live release. `drafts` holds each page's latest saved revision, `api_configs` the
+/// saved settings of each API page that has any.
+pub fn pending_changes(
+  pages: &[Page],
+  redirects: &[Redirect],
+  drafts: &HashMap<PageId, crate::RevisionId>,
+  links: &[(PageId, PageId)],
+  api_configs: &HashMap<PageId, ApiConfig>,
+  settings: &Settings,
+  live: Option<&Live>,
+) -> Pending {
   let urls = page_urls(pages);
   let rules = effective_redirects(redirects, pages);
+  let no_configs = HashMap::new();
   let empty = Live {
     pages: &[],
     redirects: &[],
     revisions: &HashMap::new(),
+    settings: None,
+    api_configs: &no_configs,
   };
   let live = live.unwrap_or(&empty);
   let live_urls = page_urls(live.pages);
@@ -200,8 +217,8 @@ pub fn pending_changes(pages: &[Page], redirects: &[Redirect], drafts: &HashMap<
         let edited = match page.kind {
           PageKind::Page => drafts.get(&page.id).is_some_and(|draft| live.revisions.get(&page.id) != Some(draft)) || old.description != page.description,
           PageKind::Link => old.external_url != page.external_url,
-          // Spec updates are never edits: they arrive with every build.
-          PageKind::Api => false,
+          // Spec updates are never edits: they arrive with every build. Its own settings are, compared with what the live release recorded.
+          PageKind::Api => live.api_configs.get(&page.id).is_some_and(|old| old != api_configs.get(&page.id).unwrap_or(&ApiConfig::default())),
         };
         if edited {
           kinds.push(ChangeKind::Edited);
@@ -266,7 +283,12 @@ pub fn pending_changes(pages: &[Page], redirects: &[Redirect], drafts: &HashMap<
     })
     .collect();
 
-  Pending { changes, lost_urls, broken_links }
+  Pending {
+    changes,
+    lost_urls,
+    broken_links,
+    settings: live.settings.is_some_and(|old| old != settings),
+  }
 }
 
 #[cfg(test)]
@@ -338,6 +360,51 @@ mod tests {
   }
 
   #[test]
+  fn api_page_settings_and_site_settings_are_pending_until_published() {
+    let mut api = page("orders", None);
+    api.kind = PageKind::Api;
+    let published = ApiConfig::default();
+    let saved = ApiConfig {
+      display: crate::ApiDisplay { beta: true, ..Default::default() },
+      ..Default::default()
+    };
+    let site = Settings::default();
+    let renamed = Settings {
+      site_name: "Halyard".into(),
+      ..Settings::default()
+    };
+
+    let revisions = HashMap::new();
+    let recorded = HashMap::from([(api.id, published.clone())]);
+    let live = Live {
+      pages: std::slice::from_ref(&api),
+      redirects: &[],
+      revisions: &revisions,
+      settings: Some(&site),
+      api_configs: &recorded,
+    };
+    let pending = |configs: &HashMap<PageId, ApiConfig>, settings: &Settings, live: &Live| pending_changes(std::slice::from_ref(&api), &[], &HashMap::new(), &[], configs, settings, Some(live));
+
+    // As published: nothing to do.
+    let same = pending(&HashMap::from([(api.id, published)]), &site, &live);
+    assert!(same.changes.is_empty() && !same.settings);
+
+    // The API page's settings and the site's were saved since.
+    let changed = pending(&HashMap::from([(api.id, saved.clone())]), &renamed, &live);
+    assert_eq!(changed.changes.iter().map(|c| (c.page_id, c.kinds.clone())).collect::<Vec<_>>(), [(api.id, vec![ChangeKind::Edited])]);
+    assert!(changed.settings);
+
+    // A release from before settings were recorded has nothing to compare with.
+    let old = Live {
+      settings: None,
+      api_configs: &HashMap::new(),
+      ..live
+    };
+    let unknown = pending(&HashMap::from([(api.id, saved)]), &renamed, &old);
+    assert!(unknown.changes.is_empty() && !unknown.settings);
+  }
+
+  #[test]
   fn flags_urls_that_stop_working() {
     let guide = page("guide", None);
     let live_install = page("install", Some(guide.id));
@@ -349,11 +416,13 @@ mod tests {
       pages: &[guide.clone(), live_install.clone()],
       redirects: &[],
       revisions: &revisions,
+      settings: None,
+      api_configs: &HashMap::new(),
     };
     let now = [guide.clone(), moved.clone()];
 
     // Moved without a redirect: the old URL is lost and the change says so.
-    let without = pending_changes(&now, &[], &HashMap::new(), &[], Some(&live));
+    let without = pending_changes(&now, &[], &HashMap::new(), &[], &HashMap::new(), &Settings::default(), Some(&live));
     assert_eq!(
       without.lost_urls,
       [LostUrl {
@@ -366,7 +435,7 @@ mod tests {
     assert!(!without.changes[0].redirected);
 
     // With a redirect it keeps working.
-    let with = pending_changes(&now, &[redirect("/guide/install/", &moved)], &HashMap::new(), &[], Some(&live));
+    let with = pending_changes(&now, &[redirect("/guide/install/", &moved)], &HashMap::new(), &[], &HashMap::new(), &Settings::default(), Some(&live));
     assert!(with.lost_urls.is_empty());
     assert!(with.changes[0].redirected);
   }
@@ -383,16 +452,26 @@ mod tests {
       pages: &[kept.clone(), gone.clone()],
       redirects: &[],
       revisions: &revisions,
+      settings: None,
+      api_configs: &HashMap::new(),
     };
 
     // The same revision as live: only the missing page shows.
-    let unchanged = pending_changes(std::slice::from_ref(&kept), &[], &HashMap::from([(kept.id, r1)]), &[], Some(&live));
+    let unchanged = pending_changes(
+      std::slice::from_ref(&kept),
+      &[],
+      &HashMap::from([(kept.id, r1)]),
+      &[],
+      &HashMap::new(),
+      &Settings::default(),
+      Some(&live),
+    );
     assert_eq!(unchanged.changes.iter().map(|c| c.title.as_str()).collect::<Vec<_>>(), ["gone"]);
 
     let drafts = HashMap::from([(kept.id, r2)]);
-    let result = pending_changes(&[kept.clone(), fresh.clone()], &[], &drafts, &[], Some(&live));
+    let result = pending_changes(&[kept.clone(), fresh.clone()], &[], &drafts, &[], &HashMap::new(), &Settings::default(), Some(&live));
     // A link from a page that stays to the deleted one is reported by title.
-    let broken = pending_changes(std::slice::from_ref(&kept), &[], &drafts, &[(kept.id, gone.id)], Some(&live)).broken_links;
+    let broken = pending_changes(std::slice::from_ref(&kept), &[], &drafts, &[(kept.id, gone.id)], &HashMap::new(), &Settings::default(), Some(&live)).broken_links;
     assert_eq!((broken[0].source_title.as_str(), broken[0].target_title.as_str()), ("kept", "gone"));
 
     let kinds: Vec<_> = result.changes.iter().map(|c| (c.title.as_str(), c.kinds.clone())).collect();
