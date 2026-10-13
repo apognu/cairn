@@ -12,6 +12,8 @@ use crate::{RenderError, engine, highlight::highlight_code_blocks, platform::spa
 
 struct Job {
   doc: serde_json::Value,
+  /// Fired when a worker takes the job: time spent waiting in the queue is not render time.
+  started: oneshot::Sender<()>,
   reply: oneshot::Sender<Result<String, RenderError>>,
 }
 
@@ -19,6 +21,8 @@ struct Job {
 pub struct Pool {
   queue: SyncSender<Job>,
   timeout: Duration,
+  /// How long a job may wait for a worker: every job ahead of it running to its limit. Only a pool whose workers are all stuck reaches it.
+  queue_wait: Duration,
 }
 
 /// Tells a worker's watchdog that a render started (and how long it may take) or ended.
@@ -48,7 +52,9 @@ impl Pool {
       ready_rx.recv().map_err(|e| RenderError::Other(e.into()))??;
     }
 
-    Ok(Self { queue, timeout })
+    let queue_wait = (timeout + GRACE) * u32::try_from(queue_size.div_ceil(threads.max(1)) + 1).unwrap_or(u32::MAX);
+
+    Ok(Self { queue, timeout, queue_wait })
   }
 
   /// Asks the renderer whether a document would render: unknown blocks and component settings that do not fit their schema. Each
@@ -62,11 +68,18 @@ impl Pool {
   /// Renders `{ "doc": …, "context": … }` (the shape `ssr.js` expects) to the page HTML.
   pub async fn render(&self, doc: serde_json::Value) -> Result<String, RenderError> {
     let (reply, response) = oneshot::channel();
+    let (started, picked) = oneshot::channel();
 
-    self.queue.try_send(Job { doc, reply }).map_err(|e| match e {
+    self.queue.try_send(Job { doc, started, reply }).map_err(|e| match e {
       TrySendError::Full(_) => RenderError::Busy,
       TrySendError::Disconnected(_) => RenderError::Other(anyhow::anyhow!("render pool is shut down")),
     })?;
+
+    match tokio::time::timeout(self.queue_wait, picked).await {
+      Ok(Ok(())) => {}
+      Ok(Err(_)) => return Err(RenderError::Other(anyhow::anyhow!("render worker stopped"))),
+      Err(_) => return Err(RenderError::Timeout),
+    }
 
     // The worker stops a render that runs past the timeout and answers with `Timeout`; this wait is only a safety net behind it.
     match tokio::time::timeout(self.timeout + GRACE, response).await {
@@ -108,6 +121,7 @@ fn work(script: &str, receiver: &Mutex<Receiver<Job>>, ready: &mpsc::Sender<Resu
         }
       };
 
+      let _ = job.started.send(());
       let _ = watch.send(Watch::Arm(timeout));
       let outcome = render(&params).map(|html| highlight_code_blocks(&html));
       // Once the watchdog confirms it will not fire, no stop request can reach the next job.
@@ -133,6 +147,9 @@ fn watchdog(handle: &v8::IsolateHandle, watched: &Receiver<Watch>, done: &mpsc::
         if watched.recv().is_err() {
           return;
         }
+        // The render may have finished just before the stop was asked for. A stop requested while no script runs stays pending and
+        // would end the next job at once, so it is withdrawn now that the render is over (the worker waits for `done` before going on).
+        handle.cancel_terminate_execution();
       }
       Err(mpsc::RecvTimeoutError::Disconnected) => return,
     }
@@ -156,6 +173,22 @@ mod tests {
 
   /// A bundle that renders by echoing, and spins forever for the input "spin".
   const SPINNING: &str = r#"var SSR = { render: function (input) { if (input.indexOf("spin") >= 0) { for (;;) {} } return "ok:" + input; } };"#;
+
+  #[tokio::test]
+  async fn time_spent_waiting_in_the_queue_is_not_render_time() {
+    // Each render takes 200ms, within its 300ms; fifteen behind one worker wait longer than the timeout and its grace together.
+    const SLOW: &str = r#"var SSR = { render: function (input) { var end = Date.now() + 200; while (Date.now() < end) {} return input; } };"#;
+    let pool = Arc::new(Pool::new(SLOW, 1, 32, Duration::from_millis(300)).unwrap());
+
+    let mut renders = tokio::task::JoinSet::new();
+    for n in 0..15 {
+      let pool = pool.clone();
+      renders.spawn(async move { pool.render(serde_json::json!(n)).await });
+    }
+    while let Some(result) = renders.join_next().await {
+      assert!(result.unwrap().is_ok());
+    }
+  }
 
   #[tokio::test]
   async fn a_runaway_render_is_stopped_within_the_timeout_and_the_worker_goes_on() {
