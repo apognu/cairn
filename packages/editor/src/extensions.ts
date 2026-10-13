@@ -103,6 +103,21 @@ const TabPanel = Node.create({
   },
   parseHTML: () => [{ tag: "div.tabs-panel" }],
   renderHTML: () => ["div", { role: "tabpanel", class: "tabs-panel" }, 0],
+  // The tab group shows and hides its panels and links them to their tabs through attributes. Read back as an edit, each change
+  // redrew the panel, which the group changed again: the editor froze on a page with tabs.
+  addNodeView() {
+    return () => {
+      const dom = document.createElement("div");
+      dom.className = "tabs-panel";
+      dom.setAttribute("role", "tabpanel");
+
+      return {
+        dom,
+        contentDOM: dom,
+        ignoreMutation: (mutation) => mutation.type === "attributes" && mutation.target === dom,
+      };
+    };
+  },
 });
 
 let tabGroups = 0;
@@ -126,7 +141,7 @@ const Tabs = Node.create({
   renderHTML: ({ node }) => ["div", { class: node.attrs.variant === "code" ? "tabs tabs-code" : "tabs" }, 0],
   // The tab strip is chrome around the panels, which are ordinary editable content.
   addNodeView() {
-    return ({ node: initial }) => {
+    return ({ node: initial, editor, getPos }) => {
       let node = initial;
       let active = 0;
       // Unique per tab group, so the ARIA links of two groups on one page never cross.
@@ -176,20 +191,44 @@ const Tabs = Node.create({
       const observer = new MutationObserver(syncPanels);
       observer.observe(panels, { childList: true });
 
+      // The cursor in a hidden panel (the page opens with it at the end, which can be the last tab) is moved out by the browser, read back
+      // by ProseMirror, and the panels drawn again, without end: the tab holding the cursor is always the one shown.
+      const followSelection = () => {
+        const start = getPos();
+        if (typeof start !== "number") return;
+        const { from } = editor.state.selection;
+        if (from <= start || from >= start + node.nodeSize) return;
+
+        let offset = start + 1;
+        node.forEach((panel, _offset, i) => {
+          if (from >= offset && from < offset + panel.nodeSize && i !== active) {
+            active = i;
+            render();
+          }
+          offset += panel.nodeSize;
+        });
+      };
+      editor.on("selectionUpdate", followSelection);
+      followSelection();
+
       return {
         dom,
         contentDOM: panels,
         update(updated) {
           if (updated.type !== node.type) return false;
           node = updated;
-          dom.className = className();
+          if (dom.className !== className()) dom.className = className();
           active = Math.min(active, node.childCount - 1);
           render();
           return true;
         },
-        ignoreMutation: (mutation) =>
-          list.contains(mutation.target) || (mutation.type === "attributes" && mutation.target !== dom),
-        destroy: () => observer.disconnect(),
+        // The tab strip and every attribute (class, hidden, ARIA) are this view's own: reading them back as edits would update the
+        // state, redraw the view, change them again, and never stop.
+        ignoreMutation: (mutation) => list.contains(mutation.target) || mutation.type === "attributes",
+        destroy: () => {
+          observer.disconnect();
+          editor.off("selectionUpdate", followSelection);
+        },
       };
     };
   },
