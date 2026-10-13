@@ -1715,3 +1715,13 @@ span[data-label] > .component-invalid {
 .lead-field:focus-visible {
   outline: none;
 }
+
+/* Links in the canvas select what they belong to instead of leaving the page: no hand pointer promising otherwise. Linked words are
+   text to edit; links inside a component select the component. */
+.ProseMirror a[href] {
+  cursor: text;
+}
+
+.ProseMirror [contenteditable="false"] a[href] {
+  cursor: default;
+}

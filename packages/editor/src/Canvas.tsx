@@ -109,7 +109,32 @@ export function Canvas({
     };
     dom.addEventListener(PICKER_EVENT, onRequest);
 
-    return () => dom.removeEventListener(PICKER_EVENT, onRequest);
+    // In the canvas a link card, a feature card or a linked word is something to select and edit, not to follow: a plain click only
+    // selects it (and opens its settings). Cmd/Ctrl-click or the middle button opens the target in a new tab: a page of the site in
+    // the editor, since its address only exists on the published site, and any other address as it is.
+    const onLink = (event: MouseEvent) => {
+      const link = event.target instanceof Element ? event.target.closest("a[href]") : null;
+      if (!link || event.button === 2) return;
+      event.preventDefault();
+      if (event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey) return;
+
+      const href = link.getAttribute("href") ?? "";
+      if (/^[a-z][a-z0-9+.-]*:/i.test(href)) {
+        window.open(href, "_blank", "noopener");
+        return;
+      }
+      const path = href.split("#")[0].replace(/\/$/, "");
+      const page = Object.entries(pageUrlRegistry.urls).find(([, url]) => url.replace(/\/$/, "") === path)?.[0];
+      if (page) window.open(`${window.location.pathname}#page=${page}`, "_blank", "noopener");
+    };
+    dom.addEventListener("click", onLink, true);
+    dom.addEventListener("auxclick", onLink, true);
+
+    return () => {
+      dom.removeEventListener(PICKER_EVENT, onRequest);
+      dom.removeEventListener("click", onLink, true);
+      dom.removeEventListener("auxclick", onLink, true);
+    };
   }, [editor, editable]);
 
   // The editor shows "new until" dates against today's date, as the publish render does with its own.
