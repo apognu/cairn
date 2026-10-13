@@ -1,6 +1,6 @@
-use yourdocs_core::{Document, Live, PageKind, Pending, Problem, ProblemKind, doc_problems, pending_changes, url_problems};
+use yourdocs_core::{Document, Live, PageKind, Pending, Problem, ProblemKind, doc_problems, expand, pending_changes, url_problems};
 use yourdocs_render::Pool;
-use yourdocs_store::{DatabaseConnection, all_links, draft_docs, draft_revisions, list_pages, list_redirects, live_release};
+use yourdocs_store::{DatabaseConnection, all_links, draft_docs, draft_revisions, list_pages, list_redirects, live_release, load_library};
 
 use crate::PublishError;
 
@@ -27,10 +27,21 @@ pub async fn check(db: &DatabaseConnection, pool: &Pool) -> Result<Vec<Problem>,
   let pages: Vec<_> = list_pages(db).await?.into_iter().filter(|p| p.kind == PageKind::Page).collect();
   let docs = draft_docs(db).await?;
   let empty = Document::empty();
+  let library = load_library(db).await?;
   let mut found = url_problems(&pages);
 
   for page in &pages {
-    let doc = docs.get(&page.id).unwrap_or(&empty);
+    // The page as readers will see it, with variables and snippets in place.
+    let (doc, missing) = expand(docs.get(&page.id).unwrap_or(&empty), &library);
+    let doc = &doc;
+    for key in missing {
+      found.push(Problem {
+        page_id: page.id,
+        page_title: page.title.clone(),
+        kind: ProblemKind::InvalidProps,
+        message: format!("uses a {key} that does not exist"),
+      });
+    }
     found.extend(doc_problems(page, doc, &pages));
 
     let value = serde_json::to_value(doc).map_err(anyhow::Error::from)?;

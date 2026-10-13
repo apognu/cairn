@@ -1,5 +1,7 @@
 pub(crate) mod asset;
 pub(crate) mod draft;
+pub(crate) mod entry_usage;
+pub(crate) mod library_entry;
 pub(crate) mod page;
 pub(crate) mod page_link;
 pub(crate) mod redirect;

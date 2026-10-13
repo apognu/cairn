@@ -10,11 +10,11 @@ use futures_util::{StreamExt, TryStreamExt, stream};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use yourdocs_core::{
-  AssetId, AssetStore, Broadcast, ContentStore, Document, Event, Page, PageId, PageKind, Release, ReleaseStatus, RevisionId, UserId, effective_redirects, extract_links, header_section, original_key,
-  page_urls, variant_key,
+  AssetId, AssetStore, Broadcast, ContentStore, Document, Event, Page, PageId, PageKind, Release, ReleaseStatus, RevisionId, UserId, effective_redirects, expand, extract_links, header_section,
+  original_key, page_urls, variant_key,
 };
 use yourdocs_render::{Pool, Shell, highlight_css};
-use yourdocs_store::{DatabaseConnection, add_release_pages, assets_by_ids, create_release, list_pages, list_redirects, load_settings, set_release_status};
+use yourdocs_store::{DatabaseConnection, add_release_pages, assets_by_ids, create_release, list_pages, list_redirects, load_library, load_settings, set_release_status};
 
 use crate::{
   PublishError, generated,
@@ -151,12 +151,15 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
   /// Each page's latest revision, which is always what its draft holds. A page nobody has edited gets an empty one.
   async fn sources(&self, pages: Vec<Page>, user: UserId) -> Result<Vec<PageSource>, PublishError> {
     let mut sources = Vec::with_capacity(pages.len());
+    let library = load_library(&self.db).await?;
 
     for page in pages {
       let revision = self.content.ensure_revision(page.id, user).await?;
       sources.push(PageSource {
         page,
-        doc: revision.doc,
+        // Variables and snippets are written into the page here, so everything after (the render, the Markdown, the cache key)
+        // sees the page as readers do, and a changed entry changes exactly the pages that use it.
+        doc: expand(&revision.doc, &library).0,
         revision: revision.id,
         updated: revision.created_at,
       });
@@ -877,5 +880,77 @@ mod tests {
     save(alt.id, serde_json::json!([{ "type": "image", "attrs": { "assetId": "x", "alt": "A chart" } }])).await;
     save(props.id, serde_json::json!([{ "type": "cards", "attrs": { "columns": "3", "cards": [] } }])).await;
     f.publisher.publish(user).await.unwrap();
+  }
+
+  #[tokio::test]
+  async fn editing_a_snippet_renders_exactly_the_pages_that_use_it() {
+    use yourdocs_store::{save_snippet, save_variable};
+
+    let f = fixture().await;
+    let user = UserId::new();
+    let para = |text: &str| serde_json::json!({ "type": "paragraph", "content": [{ "type": "text", "text": text }] });
+    save_variable(&f.db, user, "version", "1.0").await.unwrap();
+    save_snippet(&f.db, user, "prereqs", &doc(serde_json::json!({ "type": "doc", "content": [para("Install the CLI first.")] })))
+      .await
+      .unwrap();
+
+    // Three pages use the snippet (one through a variable too), two do not.
+    let mut titles = Vec::new();
+    for (i, uses) in [true, true, true, false, false].into_iter().enumerate() {
+      let title = format!("Page{i}");
+      let page = create_page(&f.db, user, None, &title, Placement::Last).await.unwrap();
+      let content = if uses {
+        serde_json::json!([para("Intro"), { "type": "snippet", "attrs": { "key": "prereqs" } }, { "type": "paragraph", "content": [{ "type": "variable", "attrs": { "key": "version" } }] }])
+      } else {
+        serde_json::json!([para("Nothing shared")])
+      };
+      f.content.save_draft(page.id, doc(serde_json::json!({ "type": "doc", "content": content })), None, user).await.unwrap();
+      titles.push((title, uses));
+    }
+
+    f.publisher.publish(user).await.unwrap();
+    let first = f.publisher.renders();
+    let site = f.dir.join("out/site");
+    let read = |t: &str| std::fs::read_to_string(site.join(t.to_lowercase()).join("index.html")).unwrap();
+    assert!(read("Page0").contains("Install the CLI first.") && read("Page0").contains("1.0"));
+
+    // Editing the snippet re-renders the three that use it and none of the others.
+    save_snippet(
+      &f.db,
+      user,
+      "prereqs",
+      &doc(serde_json::json!({ "type": "doc", "content": [para("Install the CLI, version 2, first.")] })),
+    )
+    .await
+    .unwrap();
+    f.publisher.publish(user).await.unwrap();
+    assert_eq!(f.publisher.renders() - first, 3);
+    for (title, uses) in &titles {
+      assert_eq!(read(title).contains("version 2"), *uses, "{title}");
+    }
+
+    // The same for a variable.
+    let before = f.publisher.renders();
+    save_variable(&f.db, user, "version", "2.0").await.unwrap();
+    f.publisher.publish(user).await.unwrap();
+    assert_eq!(f.publisher.renders() - before, 3);
+    assert!(read("Page2").contains("2.0"));
+
+    // An entry that does not exist blocks the publish and names the page.
+    let page = create_page(&f.db, user, None, "Lost", Placement::Last).await.unwrap();
+    f.content
+      .save_draft(
+        page.id,
+        doc(serde_json::json!({ "type": "doc", "content": [{ "type": "snippet", "attrs": { "key": "nope" } }] })),
+        None,
+        user,
+      )
+      .await
+      .unwrap();
+    let blocked = f.publisher.publish(user).await;
+    assert!(
+      matches!(&blocked, Err(PublishError::Blocked(p)) if p[0].page_title == "Lost" && p[0].message.contains("snippet nope")),
+      "{blocked:?}"
+    );
   }
 }

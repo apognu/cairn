@@ -5,6 +5,7 @@ use yourdocs_core::{ContentStore, CoreError, Document, Draft, PageId, Revision, 
 use crate::{
   StoreError,
   entity::{draft, page, revision},
+  library::replace_usages,
   links::replace_links,
 };
 
@@ -112,6 +113,7 @@ impl ContentStore for SqlContentStore {
 
     // Backlinks and delete warnings read these; they move with the draft or not at all.
     replace_links(&tx, page, &extract_links(&doc)).await?;
+    replace_usages(&tx, page, &doc).await?;
 
     tx.commit().await.map_err(other)?;
 

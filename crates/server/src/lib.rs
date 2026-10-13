@@ -7,6 +7,7 @@ mod assets;
 mod drafts;
 mod editor;
 mod error;
+mod library;
 mod links;
 mod pages;
 mod publish;
