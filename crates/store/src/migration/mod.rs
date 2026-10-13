@@ -10,6 +10,7 @@ mod m0006_description;
 mod m0007_library;
 mod m0008_api;
 mod m0009_release_config;
+mod m0010_users;
 
 struct Migrator;
 
@@ -25,6 +26,7 @@ impl MigratorTrait for Migrator {
       Box::new(m0007_library::Migration),
       Box::new(m0008_api::Migration),
       Box::new(m0009_release_config::Migration),
+      Box::new(m0010_users::Migration),
     ]
   }
 }

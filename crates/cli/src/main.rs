@@ -27,6 +27,8 @@ enum Command {
     #[arg(long, default_value = ".yourdocs")]
     data_dir: PathBuf,
   },
+  /// Run the server for a deployment. Sign-in is mandatory; everything is configured with environment variables.
+  Serve,
   /// Print the OpenAPI spec of the HTTP API.
   Openapi,
 }
@@ -37,6 +39,7 @@ async fn main() -> anyhow::Result<()> {
 
   match Cli::parse().command {
     Command::Dev { bind, site_bind, data_dir } => yourdocs_server::run_dev(bind, site_bind, data_dir).await,
+    Command::Serve => yourdocs_server::run_serve().await,
     Command::Openapi => writeln!(std::io::stdout(), "{}", yourdocs_server::openapi_json()?).map_err(Into::into),
   }
 }

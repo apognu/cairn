@@ -19,6 +19,7 @@ use crate::{api_pages, drafts, history, library, links, pages, publish, redirect
 
 #[derive(Clone)]
 pub struct AppState {
+  pub auth: yourdocs_auth::Auth,
   pub pool: Arc<Pool>,
   pub db: DatabaseConnection,
   pub content: SqlContentStore,
@@ -30,6 +31,12 @@ pub struct AppState {
   pub api_checks: Arc<crate::api_pages::ApiChecks>,
   /// The API reference script, which the editor's preview loads from `/api/scalar.js`.
   pub scalar_js: Arc<Vec<u8>>,
+}
+
+impl axum::extract::FromRef<AppState> for yourdocs_auth::Auth {
+  fn from_ref(state: &AppState) -> Self {
+    state.auth.clone()
+  }
 }
 
 /// What the publisher needs besides the stores: the browser files every page links to, and the deployment's settings.
@@ -81,7 +88,10 @@ pub fn api() -> (Router<AppState>, utoipa::openapi::OpenApi) {
 }
 
 pub fn router(state: AppState) -> Router {
+  let auth = yourdocs_auth::Auth::routes().with_state(state.auth.clone());
+
   Router::new()
+    .merge(auth)
     .route("/_a/{name}", get(uploads::serve))
     .merge(api().0)
     .fallback(crate::editor::serve)
@@ -153,6 +163,7 @@ pub(crate) async fn test_state_with_dir() -> (AppState, std::path::PathBuf) {
     content,
     assets,
     db,
+    auth: yourdocs_auth::Auth::local(),
     editor_dir: None,
     api_checks: Default::default(),
     scalar_js: Arc::new(Vec::new()),

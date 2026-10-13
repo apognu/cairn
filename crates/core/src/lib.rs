@@ -19,6 +19,7 @@ mod redirect;
 mod release;
 mod settings;
 mod storage;
+mod user;
 
 pub use api::{ApiConfig, ApiDisplay, ApiSource, GitRef, MergeRules, Operation, ResolvedSource};
 pub use asset::{Asset, AssetVariant};
@@ -35,3 +36,4 @@ pub use redirect::{BrokenLink, Change, ChangeKind, Inactive, Live, LostUrl, OldU
 pub use release::{Release, ReleaseStatus};
 pub use settings::{Footer, FooterColumn, Mode, ModeColors, Settings, SiteLink, contrast_ratio};
 pub use storage::{AssetStore, ContentStore, Draft, Revision, original_key, variant_key};
+pub use user::User;

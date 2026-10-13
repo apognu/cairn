@@ -15,6 +15,7 @@ mod redirects;
 mod releases;
 mod tree;
 mod urls;
+mod users;
 
 pub use api::{ReleaseSpec, get_api_config, list_api_configs, record_release_specs, release_specs, save_api_config};
 pub use assets::{NewAsset, asset_by_hash, asset_by_id, assets_by_ids, get_or_create_asset};
@@ -29,3 +30,4 @@ pub use releases::{LiveRelease, add_release_pages, create_release, get_setting, 
 pub use sea_orm::DatabaseConnection;
 pub use tree::{create_api_page, create_link, create_page, delete_page, edit_link, list_pages, move_page, rename_page, set_description, set_in_header};
 pub use urls::{RedirectTarget, add_alias, add_redirect, list_aliases, normalize_path, remove_alias, remove_redirect, set_custom_url};
+pub use users::{LoginState, get_user, save_login_state, take_login_state, upsert_user};

@@ -6,6 +6,7 @@ mod api_pages;
 mod app;
 mod assets;
 mod bundles;
+mod config;
 mod drafts;
 mod editor;
 mod error;
@@ -35,15 +36,22 @@ pub fn openapi_json() -> anyhow::Result<String> {
   app::api().1.to_pretty_json().context("cannot serialize the OpenAPI spec")
 }
 
-/// Runs the editor for local use: no login, every request is the local user, so it only ever listens on a loopback address.
-pub async fn run_dev(bind: SocketAddr, site_bind: SocketAddr, data_dir: PathBuf) -> anyhow::Result<()> {
-  for address in [bind, site_bind] {
-    if !address.ip().is_loopback() {
-      bail!("`dev` has no login and listens on localhost only; {address} is not a loopback address");
-    }
-  }
+/// How requests are authenticated, decided by the command.
+enum AuthSetup {
+  /// `dev`: everyone is the local user.
+  Local,
+  /// `serve`: a provider's sign-in.
+  Oidc(config::OidcSettings, String),
+}
 
-  std::fs::create_dir_all(&data_dir).with_context(|| format!("cannot create {}", data_dir.display()))?;
+/// What both commands run: the stores, the render pool and the publisher, over one data directory.
+struct Runtime {
+  state: AppState,
+  events: yourdocs_core::LocalBroadcast,
+}
+
+async fn prepare(data_dir: &std::path::Path, site_url: String, auth: AuthSetup) -> anyhow::Result<Runtime> {
+  std::fs::create_dir_all(data_dir).with_context(|| format!("cannot create {}", data_dir.display()))?;
   let db = yourdocs_store::connect(&data_dir.join("yourdocs.db")).await.context("cannot open the database")?;
 
   // The runtime image keeps the bundles `build-components` made in /app/bundles; anywhere else the ones in the binary are used.
@@ -59,6 +67,14 @@ pub async fn run_dev(bind: SocketAddr, site_bind: SocketAddr, data_dir: PathBuf)
 
   let events = yourdocs_core::LocalBroadcast::new();
 
+  let auth = match auth {
+    AuthSetup::Local => yourdocs_auth::Auth::local(),
+    AuthSetup::Oidc(settings, redirect) => {
+      let oidc = yourdocs_auth::Oidc::discover(settings.into(), &redirect).await?;
+      yourdocs_auth::Auth::oidc(oidc, db.clone())
+    }
+  };
+
   let state = AppState {
     editor_dir: bundles.editor_dir.clone().map(Arc::new),
     api_checks: Default::default(),
@@ -68,12 +84,11 @@ pub async fn run_dev(bind: SocketAddr, site_bind: SocketAddr, data_dir: PathBuf)
       content.clone(),
       assets.clone(),
       pool.clone(),
-      &data_dir,
+      data_dir,
       app::PublishSetup {
         bundles: yourdocs_publish::Bundles::new(&bundles.ssr_js, bundles.client_js, bundles.site_css, bundles.scalar_js),
         config: yourdocs_publish::PublishConfig {
-          // Without PUBLIC_URL, the address `dev` serves the site on, whichever port it was given.
-          site_url: env::var("PUBLIC_URL").unwrap_or_else(|_| format!("http://{site_bind}")).trim_end_matches('/').to_string(),
+          site_url,
           pagefind: env::var("PAGEFIND_BIN").unwrap_or_else(|_| "pagefind".into()),
           api_hosts: api_hosts(),
         },
@@ -81,7 +96,7 @@ pub async fn run_dev(bind: SocketAddr, site_bind: SocketAddr, data_dir: PathBuf)
       events.clone(),
     )?,
     pool,
-
+    auth,
     content,
     assets,
     db,
@@ -97,12 +112,40 @@ pub async fn run_dev(bind: SocketAddr, site_bind: SocketAddr, data_dir: PathBuf)
     }
   });
 
+  Ok(Runtime { state, events })
+}
+
+/// Runs the editor for local use: no login, every request is the local user, so it only ever listens on a loopback address.
+pub async fn run_dev(bind: SocketAddr, site_bind: SocketAddr, data_dir: PathBuf) -> anyhow::Result<()> {
+  for address in [bind, site_bind] {
+    if !address.ip().is_loopback() {
+      bail!("`dev` has no login and listens on localhost only; {address} is not a loopback address");
+    }
+  }
+
+  // Without PUBLIC_URL, the address `dev` serves the site on, whichever port it was given.
+  let site_url = env::var("PUBLIC_URL").unwrap_or_else(|_| format!("http://{site_bind}")).trim_end_matches('/').to_string();
+  let Runtime { state, events } = prepare(&data_dir, site_url, AuthSetup::Local).await?;
+
   let editor = tokio::net::TcpListener::bind(bind).await.with_context(|| format!("cannot bind {bind}"))?;
   let site = tokio::net::TcpListener::bind(site_bind).await.with_context(|| format!("cannot bind {site_bind}"))?;
   tracing::info!(editor = %bind, site = %site_bind, "listening");
 
   let site_router = site::router(data_dir.join("site"), events);
   tokio::try_join!(axum::serve(editor, router(state)), axum::serve(site, site_router)).context("server stopped")?;
+
+  Ok(())
+}
+
+/// Runs the server for a deployment: sign-in through the OIDC provider, configured from the environment.
+pub async fn run_serve() -> anyhow::Result<()> {
+  let config = config::Config::from_env()?;
+  let redirect = format!("{}/auth/callback", config.public_url);
+  let Runtime { state, .. } = prepare(&config.data_dir, config.public_url.clone(), AuthSetup::Oidc(config.oidc.clone(), redirect)).await?;
+
+  let listener = tokio::net::TcpListener::bind(config.bind).await.with_context(|| format!("cannot bind {}", config.bind))?;
+  tracing::info!(address = %config.bind, public_url = %config.public_url, "listening");
+  axum::serve(listener, router(state)).await.context("server stopped")?;
 
   Ok(())
 }
