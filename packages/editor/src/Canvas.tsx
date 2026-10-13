@@ -158,10 +158,10 @@ export function Canvas({
       ]),
   );
 
-  const linkTo = (link: { href: string; pageId: string | null; text: string }) => {
+  const linkTo = (link: { href: string; pageId: string | null; text: string; anchor?: string }) => {
     if (!editor || !picker) return;
     const { request } = picker;
-    const attrs = { href: link.href, pageId: link.pageId };
+    const attrs = { href: link.href, pageId: link.pageId, anchor: link.anchor ?? null };
     const chain = editor.chain().focus();
 
     if (request.mode === "selection") {
@@ -196,7 +196,15 @@ export function Canvas({
               setPicker(null);
               editor?.commands.focus();
             }}
-            onPage={(page) => linkTo({ href: full.urls[page.id] ?? "", pageId: page.id, text: page.title })}
+            operations
+            onPage={(page, operation) =>
+              linkTo({
+                href: full.urls[page.id] ?? "",
+                pageId: page.id,
+                text: operation?.label ?? page.title,
+                anchor: operation?.anchor,
+              })
+            }
             onUrl={(url) => linkTo({ href: url, pageId: null, text: url })}
           />
         )}

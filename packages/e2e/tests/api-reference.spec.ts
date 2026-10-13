@@ -78,3 +78,50 @@ test("an API page shows the merged operations in Scalar inside the site layout, 
     expect(await page.evaluate(() => scrollY)).toBeGreaterThan(500);
   }).toPass();
 });
+
+test("a link to one operation of an API page is checked against the build's spec", async ({ page, request }) => {
+  const byTitle = async (title: string) =>
+    (await (await request.get("/api/pages")).json()).find((p: { title: string }) => p.title === title);
+  const guide = await (await request.post("/api/pages", { data: { parent_id: null, title: "Guide" } })).json();
+  const api = await byTitle("Orders API");
+
+  // The operations a link can point at are those the sources gave at the last check or publish.
+  const operations = await (await request.get(`/api/pages/${api.id}/operations`)).json();
+  expect(operations.map((o: { anchor: string }) => o.anchor)).toContain("tag/orders/POST/orders");
+
+  await page.goto(`/#page=${guide.id}`);
+  const editor = page.locator(".ProseMirror").first();
+  await editor.click();
+  await page.keyboard.type("create an order");
+  await page.keyboard.press("ControlOrMeta+a");
+  await page.keyboard.press("ControlOrMeta+k");
+  const picker = page.getByRole("dialog", { name: "Link to" });
+  await picker.getByRole("combobox").fill("Orders API");
+  await picker
+    .getByRole("button", { name: /Orders API/ })
+    .first()
+    .click();
+  await picker.getByRole("button", { name: /POST \/orders/ }).click();
+
+  await expect(async () => {
+    const draft = await (await request.get(`/api/pages/${guide.id}/draft`)).json();
+    expect(JSON.stringify(draft.doc)).toContain('"anchor":"tag/orders/POST/orders"');
+  }).toPass();
+  const first = await request.post("/api/publish");
+  expect(first.ok(), await first.text()).toBe(true);
+
+  // Upstream drops the operation: the link is reported before anything is published.
+  await request.put(
+    `${GITHUB}/__state/file?path=${encodeURIComponent("/acme/orders/releases/download/v1.0.0/openapi.json")}`,
+    {
+      data: JSON.stringify({
+        openapi: "3.0.3",
+        info: { title: "Orders", version: "1.0.1" },
+        paths: { "/orders": { get: { tags: ["Orders"], responses: { "200": { description: "ok" } } } } },
+      }),
+    },
+  );
+  const blocked = await request.post("/api/publish");
+  expect(blocked.status()).toBe(422);
+  expect(JSON.stringify(await blocked.json())).toContain("POST /orders");
+});

@@ -149,15 +149,18 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
   pub async fn publish(&self, user: UserId) -> Result<Release, PublishError> {
     let _turn = self.running.lock().await;
 
-    // Nothing is created, rendered or written until the site passes its checks.
-    let problems = crate::changes::check(&self.db, &self.pool).await?;
+    let tree_pages = list_pages(&self.db).await?;
+    // Every build reads the specs again; one that cannot be read stops the publish before anything is created.
+    let apis = self.resolve_apis(&tree_pages).await?;
+
+    // Nothing is created, rendered or written until the site passes its checks, links to operations included: those are compared with
+    // the specs of this very build.
+    let anchors: crate::OperationAnchors = apis.iter().map(|api| (api.page_id, api.operations.iter().map(yourdocs_core::Operation::anchor).collect())).collect();
+    let problems = crate::changes::check_with(&self.db, &self.pool, &anchors).await?;
     if !problems.is_empty() {
       return Err(PublishError::Blocked(problems));
     }
 
-    let tree_pages = list_pages(&self.db).await?;
-    // Every build reads the specs again; one that cannot be read stops the publish before anything is created.
-    let apis = self.resolve_apis(&tree_pages).await?;
     // Links are navigation only: nothing to render, nothing in the sitemap.
     let mut sources = self.sources(tree_pages.iter().filter(|p| p.kind == PageKind::Page).cloned().collect(), user).await?;
     sources.extend(api_sources(&tree_pages, apis));
@@ -1408,6 +1411,7 @@ mod tests {
   }
 
   mod apis {
+    use yourdocs_core::PageKind;
     use yourdocs_core::{ApiConfig, ApiSource, GitRef};
     use yourdocs_store::{create_api_page, release_specs, save_api_config};
 
@@ -1472,6 +1476,35 @@ mod tests {
       assert!(html.contains("<div hidden=\"\">") && html.contains("listOrders summary") && html.contains("/invoices"), "{html}");
       // The page has no revision of its own.
       assert_eq!(release.page_count, 2);
+    }
+
+    #[tokio::test]
+    async fn a_link_to_an_operation_the_build_no_longer_has_blocks_the_publish() {
+      let (f, github_stand_in, api, user) = site().await;
+      let guide = list_pages(&f.db).await.unwrap().into_iter().find(|p| p.kind == PageKind::Page).unwrap();
+      let linking = |anchor: &str| {
+        doc(serde_json::json!({ "type": "doc", "content": [{ "type": "paragraph", "content": [
+          { "type": "text", "text": "orders", "marks": [{ "type": "link", "attrs": { "pageId": api.id.to_string(), "anchor": anchor } }] }
+        ] }] }))
+      };
+      let save = |anchor: &'static str| {
+        let (f, linking) = (&f, linking(anchor));
+        async move {
+          let base = f.content.draft(guide.id).await.unwrap().and_then(|d| d.base_revision_id);
+          f.content.save_draft(guide.id, linking, base, user).await.unwrap();
+        }
+      };
+
+      save("tag/default/GET/orders").await;
+      f.publisher.publish(user).await.unwrap();
+
+      // Upstream drops the operation: the build has the new spec, and the link no longer leads anywhere.
+      github_stand_in.set_file("/acme/orders/releases/download/v1.0.0/openapi.json", &spec("Orders", "1.0.0", "get", "/orders-v2", "listOrders"));
+      let blocked = f.publisher.publish(user).await.unwrap_err();
+      assert!(
+        matches!(&blocked, PublishError::Blocked(problems) if problems[0].page_title == "Guide" && problems[0].message.contains("GET /orders") && problems[0].message.contains("Orders API")),
+        "{blocked:?}"
+      );
     }
 
     #[tokio::test]

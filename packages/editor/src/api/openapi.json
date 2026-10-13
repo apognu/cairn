@@ -1127,6 +1127,45 @@
         }
       }
     },
+    "/api/pages/{id}/operations": {
+      "get": {
+        "summary": "The operations of an API page that a link can point at: those of its last check, or of the live release before any. Empty when the\npage was never resolved.",
+        "operationId": "listApiOperations",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/PageId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/OperationLink"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/pages/{id}/restore": {
       "post": {
         "summary": "Makes an older version the page's draft. The draft it replaces stays in the history, so the restore can be undone.",
@@ -2570,6 +2609,40 @@
           }
         }
       },
+      "OperationLink": {
+        "type": "object",
+        "description": "An operation a link can point at.",
+        "required": [
+          "method",
+          "path",
+          "tags",
+          "anchor"
+        ],
+        "properties": {
+          "anchor": {
+            "type": "string",
+            "description": "What a link stores, and what follows `#` in its address."
+          },
+          "method": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "summary": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "Page": {
         "type": "object",
         "description": "A node of the page tree.",
@@ -2759,6 +2832,7 @@
         "enum": [
           "broken_link",
           "invalid_props",
+          "broken_operation_link",
           "duplicate_url",
           "missing_alt"
         ]

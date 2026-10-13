@@ -51,5 +51,5 @@ async fn changes(State(state): State<AppState>) -> Result<Json<Pending>, AppErro
 #[utoipa::path(get, path = "/api/publish/checks", operation_id = "publishChecks", responses((status = 200, body = Vec<Problem>)))]
 #[instrument(skip_all)]
 async fn checks(State(state): State<AppState>) -> Result<Json<Vec<Problem>>, AppError> {
-  Ok(Json(yourdocs_publish::check(&state.db, &state.pool).await?))
+  Ok(Json(yourdocs_publish::check(&state.db, &state.pool, &state.api_checks.anchors()).await?))
 }

@@ -1,6 +1,8 @@
-use yourdocs_core::{Document, Live, PageKind, Pending, Problem, ProblemKind, doc_problems, expand, pending_changes, term_refs, url_problems};
+use std::collections::{HashMap, HashSet};
+
+use yourdocs_core::{Document, Live, Operation, PageId, PageKind, Pending, Problem, ProblemKind, doc_problems, expand, pending_changes, term_refs, url_problems};
 use yourdocs_render::Pool;
-use yourdocs_store::{DatabaseConnection, all_links, draft_docs, draft_revisions, list_pages, list_redirects, live_release, load_library};
+use yourdocs_store::{DatabaseConnection, all_links, draft_docs, draft_revisions, latest_live_release, list_pages, list_redirects, live_release, load_library, release_specs};
 
 use crate::PublishError;
 
@@ -23,7 +25,27 @@ pub async fn pending(db: &DatabaseConnection) -> Result<Pending, PublishError> {
 
 /// Everything that would stop a publish now: links to deleted pages, images without alt text, pages sharing a URL, and blocks or component
 /// settings the renderer cannot take. Each names its page.
-pub async fn check(db: &DatabaseConnection, pool: &Pool) -> Result<Vec<Problem>, PublishError> {
+///
+/// Links to operations of API pages are compared with what the live release recorded, plus `fresh` (what a check of the settings just
+/// merged); a publish has the specs of its own build and uses `check_with`.
+pub async fn check(db: &DatabaseConnection, pool: &Pool, fresh: &OperationAnchors) -> Result<Vec<Problem>, PublishError> {
+  let mut anchors = OperationAnchors::new();
+  if let Some(live) = latest_live_release(db).await? {
+    for spec in release_specs(db, live.id).await? {
+      anchors.insert(spec.page_id, spec.operations.iter().map(Operation::anchor).collect());
+    }
+  }
+  for (page, known) in fresh {
+    anchors.entry(*page).or_default().extend(known.iter().cloned());
+  }
+
+  check_with(db, pool, &anchors).await
+}
+
+/// The anchors of the operations of each API page: what a link to one of them may point at.
+pub type OperationAnchors = HashMap<PageId, HashSet<String>>;
+
+pub(crate) async fn check_with(db: &DatabaseConnection, pool: &Pool, operations: &OperationAnchors) -> Result<Vec<Problem>, PublishError> {
   let all = list_pages(db).await?;
   let pages: Vec<_> = all.iter().filter(|p| p.kind == PageKind::Page).cloned().collect();
   let docs = draft_docs(db).await?;
@@ -44,7 +66,7 @@ pub async fn check(db: &DatabaseConnection, pool: &Pool) -> Result<Vec<Problem>,
         message: format!("uses a {key} that does not exist"),
       });
     }
-    found.extend(doc_problems(page, doc, &all));
+    found.extend(doc_problems(page, doc, &all, operations));
 
     let value = serde_json::to_value(doc).map_err(anyhow::Error::from)?;
     for message in pool.validate(&value).await.map_err(|source| PublishError::Render { page: page.title.clone(), source })? {

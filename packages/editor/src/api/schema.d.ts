@@ -327,6 +327,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/pages/{id}/operations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The operations of an API page that a link can point at: those of its last check, or of the live release before any. Empty when the
+         *     page was never resolved.
+         */
+        get: operations["listApiOperations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/pages/{id}/restore": {
         parameters: {
             query?: never;
@@ -857,6 +877,15 @@ export interface components {
             summary?: string | null;
             tags: string[];
         };
+        /** @description An operation a link can point at. */
+        OperationLink: {
+            /** @description What a link stores, and what follows `#` in its address. */
+            anchor: string;
+            method: string;
+            path: string;
+            summary?: string | null;
+            tags: string[];
+        };
         /** @description A node of the page tree. */
         Page: {
             /** Format: date-time */
@@ -916,7 +945,7 @@ export interface components {
          * @description What a pre-publish check found wrong.
          * @enum {string}
          */
-        ProblemKind: "broken_link" | "invalid_props" | "duplicate_url" | "missing_alt";
+        ProblemKind: "broken_link" | "invalid_props" | "broken_operation_link" | "duplicate_url" | "missing_alt";
         /** @description A redirect as the Settings page shows it. */
         RedirectEntry: {
             from_path: string;
@@ -1999,6 +2028,35 @@ export interface operations {
             };
             /** @description the target is inside the page's own subtree */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    listApiOperations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["PageId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperationLink"][];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

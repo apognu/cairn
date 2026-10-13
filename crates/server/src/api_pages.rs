@@ -30,7 +30,23 @@ const LISTED_OPERATIONS: usize = 200;
 #[derive(Default)]
 pub struct ApiChecks {
   running: Mutex<HashSet<PageId>>,
-  last: Mutex<HashMap<PageId, Arc<Vec<u8>>>>,
+  last: Mutex<HashMap<PageId, Checked>>,
+}
+
+/// What a page's last successful check merged.
+#[derive(Clone)]
+struct Checked {
+  spec: Arc<Vec<u8>>,
+  operations: Vec<Operation>,
+}
+
+impl ApiChecks {
+  /// The anchors of what the checks of every page merged, for the pre-publish checks to accept links to operations not published yet.
+  pub(crate) fn anchors(&self) -> HashMap<PageId, HashSet<String>> {
+    let last = self.last.lock().expect("the lock is never held across a panic");
+
+    last.iter().map(|(page, checked)| (*page, checked.operations.iter().map(Operation::anchor).collect())).collect()
+  }
 }
 
 /// Held while a page's sources are being checked, so a second click does not start a second round of downloads.
@@ -56,6 +72,7 @@ pub(crate) fn routes() -> OpenApiRouter<AppState> {
     .routes(routes!(get_config, put_config))
     .routes(routes!(check_config))
     .routes(routes!(get_spec))
+    .routes(routes!(list_operations))
     .routes(routes!(scalar_js))
 }
 
@@ -92,7 +109,7 @@ async fn put_config(State(state): State<AppState>, CurrentUser(user): CurrentUse
 async fn get_spec(State(state): State<AppState>, Path(id): Path<PageId>) -> Result<impl IntoResponse, AppError> {
   let checked = state.api_checks.last.lock().expect("the lock is never held across a panic").get(&id).cloned();
   let bytes = match checked {
-    Some(bytes) => bytes.as_ref().clone(),
+    Some(checked) => checked.spec.as_ref().clone(),
     None => {
       let live = latest_live_release(&state.db).await?.ok_or(AppError::NotFound)?;
       let spec = release_specs(&state.db, live.id).await?.into_iter().find(|s| s.page_id == id).ok_or(AppError::NotFound)?;
@@ -102,6 +119,50 @@ async fn get_spec(State(state): State<AppState>, Path(id): Path<PageId>) -> Resu
   };
 
   Ok(([(header::CONTENT_TYPE, "application/json"), (header::CACHE_CONTROL, "no-cache")], bytes))
+}
+
+/// An operation a link can point at.
+#[derive(Serialize, ToSchema)]
+pub(crate) struct OperationLink {
+  method: String,
+  path: String,
+  summary: Option<String>,
+  tags: Vec<String>,
+  /// What a link stores, and what follows `#` in its address.
+  anchor: String,
+}
+
+/// The operations of an API page that a link can point at: those of its last check, or of the live release before any. Empty when the
+/// page was never resolved.
+#[utoipa::path(get, path = "/api/pages/{id}/operations", operation_id = "listApiOperations", params(("id" = PageId, Path)), responses(
+  (status = 200, body = Vec<OperationLink>),
+  (status = 404, body = ErrorBody),
+))]
+#[instrument(skip_all, fields(page_id = %id))]
+async fn list_operations(State(state): State<AppState>, Path(id): Path<PageId>) -> Result<Json<Vec<OperationLink>>, AppError> {
+  get_api_config(&state.db, id).await?;
+
+  let checked = state.api_checks.last.lock().expect("the lock is never held across a panic").get(&id).map(|c| c.operations.clone());
+  let operations = match checked {
+    Some(operations) => operations,
+    None => match latest_live_release(&state.db).await? {
+      Some(live) => release_specs(&state.db, live.id).await?.into_iter().find(|s| s.page_id == id).map(|s| s.operations).unwrap_or_default(),
+      None => Vec::new(),
+    },
+  };
+
+  Ok(Json(
+    operations
+      .into_iter()
+      .map(|o| OperationLink {
+        anchor: o.anchor(),
+        method: o.method,
+        path: o.path,
+        summary: o.summary,
+        tags: o.tags,
+      })
+      .collect(),
+  ))
 }
 
 /// The API reference script (Scalar), for the settings screen's preview.
@@ -149,7 +210,13 @@ async fn check_config(State(state): State<AppState>, Path(id): Path<PageId>, Jso
       let mut tags: Vec<String> = spec.operations.iter().flat_map(|o| o.tags.iter().cloned()).collect();
       tags.sort();
       tags.dedup();
-      state.api_checks.last.lock().expect("the lock is never held across a panic").insert(id, Arc::new(spec.bytes));
+      state.api_checks.last.lock().expect("the lock is never held across a panic").insert(
+        id,
+        Checked {
+          spec: Arc::new(spec.bytes),
+          operations: spec.operations.clone(),
+        },
+      );
 
       ApiCheck {
         sources: spec.sources,

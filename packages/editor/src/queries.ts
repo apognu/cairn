@@ -1,4 +1,4 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./api/client";
 import type { components } from "./api/schema";
 import { unwrap } from "./api/unwrap";
@@ -333,8 +333,35 @@ export function useSaveApiConfig(id: string) {
 
 /** Fetches and merges the sources of the form as it stands, the way a publish would, without publishing. */
 export function useCheckApiConfig(id: string) {
+  const client = useQueryClient();
+
   return useMutation({
     mutationFn: async (config: ApiConfig) =>
       unwrap(await api.POST("/api/pages/{id}/api-config/check", { params: { path: { id } }, body: config })),
+    // The server keeps what a successful check merged: links to operations are offered from it from now on.
+    onSuccess: (result) =>
+      result.errors.length === 0 ? client.invalidateQueries({ queryKey: ["api-operations", id] }) : undefined,
+  });
+}
+
+/** The operations of each given API page, for the picker to search across them. Pages still loading have none yet. */
+export function useApiOperationsOf<P extends { id: string }>(pages: P[]) {
+  const results = useQueries({
+    queries: pages.map((page) => ({
+      queryKey: ["api-operations", page.id],
+      queryFn: async () => unwrap(await api.GET("/api/pages/{id}/operations", { params: { path: { id: page.id } } })),
+    })),
+  });
+
+  return pages.map((page, i) => ({ page, operations: results[i]?.data ?? [] }));
+}
+
+/** The operations of an API page that a link can point at; only asked for once the page is chosen in the picker. */
+export function useApiOperations(id: string | null) {
+  return useQuery({
+    queryKey: ["api-operations", id],
+    enabled: id !== null,
+    queryFn: async () =>
+      unwrap(await api.GET("/api/pages/{id}/operations", { params: { path: { id: id as string } } })),
   });
 }

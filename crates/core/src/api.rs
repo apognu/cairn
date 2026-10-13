@@ -105,6 +105,19 @@ pub struct Operation {
   pub operation_id: Option<String>,
 }
 
+impl Operation {
+  /// Where the operation is on its API page, as Scalar writes it in the address: `tag/<first tag, lower case, dashes for spaces>/<METHOD><path>`.
+  /// An operation without a tag is under `default`.
+  pub fn anchor(&self) -> String {
+    let tag = self
+      .tags
+      .first()
+      .map_or_else(|| "default".to_string(), |t| t.to_lowercase().split_whitespace().collect::<Vec<_>>().join("-"));
+
+    format!("tag/{tag}/{}{}", self.method, self.path)
+  }
+}
+
 /// Where one spec was read from at a build, as recorded in the release.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]

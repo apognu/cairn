@@ -1,8 +1,8 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use serde::Serialize;
 
-use crate::{Document, Page, PageId, extract_links, page_urls};
+use crate::{Document, Page, PageId, PageKind, extract_links, page_urls};
 
 /// What a pre-publish check found wrong.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -13,6 +13,8 @@ pub enum ProblemKind {
   BrokenLink,
   /// A component whose settings do not fit its schema, or a block the renderer does not know.
   InvalidProps,
+  /// A link to an operation of an API page that is not in its spec any more.
+  BrokenOperationLink,
   /// Two pages with the same URL.
   DuplicateUrl,
   /// An image with no description and not marked decorative.
@@ -45,8 +47,32 @@ fn problem(page: &Page, kind: ProblemKind, message: impl Into<String>) -> Proble
 }
 
 /// Problems found in one page's document: links to pages that are gone (`pages` is every page that exists) and images without alt text.
-pub fn doc_problems(page: &Page, doc: &Document, pages: &[Page]) -> Vec<Problem> {
+/// `operations` has the anchors of the operations of each API page, as the spec of this build has them; a link to another one is broken.
+pub fn doc_problems(page: &Page, doc: &Document, pages: &[Page], operations: &HashMap<PageId, HashSet<String>>) -> Vec<Problem> {
   let mut found = Vec::new();
+
+  let mut lost: Vec<String> = Vec::new();
+  for link in extract_links(doc) {
+    let Some(target) = pages.iter().find(|p| p.id == link.target) else { continue };
+    if target.kind == PageKind::Api
+      && link.anchor.starts_with("tag/")
+      && let Some(known) = operations.get(&target.id)
+      && !known.contains(&link.anchor)
+    {
+      // `tag/orders/POST/orders` is the operation `POST /orders`.
+      let operation = link.anchor.splitn(3, '/').nth(2).and_then(|rest| rest.split_once('/').map(|(m, p)| format!("{m} /{p}")));
+      lost.push(format!("“{}”", operation.unwrap_or(link.anchor.clone())) + &format!(" of “{}”", target.title));
+    }
+  }
+  lost.sort();
+  lost.dedup();
+  for operation in lost {
+    found.push(problem(
+      page,
+      ProblemKind::BrokenOperationLink,
+      format!("a link points to the operation {operation}, which is not in its spec any more"),
+    ));
+  }
 
   let gone = extract_links(doc).iter().filter(|l| !pages.iter().any(|p| p.id == l.target && p.kind.has_url())).count();
   if gone > 0 {
@@ -152,7 +178,7 @@ mod tests {
     ] }))
     .unwrap();
 
-    let found = doc_problems(&home, &doc, &[home.clone(), other]);
+    let found = doc_problems(&home, &doc, &[home.clone(), other], &HashMap::new());
     let summary: Vec<_> = found.iter().map(|p| (p.kind, p.to_string())).collect();
 
     assert_eq!(
@@ -162,6 +188,31 @@ mod tests {
         (ProblemKind::MissingAlt, "page \"Home\": 2 images have no alt text; describe them or mark them decorative".to_string()),
       ]
     );
+  }
+
+  #[test]
+  fn a_link_to_an_operation_that_left_the_spec_is_broken() {
+    let (home, mut api) = (page("Home", "home", None), page("Orders API", "orders", None));
+    api.kind = PageKind::Api;
+    let link = |anchor: &str| json!({ "type": "text", "text": "x", "marks": [{ "type": "link", "attrs": { "pageId": api.id.to_string(), "anchor": anchor } }] });
+    let doc: Document = serde_json::from_value(json!({ "type": "doc", "content": [{ "type": "paragraph", "content": [
+      link("tag/orders/GET/orders"), link("tag/orders/POST/orders"), link("tag/orders/POST/orders"), link("some-heading"),
+    ] }] }))
+    .unwrap();
+    let pages = [home.clone(), api.clone()];
+
+    let known = HashMap::from([(api.id, HashSet::from(["tag/orders/GET/orders".to_string()]))]);
+    let found = doc_problems(&home, &doc, &pages, &known);
+    assert_eq!(
+      found.iter().map(|p| (p.kind, p.message.as_str())).collect::<Vec<_>>(),
+      [(
+        ProblemKind::BrokenOperationLink,
+        "a link points to the operation “POST /orders” of “Orders API”, which is not in its spec any more"
+      )]
+    );
+
+    // Without a resolved spec for the page there is nothing to compare with.
+    assert!(doc_problems(&home, &doc, &pages, &HashMap::new()).is_empty());
   }
 
   #[test]

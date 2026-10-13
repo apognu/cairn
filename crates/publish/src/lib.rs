@@ -13,7 +13,7 @@ mod site;
 mod target;
 
 pub use api::{ApiHosts, Fetched, ResolvedApi, ResolvedSpec, SourceFetcher};
-pub use changes::{check, pending};
+pub use changes::{OperationAnchors, check, pending};
 pub use error::{ApiProblem, PublishError};
 pub use publisher::{Bundles, PublishConfig, Publisher, PublisherParts};
 pub use target::{Capabilities, FolderTarget, OutputFile, PublishTarget};
