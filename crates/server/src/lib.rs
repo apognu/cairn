@@ -45,7 +45,7 @@ enum AuthSetup {
   /// `dev`: everyone is the local user.
   Local,
   /// `serve`: a provider's sign-in.
-  Oidc(Box<config::OidcSettings>, String),
+  Oidc(Box<config::OidcSettings>, Option<config::GithubSettings>, String),
 }
 
 /// What both commands run: the stores, the render pool and the publisher, over one data directory.
@@ -73,7 +73,7 @@ async fn prepare(data_dir: &std::path::Path, site_url: String, auth: AuthSetup, 
 
   let auth = match auth {
     AuthSetup::Local => yourdocs_auth::Auth::local(),
-    AuthSetup::Oidc(settings, redirect) => {
+    AuthSetup::Oidc(settings, github, redirect) => {
       let settings = *settings;
       let auth_settings = yourdocs_auth::AuthSettings {
         sessions: settings.sessions(redirect.starts_with("https://")),
@@ -81,8 +81,22 @@ async fn prepare(data_dir: &std::path::Path, site_url: String, auth: AuthSetup, 
         public_origin: config::origin_of(&redirect),
         base_path: EDITOR_PATH.into(),
       };
+      let github = github
+        .map(|g| {
+          yourdocs_auth::Github::new(
+            yourdocs_auth::GithubConfig {
+              client_id: g.client_id,
+              client_secret: g.client_secret,
+              web_url: g.web_url,
+              api_url: g.api_url,
+              access: g.access,
+            },
+            &redirect.replace("/auth/callback", "/auth/github/callback"),
+          )
+        })
+        .transpose()?;
       let oidc = yourdocs_auth::Oidc::discover(settings.into(), &redirect).await?;
-      yourdocs_auth::Auth::oidc(oidc, db.clone(), auth_settings)
+      yourdocs_auth::Auth::oidc(oidc, github, db.clone(), auth_settings)
     }
   };
 
@@ -161,7 +175,7 @@ pub async fn run_serve() -> anyhow::Result<()> {
     config::TargetChoice::SelfHosted => yourdocs_publish::PublishTarget::SelfHosted(yourdocs_publish::FolderTarget::new(config.data_dir.clone())),
     config::TargetChoice::Folder(dir) => yourdocs_publish::PublishTarget::Folder(yourdocs_publish::FolderTarget::new(dir.clone())),
   };
-  let setup = AuthSetup::Oidc(Box::new(config.oidc.clone()), redirect);
+  let setup = AuthSetup::Oidc(Box::new(config.oidc.clone()), config.github.clone(), redirect);
   let Runtime { state, .. } = prepare(&config.data_dir, config.public_url.clone(), setup, target).await?;
 
   let listener = tokio::net::TcpListener::bind(config.bind).await.with_context(|| format!("cannot bind {}", config.bind))?;

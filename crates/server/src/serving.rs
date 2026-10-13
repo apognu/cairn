@@ -111,6 +111,7 @@ mod tests {
     let (mut state, dir) = test_state_serving(|dir| PublishTarget::SelfHosted(FolderTarget::new(dir.join("out")))).await;
     state.auth = Auth::oidc(
       Oidc::unreachable(),
+      None,
       state.db.clone(),
       AuthSettings {
         sessions: SessionSettings {

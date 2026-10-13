@@ -12,7 +12,7 @@ use axum::{
 use yourdocs_core::{ApiToken, UserId};
 use yourdocs_store::{DatabaseConnection, api_token_user, create_api_token, create_session, delete_session, session_user};
 
-use crate::{AccessRules, AuthError, Oidc, SessionSettings, local_user_id, routes, session};
+use crate::{AccessRules, AuthError, Github, Oidc, SessionSettings, local_user_id, routes, session};
 
 /// How requests are authenticated; the server keeps one in its state.
 #[derive(Clone)]
@@ -23,10 +23,11 @@ enum Mode {
   Oidc(Box<OidcAuth>),
 }
 
-struct OidcAuth {
-  oidc: Oidc,
-  db: DatabaseConnection,
-  settings: AuthSettings,
+pub(crate) struct OidcAuth {
+  pub(crate) oidc: Oidc,
+  pub(crate) github: Option<Github>,
+  pub(crate) db: DatabaseConnection,
+  pub(crate) settings: AuthSettings,
 }
 
 /// What a deployment with sign-in decides.
@@ -60,9 +61,9 @@ impl Auth {
     Self(Arc::new(Mode::Local))
   }
 
-  /// Sign-in through the OpenID Connect provider.
-  pub fn oidc(oidc: Oidc, db: DatabaseConnection, settings: AuthSettings) -> Self {
-    Self(Arc::new(Mode::Oidc(Box::new(OidcAuth { oidc, db, settings }))))
+  /// Sign-in through the OpenID Connect provider, and optionally through GitHub as well.
+  pub fn oidc(oidc: Oidc, github: Option<Github>, db: DatabaseConnection, settings: AuthSettings) -> Self {
+    Self(Arc::new(Mode::Oidc(Box::new(OidcAuth { oidc, github, db, settings }))))
   }
 
   /// Who a request comes from: the local user without a login; otherwise the owner of its API token, or of its session cookie.
@@ -159,9 +160,10 @@ impl Auth {
     }
   }
 
-  pub(crate) fn oidc_parts(&self) -> Option<(&Oidc, &DatabaseConnection, &AccessRules)> {
+  /// The sign-in providers, when there is a login.
+  pub(crate) fn parts(&self) -> Option<&OidcAuth> {
     match &*self.0 {
-      Mode::Oidc(oidc) => Some((&oidc.oidc, &oidc.db, &oidc.settings.access)),
+      Mode::Oidc(oidc) => Some(oidc),
       Mode::Local => None,
     }
   }
@@ -248,6 +250,7 @@ mod tests {
 
     let auth = Auth::oidc(
       Oidc::unreachable(),
+      None,
       db,
       AuthSettings {
         sessions: SessionSettings {

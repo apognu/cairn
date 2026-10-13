@@ -24,35 +24,61 @@ impl SessionSettings {
     if self.secure { "__Host-session" } else { "session" }
   }
 
+  /// The cookie that ties a login in progress to the browser that started it.
+  fn login_cookie_name(&self) -> &'static str {
+    if self.secure { "__Host-login" } else { "login" }
+  }
+
   /// The `Set-Cookie` value that stores a session token.
   pub(crate) fn set_cookie(&self, token: &str) -> String {
-    self.cookie(token, self.absolute.as_secs())
+    self.cookie(self.cookie_name(), token, self.absolute.as_secs())
   }
 
   /// The `Set-Cookie` value that removes the cookie.
   pub(crate) fn clear_cookie(&self) -> String {
-    self.cookie("", 0)
+    self.cookie(self.cookie_name(), "", 0)
   }
 
-  fn cookie(&self, value: &str, max_age: i64) -> String {
+  /// The `Set-Cookie` value that remembers, in the browser, the `state` of the login it starts. The callback must come with it, or
+  /// someone could hand a victim the callback address of their own login and sign them in as the attacker (login CSRF).
+  pub(crate) fn set_login_cookie(&self, state: &str) -> String {
+    self.cookie(self.login_cookie_name(), state, LOGIN_COOKIE_SECONDS)
+  }
+
+  pub(crate) fn clear_login_cookie(&self) -> String {
+    self.cookie(self.login_cookie_name(), "", 0)
+  }
+
+  // `SameSite=Lax` still sends the cookies with the provider's redirect back, which is a top-level navigation.
+  fn cookie(&self, name: &str, value: &str, max_age: i64) -> String {
     let secure = if self.secure { "; Secure" } else { "" };
 
-    format!("{}={value}; Path=/; HttpOnly; SameSite=Lax; Max-Age={max_age}{secure}", self.cookie_name())
+    format!("{name}={value}; Path=/; HttpOnly; SameSite=Lax; Max-Age={max_age}{secure}")
   }
 
   /// The session token in a request's cookies.
   pub(crate) fn token<'a>(&self, headers: &'a HeaderMap) -> Option<&'a str> {
-    let name = self.cookie_name();
-
-    headers
-      .get_all(header::COOKIE)
-      .iter()
-      .filter_map(|value| value.to_str().ok())
-      .flat_map(|value| value.split(';'))
-      .filter_map(|pair| pair.trim().split_once('='))
-      .find(|(key, value)| *key == name && !value.is_empty())
-      .map(|(_, value)| value)
+    find_cookie(headers, self.cookie_name())
   }
+
+  /// The `state` of the login this browser started, if it started one.
+  pub(crate) fn login_state<'a>(&self, headers: &'a HeaderMap) -> Option<&'a str> {
+    find_cookie(headers, self.login_cookie_name())
+  }
+}
+
+/// As long as a login may take; the server forgets the state after the same time.
+const LOGIN_COOKIE_SECONDS: i64 = 600;
+
+fn find_cookie<'a>(headers: &'a HeaderMap, name: &str) -> Option<&'a str> {
+  headers
+    .get_all(header::COOKIE)
+    .iter()
+    .filter_map(|value| value.to_str().ok())
+    .flat_map(|value| value.split(';'))
+    .filter_map(|pair| pair.trim().split_once('='))
+    .find(|(key, value)| *key == name && !value.is_empty())
+    .map(|(_, value)| value)
 }
 
 /// A new session token: 256 random bits.

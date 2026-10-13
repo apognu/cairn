@@ -22,6 +22,20 @@ pub(crate) struct Config {
 
   // OIDC
   pub(crate) oidc: OidcSettings,
+
+  // GitHub (optional second way to sign in)
+  pub(crate) github: Option<GithubSettings>,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct GithubSettings {
+  pub(crate) client_id: String,
+  pub(crate) client_secret: String,
+  /// Organizations (`acme`) and teams (`acme/docs`) whose members may sign in, and email domains.
+  pub(crate) access: yourdocs_auth::AccessRules,
+  /// Overridable for tests and GitHub Enterprise.
+  pub(crate) web_url: String,
+  pub(crate) api_url: String,
 }
 
 /// Where releases go, chosen with `PUBLISH_TARGET` and read once at startup.
@@ -74,6 +88,39 @@ pub(crate) fn origin_of(url: &str) -> String {
   let (scheme, rest) = url.split_once("://").unwrap_or(("https", url));
 
   format!("{scheme}://{}", rest.split(['/', '?', '#']).next().unwrap_or_default())
+}
+
+/// The allow-list read from `<prefix>_ALLOWED_GROUPS`, `<prefix>_ALLOWED_EMAIL_DOMAINS` and, where it makes sense, `<prefix>_ALLOW_ANY_USER`.
+fn rules(var: &dyn Fn(&str) -> Option<String>, prefix: &str, any: bool) -> yourdocs_auth::AccessRules {
+  let list = |name: &str| {
+    var(&format!("{prefix}_{name}"))
+      .map(|v| v.split([',', ' ']).filter(|s| !s.is_empty()).map(String::from).collect::<Vec<_>>())
+      .unwrap_or_default()
+  };
+
+  yourdocs_auth::AccessRules {
+    groups: list("ALLOWED_GROUPS"),
+    email_domains: list("ALLOWED_EMAIL_DOMAINS").into_iter().map(|d| d.trim_start_matches('@').to_lowercase()).collect(),
+    allow_any: any && var(&format!("{prefix}_ALLOW_ANY_USER")).is_some_and(|v| v.eq_ignore_ascii_case("true")),
+  }
+}
+
+/// GitHub sign-in, when `GITHUB_CLIENT_ID` is set. Anyone can have a GitHub account, so who may sign in must be said.
+fn github(var: &dyn Fn(&str) -> Option<String>) -> anyhow::Result<Option<GithubSettings>> {
+  let Some(client_id) = var("GITHUB_CLIENT_ID") else { return Ok(None) };
+  let access = rules(var, "GITHUB", false);
+
+  if access.is_empty() {
+    bail!("GITHUB_CLIENT_ID is set: say who may sign in with GitHub with GITHUB_ALLOWED_GROUPS (organizations like acme, teams like acme/docs) or GITHUB_ALLOWED_EMAIL_DOMAINS");
+  }
+
+  Ok(Some(GithubSettings {
+    client_id,
+    client_secret: var("GITHUB_CLIENT_SECRET").context("GITHUB_CLIENT_SECRET is required with GITHUB_CLIENT_ID")?,
+    access,
+    web_url: var("GITHUB_AUTH_URL").unwrap_or_else(|| "https://github.com".into()).trim_end_matches('/').to_string(),
+    api_url: var("GITHUB_API_URL").unwrap_or_else(|| "https://api.github.com".into()).trim_end_matches('/').to_string(),
+  }))
 }
 
 /// The sign-in allow-list. One of the three must be set, so that opening the editor to a whole provider is a decision.
@@ -143,6 +190,7 @@ impl Config {
         ),
         other => bail!("PUBLISH_TARGET={other} is not available: use self-hosted or folder"),
       },
+      github: github(&var)?,
       oidc: OidcSettings {
         issuer: required("OIDC_ISSUER").context("sign-in is mandatory outside `dev`: set OIDC_ISSUER, OIDC_CLIENT_ID and OIDC_CLIENT_SECRET")?,
         client_id: required("OIDC_CLIENT_ID")?,
@@ -223,6 +271,22 @@ mod tests {
     );
     assert!(with(&[("PUBLISH_TARGET", "folder")]).is_err());
     assert!(with(&[("PUBLISH_TARGET", "ftp")]).is_err());
+  }
+
+  #[test]
+  fn github_needs_a_secret_and_an_allow_list() {
+    let with = |extra: &[(&str, &str)]| load(&[FULL, extra].concat());
+    let id = ("GITHUB_CLIENT_ID", "gh");
+
+    assert!(with(&[]).unwrap().github.is_none());
+    assert!(with(&[id, ("GITHUB_ALLOWED_GROUPS", "acme")]).is_err(), "no secret");
+    assert!(with(&[id, ("GITHUB_CLIENT_SECRET", "s")]).is_err(), "nobody may sign in");
+    // Anyone can have a GitHub account: there is no way to let everyone in.
+    assert!(with(&[id, ("GITHUB_CLIENT_SECRET", "s"), ("GITHUB_ALLOW_ANY_USER", "true")]).is_err());
+
+    let github = with(&[id, ("GITHUB_CLIENT_SECRET", "s"), ("GITHUB_ALLOWED_GROUPS", "acme, acme/docs")]).unwrap().github.unwrap();
+    assert_eq!(github.access.groups, ["acme", "acme/docs"]);
+    assert_eq!(github.web_url, "https://github.com");
   }
 
   #[test]

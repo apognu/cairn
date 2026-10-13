@@ -6,6 +6,7 @@
 
 mod access;
 mod auth;
+mod github;
 mod oidc;
 mod routes;
 mod session;
@@ -21,6 +22,7 @@ use yourdocs_store::StoreError;
 pub use crate::{
   access::AccessRules,
   auth::{Auth, AuthSettings, Credential, CurrentUser, InteractiveUser, require_login},
+  github::{GITHUB_ISSUER, Github, GithubConfig},
   oidc::{Authorization, Identity, Oidc, OidcConfig},
   session::SessionSettings,
 };
