@@ -1,12 +1,14 @@
 import type { AnyComponent } from "@yourdocs/sdk";
 import { cards, fileTree } from "./blocks";
 import { callout } from "./Callout";
+import { customComponents } from "./custom";
 import { featureTabs, whatsNew } from "./features";
 import { linkCard, relatedPages, seeAlso } from "./links";
 import { snippet, variable } from "./reusable";
 
 export { cards, fileTree, parseFileTree } from "./blocks";
 export { Callout, type CalloutProps, callout } from "./Callout";
+export { customSlots } from "./custom";
 export { type RenderEnv, RenderEnvContext, useRenderEnv } from "./env";
 export { FeatureCard, featureTabs, whatsNew } from "./features";
 export { linkCard, relatedPages, seeAlso } from "./links";
@@ -25,6 +27,7 @@ export const builtinComponents = [
   fileTree,
   variable,
   snippet,
+  ...customComponents,
 ] as unknown as AnyComponent[];
 
 export const componentsByName = new Map(builtinComponents.map((c) => [c.name, c]));

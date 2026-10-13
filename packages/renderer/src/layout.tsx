@@ -1,4 +1,6 @@
-import { type ReactNode, useEffect, useId, useRef, useState } from "react";
+import { customSlots } from "@yourdocs/components";
+import type { SlotDefinition, SlotName } from "@yourdocs/sdk";
+import { createElement, type ReactNode, useEffect, useId, useRef, useState } from "react";
 import type { Heading } from "./headings";
 import { ThemeToggle } from "./ThemeToggle";
 import type { NavNode, RenderContext, SiteImage } from "./types";
@@ -21,6 +23,27 @@ function ExternalMark() {
       <path d="M7 17L17 7M8 7h9v9" />
     </svg>
   );
+}
+
+type Slots = Partial<Record<SlotName, SlotDefinition>>;
+
+/** A part of the layout a deployer may replace: the slot gets the default as its children. Rendered as an element so it can use hooks. */
+function Slot({
+  name,
+  slots,
+  context,
+  children,
+}: {
+  name: SlotName;
+  slots: Slots;
+  context: RenderContext;
+  children?: ReactNode;
+}) {
+  const slot = slots[name];
+
+  if (!slot) return children ?? null;
+
+  return createElement(slot.render, { context }, children ?? null);
 }
 
 function SiteLogo({ image, mode }: { image: SiteImage; mode?: "light" | "dark" }) {
@@ -164,6 +187,7 @@ export function SiteLayout({
   headings,
   embedded = false,
   lead,
+  slots = customSlots,
   children,
 }: {
   context: RenderContext;
@@ -172,6 +196,8 @@ export function SiteLayout({
   embedded?: boolean;
   /** Replaces the lead drawn from the page's description: the editor puts a field there to write it in place. */
   lead?: ReactNode;
+  /** The layout parts to replace; the deployer's by default. */
+  slots?: Slots;
   children: ReactNode;
 }) {
   const toc = headings.filter((h) => h.level >= 2 && h.level <= 3);
@@ -197,56 +223,58 @@ export function SiteLayout({
   return (
     <div className="site" data-embedded={embedded || undefined} data-nav-open={navOpen || undefined}>
       {!embedded && (
-        <header className="site-header">
-          <button
-            type="button"
-            className="nav-toggle"
-            aria-label="Menu"
-            aria-expanded={navOpen}
-            aria-controls={navId}
-            onClick={() => setNavOpen(!navOpen)}
-          >
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              aria-hidden="true"
+        <Slot name="Header" slots={slots} context={context}>
+          <header className="site-header">
+            <button
+              type="button"
+              className="nav-toggle"
+              aria-label="Menu"
+              aria-expanded={navOpen}
+              aria-controls={navId}
+              onClick={() => setNavOpen(!navOpen)}
             >
-              <path d={navOpen ? "M6 6l12 12M18 6L6 18" : "M4 7h16M4 12h16M4 17h16"} strokeLinecap="round" />
-            </svg>
-          </button>
-          <a href="/" className="site-name">
-            {context.site.logo && (
-              <SiteLogo image={context.site.logo} mode={context.site.logoDark ? "light" : undefined} />
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                aria-hidden="true"
+              >
+                <path d={navOpen ? "M6 6l12 12M18 6L6 18" : "M4 7h16M4 12h16M4 17h16"} strokeLinecap="round" />
+              </svg>
+            </button>
+            <a href="/" className="site-name">
+              {context.site.logo && (
+                <SiteLogo image={context.site.logo} mode={context.site.logoDark ? "light" : undefined} />
+              )}
+              {context.site.logoDark && <SiteLogo image={context.site.logoDark} mode="dark" />}
+              {context.site.name}
+            </a>
+            {context.header.length > 0 && (
+              <nav className="site-sections" aria-label="Sections">
+                {context.header.map((item) => (
+                  <a key={item.id} href={item.href} aria-current={item.id === context.section ? "page" : undefined}>
+                    {item.title}
+                  </a>
+                ))}
+              </nav>
             )}
-            {context.site.logoDark && <SiteLogo image={context.site.logoDark} mode="dark" />}
-            {context.site.name}
-          </a>
-          {context.header.length > 0 && (
-            <nav className="site-sections" aria-label="Sections">
-              {context.header.map((item) => (
-                <a key={item.id} href={item.href} aria-current={item.id === context.section ? "page" : undefined}>
-                  {item.title}
-                </a>
-              ))}
-            </nav>
-          )}
-          {context.site.headerLinks && context.site.headerLinks.length > 0 && (
-            <nav className="site-links" aria-label="Links">
-              {context.site.headerLinks.map((link) => (
-                <a key={link.url + link.label} href={link.url}>
-                  {link.label}
-                  {isExternal(link.url) && <ExternalMark />}
-                </a>
-              ))}
-            </nav>
-          )}
-          <SearchBox />
-          <ThemeToggle />
-        </header>
+            {context.site.headerLinks && context.site.headerLinks.length > 0 && (
+              <nav className="site-links" aria-label="Links">
+                {context.site.headerLinks.map((link) => (
+                  <a key={link.url + link.label} href={link.url}>
+                    {link.label}
+                    {isExternal(link.url) && <ExternalMark />}
+                  </a>
+                ))}
+              </nav>
+            )}
+            <SearchBox />
+            <ThemeToggle />
+          </header>
+        </Slot>
       )}
       {!embedded && toc.length > 0 && (
         // Narrow screens have no column for the table of contents: it folds into a bar under the header.
@@ -298,6 +326,7 @@ export function SiteLayout({
               </ul>
             )}
             <NavList nodes={context.nav} currentId={context.page.id} />
+            <Slot name="SidebarFooter" slots={slots} context={context} />
           </nav>
         )}
         <main className="doc" data-pagefind-body={context.page.id ? "" : undefined}>
@@ -320,7 +349,15 @@ export function SiteLayout({
               {context.markdown && <a href={context.markdown}>View as Markdown</a>}
             </div>
           )}
-          <div className="doc-content">{children}</div>
+          <div className="doc-content">
+            {context.notFound ? (
+              <Slot name="NotFound" slots={slots} context={context}>
+                {children}
+              </Slot>
+            ) : (
+              children
+            )}
+          </div>
           {!embedded && (context.previous || context.next) && (
             <nav className="pager" aria-label="Previous and next page" data-pagefind-ignore="">
               {context.previous ? (
@@ -341,6 +378,7 @@ export function SiteLayout({
               )}
             </nav>
           )}
+          {!embedded && <Slot name="PageFooter" slots={slots} context={context} />}
         </main>
         <aside className="site-toc" aria-label="On this page">
           {toc.length > 0 && (
@@ -356,7 +394,11 @@ export function SiteLayout({
           )}
         </aside>
       </div>
-      {!embedded && context.site.footer && <SiteFooter footer={context.site.footer} />}
+      {!embedded && (
+        <Slot name="Footer" slots={slots} context={context}>
+          {context.site.footer && <SiteFooter footer={context.site.footer} />}
+        </Slot>
+      )}
     </div>
   );
 }

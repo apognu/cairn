@@ -12,5 +12,9 @@
   },
   "devDependencies": {
     "@types/react": "19.1.12"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./custom": "./src/custom.ts"
   }
 }

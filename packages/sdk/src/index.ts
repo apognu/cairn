@@ -3,6 +3,9 @@ import { z } from "zod";
 
 export { z };
 
+export * from "./context";
+export * from "./slots";
+
 export const SDK_VERSION = 1;
 
 export interface ComponentDefinition<Shape extends z.ZodRawShape = z.ZodRawShape> {
