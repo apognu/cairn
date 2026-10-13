@@ -1,14 +1,14 @@
 use axum::{
   Router,
   extract::{Query, State},
-  http::{HeaderMap, HeaderValue, StatusCode, header},
+  http::{HeaderMap, HeaderValue, Method, StatusCode, header},
   response::{Html, IntoResponse, Redirect, Response},
   routing::{get, post},
 };
 use serde::Deserialize;
 use yourdocs_store::{LoginState, save_login_state, take_login_state, upsert_user};
 
-use crate::{Auth, AuthError, Mode};
+use crate::{Auth, AuthError};
 
 pub(crate) fn routes() -> Router<Auth> {
   Router::new()
@@ -24,17 +24,15 @@ struct LoginQuery {
 
 /// Starts the login: remembers the PKCE verifier and nonce under the state value, and sends the browser to the provider.
 async fn login(State(auth): State<Auth>, Query(query): Query<LoginQuery>) -> Result<Redirect, AuthError> {
-  let Mode::Oidc(oidc) = &*auth.0 else {
-    return Err(AuthError::Login("this server has no login".into()));
-  };
-  let authorization = oidc.oidc.authorize();
+  let (provider, db, _) = auth.oidc_parts().ok_or_else(|| AuthError::Login("this server has no login".into()))?;
+  let authorization = provider.authorize();
 
   let login = LoginState {
     verifier: authorization.verifier,
     nonce: authorization.nonce,
     next: local_path(query.next.as_deref()),
   };
-  save_login_state(&oidc.db, &authorization.state, &login).await?;
+  save_login_state(db, &authorization.state, &login).await?;
 
   Ok(Redirect::to(&authorization.url))
 }
@@ -66,9 +64,7 @@ async fn callback(State(auth): State<Auth>, Query(query): Query<CallbackQuery>) 
 
 /// Completes a login; returns the cookie that starts the session and where to send the browser.
 async fn finish_login(auth: &Auth, query: CallbackQuery) -> Result<(HeaderValue, String), AuthError> {
-  let Mode::Oidc(oidc) = &*auth.0 else {
-    return Err(AuthError::Login("this server has no login".into()));
-  };
+  let (provider, db, access) = auth.oidc_parts().ok_or_else(|| AuthError::Login("this server has no login".into()))?;
 
   if let Some(error) = query.error {
     return Err(AuthError::Login(format!("the provider refused the sign-in: {}", query.error_description.unwrap_or(error))));
@@ -76,19 +72,19 @@ async fn finish_login(auth: &Auth, query: CallbackQuery) -> Result<(HeaderValue,
   let (Some(code), Some(state)) = (query.code, query.state) else {
     return Err(AuthError::Login("the sign-in answer is incomplete".into()));
   };
-  let login = take_login_state(&oidc.db, &state)
+  let login = take_login_state(db, &state)
     .await?
     .ok_or_else(|| AuthError::Login("this sign-in expired or was already used; start again".into()))?;
 
-  let identity = oidc.oidc.complete(code, login.verifier, login.nonce).await?;
+  let identity = provider.complete(code, login.verifier, login.nonce).await?;
   // Checked before the user is stored: someone refused leaves no trace.
-  if !oidc.access.allows(&identity) {
+  if !access.allows(&identity) {
     tracing::warn!(issuer = %identity.issuer, subject = %identity.subject, "sign-in refused: not in an allowed group or domain");
     return Err(AuthError::Login(
       "Your account is not allowed to use this site. Ask an administrator to add you to an allowed group.".into(),
     ));
   }
-  let user = upsert_user(&oidc.db, &identity.issuer, &identity.subject, &identity.email, &identity.name).await?;
+  let user = upsert_user(db, &identity.issuer, &identity.subject, &identity.email, &identity.name).await?;
   tracing::info!(user_id = %user.id, "signed in");
 
   let cookie = auth.start_session(user.id).await?;
@@ -96,8 +92,10 @@ async fn finish_login(auth: &Auth, query: CallbackQuery) -> Result<(HeaderValue,
   Ok((HeaderValue::from_str(&cookie).map_err(|e| AuthError::Other(e.into()))?, login.next))
 }
 
-/// Ends the session and removes its cookie.
-async fn logout(State(auth): State<Auth>, headers: HeaderMap) -> Result<Response, AuthError> {
+/// Ends the session and removes its cookie. It changes something, so it is held to the same origin check as the API: no other site
+/// may sign people out.
+async fn logout(State(auth): State<Auth>, method: Method, headers: HeaderMap) -> Result<Response, AuthError> {
+  auth.check_origin(&method, &headers)?;
   let cookie = auth.end_session(&headers).await?;
 
   Ok((StatusCode::NO_CONTENT, [(header::SET_COOKIE, cookie)]).into_response())

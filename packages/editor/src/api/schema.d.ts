@@ -575,6 +575,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/tokens": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The signed-in user's API tokens. Tokens can only be managed from a browser session, never with a token. */
+        get: operations["listTokens"];
+        put?: never;
+        /** Makes a token for scripts and CI. It has the same access as its owner. */
+        post: operations["createToken"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tokens/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Deletes a token; scripts using it stop working at once. */
+        delete: operations["revokeToken"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/trash": {
         parameters: {
             query?: never;
@@ -693,6 +728,15 @@ export interface components {
             /** @enum {string} */
             type: "github";
         };
+        /** @description A token for scripts and CI, as listed: the secret itself is shown only when the token is created. */
+        ApiToken: {
+            /** Format: date-time */
+            created_at: string;
+            id: string;
+            /** Format: date-time */
+            last_used_at?: string | null;
+            name: string;
+        };
         /** @description An uploaded file. The bytes live in the `AssetStore` under the content hash; this is the row that describes them. */
         Asset: {
             /** Format: int64 */
@@ -765,6 +809,12 @@ export interface components {
             kind?: components["schemas"]["PageKind"] | null;
             parent_id?: components["schemas"]["PageId"] | null;
             title: string;
+        };
+        /** @description A new token with its secret, which is shown this once. */
+        CreatedToken: {
+            /** @description Sent as `Authorization: Bearer <secret>`. */
+            secret: string;
+            token: components["schemas"]["ApiToken"];
         };
         DescriptionBody: {
             /** @description Up to 300 characters; empty clears it. */
@@ -886,6 +936,9 @@ export interface components {
             to_page_id?: components["schemas"]["PageId"] | null;
             /** @description ...or to this URL or path. */
             to_url?: string | null;
+        };
+        NewToken: {
+            name: string;
         };
         /** @description An operation of a merged spec, as the page's fallback, the search index and the pre-publish checks read it. */
         Operation: {
@@ -2555,6 +2608,103 @@ export interface operations {
                 };
                 content: {
                     "text/css": string;
+                };
+            };
+        };
+    };
+    listTokens: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiToken"][];
+                };
+            };
+            /** @description called with an API token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    createToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewToken"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatedToken"];
+                };
+            };
+            /** @description called with an API token, or in `dev` */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description no name */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    revokeToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };

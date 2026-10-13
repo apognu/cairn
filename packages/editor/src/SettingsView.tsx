@@ -1,16 +1,18 @@
 import { LibrarySettings } from "./LibrarySettings";
-import { usePending } from "./queries";
+import { usePending, useSignedIn } from "./queries";
 import { RedirectsSettings } from "./RedirectsSettings";
 import { SiteSettings } from "./SiteSettings";
+import { TokensSettings } from "./TokensSettings";
 import { TrashSettings } from "./TrashSettings";
 
-export type SettingsSection = "site" | "library" | "redirects" | "trash";
+export type SettingsSection = "site" | "library" | "redirects" | "trash" | "tokens";
 
 export const sectionTitle: Record<SettingsSection, string> = {
   site: "Site and theme",
   library: "Library",
   redirects: "Redirects",
   trash: "Trash",
+  tokens: "API tokens",
 };
 
 /** The settings of the whole site, one section at a time. */
@@ -24,6 +26,8 @@ export function SettingsView({
   onClose: () => void;
 }) {
   const pending = usePending();
+  // Tokens belong to signed-in users; `dev` has none.
+  const signedIn = useSignedIn();
 
   return (
     <>
@@ -32,23 +36,25 @@ export function SettingsView({
           ← Back to pages
         </button>
         <ul>
-          {(Object.keys(sectionTitle) as SettingsSection[]).map((key) => (
-            <li key={key}>
-              <div className="row" data-selected={section === key} data-depth="1">
-                <button
-                  type="button"
-                  className="title"
-                  aria-current={section === key ? "page" : undefined}
-                  onClick={() => onSection(key)}
-                >
-                  {sectionTitle[key]}
-                </button>
-                {key === "site" && pending.data?.settings && (
-                  <span className="dot" role="img" aria-label="Unpublished changes" />
-                )}
-              </div>
-            </li>
-          ))}
+          {(Object.keys(sectionTitle) as SettingsSection[])
+            .filter((key) => key !== "tokens" || signedIn)
+            .map((key) => (
+              <li key={key}>
+                <div className="row" data-selected={section === key} data-depth="1">
+                  <button
+                    type="button"
+                    className="title"
+                    aria-current={section === key ? "page" : undefined}
+                    onClick={() => onSection(key)}
+                  >
+                    {sectionTitle[key]}
+                  </button>
+                  {key === "site" && pending.data?.settings && (
+                    <span className="dot" role="img" aria-label="Unpublished changes" />
+                  )}
+                </div>
+              </li>
+            ))}
         </ul>
       </nav>
       <main className="canvas settings-main">
@@ -58,6 +64,8 @@ export function SettingsView({
           <LibrarySettings />
         ) : section === "trash" ? (
           <TrashSettings />
+        ) : section === "tokens" ? (
+          <TokensSettings />
         ) : (
           <RedirectsSettings />
         )}

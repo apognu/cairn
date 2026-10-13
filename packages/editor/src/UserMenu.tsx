@@ -1,14 +1,9 @@
-import { useQuery } from "@tanstack/react-query";
-import { api, signIn } from "./api/client";
-import { unwrap } from "./api/unwrap";
+import { signIn } from "./api/client";
+import { useMe } from "./queries";
 
 /** Who is signed in, and the way out. Absent in `yourdocs dev`, where nobody signs in. */
 export function UserMenu() {
-  const me = useQuery({
-    queryKey: ["me"],
-    staleTime: Number.POSITIVE_INFINITY,
-    queryFn: async () => unwrap(await api.GET("/api/me")),
-  });
+  const me = useMe();
 
   if (!me.data?.email) return null;
 

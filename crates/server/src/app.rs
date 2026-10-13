@@ -15,7 +15,7 @@ use yourdocs_publish::{Bundles, FolderTarget, PublishConfig, PublishTarget, Publ
 use yourdocs_render::Pool;
 use yourdocs_store::SqlContentStore;
 
-use crate::{api_pages, drafts, history, library, links, me, pages, publish, redirects, settings, uploads, urls};
+use crate::{api_pages, drafts, history, library, links, me, pages, publish, redirects, settings, tokens, uploads, urls};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -81,6 +81,7 @@ pub fn api() -> (Router<AppState>, utoipa::openapi::OpenApi) {
     .merge(library::routes())
     .merge(history::routes())
     .merge(me::routes())
+    .merge(tokens::routes())
     .split_for_parts();
   // The router's default info describes utoipa-axum itself.
   spec.info = utoipa::openapi::InfoBuilder::new().title("yourdocs").version(env!("CARGO_PKG_VERSION")).build();
@@ -99,8 +100,12 @@ pub fn router(state: AppState) -> Router {
     .merge(content)
     .fallback(crate::editor::serve)
     .layer(middleware::from_fn(crate::error::rejections_as_json))
-    .layer(middleware::from_fn(local_host_only))
     .with_state(state)
+}
+
+/// The router `dev` serves: with no login, it also refuses requests that did not come from this machine's own editor.
+pub fn dev_router(state: AppState) -> Router {
+  router(state).layer(middleware::from_fn(local_host_only))
 }
 
 /// Without a login, a page on another origin could drive the API through a DNS-rebinding name that resolves to 127.0.0.1; refusing foreign Host headers closes that.

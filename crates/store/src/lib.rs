@@ -29,7 +29,7 @@ pub use migration::migrate;
 pub use redirects::{draft_docs, draft_revisions, list_redirects};
 pub use releases::{LiveRelease, add_release_pages, create_release, get_setting, latest_live_release, live_release, load_settings, save_settings, set_release_status, set_setting};
 pub use sea_orm::DatabaseConnection;
-pub use sessions::{create_session, delete_session, session_user};
+pub use sessions::{api_token_user, create_api_token, create_session, delete_api_token, delete_session, list_api_tokens, session_user};
 pub use tree::{create_api_page, create_link, create_page, delete_page, edit_link, list_pages, move_page, rename_page, set_description, set_in_header};
 pub use urls::{RedirectTarget, add_alias, add_redirect, list_aliases, normalize_path, remove_alias, remove_redirect, set_custom_url};
 pub use users::{LoginState, get_user, save_login_state, take_login_state, upsert_user};

@@ -31,6 +31,8 @@ pub enum AppError {
   Core(#[from] CoreError),
   #[error(transparent)]
   Publish(#[from] PublishError),
+  #[error(transparent)]
+  Auth(#[from] yourdocs_auth::AuthError),
 }
 
 impl IntoResponse for AppError {
@@ -57,7 +59,10 @@ impl IntoResponse for AppError {
         RenderError::Timeout => (StatusCode::GATEWAY_TIMEOUT, None, vec![]),
         RenderError::Other(_) => (StatusCode::INTERNAL_SERVER_ERROR, None, vec![]),
       },
-      AppError::Render(_) | AppError::Store(_) | AppError::Core(_) | AppError::Publish(_) => (StatusCode::INTERNAL_SERVER_ERROR, None, vec![]),
+      AppError::Auth(yourdocs_auth::AuthError::Unauthorized) => (StatusCode::UNAUTHORIZED, None, vec![]),
+      AppError::Auth(yourdocs_auth::AuthError::Forbidden(reason)) => (StatusCode::FORBIDDEN, Some(reason.clone()), vec![]),
+      AppError::Auth(yourdocs_auth::AuthError::Store(yourdocs_store::StoreError::Invalid(reason))) => (StatusCode::UNPROCESSABLE_ENTITY, Some(reason.clone()), vec![reason.clone()]),
+      AppError::Render(_) | AppError::Store(_) | AppError::Core(_) | AppError::Publish(_) | AppError::Auth(_) => (StatusCode::INTERNAL_SERVER_ERROR, None, vec![]),
     };
 
     if status.is_server_error() {

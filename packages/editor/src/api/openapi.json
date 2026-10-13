@@ -1689,6 +1689,111 @@
         }
       }
     },
+    "/api/tokens": {
+      "get": {
+        "summary": "The signed-in user's API tokens. Tokens can only be managed from a browser session, never with a token.",
+        "operationId": "listTokens",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ApiToken"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "called with an API token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Makes a token for scripts and CI. It has the same access as its owner.",
+        "operationId": "createToken",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewToken"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedToken"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "called with an API token, or in `dev`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "no name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tokens/{id}": {
+      "delete": {
+        "summary": "Deletes a token; scripts using it stop working at once.",
+        "operationId": "revokeToken",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "deleted"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/trash": {
       "get": {
         "summary": "Deleted pages, most recent first.",
@@ -1934,6 +2039,34 @@
           }
         ],
         "description": "Where one spec comes from. Everything is fetched anonymously over HTTPS."
+      },
+      "ApiToken": {
+        "type": "object",
+        "description": "A token for scripts and CI, as listed: the secret itself is shown only when the token is created.",
+        "required": [
+          "id",
+          "name",
+          "created_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string"
+          },
+          "last_used_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
       },
       "Asset": {
         "type": "object",
@@ -2191,6 +2324,23 @@
           },
           "title": {
             "type": "string"
+          }
+        }
+      },
+      "CreatedToken": {
+        "type": "object",
+        "description": "A new token with its secret, which is shown this once.",
+        "required": [
+          "token",
+          "secret"
+        ],
+        "properties": {
+          "secret": {
+            "type": "string",
+            "description": "Sent as `Authorization: Bearer <secret>`."
+          },
+          "token": {
+            "$ref": "#/components/schemas/ApiToken"
           }
         }
       },
@@ -2598,6 +2748,17 @@
               "null"
             ],
             "description": "...or to this URL or path."
+          }
+        }
+      },
+      "NewToken": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
           }
         }
       },

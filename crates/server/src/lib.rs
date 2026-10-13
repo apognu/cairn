@@ -19,6 +19,7 @@ mod publish;
 mod redirects;
 mod settings;
 mod site;
+mod tokens;
 mod uploads;
 mod urls;
 
@@ -28,7 +29,7 @@ use anyhow::{Context, bail};
 use yourdocs_render::Pool;
 
 use crate::{
-  app::{AppState, router},
+  app::{AppState, dev_router, router},
   bundles::BundleSet,
 };
 
@@ -72,10 +73,13 @@ async fn prepare(data_dir: &std::path::Path, site_url: String, auth: AuthSetup) 
     AuthSetup::Local => yourdocs_auth::Auth::local(),
     AuthSetup::Oidc(settings, redirect) => {
       let settings = *settings;
-      let sessions = settings.sessions(redirect.starts_with("https://"));
-      let access = settings.access.clone();
+      let auth_settings = yourdocs_auth::AuthSettings {
+        sessions: settings.sessions(redirect.starts_with("https://")),
+        access: settings.access.clone(),
+        public_origin: config::origin_of(&redirect),
+      };
       let oidc = yourdocs_auth::Oidc::discover(settings.into(), &redirect).await?;
-      yourdocs_auth::Auth::oidc(oidc, db.clone(), sessions, access)
+      yourdocs_auth::Auth::oidc(oidc, db.clone(), auth_settings)
     }
   };
 
@@ -136,7 +140,7 @@ pub async fn run_dev(bind: SocketAddr, site_bind: SocketAddr, data_dir: PathBuf)
   tracing::info!(editor = %bind, site = %site_bind, "listening");
 
   let site_router = site::router(data_dir.join("site"), events);
-  tokio::try_join!(axum::serve(editor, router(state)), axum::serve(site, site_router)).context("server stopped")?;
+  tokio::try_join!(axum::serve(editor, dev_router(state)), axum::serve(site, site_router)).context("server stopped")?;
 
   Ok(())
 }

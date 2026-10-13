@@ -2326,3 +2326,30 @@ button.secondary:disabled {
     animation-duration: 3s;
   }
 }
+
+.token-secret {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-input);
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.token-secret code {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}
+
+.token-secret button {
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--border-input);
+  border-radius: 7px;
+  background: var(--bg);
+  cursor: pointer;
+}

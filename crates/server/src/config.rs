@@ -54,6 +54,13 @@ impl From<OidcSettings> for yourdocs_auth::OidcConfig {
   }
 }
 
+/// `https://docs.example.com` for `https://docs.example.com/any/path?x`: what a browser sends as `Origin`.
+pub(crate) fn origin_of(url: &str) -> String {
+  let (scheme, rest) = url.split_once("://").unwrap_or(("https", url));
+
+  format!("{scheme}://{}", rest.split(['/', '?', '#']).next().unwrap_or_default())
+}
+
 /// The sign-in allow-list. One of the three must be set, so that opening the editor to a whole provider is a decision.
 fn access(var: &dyn Fn(&str) -> Option<String>) -> anyhow::Result<yourdocs_auth::AccessRules> {
   let list = |name: &str| {
@@ -142,6 +149,13 @@ mod tests {
     assert_eq!(config.oidc.groups_claim, "groups");
     assert_eq!(config.oidc.access.email_domains, ["example.com"]);
     assert_eq!((config.oidc.session_idle.as_secs(), config.oidc.session_absolute.as_secs()), (8 * 3600, 7 * 24 * 3600));
+  }
+
+  #[test]
+  fn the_origin_is_the_scheme_and_authority() {
+    for (url, origin) in [("https://docs.example.com/a/b?x=1", "https://docs.example.com"), ("http://localhost:8080", "http://localhost:8080")] {
+      assert_eq!(origin_of(url), origin);
+    }
   }
 
   #[test]

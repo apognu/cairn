@@ -376,3 +376,46 @@ export function useApiOperations(id: string | null) {
       unwrap(await api.GET("/api/pages/{id}/operations", { params: { path: { id: id as string } } })),
   });
 }
+
+/** The signed-in user. In `yourdocs dev` there is nobody to sign in, and the email is empty. */
+export function useMe() {
+  return useQuery({
+    queryKey: ["me"],
+    staleTime: Number.POSITIVE_INFINITY,
+    queryFn: async () => unwrap(await api.GET("/api/me")),
+  });
+}
+
+/** The user `yourdocs dev` runs every request as (the server's `local_user_id`). */
+const LOCAL_USER = "00000000-0000-0000-0000-000000000001";
+
+/** Whether a person signed in, rather than `yourdocs dev`'s built-in user. Not judged by the email, which a provider may not give. */
+export function useSignedIn(): boolean {
+  const me = useMe().data;
+
+  return me !== undefined && me.id !== LOCAL_USER;
+}
+
+const TOKENS = ["tokens"];
+
+export function useTokens() {
+  return useQuery({ queryKey: TOKENS, queryFn: async () => unwrap(await api.GET("/api/tokens")) });
+}
+
+export function useCreateToken() {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (name: string) => unwrap(await api.POST("/api/tokens", { body: { name } })),
+    onSuccess: () => client.invalidateQueries({ queryKey: TOKENS }),
+  });
+}
+
+export function useRevokeToken() {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => unwrap(await api.DELETE("/api/tokens/{id}", { params: { path: { id } } })),
+    onSuccess: () => client.invalidateQueries({ queryKey: TOKENS }),
+  });
+}
