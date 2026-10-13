@@ -591,21 +591,37 @@ fieldset.bubble {
   width: 160px;
 }
 
-.bubble-target {
-  display: flex;
-  flex-direction: column;
-  max-width: 320px;
-  padding: 0 8px;
+.bubble-link {
+  gap: 6px;
+  padding: 8px 10px;
 }
 
-.bubble-target > * {
-  overflow: hidden;
-  text-overflow: ellipsis;
+/* One line: the page, then its address, cut off with an ellipsis; the whole address is in the tooltip. */
+.bubble-target {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  max-width: 380px;
+  padding: 0 4px;
   white-space: nowrap;
 }
 
-.bubble-target small {
-  font-size: 12px;
+.bubble-target strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bubble-target strong:not(:only-child) {
+  flex: none;
+  max-width: 200px;
+}
+
+.bubble-target .muted {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 13px;
 }
 
 .bubble-broken {

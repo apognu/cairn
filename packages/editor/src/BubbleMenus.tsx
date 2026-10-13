@@ -231,18 +231,18 @@ function LinkTools({ editor }: { editor: Editor }) {
   };
 
   return (
-    <div className="bubble" role="toolbar" aria-label="Link">
-      <span className="bubble-target" title={url ?? undefined}>
+    <div className="bubble bubble-link" role="toolbar" aria-label="Link">
+      <span className="bubble-target" title={url ? `${url}${link.anchor ? `#${link.anchor}` : ""}` : undefined}>
         {target === null ? (
           <span className="bubble-broken">This page no longer exists</span>
         ) : (
           <>
             <strong>{target}</strong>
             {link.pageId && url && (
-              <small className="muted">
+              <span className="muted">
                 {url}
                 {link.anchor ? `#${link.anchor}` : ""}
-              </small>
+              </span>
             )}
           </>
         )}
