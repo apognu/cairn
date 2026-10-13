@@ -3365,12 +3365,29 @@
           }
         }
       },
+      "SiteCapabilities": {
+        "type": "object",
+        "required": [
+          "preview"
+        ],
+        "properties": {
+          "preview": {
+            "type": "boolean",
+            "description": "Whether a build can be viewed before it goes live."
+          }
+        }
+      },
       "SiteInfo": {
         "type": "object",
         "required": [
-          "url"
+          "url",
+          "capabilities"
         ],
         "properties": {
+          "capabilities": {
+            "$ref": "#/components/schemas/SiteCapabilities",
+            "description": "What the configured publish target can do; the editor hides what it cannot."
+          },
           "url": {
             "type": "string",
             "description": "Where readers find the published site, without a trailing slash."

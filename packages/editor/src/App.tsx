@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ThemeToggle } from "@yourdocs/renderer";
 import { useCallback, useEffect, useState } from "react";
 import { ApiSettings } from "./ApiSettings";
+import { serverUrl } from "./api/base";
 import { FixtureView } from "./FixtureView";
 import { HistoryDrawer } from "./HistoryDrawer";
 import { Icon } from "./icons";
@@ -68,7 +69,10 @@ function Editor() {
   });
 
   // Authors write inside the site's colors: the saved theme is applied to the whole editor, as the published pages get it.
-  const themeCss = useQuery({ queryKey: ["theme-css"], queryFn: async () => (await fetch("/api/theme.css")).text() });
+  const themeCss = useQuery({
+    queryKey: ["theme-css"],
+    queryFn: async () => (await fetch(serverUrl("/api/theme.css"))).text(),
+  });
   useEffect(() => {
     const style =
       document.head.querySelector("style#site-theme") ??

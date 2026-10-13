@@ -8,6 +8,10 @@ publish.workspace = true
 [lints]
 workspace = true
 
+[features]
+# `Oidc::unreachable`, a provider that is never contacted, for tests of the crates that use `Auth`.
+testing = []
+
 [dependencies]
 anyhow = "1"
 axum = "0.8"

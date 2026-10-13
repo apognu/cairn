@@ -887,8 +887,9 @@ button.primary:disabled {
   cursor: default;
 }
 
-.topbar-actions a.button,
-.topbar-actions button:not(.primary):not(.theme-toggle) {
+/* Direct children only: the buttons inside the account menu are menu items. */
+.topbar-actions > a.button,
+.topbar-actions > button:not(.primary):not(.theme-toggle) {
   height: 32px;
   padding: 0 12px;
   border: 1px solid var(--border-input);

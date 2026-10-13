@@ -17,6 +17,7 @@ mod me;
 mod pages;
 mod publish;
 mod redirects;
+mod serving;
 mod settings;
 mod site;
 mod tokens;
@@ -29,7 +30,7 @@ use anyhow::{Context, bail};
 use yourdocs_render::Pool;
 
 use crate::{
-  app::{AppState, dev_router, router},
+  app::{AppState, dev_router},
   bundles::BundleSet,
 };
 
@@ -52,7 +53,7 @@ struct Runtime {
   events: yourdocs_core::LocalBroadcast,
 }
 
-async fn prepare(data_dir: &std::path::Path, site_url: String, auth: AuthSetup) -> anyhow::Result<Runtime> {
+async fn prepare(data_dir: &std::path::Path, site_url: String, auth: AuthSetup, target: yourdocs_publish::PublishTarget) -> anyhow::Result<Runtime> {
   std::fs::create_dir_all(data_dir).with_context(|| format!("cannot create {}", data_dir.display()))?;
   let db = yourdocs_store::connect(&data_dir.join("yourdocs.db")).await.context("cannot open the database")?;
 
@@ -77,6 +78,7 @@ async fn prepare(data_dir: &std::path::Path, site_url: String, auth: AuthSetup) 
         sessions: settings.sessions(redirect.starts_with("https://")),
         access: settings.access.clone(),
         public_origin: config::origin_of(&redirect),
+        base_path: EDITOR_PATH.into(),
       };
       let oidc = yourdocs_auth::Oidc::discover(settings.into(), &redirect).await?;
       yourdocs_auth::Auth::oidc(oidc, db.clone(), auth_settings)
@@ -92,7 +94,6 @@ async fn prepare(data_dir: &std::path::Path, site_url: String, auth: AuthSetup) 
       content.clone(),
       assets.clone(),
       pool.clone(),
-      data_dir,
       app::PublishSetup {
         bundles: yourdocs_publish::Bundles::new(&bundles.ssr_js, bundles.client_js, bundles.site_css, bundles.scalar_js),
         config: yourdocs_publish::PublishConfig {
@@ -102,6 +103,7 @@ async fn prepare(data_dir: &std::path::Path, site_url: String, auth: AuthSetup) 
         },
       },
       events.clone(),
+      target,
     )?,
     pool,
     auth,
@@ -133,27 +135,37 @@ pub async fn run_dev(bind: SocketAddr, site_bind: SocketAddr, data_dir: PathBuf)
 
   // Without PUBLIC_URL, the address `dev` serves the site on, whichever port it was given.
   let site_url = env::var("PUBLIC_URL").unwrap_or_else(|_| format!("http://{site_bind}")).trim_end_matches('/').to_string();
-  let Runtime { state, events } = prepare(&data_dir, site_url, AuthSetup::Local).await?;
+  let target = yourdocs_publish::PublishTarget::Folder(yourdocs_publish::FolderTarget::new(data_dir.clone()));
+  let Runtime { state, events } = prepare(&data_dir, site_url, AuthSetup::Local, target).await?;
 
   let editor = tokio::net::TcpListener::bind(bind).await.with_context(|| format!("cannot bind {bind}"))?;
   let site = tokio::net::TcpListener::bind(site_bind).await.with_context(|| format!("cannot bind {site_bind}"))?;
   tracing::info!(editor = %bind, site = %site_bind, "listening");
 
-  let site_router = site::router(data_dir.join("site"), events);
+  let site_router = site::dev_router(data_dir.join("site"), events);
   tokio::try_join!(axum::serve(editor, dev_router(state)), axum::serve(site, site_router)).context("server stopped")?;
 
   Ok(())
 }
 
-/// Runs the server for a deployment: sign-in through the OIDC provider, configured from the environment.
+/// Where `serve` mounts the editor, so that every page of the public site keeps its own address.
+const EDITOR_PATH: &str = "/_editor";
+
+/// Runs the server for a deployment: sign-in through the OIDC provider, configured from the environment. One listener serves the editor
+/// under `/_editor` and, with the self-hosted target, the public site at `/`.
 pub async fn run_serve() -> anyhow::Result<()> {
   let config = config::Config::from_env()?;
-  let redirect = format!("{}/auth/callback", config.public_url);
-  let Runtime { state, .. } = prepare(&config.data_dir, config.public_url.clone(), AuthSetup::Oidc(Box::new(config.oidc.clone()), redirect)).await?;
+  let redirect = format!("{}{EDITOR_PATH}/auth/callback", config.public_url);
+  let target = match &config.target {
+    config::TargetChoice::SelfHosted => yourdocs_publish::PublishTarget::SelfHosted(yourdocs_publish::FolderTarget::new(config.data_dir.clone())),
+    config::TargetChoice::Folder(dir) => yourdocs_publish::PublishTarget::Folder(yourdocs_publish::FolderTarget::new(dir.clone())),
+  };
+  let setup = AuthSetup::Oidc(Box::new(config.oidc.clone()), redirect);
+  let Runtime { state, .. } = prepare(&config.data_dir, config.public_url.clone(), setup, target).await?;
 
   let listener = tokio::net::TcpListener::bind(config.bind).await.with_context(|| format!("cannot bind {}", config.bind))?;
   tracing::info!(address = %config.bind, public_url = %config.public_url, "listening");
-  axum::serve(listener, router(state)).await.context("server stopped")?;
+  axum::serve(listener, serving::serve_router(state)).await.context("server stopped")?;
 
   Ok(())
 }

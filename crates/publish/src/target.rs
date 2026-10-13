@@ -19,19 +19,38 @@ pub struct Capabilities {
 
 /// Where a release goes. An enum, not a trait object: it is built from the environment at startup, with a `match` in each method.
 pub enum PublishTarget {
+  /// A folder on this machine that something else serves; the local dev server is one such.
   Folder(FolderTarget),
+  /// A folder this server serves itself at the site's address, with releases viewable under `/_preview/<id>/` by signed-in editors.
+  SelfHosted(FolderTarget),
 }
 
 impl PublishTarget {
   pub fn capabilities(&self) -> Capabilities {
     match self {
       PublishTarget::Folder(_) => Capabilities { preview: false },
+      PublishTarget::SelfHosted(_) => Capabilities { preview: true },
     }
   }
 
   pub async fn publish(&self, release: ReleaseId, files: Vec<OutputFile>) -> Result<(), PublishError> {
     match self {
-      PublishTarget::Folder(folder) => folder.publish(release, files).await,
+      PublishTarget::Folder(folder) | PublishTarget::SelfHosted(folder) => folder.publish(release, files).await,
+    }
+  }
+
+  /// The folder of the live site, when the files are on this machine.
+  pub fn site_dir(&self) -> Option<PathBuf> {
+    match self {
+      PublishTarget::Folder(folder) | PublishTarget::SelfHosted(folder) => Some(folder.site_dir()),
+    }
+  }
+
+  /// The folder holding every kept release, one directory per release ID, for the targets that can show them.
+  pub fn releases_dir(&self) -> Option<PathBuf> {
+    match self {
+      PublishTarget::SelfHosted(folder) => Some(folder.releases_dir()),
+      PublishTarget::Folder(_) => None,
     }
   }
 }
@@ -55,6 +74,10 @@ impl FolderTarget {
   /// The directory a server should serve.
   pub fn site_dir(&self) -> PathBuf {
     self.root.join("site")
+  }
+
+  pub fn releases_dir(&self) -> PathBuf {
+    self.root.join("releases")
   }
 
   async fn publish(&self, release: ReleaseId, files: Vec<OutputFile>) -> Result<(), PublishError> {

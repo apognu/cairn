@@ -96,8 +96,8 @@ pub(crate) async fn serve(State(state): State<AppState>, Path(name): Path<String
     (
       [
         (header::CONTENT_TYPE, HeaderValue::from_str(&asset.mime).map_err(|e| CoreError::Other(e.into()))?),
-        // The file behind an ID never changes.
-        (header::CACHE_CONTROL, HeaderValue::from_static("public, max-age=31536000, immutable")),
+        // The file behind an ID never changes, but it may not be published yet: a shared cache must not keep it.
+        (header::CACHE_CONTROL, HeaderValue::from_static("private, max-age=31536000, immutable")),
         // Uploads are untrusted: never let a browser treat one as anything but the image it was sniffed as.
         (header::X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff")),
       ],

@@ -1145,7 +1145,13 @@ export interface components {
             /** @default Documentation */
             site_name: string;
         };
+        SiteCapabilities: {
+            /** @description Whether a build can be viewed before it goes live. */
+            preview: boolean;
+        };
         SiteInfo: {
+            /** @description What the configured publish target can do; the editor hides what it cannot. */
+            capabilities: components["schemas"]["SiteCapabilities"];
             /** @description Where readers find the published site, without a trailing slash. */
             url: string;
         };

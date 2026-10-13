@@ -19,6 +19,14 @@ pub(crate) fn routes() -> OpenApiRouter<AppState> {
 struct SiteInfo {
   /// Where readers find the published site, without a trailing slash.
   url: String,
+  /// What the configured publish target can do; the editor hides what it cannot.
+  capabilities: SiteCapabilities,
+}
+
+#[derive(Serialize, ToSchema)]
+struct SiteCapabilities {
+  /// Whether a build can be viewed before it goes live.
+  preview: bool,
 }
 
 /// Where the published site lives, for the editor's "View as reader".
@@ -27,6 +35,9 @@ struct SiteInfo {
 async fn site(State(state): State<AppState>) -> Json<SiteInfo> {
   Json(SiteInfo {
     url: state.publisher.site_url().to_string(),
+    capabilities: SiteCapabilities {
+      preview: state.publisher.target().capabilities().preview,
+    },
   })
 }
 

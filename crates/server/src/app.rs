@@ -11,7 +11,7 @@ use axum::{
 use sea_orm::DatabaseConnection;
 use yourdocs_assets::LocalAssetStore;
 use yourdocs_core::LocalBroadcast;
-use yourdocs_publish::{Bundles, FolderTarget, PublishConfig, PublishTarget, Publisher, PublisherParts};
+use yourdocs_publish::{Bundles, PublishConfig, PublishTarget, Publisher, PublisherParts};
 use yourdocs_render::Pool;
 use yourdocs_store::SqlContentStore;
 
@@ -51,16 +51,16 @@ pub(crate) fn publisher(
   content: SqlContentStore,
   assets: Arc<LocalAssetStore>,
   pool: Arc<Pool>,
-  data_dir: &std::path::Path,
   setup: PublishSetup,
   broadcast: LocalBroadcast,
+  target: PublishTarget,
 ) -> anyhow::Result<Arc<Publisher<SqlContentStore, LocalAssetStore, LocalBroadcast>>> {
   Ok(Arc::new(Publisher::new(PublisherParts {
     db,
     content,
     assets,
     pool,
-    target: PublishTarget::Folder(FolderTarget::new(data_dir.to_path_buf())),
+    target,
     bundles: setup.bundles,
     config: setup.config,
     broadcast,
@@ -89,23 +89,24 @@ pub fn api() -> (Router<AppState>, utoipa::openapi::OpenApi) {
   (router, spec)
 }
 
-pub fn router(state: AppState) -> Router {
-  let auth = yourdocs_auth::Auth::routes().with_state(state.auth.clone());
+/// The editor's routes: the API, the sign-in, and the editor itself as the fallback. They are not tied to a path prefix; `serve` nests
+/// them under `/_editor`, `dev` serves them at the root.
+pub(crate) fn editor_app(auth: yourdocs_auth::Auth) -> Router<AppState> {
+  let auth_routes = yourdocs_auth::Auth::routes().with_state(auth.clone());
   // Everything that reads or changes the site's content needs a login; only the sign-in routes and the editor's own files are open.
-  let guard = middleware::from_fn_with_state(state.auth.clone(), yourdocs_auth::require_login);
+  let guard = middleware::from_fn_with_state(auth, yourdocs_auth::require_login);
   let content = Router::new().route("/_a/{name}", get(uploads::serve)).merge(api().0).layer(guard);
 
   Router::new()
-    .merge(auth)
+    .merge(auth_routes)
     .merge(content)
     .fallback(crate::editor::serve)
     .layer(middleware::from_fn(crate::error::rejections_as_json))
-    .with_state(state)
 }
 
 /// The router `dev` serves: with no login, it also refuses requests that did not come from this machine's own editor.
 pub fn dev_router(state: AppState) -> Router {
-  router(state).layer(middleware::from_fn(local_host_only))
+  editor_app(state.auth.clone()).layer(middleware::from_fn(local_host_only)).with_state(state)
 }
 
 /// Without a login, a page on another origin could drive the API through a DNS-rebinding name that resolves to 127.0.0.1; refusing foreign Host headers closes that.
@@ -139,6 +140,12 @@ pub(crate) async fn test_state() -> AppState {
 
 #[cfg(test)]
 pub(crate) async fn test_state_with_dir() -> (AppState, std::path::PathBuf) {
+  test_state_serving(|dir| PublishTarget::Folder(yourdocs_publish::FolderTarget::new(dir.join("out")))).await
+}
+
+/// A state whose publisher writes where `target` says, which is given the test's directory.
+#[cfg(test)]
+pub(crate) async fn test_state_serving(target: impl FnOnce(&std::path::Path) -> PublishTarget) -> (AppState, std::path::PathBuf) {
   let bundles = crate::bundles::BundleSet::load(None, false).expect("the bundles are missing, run `bun run build` first");
   let pool = Pool::new(&bundles.ssr_js, 1, 8, std::time::Duration::from_secs(5)).unwrap();
   let dir = std::env::temp_dir().join(format!("yourdocs-server-{}", uuid::Uuid::now_v7()));
@@ -155,7 +162,6 @@ pub(crate) async fn test_state_with_dir() -> (AppState, std::path::PathBuf) {
       content.clone(),
       assets.clone(),
       pool.clone(),
-      &dir.join("out"),
       PublishSetup {
         bundles: Bundles::new(&bundles.ssr_js, bundles.client_js, bundles.site_css, bundles.scalar_js),
         config: PublishConfig {
@@ -165,6 +171,7 @@ pub(crate) async fn test_state_with_dir() -> (AppState, std::path::PathBuf) {
         },
       },
       LocalBroadcast::new(),
+      target(&dir),
     )
     .unwrap(),
     pool,

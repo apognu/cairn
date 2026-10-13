@@ -36,6 +36,8 @@ pub struct AuthSettings {
   pub access: AccessRules,
   /// The origin editors use (`https://docs.example.com`): requests that change something must come from it.
   pub public_origin: String,
+  /// Where the editor is mounted (`/_editor`, or empty): the login sends people back there.
+  pub base_path: String,
 }
 
 /// What proved who a request is from.
@@ -125,6 +127,14 @@ impl Auth {
     Ok(oidc.settings.sessions.clear_cookie())
   }
 
+  /// A session for a user, as the `Cookie` header value a browser would send; for tests of the crates that use `Auth`.
+  #[cfg(any(test, feature = "testing"))]
+  pub async fn start_session_for_tests(&self, user: UserId) -> String {
+    let set_cookie = self.start_session(user).await.expect("a session starts");
+
+    set_cookie.split(';').next().expect("a cookie has a name and value").to_string()
+  }
+
   /// Makes an API token for a user. The secret is returned here and nowhere else: only its hash is stored.
   pub async fn issue_token(&self, user: UserId, name: &str) -> Result<(ApiToken, String), AuthError> {
     let Mode::Oidc(oidc) = &*self.0 else {
@@ -139,6 +149,14 @@ impl Auth {
   /// The login routes (`/auth/…`).
   pub fn routes() -> Router<Auth> {
     routes::routes()
+  }
+
+  /// Where the editor is mounted on the server, without a trailing slash; empty at the root.
+  pub(crate) fn base_path(&self) -> &str {
+    match &*self.0 {
+      Mode::Oidc(oidc) => &oidc.settings.base_path,
+      Mode::Local => "",
+    }
   }
 
   pub(crate) fn oidc_parts(&self) -> Option<(&Oidc, &DatabaseConnection, &AccessRules)> {
@@ -242,6 +260,7 @@ mod tests {
           ..Default::default()
         },
         public_origin: ORIGIN.into(),
+        base_path: String::new(),
       },
     );
     let cookie = auth.start_session(user.id).await.unwrap();

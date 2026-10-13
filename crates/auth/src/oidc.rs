@@ -70,8 +70,8 @@ impl Oidc {
   }
 
   /// A provider that is never contacted, for tests of what happens after a login.
-  #[cfg(test)]
-  pub(crate) fn unreachable() -> Self {
+  #[cfg(any(test, feature = "testing"))]
+  pub fn unreachable() -> Self {
     use openidconnect::{AuthUrl, EmptyAdditionalProviderMetadata, JsonWebKeySetUrl, ResponseTypes, core::CoreSubjectIdentifierType};
 
     let metadata = CoreProviderMetadata::new(

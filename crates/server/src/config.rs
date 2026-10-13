@@ -14,8 +14,20 @@ pub(crate) struct Config {
   /// The address readers and editors use, without a trailing slash: the origin of redirects, cookies and canonical links.
   pub(crate) public_url: String,
 
+  // Publishing
+  pub(crate) target: TargetChoice,
+
   // OIDC
   pub(crate) oidc: OidcSettings,
+}
+
+/// Where releases go, chosen with `PUBLISH_TARGET` and read once at startup.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum TargetChoice {
+  /// Written under the data directory and served by this process at `PUBLIC_URL`.
+  SelfHosted,
+  /// Written to a folder that something else serves.
+  Folder(PathBuf),
 }
 
 #[derive(Debug, Clone)]
@@ -118,6 +130,15 @@ impl Config {
       bind: parsed("BIND", "0.0.0.0:8080")?,
       data_dir: var("DATA_DIR").map_or_else(|| PathBuf::from("/data"), PathBuf::from),
       public_url,
+      target: match var("PUBLISH_TARGET").as_deref().unwrap_or("self-hosted") {
+        "self-hosted" => TargetChoice::SelfHosted,
+        "folder" => TargetChoice::Folder(
+          var("PUBLISH_DIR")
+            .map(PathBuf::from)
+            .context("PUBLISH_TARGET=folder needs PUBLISH_DIR, the folder to write the site to")?,
+        ),
+        other => bail!("PUBLISH_TARGET={other} is not available: use self-hosted or folder"),
+      },
       oidc: OidcSettings {
         issuer: required("OIDC_ISSUER").context("sign-in is mandatory outside `dev`: set OIDC_ISSUER, OIDC_CLIENT_ID and OIDC_CLIENT_SECRET")?,
         client_id: required("OIDC_CLIENT_ID")?,
@@ -185,6 +206,19 @@ mod tests {
     for (url, origin) in [("https://docs.example.com/a/b?x=1", "https://docs.example.com"), ("http://localhost:8080", "http://localhost:8080")] {
       assert_eq!(origin_of(url), origin);
     }
+  }
+
+  #[test]
+  fn the_publish_target_is_chosen_with_its_own_settings() {
+    let with = |extra: &[(&str, &str)]| load(&[FULL, extra].concat());
+
+    assert_eq!(with(&[]).unwrap().target, TargetChoice::SelfHosted);
+    assert_eq!(
+      with(&[("PUBLISH_TARGET", "folder"), ("PUBLISH_DIR", "/srv/site")]).unwrap().target,
+      TargetChoice::Folder("/srv/site".into())
+    );
+    assert!(with(&[("PUBLISH_TARGET", "folder")]).is_err());
+    assert!(with(&[("PUBLISH_TARGET", "ftp")]).is_err());
   }
 
   #[test]

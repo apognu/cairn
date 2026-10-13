@@ -15,6 +15,7 @@ pub(crate) fn routes() -> Router<Auth> {
     .route("/auth/login", get(login))
     .route("/auth/callback", get(callback))
     .route("/auth/logout", post(logout))
+    .route("/auth/signed-out", get(signed_out))
 }
 
 #[derive(Deserialize)]
@@ -30,7 +31,7 @@ async fn login(State(auth): State<Auth>, Query(query): Query<LoginQuery>) -> Res
   let login = LoginState {
     verifier: authorization.verifier,
     nonce: authorization.nonce,
-    next: local_path(query.next.as_deref()),
+    next: local_path(query.next.as_deref(), auth.base_path()),
   };
   save_login_state(db, &authorization.state, &login).await?;
 
@@ -57,7 +58,7 @@ async fn callback(State(auth): State<Auth>, Query(query): Query<CallbackQuery>) 
           "The sign-in could not be completed. Try again.".to_string()
         }
       };
-      (StatusCode::BAD_REQUEST, Html(error_page(&message))).into_response()
+      (StatusCode::BAD_REQUEST, Html(error_page(&message, auth.base_path()))).into_response()
     }
   }
 }
@@ -92,6 +93,16 @@ async fn finish_login(auth: &Auth, query: CallbackQuery) -> Result<(HeaderValue,
   Ok((HeaderValue::from_str(&cookie).map_err(|e| AuthError::Other(e.into()))?, login.next))
 }
 
+/// Where the editor goes after signing out. Not straight back to the provider, which may still have its own session open and would
+/// sign the person in again at once.
+async fn signed_out(State(auth): State<Auth>) -> Html<String> {
+  let base = auth.base_path();
+
+  Html(format!(
+    "<!doctype html><meta charset=utf-8><meta name=viewport content=\"width=device-width, initial-scale=1\"><meta name=color-scheme content=\"light dark\"><title>Signed out</title><p>You are signed out.</p><p><a href=\"{base}/auth/login\">Sign in again</a></p>"
+  ))
+}
+
 /// Ends the session and removes its cookie. It changes something, so it is held to the same origin check as the API: no other site
 /// may sign people out.
 async fn logout(State(auth): State<Auth>, method: Method, headers: HeaderMap) -> Result<Response, AuthError> {
@@ -101,11 +112,11 @@ async fn logout(State(auth): State<Auth>, method: Method, headers: HeaderMap) ->
   Ok((StatusCode::NO_CONTENT, [(header::SET_COOKIE, cookie)]).into_response())
 }
 
-/// Only an address on this server may follow a login, or the login page would redirect anywhere.
-fn local_path(next: Option<&str>) -> String {
+/// Only an address on this server may follow a login, or the login page would redirect anywhere. Without one, the editor.
+fn local_path(next: Option<&str>, base: &str) -> String {
   match next {
     Some(path) if path.starts_with('/') && !path.starts_with("//") && !path.contains('\\') && !path.chars().any(char::is_control) => path.to_string(),
-    _ => "/".to_string(),
+    _ => format!("{base}/"),
   }
 }
 
@@ -113,9 +124,9 @@ fn escape(text: &str) -> String {
   text.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
 }
 
-fn error_page(message: &str) -> String {
+fn error_page(message: &str, base: &str) -> String {
   format!(
-    "<!doctype html><meta charset=utf-8><title>Sign-in failed</title><p>{}</p><p><a href=\"/auth/login\">Try again</a></p>",
+    "<!doctype html><meta charset=utf-8><title>Sign-in failed</title><p>{}</p><p><a href=\"{base}/auth/login\">Try again</a></p>",
     escape(message)
   )
 }
@@ -123,6 +134,12 @@ fn error_page(message: &str) -> String {
 #[cfg(test)]
 mod tests {
   use super::*;
+
+  #[test]
+  fn without_a_next_address_the_login_returns_to_the_editor() {
+    assert_eq!(local_path(None, "/_editor"), "/_editor/");
+    assert_eq!(local_path(Some("//evil.example"), "/_editor"), "/_editor/");
+  }
 
   #[test]
   fn only_local_paths_follow_a_login() {
@@ -134,7 +151,7 @@ mod tests {
       (Some("/a\nb"), "/"),
       (None, "/"),
     ] {
-      assert_eq!(local_path(next), expected, "{next:?}");
+      assert_eq!(local_path(next, ""), expected, "{next:?}");
     }
   }
 }

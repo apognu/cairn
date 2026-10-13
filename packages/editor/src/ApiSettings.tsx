@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { ApiReference } from "@yourdocs/renderer";
 import { useEffect, useId, useState } from "react";
+import { serverUrl } from "./api/base";
 import type { components } from "./api/schema";
 import { useApiConfig, useCheckApiConfig, useSaveApiConfig } from "./queries";
 
@@ -26,7 +27,7 @@ export function ApiSettings({ page }: { page: Page }) {
   const live = useQuery({
     queryKey: ["api-spec", page.id],
     retry: false,
-    queryFn: async () => (await fetch(`/api/pages/${page.id}/api-spec`)).ok,
+    queryFn: async () => (await fetch(serverUrl(`/api/pages/${page.id}/api-spec`))).ok,
   });
 
   useEffect(() => {
@@ -250,8 +251,8 @@ export function ApiSettings({ page }: { page: Page }) {
             key={version}
             compact
             api={{
-              specUrl: `/api/pages/${page.id}/api-spec?v=${version}`,
-              scalarUrl: "/api/scalar.js",
+              specUrl: serverUrl(`/api/pages/${page.id}/api-spec?v=${version}`),
+              scalarUrl: serverUrl("/api/scalar.js"),
               operations: [],
               display: {
                 servers: draft.display.servers,

@@ -1,7 +1,7 @@
 use axum::{
-  extract::State,
+  extract::{OriginalUri, State},
   http::{StatusCode, Uri, header},
-  response::{IntoResponse, Response},
+  response::{IntoResponse, Redirect, Response},
 };
 use rust_embed::Embed;
 
@@ -29,8 +29,13 @@ async fn file(state: &AppState, path: &str) -> Option<(String, Vec<u8>)> {
 }
 
 /// Serves the editor's files, and its entry page for any other path so the SPA can own client-side URLs.
-pub(crate) async fn serve(State(state): State<AppState>, uri: Uri) -> Response {
+pub(crate) async fn serve(State(state): State<AppState>, OriginalUri(original): OriginalUri, uri: Uri) -> Response {
   let path = uri.path().trim_start_matches('/');
+
+  // The editor's files are linked relative to its address, which must therefore end in a slash.
+  if original.path().ends_with("/_editor") {
+    return Redirect::permanent("/_editor/").into_response();
+  }
 
   // Unknown API paths must stay 404s rather than turn into HTML.
   if path.starts_with("api/") {

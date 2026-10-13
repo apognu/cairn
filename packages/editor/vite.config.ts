@@ -6,6 +6,8 @@ export default defineConfig({
   plugins: [react()],
   // `build-components` points the custom components module at the deployer's folder and builds elsewhere than `dist`.
   resolve: { alias: process.env.YOURDOCS_CUSTOM ? { "@yourdocs/components/custom": process.env.YOURDOCS_CUSTOM } : {} },
+  // Relative, so the same build works at `/` (`dev`) and under `/_editor/` (`serve`).
+  base: "./",
   server: { proxy: { "/api": "http://127.0.0.1:3000" } },
   build: { outDir: process.env.YOURDOCS_OUT ?? "dist", emptyOutDir: true },
 });

@@ -1,5 +1,5 @@
-//! The published site, served for local development: the folder a publish wrote, with its redirect rules and 404 page applied, and a
-//! script that reloads open tabs when a new release goes live.
+//! The published site, served from the folder a publish wrote, with its redirect rules and 404 page applied. `dev` adds a script that
+//! reloads open tabs when a new release goes live; `serve` serves the same folder at the site's address, and a release under `/_preview/`.
 
 use std::{
   convert::Infallible,
@@ -21,16 +21,24 @@ use yourdocs_core::{Broadcast, LocalBroadcast};
 struct SiteState {
   /// The `site` link a publish switches; resolved on every request so a new release is served at once.
   dir: PathBuf,
-  events: LocalBroadcast,
+  /// Set in `dev`, which reloads open tabs after a publish.
+  events: Option<LocalBroadcast>,
 }
 
-pub(crate) fn router(dir: PathBuf, events: LocalBroadcast) -> Router {
-  Router::new().route("/__reload", get(reload)).fallback(serve).with_state(SiteState { dir, events })
+/// The site of `dir` for `dev`, with the reload script.
+pub(crate) fn dev_router(dir: PathBuf, events: LocalBroadcast) -> Router {
+  Router::new().route("/__reload", get(reload)).fallback(serve).with_state(SiteState { dir, events: Some(events) })
+}
+
+/// The site of `dir` as readers get it.
+pub(crate) fn public_router(dir: PathBuf) -> Router {
+  Router::new().fallback(serve).with_state(SiteState { dir, events: None })
 }
 
 /// Server-sent events: one `reload` message per published release.
 async fn reload(State(state): State<SiteState>) -> Sse<impl Stream<Item = Result<SseEvent, Infallible>>> {
-  let stream = BroadcastStream::new(state.events.subscribe()).filter_map(|event| async move { event.ok().map(|_| Ok(SseEvent::default().data("reload"))) });
+  let events = state.events.unwrap_or_default();
+  let stream = BroadcastStream::new(events.subscribe()).filter_map(|event| async move { event.ok().map(|_| Ok(SseEvent::default().data("reload"))) });
 
   Sse::new(stream).keep_alive(axum::response::sse::KeepAlive::default())
 }
@@ -38,14 +46,23 @@ async fn reload(State(state): State<SiteState>) -> Sse<impl Stream<Item = Result
 const RELOAD_SCRIPT: &str = "<script>new EventSource('/__reload').onmessage=()=>location.reload()</script>";
 
 async fn serve(State(state): State<SiteState>, uri: Uri) -> Response {
+  respond(&state.dir, &uri, "", state.events.is_some()).await
+}
+
+/// The answer to a request for `uri` (relative to the site root) from the site in `dir`. `prefix` is where the site is mounted when that
+/// is not the root, so that the redirects it sends stay inside it; `reload` adds the script `dev` uses.
+pub(crate) async fn respond(dir: &Path, uri: &Uri, prefix: &str, reload: bool) -> Response {
+  let state = (dir, reload);
   let path = percent_encoding::percent_decode_str(uri.path()).decode_utf8_lossy().into_owned();
 
-  if let Some((to, status)) = redirect_for(&state.dir, &path).await {
+  if let Some((to, status)) = redirect_for(dir, &path).await {
+    let to = if to.starts_with('/') && !to.starts_with("//") { format!("{prefix}{to}") } else { to };
+
     return (status, [(header::LOCATION, to)]).into_response();
   }
 
-  let Some(relative) = safe_relative(&path) else { return not_found(&state.dir).await };
-  let candidate = state.dir.join(&relative);
+  let Some(relative) = safe_relative(&path) else { return not_found(state).await };
+  let candidate = dir.join(&relative);
 
   // `/a/b/` is the page `a/b/index.html`; `/a/b` without the slash goes to the canonical address.
   let file = if path.ends_with('/') || relative.as_os_str().is_empty() {
@@ -55,15 +72,15 @@ async fn serve(State(state): State<SiteState>, uri: Uri) -> Response {
   } else if candidate.join("index.html").is_file() {
     let query = uri.query().map(|q| format!("?{q}")).unwrap_or_default();
     // One leading slash: `//guide/` would be read as the host `guide`. The raw path keeps its encoding, as a header needs.
-    let location = format!("/{}/{query}", uri.path().trim_start_matches('/'));
+    let location = format!("{prefix}/{}/{query}", uri.path().trim_start_matches('/'));
     return (StatusCode::MOVED_PERMANENTLY, [(header::LOCATION, location)]).into_response();
   } else {
-    return not_found(&state.dir).await;
+    return not_found(state).await;
   };
 
   match tokio::fs::read(&file).await {
-    Ok(bytes) => file_response(&file, &relative, bytes, StatusCode::OK),
-    Err(_) => not_found(&state.dir).await,
+    Ok(bytes) => file_response(&file, &relative, bytes, StatusCode::OK, reload),
+    Err(_) => not_found(state).await,
   }
 }
 
@@ -91,16 +108,16 @@ async fn redirect_for(dir: &Path, path: &str) -> Option<(String, StatusCode)> {
   })
 }
 
-async fn not_found(dir: &Path) -> Response {
+async fn not_found((dir, reload): (&Path, bool)) -> Response {
   match tokio::fs::read(dir.join("404.html")).await {
-    Ok(bytes) => file_response(Path::new("404.html"), Path::new("404.html"), bytes, StatusCode::NOT_FOUND),
+    Ok(bytes) => file_response(Path::new("404.html"), Path::new("404.html"), bytes, StatusCode::NOT_FOUND, reload),
     Err(_) => (StatusCode::NOT_FOUND, "Not found").into_response(),
   }
 }
 
-fn file_response(file: &Path, relative: &Path, bytes: Vec<u8>, status: StatusCode) -> Response {
+fn file_response(file: &Path, relative: &Path, bytes: Vec<u8>, status: StatusCode, reload: bool) -> Response {
   let mime = mime_guess::from_path(file).first_or_octet_stream();
-  let is_html = mime.essence_str() == "text/html";
+  let is_html = reload && mime.essence_str() == "text/html";
 
   let body = if is_html {
     let html = String::from_utf8_lossy(&bytes).replacen("</body>", &format!("{RELOAD_SCRIPT}</body>"), 1);
@@ -143,13 +160,15 @@ mod tests {
     let dir = std::env::temp_dir().join(format!("yourdocs-site-{}", uuid::Uuid::now_v7()));
     std::fs::create_dir_all(dir.join("guide")).unwrap();
     std::fs::write(dir.join("guide/index.html"), "guide").unwrap();
-    let state = SiteState {
-      dir,
-      events: LocalBroadcast::default(),
-    };
 
-    for (path, expected) in [("/guide", "/guide/"), ("//guide", "/guide/"), ("/guide?a=1", "/guide/?a=1")] {
-      let response = serve(State(state.clone()), path.parse().unwrap()).await;
+    // (prefix, path, expected): under a mount point the redirect stays inside it.
+    for (prefix, path, expected) in [
+      ("", "/guide", "/guide/"),
+      ("", "//guide", "/guide/"),
+      ("", "/guide?a=1", "/guide/?a=1"),
+      ("/_preview/r1", "/guide", "/_preview/r1/guide/"),
+    ] {
+      let response = respond(&dir, &path.parse().unwrap(), prefix, false).await;
       assert_eq!(response.headers()[header::LOCATION], expected, "{path}");
     }
   }

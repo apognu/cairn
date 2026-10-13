@@ -1,5 +1,6 @@
 import type { Editor } from "@tiptap/core";
 import { useSyncExternalStore } from "react";
+import { serverUrl } from "./api/base";
 import { signIn } from "./api/client";
 import type { components } from "./api/schema";
 
@@ -36,7 +37,7 @@ export async function uploadImage(file: File): Promise<Asset> {
 
 async function send(file: File): Promise<Asset> {
   // The generated client has no body type for a raw file, so this one call uses fetch; the response type is still generated.
-  const response = await fetch("/api/assets", {
+  const response = await fetch(serverUrl("/api/assets"), {
     method: "POST",
     headers: { "Content-Type": "application/octet-stream" },
     body: file,
