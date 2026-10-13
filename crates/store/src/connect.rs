@@ -1,6 +1,6 @@
 use std::{path::Path, time::Duration};
 
-use sea_orm::{ConnectOptions, Database, DatabaseConnection, DbErr};
+use sea_orm::{ConnectOptions, ConnectionTrait, Database, DatabaseConnection, DbBackend, DbErr, Statement};
 
 use crate::migration;
 
@@ -32,13 +32,46 @@ pub async fn connect(path: &Path) -> Result<DatabaseConnection, StoreError> {
   Ok(db)
 }
 
+/// Opens the database a URL names (`sqlite://…` or `postgres://…`) and applies pending migrations.
+pub async fn connect_url(url: &str) -> Result<DatabaseConnection, StoreError> {
+  let mut options = ConnectOptions::new(url);
+  options.max_connections(10).connect_timeout(Duration::from_secs(10));
+  // The same on both: WAL, foreign keys and a busy timeout are SQLite's (see `connect`).
+  options.map_sqlx_sqlite_opts(|opts| opts.journal_mode(sea_orm::sqlx::sqlite::SqliteJournalMode::Wal).foreign_keys(true).busy_timeout(Duration::from_secs(5)));
+
+  let db = Database::connect(options).await?;
+  migration::migrate(&db).await?;
+
+  Ok(db)
+}
+
+/// A fresh migrated database for a test: a file in `dir`, or when `TEST_DATABASE_URL` names a Postgres server, a new database on it
+/// (they are not dropped; the server is a throwaway one).
+#[cfg(any(test, feature = "testing"))]
+pub async fn connect_for_tests(dir: &Path) -> DatabaseConnection {
+  let Ok(server) = std::env::var("TEST_DATABASE_URL") else {
+    return connect(&dir.join("test.db")).await.expect("a test database opens");
+  };
+
+  let name = format!("yd_test_{}", uuid::Uuid::now_v7().simple());
+  let admin = Database::connect(&server).await.expect("TEST_DATABASE_URL names a reachable Postgres");
+  admin
+    .execute_raw(Statement::from_string(DbBackend::Postgres, format!("CREATE DATABASE {name}")))
+    .await
+    .expect("a test database is created");
+
+  // `postgres://user:pass@host:port/postgres` becomes the same with the new database.
+  let (base, _) = server.rsplit_once('/').expect("TEST_DATABASE_URL ends with a database name");
+  connect_url(&format!("{base}/{name}")).await.expect("a test database opens")
+}
+
 /// A fresh migrated database in a throwaway directory.
 #[cfg(test)]
 pub(crate) async fn test_db() -> DatabaseConnection {
   let dir = std::env::temp_dir().join(format!("yourdocs-store-{}", uuid::Uuid::now_v7()));
   std::fs::create_dir_all(&dir).unwrap();
 
-  connect(&dir.join("test.db")).await.unwrap()
+  connect_for_tests(&dir).await
 }
 
 #[cfg(test)]

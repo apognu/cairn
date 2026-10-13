@@ -20,7 +20,9 @@ mod users;
 
 pub use api::{ReleaseSpec, get_api_config, list_api_configs, record_release_specs, release_specs, save_api_config};
 pub use assets::{NewAsset, asset_by_hash, asset_by_id, assets_by_ids, get_or_create_asset};
-pub use connect::{StoreError, connect};
+#[cfg(any(test, feature = "testing"))]
+pub use connect::connect_for_tests;
+pub use connect::{StoreError, connect, connect_url};
 pub use content::SqlContentStore;
 pub use history::{HistoryEntry, Trashed, list_trash, page_history, restore_page};
 pub use library::{Entry, delete_entry, list_entries, load_library, save_snippet, save_term, save_variable};

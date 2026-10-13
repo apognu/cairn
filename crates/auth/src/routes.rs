@@ -220,7 +220,7 @@ mod tests {
   async fn a_callback_is_accepted_only_from_the_browser_that_started_the_login() {
     let dir = std::env::temp_dir().join(format!("yourdocs-routes-{}", uuid::Uuid::now_v7()));
     std::fs::create_dir_all(&dir).unwrap();
-    let db = yourdocs_store::connect(&dir.join("test.db")).await.unwrap();
+    let db = yourdocs_store::connect_for_tests(&dir).await;
     let settings = AuthSettings {
       sessions: SessionSettings {
         idle: SignedDuration::from_hours(1),

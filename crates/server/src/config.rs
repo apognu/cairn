@@ -11,6 +11,8 @@ pub(crate) struct Config {
   // Server
   pub(crate) bind: SocketAddr,
   pub(crate) data_dir: PathBuf,
+  /// `postgres://…` to use Postgres; without it the database is a SQLite file in the data directory.
+  pub(crate) database_url: Option<String>,
   /// The address readers and editors use, without a trailing slash: the origin of redirects, cookies and canonical links.
   pub(crate) public_url: String,
 
@@ -87,6 +89,14 @@ impl From<OidcSettings> for yourdocs_auth::OidcConfig {
       groups_claim: settings.groups_claim,
     }
   }
+}
+
+fn validate_database_url(url: &str) -> anyhow::Result<String> {
+  if url.starts_with("postgres://") || url.starts_with("postgresql://") {
+    return Ok(url.to_string());
+  }
+
+  bail!("DATABASE_URL must be a postgres:// address; without it the database is a SQLite file in DATA_DIR")
 }
 
 /// `https://docs.example.com` for `https://docs.example.com/any/path?x`: what a browser sends as `Origin`.
@@ -184,6 +194,7 @@ impl Config {
 
     Ok(Self {
       bind: parsed("BIND", "0.0.0.0:8080")?,
+      database_url: var("DATABASE_URL").map(|url| validate_database_url(&url)).transpose()?,
       data_dir: var("DATA_DIR").map_or_else(|| PathBuf::from("/data"), PathBuf::from),
       site_url: var("SITE_URL").map_or_else(|| public_url.clone(), |url| url.trim_end_matches('/').to_string()),
       public_url,
@@ -260,6 +271,7 @@ mod tests {
     assert_eq!(config.public_url, "https://docs.example.com");
     assert_eq!(config.bind.port(), 8080);
     assert_eq!(config.oidc.groups_claim, "groups");
+    assert_eq!(config.database_url, None);
     assert_eq!(config.oidc.access.email_domains, ["example.com"]);
     assert_eq!((config.oidc.session_idle.as_secs(), config.oidc.session_absolute.as_secs()), (8 * 3600, 7 * 24 * 3600));
   }
@@ -280,6 +292,14 @@ mod tests {
 
       assert_eq!(load(&pairs).is_ok(), ok, "{url}");
     }
+  }
+
+  #[test]
+  fn the_database_is_sqlite_unless_postgres_is_named() {
+    let with = |url: &str| load(&[FULL, &[("DATABASE_URL", url)]].concat());
+
+    assert_eq!(with("postgres://u:p@db/docs").unwrap().database_url.as_deref(), Some("postgres://u:p@db/docs"));
+    assert!(with("mysql://db/docs").is_err());
   }
 
   #[test]

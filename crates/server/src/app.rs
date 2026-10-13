@@ -150,7 +150,7 @@ pub(crate) async fn test_state_serving(target: impl FnOnce(&std::path::Path) -> 
   let pool = Pool::new(&bundles.ssr_js, 1, 8, std::time::Duration::from_secs(5)).unwrap();
   let dir = std::env::temp_dir().join(format!("yourdocs-server-{}", uuid::Uuid::now_v7()));
   std::fs::create_dir_all(&dir).unwrap();
-  let db = yourdocs_store::connect(&dir.join("test.db")).await.unwrap();
+  let db = yourdocs_store::connect_for_tests(&dir).await;
 
   let pool = Arc::new(pool);
   let content = SqlContentStore::new(db.clone());

@@ -814,7 +814,7 @@ mod tests {
 
   use yourdocs_assets::LocalAssetStore;
   use yourdocs_core::{LocalBroadcast, Placement, UserId};
-  use yourdocs_store::{SqlContentStore, connect, create_page};
+  use yourdocs_store::{SqlContentStore, create_page};
 
   use super::*;
   use crate::FolderTarget;
@@ -842,7 +842,7 @@ mod tests {
   async fn fixture_for(api_hosts: ApiHosts, self_hosted: bool) -> Fixture {
     let dir = std::env::temp_dir().join(format!("yourdocs-publish-{}", uuid::Uuid::now_v7()));
     std::fs::create_dir_all(&dir).unwrap();
-    let db = connect(&dir.join("test.db")).await.unwrap();
+    let db = yourdocs_store::connect_for_tests(&dir).await;
 
     let script = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../packages/renderer/dist/ssr.js")).expect("run `bun run build` first");
     let pool = Arc::new(Pool::new(&script, 1, 32, Duration::from_secs(5)).unwrap());

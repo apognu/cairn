@@ -30,6 +30,7 @@ yourdocs-core = { version = "0.0.0", path = "../core" }
 yourdocs-store = { version = "0.0.0", path = "../store" }
 
 [dev-dependencies]
+yourdocs-store = { version = "0.0.0", path = "../store", features = ["testing"] }
 chrono = "0.4"
 tokio = { version = "1", features = ["macros", "rt"] }
 tower = { version = "0.5.3", features = ["util"] }

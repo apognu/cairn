@@ -31,6 +31,7 @@ yourdocs-render = { version = "0.0.0", path = "../render" }
 yourdocs-store = { version = "0.0.0", path = "../store" }
 
 [dev-dependencies]
+yourdocs-store = { version = "0.0.0", path = "../store", features = ["testing"] }
 axum = { version = "0.8", features = ["multipart"] }
 image = { version = "0.25.10", default-features = false, features = ["png"] }
 uuid = { version = "1.28.0", features = ["v7"] }

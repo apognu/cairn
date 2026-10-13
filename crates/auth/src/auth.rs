@@ -236,7 +236,7 @@ pub async fn require_login(State(auth): State<Auth>, mut request: Request, next:
 mod tests {
   use axum::http::HeaderValue;
   use jiff::SignedDuration;
-  use yourdocs_store::{connect, delete_api_token, list_api_tokens, upsert_user};
+  use yourdocs_store::{delete_api_token, list_api_tokens, upsert_user};
 
   use super::*;
 
@@ -245,7 +245,7 @@ mod tests {
   async fn signed_in(idle: SignedDuration) -> (Auth, UserId, HeaderMap) {
     let dir = std::env::temp_dir().join(format!("yourdocs-auth-{}", uuid::Uuid::now_v7()));
     std::fs::create_dir_all(&dir).unwrap();
-    let db = connect(&dir.join("test.db")).await.unwrap();
+    let db = yourdocs_store::connect_for_tests(&dir).await;
     let user = upsert_user(&db, "https://idp.example", "alice", "alice@example.com", "Alice").await.unwrap();
 
     let auth = Auth::oidc(

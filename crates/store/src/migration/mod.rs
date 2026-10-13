@@ -1,4 +1,4 @@
-use sea_orm::DatabaseConnection;
+use sea_orm::{ConnectionTrait, DatabaseConnection, DbBackend};
 use sea_orm_migration::prelude::*;
 
 mod m0001_initial;
@@ -37,6 +37,44 @@ impl MigratorTrait for Migrator {
   }
 }
 
+/// Runs a migration written for SQLite on the connected database. The schemas are written once; for Postgres the few spellings that differ
+/// are translated: IDs are 16-byte `BLOB`s on SQLite and `UUID`s on Postgres, `INTEGER` is 64 bits there, and `STRICT` has no meaning.
+pub(super) async fn run(manager: &SchemaManager<'_>, sql: &str) -> Result<(), DbErr> {
+  let connection = manager.get_connection();
+  let sql = match connection.get_database_backend() {
+    DbBackend::Postgres => postgres(sql),
+    _ => sql.to_string(),
+  };
+  connection.execute_unprepared(&sql).await?;
+
+  Ok(())
+}
+
+fn postgres(sql: &str) -> String {
+  sql
+    .replace(") STRICT;", ");")
+    // The one flag: written as 0/1 for SQLite, a real boolean for Postgres, which is what the entity reads.
+    .replace("\"in_header\" INTEGER NOT NULL DEFAULT 0", "\"in_header\" BOOLEAN NOT NULL DEFAULT FALSE")
+    .replace("BLOB", "UUID")
+    .replace("INTEGER", "BIGINT")
+}
+
 pub async fn migrate(db: &DatabaseConnection) -> Result<(), DbErr> {
   Migrator::up(db, None).await
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn sqlite_schemas_are_translated_for_postgres() {
+    let sql = "CREATE TABLE \"t\" (\n  \"id\" BLOB NOT NULL PRIMARY KEY,\n  \"n\" INTEGER,\n  \"in_header\" INTEGER NOT NULL DEFAULT 0\n) STRICT;";
+
+    let translated = postgres(sql);
+
+    assert!(translated.contains("\"id\" UUID NOT NULL") && translated.contains("\"n\" BIGINT,"));
+    assert!(translated.contains("\"in_header\" BOOLEAN NOT NULL DEFAULT FALSE"));
+    assert!(!translated.contains("STRICT") && !translated.contains("BLOB"));
+  }
 }

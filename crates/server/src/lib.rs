@@ -54,9 +54,13 @@ struct Runtime {
   events: yourdocs_core::LocalBroadcast,
 }
 
-async fn prepare(data_dir: &std::path::Path, site_url: String, auth: AuthSetup, target: yourdocs_publish::PublishTarget) -> anyhow::Result<Runtime> {
+async fn prepare(data_dir: &std::path::Path, database_url: Option<&str>, site_url: String, auth: AuthSetup, target: yourdocs_publish::PublishTarget) -> anyhow::Result<Runtime> {
   std::fs::create_dir_all(data_dir).with_context(|| format!("cannot create {}", data_dir.display()))?;
-  let db = yourdocs_store::connect(&data_dir.join("yourdocs.db")).await.context("cannot open the database")?;
+  let db = match database_url {
+    Some(url) => yourdocs_store::connect_url(url).await,
+    None => yourdocs_store::connect(&data_dir.join("yourdocs.db")).await,
+  }
+  .context("cannot open the database")?;
 
   // The runtime image keeps the bundles `build-components` made in /app/bundles; anywhere else the ones in the binary are used.
   let bundles = match env::var_os("BUNDLES_DIR") {
@@ -151,7 +155,7 @@ pub async fn run_dev(bind: SocketAddr, site_bind: SocketAddr, data_dir: PathBuf)
   // Without PUBLIC_URL, the address `dev` serves the site on, whichever port it was given.
   let site_url = env::var("PUBLIC_URL").unwrap_or_else(|_| format!("http://{site_bind}")).trim_end_matches('/').to_string();
   let target = yourdocs_publish::PublishTarget::Folder(yourdocs_publish::FolderTarget::new(data_dir.clone()));
-  let Runtime { state, events } = prepare(&data_dir, site_url, AuthSetup::Local, target).await?;
+  let Runtime { state, events } = prepare(&data_dir, None, site_url, AuthSetup::Local, target).await?;
 
   let editor = tokio::net::TcpListener::bind(bind).await.with_context(|| format!("cannot bind {bind}"))?;
   let site = tokio::net::TcpListener::bind(site_bind).await.with_context(|| format!("cannot bind {site_bind}"))?;
@@ -178,7 +182,7 @@ pub async fn run_serve() -> anyhow::Result<()> {
     config::TargetChoice::Cloudflare(cloudflare) => yourdocs_publish::PublishTarget::Cloudflare(yourdocs_publish::CloudflareTarget::new(cloudflare.clone())?),
   };
   let setup = AuthSetup::Oidc(Box::new(config.oidc.clone()), config.github.clone(), redirect);
-  let Runtime { state, .. } = prepare(&config.data_dir, config.site_url.clone(), setup, target).await?;
+  let Runtime { state, .. } = prepare(&config.data_dir, config.database_url.as_deref(), config.site_url.clone(), setup, target).await?;
 
   let listener = tokio::net::TcpListener::bind(config.bind).await.with_context(|| format!("cannot bind {}", config.bind))?;
   tracing::info!(address = %config.bind, public_url = %config.public_url, "listening");

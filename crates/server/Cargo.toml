@@ -36,6 +36,7 @@ yourdocs-render = { path = "../render" }
 yourdocs-store = { version = "0.0.0", path = "../store" }
 
 [dev-dependencies]
+yourdocs-store = { version = "0.0.0", path = "../store", features = ["testing"] }
 yourdocs-auth = { version = "0.0.0", path = "../auth", features = ["testing"] }
 # Already in the tree through axum; `oneshot` drives a router in tests.
 tower = { version = "0.5.3", features = ["util"] }
