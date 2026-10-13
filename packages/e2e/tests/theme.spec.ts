@@ -40,9 +40,14 @@ test("changing the accent color, name and logo reaches every published page", as
 
   const reader = await page.context().newPage();
   await reader.goto(`${SITE}/${second}/`);
-  expect(
-    await reader.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--accent").trim()),
-  ).toBe("#aa3300");
+  // Other tests' publishes reload open tabs of the site, which can land between the load and the read.
+  await expect
+    .poll(() =>
+      reader
+        .evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--accent").trim())
+        .catch(() => ""),
+    )
+    .toBe("#aa3300");
 });
 
 test("the published site follows the system theme and has a toggle that is remembered", async ({ page, browser }) => {

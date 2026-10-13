@@ -5,6 +5,8 @@ import { expect, type Page } from "@playwright/test";
  * test is still writing (an image whose alt text is not typed yet) blocks publishing, so a blocked dialog is closed and tried again.
  */
 export async function publishAll(page: Page) {
+  const published = page.getByText(/Published \d+ pages/);
+
   await expect(async () => {
     await page
       .getByRole("button", { name: /^Publish/ })
@@ -15,14 +17,15 @@ export async function publishAll(page: Page) {
 
     try {
       await expect(confirm).toBeEnabled({ timeout: 3000 });
+      await confirm.click();
+      // The site can also turn blocked between the check and the click (another test saved a page without alt text): the dialog then
+      // shows the refusal, and the whole attempt is made again.
+      await expect(published).toBeVisible({ timeout: 8000 });
     } catch (error) {
-      await dialog.getByRole("button", { name: "Cancel" }).click();
+      await page.keyboard.press("Escape");
       throw error;
     }
-    await confirm.click();
   }).toPass({ timeout: 40_000 });
-
-  await expect(page.getByText(/Published \d+ pages/)).toBeVisible();
 }
 
 /** A complete 1x1 PNG. Uploads are decoded to make their variants, so a hand-made header is not enough. */
