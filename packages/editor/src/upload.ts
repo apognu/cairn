@@ -1,10 +1,39 @@
 import type { Editor } from "@tiptap/core";
+import { useSyncExternalStore } from "react";
 import type { components } from "./api/schema";
 
 type Asset = components["schemas"]["Asset"];
 
+let inFlight = 0;
+const listeners = new Set<() => void>();
+
+function track(change: number) {
+  inFlight += change;
+  for (const listener of listeners) listener();
+}
+
+/** How many uploads are running, for the status shown while a large image travels. */
+export function useUploads(): number {
+  return useSyncExternalStore(
+    (listener) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    () => inFlight,
+  );
+}
+
 /** Sends an image to the server. The same bytes always come back as the same asset. */
 export async function uploadImage(file: File): Promise<Asset> {
+  track(1);
+  try {
+    return await send(file);
+  } finally {
+    track(-1);
+  }
+}
+
+async function send(file: File): Promise<Asset> {
   // The generated client has no body type for a raw file, so this one call uses fetch; the response type is still generated.
   const response = await fetch("/api/assets", {
     method: "POST",

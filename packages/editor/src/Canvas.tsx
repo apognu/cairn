@@ -16,7 +16,7 @@ import { PagePicker } from "./PagePicker";
 import { PropsPanel } from "./PropsPanel";
 import { PICKER_EVENT, type PickerRequest, pageUrlRegistry } from "./pageLink";
 import { useLibrary } from "./queries";
-import { insertImages } from "./upload";
+import { insertImages, useUploads } from "./upload";
 
 interface Props {
   doc: DocNode;
@@ -87,6 +87,7 @@ export function Canvas({
   editorRef.current = editor;
   const [picker, setPicker] = useState<{ request: PickerRequest; x: number; y: number } | null>(null);
   const library = useLibrary();
+  const uploads = useUploads();
   const [headings, setHeadings] = useState(() => collectHeadings(doc).list);
 
   useEffect(() => {
@@ -186,6 +187,12 @@ export function Canvas({
       <SiteLayout context={full} headings={headings} embedded={embedded} lead={lead}>
         <EditorContent editor={editor} />
         {editor && editable && <BubbleMenus editor={editor} />}
+        {editable && uploads > 0 && (
+          <output className="upload-status">
+            <span className="spinner" aria-hidden="true" />
+            {uploads === 1 ? "Uploading image…" : `Uploading ${uploads} images…`}
+          </output>
+        )}
         {editor && editable && panelHost && <PropsPanel editor={editor} host={panelHost} />}
         {picker && (
           <PagePicker
