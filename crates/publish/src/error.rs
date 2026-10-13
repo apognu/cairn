@@ -10,6 +10,9 @@ pub enum PublishError {
   /// The pre-publish checks found problems; nothing was published.
   #[error("{}", summary(.0))]
   Blocked(Vec<Problem>),
+  /// A spec of an API reference could not be fetched; nothing was published.
+  #[error("API source {label}: {message}")]
+  ApiSource { label: String, message: String },
   #[error(transparent)]
   Store(#[from] StoreError),
   #[error(transparent)]

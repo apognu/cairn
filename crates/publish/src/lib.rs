@@ -2,6 +2,7 @@
 
 #![forbid(unsafe_code)]
 
+mod api;
 mod changes;
 mod error;
 mod generated;
@@ -11,6 +12,7 @@ mod search;
 mod site;
 mod target;
 
+pub use api::{ApiHosts, Fetched, SourceFetcher};
 pub use changes::{check, pending};
 pub use error::PublishError;
 pub use publisher::{Bundles, PublishConfig, Publisher, PublisherParts};

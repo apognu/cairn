@@ -73,6 +73,7 @@ pub async fn run_dev(bind: SocketAddr, site_bind: SocketAddr, data_dir: PathBuf)
           // Without PUBLIC_URL, the address `dev` serves the site on, whichever port it was given.
           site_url: env::var("PUBLIC_URL").unwrap_or_else(|_| format!("http://{site_bind}")).trim_end_matches('/').to_string(),
           pagefind: env::var("PAGEFIND_BIN").unwrap_or_else(|_| "pagefind".into()),
+          api_hosts: api_hosts(),
         },
       },
       events.clone(),
@@ -102,6 +103,17 @@ pub async fn run_dev(bind: SocketAddr, site_bind: SocketAddr, data_dir: PathBuf)
   tokio::try_join!(axum::serve(editor, router(state)), axum::serve(site, site_router)).context("server stopped")?;
 
   Ok(())
+}
+
+/// GitHub's hosts for API sources. The variables exist for tests and mirrors; a deployment normally sets neither.
+fn api_hosts() -> yourdocs_publish::ApiHosts {
+  let defaults = yourdocs_publish::ApiHosts::default();
+  let host = |name: &str, default: String| env::var(name).map(|v| v.trim_end_matches('/').to_string()).unwrap_or(default);
+
+  yourdocs_publish::ApiHosts {
+    github: host("GITHUB_BASE_URL", defaults.github),
+    raw: host("RAW_BASE_URL", defaults.raw),
+  }
 }
 
 #[cfg(test)]

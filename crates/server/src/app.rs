@@ -138,6 +138,7 @@ pub(crate) async fn test_state_with_dir() -> (AppState, std::path::PathBuf) {
         config: PublishConfig {
           site_url: "http://localhost:3001".into(),
           pagefind: "pagefind-not-installed".into(),
+          api_hosts: Default::default(),
         },
       },
       LocalBroadcast::new(),

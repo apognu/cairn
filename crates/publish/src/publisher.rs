@@ -20,7 +20,9 @@ use yourdocs_store::{
 };
 
 use crate::{
-  PublishError, generated,
+  PublishError,
+  api::ApiHosts,
+  generated,
   markdown::{Site, page_markdown},
   search,
   site::{breadcrumbs, header_items, image_asset_ids, markdown_path, nav_tree, output_path, previous_next},
@@ -57,6 +59,8 @@ pub struct PublishConfig {
   pub site_url: String,
   /// The Pagefind executable (a path or a name on `PATH`).
   pub pagefind: String,
+  /// Where API sources on GitHub are read from; only tests and mirrors change it.
+  pub api_hosts: ApiHosts,
 }
 
 /// How many pages are in V8 at once. Below the pool's queue size, so a big site never gets "busy" from its own publish.
@@ -614,6 +618,7 @@ mod tests {
       config: PublishConfig {
         site_url: "https://docs.example.com".into(),
         pagefind: std::env::var("PAGEFIND_BIN").unwrap_or_else(|_| concat!(env!("CARGO_MANIFEST_DIR"), "/../../node_modules/.bin/pagefind").into()),
+        api_hosts: ApiHosts::default(),
       },
       broadcast: LocalBroadcast::new(),
     });
@@ -1020,6 +1025,7 @@ mod tests {
       config: PublishConfig {
         site_url: "https://docs.example.com".into(),
         pagefind: std::env::var("PAGEFIND_BIN").unwrap_or_else(|_| concat!(env!("CARGO_MANIFEST_DIR"), "/../../node_modules/.bin/pagefind").into()),
+        api_hosts: ApiHosts::default(),
       },
       broadcast: LocalBroadcast::new(),
     });
