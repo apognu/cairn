@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use jiff::Timestamp;
 use sea_orm::{ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter, Set, sea_query::OnConflict};
@@ -6,7 +6,8 @@ use yourdocs_core::{Document, EntryKind, Library, PageId, UserId, entry_refs, sn
 
 use crate::{
   StoreError,
-  entity::{entry_usage, library_entry},
+  entity::{draft, entry_usage, library_entry},
+  tree::list_pages,
 };
 
 /// One entry of the library as the Library screen lists it.
@@ -138,25 +139,35 @@ pub async fn save_snippet(db: &DatabaseConnection, user: UserId, key: &str, doc:
   upsert(db, user, EntryKind::Snippet, key, None, Some(doc)).await
 }
 
-/// Deletes an entry, unless pages still use it: the error names them.
+/// Deletes an entry, unless live pages or other snippets still use it.
 pub async fn delete_entry(db: &DatabaseConnection, id: uuid::Uuid) -> Result<(), StoreError> {
   let entries = list_entries(db).await?;
   let entry = entries.iter().find(|e| e.id == id).ok_or(StoreError::NotFound)?;
 
-  // Snippets that include this one count as users too.
-  let included_by: Vec<&str> = entries
-    .iter()
-    .filter(|e| e.kind == EntryKind::Snippet && e.doc.as_ref().is_some_and(|d| entry_refs(d).1.contains(&entry.key)))
-    .map(|e| e.key.as_str())
-    .collect();
+  let uses = |doc: &Document| match entry.kind {
+    EntryKind::Variable => entry_refs(doc).0.contains(&entry.key),
+    EntryKind::Snippet => entry_refs(doc).1.contains(&entry.key),
+    EntryKind::Term => term_refs(doc).contains(&entry.key),
+  };
 
-  if !entry.used_in.is_empty() || !included_by.is_empty() {
+  // Read from the documents, not the usage table: that table misses a reference written before the entry existed, and counts pages in
+  // the trash, which would make the entry impossible to delete.
+  let live: HashSet<uuid::Uuid> = list_pages(db).await?.iter().map(|p| p.id.as_uuid()).collect();
+  let pages = draft::Entity::find()
+    .all(db)
+    .await?
+    .into_iter()
+    .filter(|d| live.contains(&d.page_id))
+    .filter_map(|d| serde_json::from_str::<Document>(&d.doc).ok())
+    .filter(|doc| uses(doc))
+    .count();
+  let snippets = entries.iter().filter(|e| e.kind == EntryKind::Snippet && e.id != entry.id && e.doc.as_ref().is_some_and(uses)).count();
+
+  if pages > 0 || snippets > 0 {
     return Err(StoreError::Conflict(format!(
-      "{} {} is still used by {} page(s) and {} snippet(s)",
+      "{} {} is still used by {pages} page(s) and {snippets} snippet(s)",
       entry.kind.as_str(),
       entry.key,
-      entry.used_in.len(),
-      included_by.len()
     )));
   }
 
@@ -232,5 +243,36 @@ mod tests {
     let entries = list_entries(&db).await.unwrap();
     let prereqs = entries.iter().find(|e| e.key == "prereqs").unwrap();
     assert!(matches!(delete_entry(&db, prereqs.id).await, Err(StoreError::Conflict(_))));
+  }
+
+  #[tokio::test]
+  async fn an_entry_in_use_cannot_be_deleted_whatever_its_kind() {
+    use yourdocs_core::{ContentStore, Placement};
+
+    use crate::{SqlContentStore, tree::create_page};
+
+    let db = test_db().await;
+    let user = UserId::new();
+    let doc = |content: serde_json::Value| -> Document { serde_json::from_value(json!({ "type": "doc", "content": content })).unwrap() };
+    let variable = |key: &str| json!([{ "type": "paragraph", "content": [{ "type": "variable", "attrs": { "key": key } }] }]);
+
+    // A page refers to `early` before the variable exists.
+    let page = create_page(&db, user, None, "Page", Placement::Last).await.unwrap();
+    SqlContentStore::new(db.clone()).save_draft(page.id, doc(variable("early")), None, user).await.unwrap();
+    save_variable(&db, user, "early", "x").await.unwrap();
+    // `nested` is used only inside a snippet; `shared` is the name of both a variable and an included snippet.
+    save_variable(&db, user, "nested", "x").await.unwrap();
+    save_snippet(&db, user, "holder", &doc(variable("nested"))).await.unwrap();
+    save_variable(&db, user, "shared", "x").await.unwrap();
+    save_snippet(&db, user, "shared", &snippet_doc(None)).await.unwrap();
+    save_snippet(&db, user, "outer", &snippet_doc(Some("shared"))).await.unwrap();
+
+    let entries = list_entries(&db).await.unwrap();
+    let id = |kind: EntryKind, key: &str| entries.iter().find(|e| e.kind == kind && e.key == key).unwrap().id;
+
+    for (kind, key, in_use) in [(EntryKind::Variable, "early", true), (EntryKind::Variable, "nested", true), (EntryKind::Variable, "shared", false)] {
+      let result = delete_entry(&db, id(kind, key)).await;
+      assert_eq!(matches!(result, Err(StoreError::Conflict(_))), in_use, "{key}: {result:?}");
+    }
   }
 }
