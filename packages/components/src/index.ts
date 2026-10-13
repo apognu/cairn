@@ -1,14 +1,14 @@
+import { customComponents } from "@yourdocs/components/custom";
 import type { AnyComponent } from "@yourdocs/sdk";
 import { cards, fileTree } from "./blocks";
 import { callout } from "./Callout";
-import { customComponents } from "./custom";
 import { featureTabs, whatsNew } from "./features";
 import { linkCard, relatedPages, seeAlso } from "./links";
 import { snippet, variable } from "./reusable";
 
+export { customSlots } from "@yourdocs/components/custom";
 export { cards, fileTree, parseFileTree } from "./blocks";
 export { Callout, type CalloutProps, callout } from "./Callout";
-export { customSlots } from "./custom";
 export { type RenderEnv, RenderEnvContext, useRenderEnv } from "./env";
 export { FeatureCard, featureTabs, whatsNew } from "./features";
 export { Icon, iconNames } from "./icons";

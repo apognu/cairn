@@ -1,0 +1,5 @@
+.acme-note {
+  padding: 12px 16px;
+  border-left: 4px solid var(--accent);
+  background: var(--bg-side);
+}

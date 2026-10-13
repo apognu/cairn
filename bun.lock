@@ -12,6 +12,19 @@
     },
     "packages/builder": {
       "name": "@yourdocs/builder",
+      "bin": {
+        "yourdocs-build-components": "src/cli.ts",
+      },
+      "dependencies": {
+        "@yourdocs/components": "workspace:*",
+        "@yourdocs/sdk": "workspace:*",
+        "react": "19.1.1",
+        "react-dom": "19.1.1",
+      },
+      "devDependencies": {
+        "@types/bun": "1.2.21",
+        "@types/react": "19.1.12",
+      },
     },
     "packages/components": {
       "name": "@yourdocs/components",

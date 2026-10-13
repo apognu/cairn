@@ -5,6 +5,7 @@ export { z };
 
 export * from "./context";
 export * from "./editable";
+export { sampleProps } from "./sample";
 export * from "./slots";
 
 export const SDK_VERSION = 1;
