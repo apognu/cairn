@@ -29,6 +29,7 @@ export function PagePicker({ onPage, onUrl, onClose, nearPage, initialUrl, style
   const [active, setActive] = useState(0);
   const [chosenParent, setParent] = useState<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
+  const root = useRef<HTMLDivElement>(null);
 
   const all = (pages.data ?? []).filter((p) => p.kind === "page");
   const urls = useMemo(() => pageUrls(pages.data ?? []), [pages.data]);
@@ -39,6 +40,21 @@ export function PagePicker({ onPage, onUrl, onClose, nearPage, initialUrl, style
 
   useEffect(() => input.current?.focus(), []);
 
+  // Like every popover: a click elsewhere or Escape closes it, wherever the focus went since it opened.
+  useEffect(() => {
+    const outside = (event: PointerEvent) => {
+      if (event.target instanceof Node && !root.current?.contains(event.target)) onClose();
+    };
+    const onEscape = (event: KeyboardEvent) => event.key === "Escape" && onClose();
+    document.addEventListener("pointerdown", outside);
+    document.addEventListener("keydown", onEscape);
+
+    return () => {
+      document.removeEventListener("pointerdown", outside);
+      document.removeEventListener("keydown", onEscape);
+    };
+  }, [onClose]);
+
   const needle = query.trim().toLowerCase();
   const matches = all
     .filter((p) => !needle || p.title.toLowerCase().includes(needle) || (urls[p.id] ?? "").includes(needle))
@@ -47,8 +63,11 @@ export function PagePicker({ onPage, onUrl, onClose, nearPage, initialUrl, style
   const rows = [...(canCreate ? ["create" as const] : []), ...matches];
   const choice = Math.min(active, rows.length - 1);
 
-  const createPage = () =>
+  const createPage = () => {
+    // Enter pressed twice would create the page twice.
+    if (create.isPending) return;
     create.mutate({ parent_id: parent || null, title: query.trim() }, { onSuccess: (page) => onPage(page) });
+  };
   const choose = (row: (typeof rows)[number] | undefined) => {
     if (row === "create") createPage();
     else if (row) onPage(row);
@@ -56,11 +75,13 @@ export function PagePicker({ onPage, onUrl, onClose, nearPage, initialUrl, style
 
   return (
     <div
+      ref={root}
       className="picker"
       role="dialog"
       aria-label="Link to"
       style={style}
       onKeyDown={(e) => {
+        // Stopped here so a drawer around the picker does not close with it (the document listener only sees Escape from elsewhere).
         if (e.key === "Escape") {
           e.stopPropagation();
           onClose();

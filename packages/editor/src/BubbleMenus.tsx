@@ -1,7 +1,7 @@
 import { type Editor, isTextSelection } from "@tiptap/core";
 import { useEditorState } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { PICKER_EVENT, type PickerRequest } from "./pageLink";
 import { useLibrary } from "./queries";
 
@@ -94,8 +94,12 @@ function TextTools({ editor }: { editor: Editor }) {
       code: e.isActive("code"),
       link: e.isActive("link"),
       term: e.isActive("term"),
+      selection: `${e.state.selection.from}-${e.state.selection.to}`,
     }),
   });
+  // The term form belongs to the words it was opened on: another selection starts from the tools again.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reset on every new selection
+  useEffect(() => setMarking(false), [active.selection]);
 
   if (marking) {
     const { from, to } = editor.state.selection;
@@ -104,6 +108,11 @@ function TextTools({ editor }: { editor: Editor }) {
     return (
       <form
         className="bubble"
+        onKeyDown={(e) => {
+          if (e.key !== "Escape") return;
+          setMarking(false);
+          editor.commands.focus();
+        }}
         onSubmit={(e) => {
           e.preventDefault();
           const term = String(new FormData(e.currentTarget).get("term") ?? "");

@@ -105,6 +105,8 @@ const TabPanel = Node.create({
   renderHTML: () => ["div", { role: "tabpanel", class: "tabs-panel" }, 0],
 });
 
+let tabGroups = 0;
+
 const Tabs = Node.create({
   name: "tabs",
   group: "block",
@@ -127,6 +129,8 @@ const Tabs = Node.create({
     return ({ node: initial }) => {
       let node = initial;
       let active = 0;
+      // Unique per tab group, so the ARIA links of two groups on one page never cross.
+      const prefix = `tabs-${++tabGroups}`;
 
       const dom = document.createElement("div");
       const className = () => (node.attrs.variant === "code" ? "tabs tabs-code" : "tabs");
@@ -147,9 +151,9 @@ const Tabs = Node.create({
           button.type = "button";
           button.className = "tabs-tab";
           button.setAttribute("role", "tab");
-          button.id = `tab-${i}`;
+          button.id = `${prefix}-tab-${i}`;
           button.setAttribute("aria-selected", String(i === active));
-          button.setAttribute("aria-controls", `panel-${i}`);
+          button.setAttribute("aria-controls", `${prefix}-panel-${i}`);
           button.textContent = String(panel.attrs.label ?? "");
           button.onclick = () => {
             active = i;
@@ -163,13 +167,14 @@ const Tabs = Node.create({
       const syncPanels = () => {
         Array.from(panels.children).forEach((panel, i) => {
           panel.toggleAttribute("hidden", i !== active);
-          panel.id = `panel-${i}`;
-          panel.setAttribute("aria-labelledby", `tab-${i}`);
+          panel.id = `${prefix}-panel-${i}`;
+          panel.setAttribute("aria-labelledby", `${prefix}-tab-${i}`);
         });
       };
       render();
       // ProseMirror fills the panels after the view is created, and again when they are redrawn.
-      new MutationObserver(syncPanels).observe(panels, { childList: true });
+      const observer = new MutationObserver(syncPanels);
+      observer.observe(panels, { childList: true });
 
       return {
         dom,
@@ -184,6 +189,7 @@ const Tabs = Node.create({
         },
         ignoreMutation: (mutation) =>
           list.contains(mutation.target) || (mutation.type === "attributes" && mutation.target !== dom),
+        destroy: () => observer.disconnect(),
       };
     };
   },

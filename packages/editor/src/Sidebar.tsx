@@ -118,10 +118,21 @@ export function Sidebar({ pages, loading, selected, onSelect }: Props) {
     if (target) void run(move.mutateAsync({ id, target }));
   };
 
+  // Deleting a page takes its subpages to the trash too: the open page may be one of them.
+  const within = (id: string | null, ancestor: string) => {
+    for (
+      let at = id, steps = 0;
+      at && steps <= pages.length;
+      at = pages.find((p) => p.id === at)?.parent_id ?? null, steps++
+    ) {
+      if (at === ancestor) return true;
+    }
+    return false;
+  };
   const doDelete = (id: string) =>
     run(remove.mutateAsync(id), () => {
       setEditing(null);
-      if (selected === id) onSelect(null);
+      if (within(selected, id)) onSelect(null);
     });
 
   const needle = query.trim().toLowerCase();
@@ -157,8 +168,12 @@ export function Sidebar({ pages, loading, selected, onSelect }: Props) {
             if (drag.over?.id !== page.id || drag.over.zone !== zone || drag.alt !== e.altKey) {
               setDrag({ ...drag, over: { id: page.id, zone }, alt: e.altKey });
             }
-            // Only a row the page can land on accepts the drop.
-            if (dropTarget(pages, drag.id, page.id, zone)) e.preventDefault();
+            // Only a row the page can land on accepts the drop. With Alt held the browser proposes a copy, which a "move" drag
+            // refuses, so the drop would never come: the effect is set to move whatever the keys.
+            if (dropTarget(pages, drag.id, page.id, zone)) {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = "move";
+            }
           }}
           onDrop={(e) => {
             e.preventDefault();

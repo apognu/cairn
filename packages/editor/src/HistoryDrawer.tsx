@@ -5,6 +5,7 @@ import { unwrap } from "./api/unwrap";
 import { blockLines, diffLines } from "./diff";
 import { useHistory, useRestoreVersion, useRevision } from "./queries";
 import type { Page } from "./tree";
+import { saveSettled } from "./useDraftSync";
 
 /** Saves less than this far apart, by one author, read as one editing session. */
 const SESSION_GAP_MS = 30 * 60 * 1000;
@@ -31,11 +32,13 @@ export function HistoryDrawer({
   const revision = useRevision(chosen);
 
   useEffect(() => dialog.current?.showModal(), []);
-  // What the page is now, to compare the chosen version with.
+  // What the page is now, to compare the chosen version with: after the save that leaving the canvas for this button started.
   useEffect(() => {
-    api
-      .GET("/api/pages/{id}/draft", { params: { path: { id: page.id } } })
-      .then((r) => setCurrent(unwrap(r).doc as DocNode));
+    saveSettled(page.id)
+      .then(() => api.GET("/api/pages/{id}/draft", { params: { path: { id: page.id } } }))
+      .then((r) => setCurrent(unwrap(r).doc as DocNode))
+      // Without the current draft there is simply no comparison to show.
+      .catch(() => setCurrent(null));
   }, [page.id]);
 
   const sessions = useMemo(() => {
