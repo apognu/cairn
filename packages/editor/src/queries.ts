@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./api/client";
 import type { components } from "./api/schema";
 import { unwrap } from "./api/unwrap";
@@ -118,7 +118,22 @@ export function useSaveSettings() {
   return useMutation({
     mutationFn: async (settings: components["schemas"]["Settings"]) =>
       unwrap(await api.PUT("/api/settings", { body: settings })),
-    onSuccess: (saved) => client.setQueryData(["settings"], saved),
+    onSuccess: (saved) => {
+      client.setQueryData(["settings"], saved);
+      return client.invalidateQueries({ queryKey: ["theme-css"] });
+    },
+  });
+}
+
+/** The contrast problems and the per-mode custom properties of unsaved settings. Kept while the next answer loads, so the preview doesn't flash. */
+export function useThemeCheck(settings: components["schemas"]["Settings"] | null) {
+  return useQuery({
+    queryKey: ["settings-check", settings],
+    enabled: settings !== null,
+    placeholderData: keepPreviousData,
+    queryFn: async () =>
+      unwrap(await api.POST("/api/settings/check", { body: settings as components["schemas"]["Settings"] })),
+    retry: false,
   });
 }
 

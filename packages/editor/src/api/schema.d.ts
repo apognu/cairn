@@ -415,6 +415,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/settings/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Checks unsaved settings: the contrast problems and the custom properties of each mode. */
+        post: operations["checkSettings"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/site": {
         parameters: {
             query?: never;
@@ -424,6 +441,23 @@ export interface paths {
         };
         /** Where the published site lives, for the editor's "View as reader". */
         get: operations["siteInfo"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/theme.css": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The saved theme as a stylesheet, which the editor loads after the site's so authors write inside the site's colors. */
+        get: operations["getThemeCss"];
         put?: never;
         post?: never;
         delete?: never;
@@ -572,6 +606,16 @@ export interface components {
             details: string[];
             message: string;
         };
+        Footer: {
+            /** @default [] */
+            columns: components["schemas"]["FooterColumn"][];
+            /** @default  */
+            text: string;
+        };
+        FooterColumn: {
+            links: components["schemas"]["SiteLink"][];
+            title: string;
+        };
         HeaderBody: {
             in_header: boolean;
         };
@@ -605,6 +649,19 @@ export interface components {
         LostUrl: {
             path: string;
             title: string;
+        };
+        /** @description Optional color overrides for one mode, each `#rrggbb`. What is not set keeps the built-in color. */
+        ModeColors: {
+            /** @default null */
+            background: string | null;
+            /** @default null */
+            code_background: string | null;
+            /** @default null */
+            link: string | null;
+            /** @default null */
+            surface: string | null;
+            /** @default null */
+            text: string | null;
         };
         MovePage: {
             before?: components["schemas"]["PageId"] | null;
@@ -744,15 +801,64 @@ export interface components {
             /** @description Keep the old URLs of the page and the pages below it as redirects. Defaults to true. */
             redirect?: boolean | null;
         };
-        /** @description The site-wide settings of the theme basics. */
+        /** @description The site-wide settings: name, logo, colors and the links around the page. */
         Settings: {
-            /** @description `#rrggbb`. */
+            /**
+             * @description `#rrggbb`.
+             * @default #0b6e4f
+             */
             accent: string;
-            logo_asset_id?: components["schemas"]["AssetId"] | null;
+            /**
+             * @description A stylesheet written after the theme, on the published site and in the editor.
+             * @default
+             */
+            custom_css: string;
+            /**
+             * @default {
+             *       "background": null,
+             *       "code_background": null,
+             *       "link": null,
+             *       "surface": null,
+             *       "text": null
+             *     }
+             */
+            dark: components["schemas"]["ModeColors"];
+            /**
+             * @default {
+             *       "columns": [],
+             *       "text": ""
+             *     }
+             */
+            footer: components["schemas"]["Footer"];
+            /**
+             * @description External links shown in the header, after the sections.
+             * @default []
+             */
+            header_links: components["schemas"]["SiteLink"][];
+            /**
+             * @default {
+             *       "background": null,
+             *       "code_background": null,
+             *       "link": null,
+             *       "surface": null,
+             *       "text": null
+             *     }
+             */
+            light: components["schemas"]["ModeColors"];
+            /** @default null */
+            logo_asset_id: components["schemas"]["AssetId"] | null;
+            /** @default null */
+            logo_dark_asset_id: components["schemas"]["AssetId"] | null;
+            /** @default Documentation */
             site_name: string;
         };
         SiteInfo: {
             /** @description Where readers find the published site, without a trailing slash. */
+            url: string;
+        };
+        SiteLink: {
+            label: string;
+            /** @description `https://…`, `mailto:…` or a path on the site. */
             url: string;
         };
         SnippetBody: {
@@ -761,6 +867,18 @@ export interface components {
         TermBody: {
             definition: string;
             term: string;
+        };
+        /** @description What the settings form shows while the palette is being edited. */
+        ThemeCheck: {
+            dark: {
+                [key: string]: string;
+            };
+            /** @description The custom properties each mode gets, for the live preview. */
+            light: {
+                [key: string]: string;
+            };
+            /** @description Text pairs under WCAG AA; saving is refused while there are any. */
+            problems: string[];
         };
         /** @description A deleted page waiting in the trash. */
         TrashedPage: {
@@ -1889,6 +2007,37 @@ export interface operations {
             };
         };
     };
+    checkSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Settings"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ThemeCheck"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     siteInfo: {
         parameters: {
             query?: never;
@@ -1904,6 +2053,25 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SiteInfo"];
+                };
+            };
+        };
+    };
+    getThemeCss: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/css": string;
                 };
             };
         };

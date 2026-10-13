@@ -879,6 +879,27 @@ button.primary:disabled {
   gap: 8px;
 }
 
+/* The save buttons of a long settings form stay in reach while it scrolls. */
+.sticky-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  margin-top: 20px;
+  padding: 12px 0 20px;
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+}
+
+/* Its own bottom padding replaces the screen's, which would leave a strip of scrolling content under it. A field that gets the focus
+   scrolls into view above it, not behind it. */
+.settings-main:has(.sticky-actions) {
+  padding-bottom: 0;
+}
+
+:is(.canvas, .settings-main):has(.sticky-actions) {
+  scroll-padding-bottom: 80px;
+}
+
 .dialog-actions button:not(.primary) {
   height: 32px;
   padding: 0 12px;
@@ -1746,4 +1767,282 @@ span[data-label] > .component-invalid {
 
 .ProseMirror [contenteditable="false"] a[href] {
   cursor: default;
+}
+
+/* Site and theme settings: the form on the left, the site in both modes on the right. */
+.theme-settings {
+  display: flex;
+  align-items: flex-start;
+  gap: 32px;
+}
+
+.theme-settings .settings-form {
+  flex: none;
+  width: 520px;
+  max-width: none;
+}
+
+.theme-previews {
+  position: sticky;
+  top: 0;
+  flex: 1;
+  min-width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.theme-previews h2 {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.theme-previews p {
+  margin: 0;
+  font-size: 13px;
+}
+
+.theme-preview {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13.5px;
+}
+
+.theme-preview-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 40px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.theme-preview-section {
+  box-shadow: inset 0 -2px 0 var(--accent);
+  padding: 11px 0;
+  font-weight: 600;
+}
+
+.theme-preview-body {
+  display: flex;
+  gap: 16px;
+  padding: 16px;
+}
+
+.theme-preview-body aside {
+  flex: none;
+  align-self: stretch;
+  width: 90px;
+  padding: 8px;
+  border-radius: 6px;
+  background: var(--bg-side);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.theme-preview h3 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.theme-preview p {
+  margin: 6px 0 10px;
+  color: var(--text-body);
+  line-height: 1.6;
+}
+
+.theme-preview-link {
+  color: var(--link);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.theme-preview pre {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--code-bg);
+  font: 12.5px var(--font-mono);
+}
+
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 26px 0 10px;
+}
+
+.section-head h2 {
+  margin: 0;
+}
+
+.segmented {
+  display: flex;
+  padding: 2px;
+  border-radius: 7px;
+  background: var(--hover);
+}
+
+.segmented button {
+  height: 26px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.segmented button[aria-selected="true"] {
+  background: var(--bg);
+  color: var(--text);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgb(16 20 22 / 12%);
+}
+
+.color-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 16px;
+}
+
+.color-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.color-grid .color-row input[type="color"] {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--border-input);
+  border-radius: 5px;
+  background: none;
+}
+
+.color-row input.mono {
+  width: 0;
+  flex: 1;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--border-input);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: 12.5px var(--font-mono);
+}
+
+.color-row label {
+  flex: none;
+  min-width: 70px;
+}
+
+.contrast-ok {
+  margin: 10px 0 0;
+  color: var(--accent);
+  font-size: 13px;
+}
+
+.contrast-problems {
+  margin: 10px 0 0;
+  padding-left: 18px;
+  color: var(--danger);
+  font-size: 13px;
+}
+
+.link-list {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.link-list .row-inline {
+  width: 100%;
+}
+
+.link-list .row-inline input {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border-input);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+}
+
+.footer-column {
+  margin: 12px 0;
+  padding: 10px 12px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.footer-column legend {
+  padding: 0 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.footer-column > .row-inline {
+  margin-bottom: 8px;
+}
+
+.footer-column > .row-inline input {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border-input);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+}
+
+.logo-field[data-theme] {
+  background: var(--bg);
+  color: var(--text);
+}
+
+button.secondary {
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--border-input);
+  border-radius: 7px;
+  background: var(--bg);
+  cursor: pointer;
+}
+
+button.secondary:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.color-row label {
+  width: 84px;
+}
+
+.form-field textarea.code-input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border-input);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: 12.5px / 1.5 var(--font-mono);
+  resize: vertical;
 }

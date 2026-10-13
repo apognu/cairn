@@ -22,9 +22,11 @@ test("changing the accent color, name and logo reaches every published page", as
   await page.getByRole("button", { name: "Settings", exact: true }).click();
   await page.getByLabel("Site name").fill(`Halyard ${tag}`);
   await page.getByLabel("Accent color (hex)").fill("#aa3300");
-  await page.getByLabel("Logo").setInputFiles({ name: "logo.png", mimeType: "image/png", buffer: PNG });
+  await page
+    .getByLabel("Logo", { exact: true })
+    .setInputFiles({ name: "logo.png", mimeType: "image/png", buffer: PNG });
   await expect(page.getByAltText("Current logo")).toBeVisible();
-  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.getByRole("button", { name: "Save theme" }).click();
   await expect(page.getByText("Saved. It goes live with the next publish.")).toBeVisible();
   await page.getByRole("button", { name: "Back to pages" }).click();
 
@@ -48,6 +50,79 @@ test("changing the accent color, name and logo reaches every published page", as
         .catch(() => ""),
     )
     .toBe("#aa3300");
+});
+
+test("a low-contrast palette shows a warning and cannot be saved", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await expect(page.getByText("Text contrast passes WCAG AA")).toBeVisible();
+
+  await page.getByLabel("Text", { exact: true }).fill("#cccccc");
+  await expect(page.getByRole("alert")).toContainText("Text on the background in light mode");
+  await expect(page.getByRole("button", { name: "Save theme" })).toBeDisabled();
+
+  // The dark palette is checked as well, and fixing the color lifts the warning.
+  await page.getByRole("tab", { name: "Dark" }).click();
+  await page.getByLabel("Background", { exact: true }).fill("#eeeeee");
+  await expect(page.getByRole("alert")).toContainText("dark mode");
+  await page.getByRole("button", { name: "Discard" }).click();
+  await expect(page.getByText("Text contrast passes WCAG AA")).toBeVisible();
+});
+
+test("header links, footer and per-mode colors reach the published site", async ({ page }) => {
+  const tag = Math.random().toString(36).slice(2, 8);
+  const slug = `brand-${tag}`;
+  await newPage(page, slug);
+
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await page.getByRole("button", { name: "Add a link" }).first().click();
+  await page.getByLabel("Header: label 1").fill("Status");
+  await page.getByLabel("Header: address 1").fill("https://status.example.com");
+  await page.getByLabel("Text", { exact: true }).fill("#101010");
+  await page.getByLabel("Footer text").fill(`Made by ${tag}`);
+  await page.getByRole("button", { name: "Add a column" }).click();
+  await page.getByLabel("Column 1 title").fill("Product");
+  await page.getByRole("button", { name: "Add a link" }).last().click();
+  await page.getByLabel("Column 1: label 1").fill("Pricing");
+  await page.getByLabel("Column 1: address 1").fill("/pricing/");
+  await page.getByRole("button", { name: "Save theme" }).click();
+  await expect(page.getByText("Saved. It goes live with the next publish.")).toBeVisible();
+  await page.getByRole("button", { name: "Back to pages" }).click();
+
+  await publishAll(page);
+
+  const html = readFileSync(`.e2e-data/site/${slug}/index.html`, "utf8");
+  expect(html).toContain('href="https://status.example.com"');
+  expect(html).toContain(`Made by ${tag}`);
+  expect(html).toContain('href="/pricing/"');
+  expect(html).toContain(":root{--text:#101010;--text-body:#101010}");
+});
+
+test("custom CSS is loaded after the theme, in the editor and on the published site", async ({ page }) => {
+  const tag = Math.random().toString(36).slice(2, 8);
+  const slug = `css-${tag}`;
+  await newPage(page, slug);
+
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await page.getByLabel(/Stylesheet, loaded after the theme/).fill(`.doc-content { --probe-${tag}: 1; }`);
+  await page.getByRole("button", { name: "Save theme" }).click();
+  await expect(page.getByText("Saved. It goes live with the next publish.")).toBeVisible();
+  await expect
+    .poll(() => page.evaluate(() => document.querySelector("style#site-theme")?.textContent ?? ""))
+    .toMatch(new RegExp(`--accent-base:#[0-9a-f]{6}\\}.*--probe-${tag}`));
+  await page.getByRole("button", { name: "Back to pages" }).click();
+
+  await publishAll(page);
+
+  const html = readFileSync(`.e2e-data/site/${slug}/index.html`, "utf8");
+  expect(html.indexOf(`--probe-${tag}`)).toBeGreaterThan(html.indexOf("--accent-base:"));
+  expect(html.indexOf("--accent-base:")).toBeGreaterThan(html.indexOf('rel="stylesheet"'));
+
+  // A stylesheet that could close its own element is refused with the reason.
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await page.getByLabel(/Stylesheet, loaded after the theme/).fill("</style><script>alert(1)</script>");
+  await expect(page.getByRole("alert")).toContainText("cannot contain </style");
+  await expect(page.getByRole("button", { name: "Save theme" })).toBeDisabled();
 });
 
 test("the published site follows the system theme and has a toggle that is remembered", async ({ page, browser }) => {

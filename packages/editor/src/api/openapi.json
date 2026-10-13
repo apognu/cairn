@@ -1328,6 +1328,42 @@
         }
       }
     },
+    "/api/settings/check": {
+      "post": {
+        "summary": "Checks unsaved settings: the contrast problems and the custom properties of each mode.",
+        "operationId": "checkSettings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Settings"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThemeCheck"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/site": {
       "get": {
         "summary": "Where the published site lives, for the editor's \"View as reader\".",
@@ -1338,6 +1374,23 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SiteInfo"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/theme.css": {
+      "get": {
+        "summary": "The saved theme as a stylesheet, which the editor loads after the site's so authors write inside the site's colors.",
+        "operationId": "getThemeCss",
+        "responses": {
+          "200": {
+            "content": {
+              "text/css": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -1737,6 +1790,40 @@
           }
         }
       },
+      "Footer": {
+        "type": "object",
+        "properties": {
+          "columns": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FooterColumn"
+            },
+            "default": []
+          },
+          "text": {
+            "type": "string",
+            "default": ""
+          }
+        }
+      },
+      "FooterColumn": {
+        "type": "object",
+        "required": [
+          "title",
+          "links"
+        ],
+        "properties": {
+          "links": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SiteLink"
+            }
+          },
+          "title": {
+            "type": "string"
+          }
+        }
+      },
       "HeaderBody": {
         "type": "object",
         "required": [
@@ -1845,6 +1932,47 @@
           },
           "title": {
             "type": "string"
+          }
+        }
+      },
+      "ModeColors": {
+        "type": "object",
+        "description": "Optional color overrides for one mode, each `#rrggbb`. What is not set keeps the built-in color.",
+        "properties": {
+          "background": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "code_background": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "link": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "surface": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "text": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
           }
         }
       },
@@ -2332,15 +2460,52 @@
       },
       "Settings": {
         "type": "object",
-        "description": "The site-wide settings of the theme basics.",
-        "required": [
-          "site_name",
-          "accent"
-        ],
+        "description": "The site-wide settings: name, logo, colors and the links around the page.",
         "properties": {
           "accent": {
             "type": "string",
-            "description": "`#rrggbb`."
+            "description": "`#rrggbb`.",
+            "default": "#0b6e4f"
+          },
+          "custom_css": {
+            "type": "string",
+            "description": "A stylesheet written after the theme, on the published site and in the editor.",
+            "default": ""
+          },
+          "dark": {
+            "$ref": "#/components/schemas/ModeColors",
+            "default": {
+              "background": null,
+              "code_background": null,
+              "link": null,
+              "surface": null,
+              "text": null
+            }
+          },
+          "footer": {
+            "$ref": "#/components/schemas/Footer",
+            "default": {
+              "columns": [],
+              "text": ""
+            }
+          },
+          "header_links": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SiteLink"
+            },
+            "description": "External links shown in the header, after the sections.",
+            "default": []
+          },
+          "light": {
+            "$ref": "#/components/schemas/ModeColors",
+            "default": {
+              "background": null,
+              "code_background": null,
+              "link": null,
+              "surface": null,
+              "text": null
+            }
           },
           "logo_asset_id": {
             "oneOf": [
@@ -2351,10 +2516,24 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "default": null
+          },
+          "logo_dark_asset_id": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AssetId",
+                "description": "Shown instead of the logo in dark mode."
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
           },
           "site_name": {
-            "type": "string"
+            "type": "string",
+            "default": "Documentation"
           }
         }
       },
@@ -2367,6 +2546,22 @@
           "url": {
             "type": "string",
             "description": "Where readers find the published site, without a trailing slash."
+          }
+        }
+      },
+      "SiteLink": {
+        "type": "object",
+        "required": [
+          "label",
+          "url"
+        ],
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "description": "`https://…`, `mailto:…` or a path on the site."
           }
         }
       },
@@ -2393,6 +2588,43 @@
           },
           "term": {
             "type": "string"
+          }
+        }
+      },
+      "ThemeCheck": {
+        "type": "object",
+        "description": "What the settings form shows while the palette is being edited.",
+        "required": [
+          "problems",
+          "light",
+          "dark"
+        ],
+        "properties": {
+          "dark": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "light": {
+            "type": "object",
+            "description": "The custom properties each mode gets, for the live preview.",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "problems": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Text pairs under WCAG AA; saving is refused while there are any."
           }
         }
       },

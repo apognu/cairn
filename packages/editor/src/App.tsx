@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query";
 import { ThemeToggle } from "@yourdocs/renderer";
 import { useCallback, useEffect, useState } from "react";
 import { FixtureView } from "./FixtureView";
@@ -62,10 +63,14 @@ function Editor() {
     return value === "redirects" || value === "library" || value === "trash" ? value : value ? "site" : null;
   });
 
-  // Authors see the site's accent color while they write.
+  // Authors write inside the site's colors: the saved theme is applied to the whole editor, as the published pages get it.
+  const themeCss = useQuery({ queryKey: ["theme-css"], queryFn: async () => (await fetch("/api/theme.css")).text() });
   useEffect(() => {
-    if (settings.data) document.documentElement.style.setProperty("--accent-base", settings.data.accent);
-  }, [settings.data]);
+    const style =
+      document.head.querySelector("style#site-theme") ??
+      document.head.appendChild(Object.assign(document.createElement("style"), { id: "site-theme" }));
+    style.textContent = themeCss.data ?? "";
+  }, [themeCss.data]);
   const [panelHost, setPanelHost] = useState<HTMLElement | null>(null);
   const current = pages.data?.find((p) => p.id === selected);
   const trail = current ? breadcrumb(pages.data ?? [], current) : [];

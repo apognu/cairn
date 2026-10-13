@@ -19,6 +19,8 @@ pub struct Settings {
   /// External links shown in the header, after the sections.
   pub header_links: Vec<SiteLink>,
   pub footer: Footer,
+  /// A stylesheet written after the theme, on the published site and in the editor.
+  pub custom_css: String,
 }
 
 /// Optional color overrides for one mode, each `#rrggbb`. What is not set keeps the built-in color.
@@ -74,6 +76,7 @@ impl Default for Settings {
       dark: ModeColors::default(),
       header_links: Vec::new(),
       footer: Footer::default(),
+      custom_css: String::new(),
     }
   }
 }
@@ -88,6 +91,7 @@ const DARK_SURFACE: &str = "#17191c";
 
 const MAX_LINKS: usize = 12;
 const MAX_COLUMNS: usize = 6;
+const MAX_CSS: usize = 50_000;
 
 fn is_hex(color: &str) -> bool {
   color.strip_prefix('#').is_some_and(|hex| hex.len() == 6 && hex.chars().all(|c| c.is_ascii_hexdigit()))
@@ -230,6 +234,14 @@ impl Settings {
 
     check_links("header", &self.header_links)?;
 
+    if self.custom_css.len() > MAX_CSS {
+      return Err(format!("the custom CSS can have at most {MAX_CSS} bytes"));
+    }
+    // The stylesheet is written inside a `<style>` element, which only `</style` can end.
+    if self.custom_css.to_ascii_lowercase().contains("</style") {
+      return Err("the custom CSS cannot contain </style".into());
+    }
+
     if self.footer.text.chars().count() > 300 {
       return Err("the footer text can have at most 300 characters".into());
     }
@@ -268,7 +280,7 @@ impl Settings {
     vars
   }
 
-  /// The stylesheet that applies the theme, written after `site.css`. The same rules the stylesheet uses to pick a mode: the reader's
+  /// The stylesheet that applies the theme and the custom CSS, written after `site.css`. The same rules the stylesheet uses to pick a mode: the reader's
   /// toggle wins, otherwise the system setting.
   pub fn theme_css(&self) -> String {
     fn block(selector: &str, vars: &[(&str, String)]) -> String {
@@ -282,12 +294,14 @@ impl Settings {
     let (light, dark) = (self.theme_vars(Mode::Light), self.theme_vars(Mode::Dark));
 
     format!(
-      ":root{{--accent-base:{}}}{}{}@media (prefers-color-scheme:dark){{{}}}",
+      ":root{{--accent-base:{}}}{}{}@media (prefers-color-scheme:dark){{{}}}{}",
       self.accent.to_lowercase(),
       block(":root", &light),
       // A reader who chose light on a dark system must not get the dark overrides.
       block(":root[data-theme=\"dark\"]", &dark),
       block(":root:not([data-theme=\"light\"])", &dark),
+      // Last, so it wins over everything above at equal specificity.
+      self.custom_css,
     )
   }
 }
@@ -373,5 +387,11 @@ mod tests {
     assert!(css.contains(":root[data-theme=\"dark\"]{--bg:#000000}"), "{css}");
     assert!(css.contains("@media (prefers-color-scheme:dark){:root:not([data-theme=\"light\"]){--bg:#000000}}"), "{css}");
     assert!(!css.contains("--text"), "{css}");
+
+    let custom = Settings {
+      custom_css: ".site-header{height:60px}".into(),
+      ..settings
+    };
+    assert!(custom.theme_css().ends_with("}.site-header{height:60px}"), "{}", custom.theme_css());
   }
 }
