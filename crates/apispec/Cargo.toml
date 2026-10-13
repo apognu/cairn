@@ -1,0 +1,18 @@
+[package]
+name = "yourdocs-apispec"
+version = "0.0.0"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+serde_json = "1.0.154"
+serde_norway = "0.9.42"
+thiserror = "2.0.21"
+url = "2"
+
+[dev-dependencies]
+tokio = { version = "1.53.2", features = ["rt", "macros"] }
