@@ -1328,6 +1328,23 @@
         }
       }
     },
+    "/api/site": {
+      "get": {
+        "summary": "Where the published site lives, for the editor's \"View as reader\".",
+        "operationId": "siteInfo",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SiteInfo"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/trash": {
       "get": {
         "summary": "Deleted pages, most recent first.",
@@ -2338,6 +2355,18 @@
           },
           "site_name": {
             "type": "string"
+          }
+        }
+      },
+      "SiteInfo": {
+        "type": "object",
+        "required": [
+          "url"
+        ],
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "Where readers find the published site, without a trailing slash."
           }
         }
       },

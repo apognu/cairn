@@ -1,5 +1,7 @@
 use axum::{Json, extract::State};
+use serde::Serialize;
 use tracing::instrument;
+use utoipa::ToSchema;
 use utoipa_axum::{router::OpenApiRouter, routes};
 use yourdocs_auth::CurrentUser;
 use yourdocs_core::{Pending, Problem, Release};
@@ -10,7 +12,22 @@ use crate::{
 };
 
 pub(crate) fn routes() -> OpenApiRouter<AppState> {
-  OpenApiRouter::new().routes(routes!(publish)).routes(routes!(changes)).routes(routes!(checks))
+  OpenApiRouter::new().routes(routes!(publish)).routes(routes!(changes)).routes(routes!(checks)).routes(routes!(site))
+}
+
+#[derive(Serialize, ToSchema)]
+struct SiteInfo {
+  /// Where readers find the published site, without a trailing slash.
+  url: String,
+}
+
+/// Where the published site lives, for the editor's "View as reader".
+#[utoipa::path(get, path = "/api/site", operation_id = "siteInfo", responses((status = 200, body = SiteInfo)))]
+#[instrument(skip_all)]
+async fn site(State(state): State<AppState>) -> Json<SiteInfo> {
+  Json(SiteInfo {
+    url: state.publisher.site_url().to_string(),
+  })
 }
 
 /// Publishes the latest saved draft of every page as a new release.

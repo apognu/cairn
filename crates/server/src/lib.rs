@@ -62,7 +62,8 @@ pub async fn run_dev(bind: SocketAddr, site_bind: SocketAddr, data_dir: PathBuf)
       pool.clone(),
       &data_dir,
       yourdocs_publish::PublishConfig {
-        site_url: env::var("PUBLIC_URL").unwrap_or_else(|_| "http://localhost:3001".into()).trim_end_matches('/').to_string(),
+        // Without PUBLIC_URL, the address `dev` serves the site on, whichever port it was given.
+        site_url: env::var("PUBLIC_URL").unwrap_or_else(|_| format!("http://{site_bind}")).trim_end_matches('/').to_string(),
         pagefind: env::var("PAGEFIND_BIN").unwrap_or_else(|_| "pagefind".into()),
       },
       events.clone(),
