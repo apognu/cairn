@@ -81,6 +81,13 @@ async fn finish_login(auth: &Auth, query: CallbackQuery) -> Result<(HeaderValue,
     .ok_or_else(|| AuthError::Login("this sign-in expired or was already used; start again".into()))?;
 
   let identity = oidc.oidc.complete(code, login.verifier, login.nonce).await?;
+  // Checked before the user is stored: someone refused leaves no trace.
+  if !oidc.access.allows(&identity) {
+    tracing::warn!(issuer = %identity.issuer, subject = %identity.subject, "sign-in refused: not in an allowed group or domain");
+    return Err(AuthError::Login(
+      "Your account is not allowed to use this site. Ask an administrator to add you to an allowed group.".into(),
+    ));
+  }
   let user = upsert_user(&oidc.db, &identity.issuer, &identity.subject, &identity.email, &identity.name).await?;
   tracing::info!(user_id = %user.id, "signed in");
 

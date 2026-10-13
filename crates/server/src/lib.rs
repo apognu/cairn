@@ -42,7 +42,7 @@ enum AuthSetup {
   /// `dev`: everyone is the local user.
   Local,
   /// `serve`: a provider's sign-in.
-  Oidc(config::OidcSettings, String),
+  Oidc(Box<config::OidcSettings>, String),
 }
 
 /// What both commands run: the stores, the render pool and the publisher, over one data directory.
@@ -71,9 +71,11 @@ async fn prepare(data_dir: &std::path::Path, site_url: String, auth: AuthSetup) 
   let auth = match auth {
     AuthSetup::Local => yourdocs_auth::Auth::local(),
     AuthSetup::Oidc(settings, redirect) => {
+      let settings = *settings;
       let sessions = settings.sessions(redirect.starts_with("https://"));
+      let access = settings.access.clone();
       let oidc = yourdocs_auth::Oidc::discover(settings.into(), &redirect).await?;
-      yourdocs_auth::Auth::oidc(oidc, db.clone(), sessions)
+      yourdocs_auth::Auth::oidc(oidc, db.clone(), sessions, access)
     }
   };
 
@@ -143,7 +145,7 @@ pub async fn run_dev(bind: SocketAddr, site_bind: SocketAddr, data_dir: PathBuf)
 pub async fn run_serve() -> anyhow::Result<()> {
   let config = config::Config::from_env()?;
   let redirect = format!("{}/auth/callback", config.public_url);
-  let Runtime { state, .. } = prepare(&config.data_dir, config.public_url.clone(), AuthSetup::Oidc(config.oidc.clone(), redirect)).await?;
+  let Runtime { state, .. } = prepare(&config.data_dir, config.public_url.clone(), AuthSetup::Oidc(Box::new(config.oidc.clone()), redirect)).await?;
 
   let listener = tokio::net::TcpListener::bind(config.bind).await.with_context(|| format!("cannot bind {}", config.bind))?;
   tracing::info!(address = %config.bind, public_url = %config.public_url, "listening");

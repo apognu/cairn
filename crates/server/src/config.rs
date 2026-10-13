@@ -29,6 +29,7 @@ pub(crate) struct OidcSettings {
   pub(crate) session_idle: SignedDuration,
   /// A session ends this long after the login.
   pub(crate) session_absolute: SignedDuration,
+  pub(crate) access: yourdocs_auth::AccessRules,
 }
 
 impl OidcSettings {
@@ -51,6 +52,26 @@ impl From<OidcSettings> for yourdocs_auth::OidcConfig {
       groups_claim: settings.groups_claim,
     }
   }
+}
+
+/// The sign-in allow-list. One of the three must be set, so that opening the editor to a whole provider is a decision.
+fn access(var: &dyn Fn(&str) -> Option<String>) -> anyhow::Result<yourdocs_auth::AccessRules> {
+  let list = |name: &str| {
+    var(name)
+      .map(|v| v.split([',', ' ']).filter(|s| !s.is_empty()).map(String::from).collect::<Vec<_>>())
+      .unwrap_or_default()
+  };
+  let rules = yourdocs_auth::AccessRules {
+    groups: list("OIDC_ALLOWED_GROUPS"),
+    email_domains: list("OIDC_ALLOWED_EMAIL_DOMAINS").into_iter().map(|d| d.trim_start_matches('@').to_lowercase()).collect(),
+    allow_any: var("OIDC_ALLOW_ANY_USER").is_some_and(|v| v.eq_ignore_ascii_case("true")),
+  };
+
+  if rules.is_empty() {
+    bail!("say who may sign in: set OIDC_ALLOWED_GROUPS or OIDC_ALLOWED_EMAIL_DOMAINS, or OIDC_ALLOW_ANY_USER=true to accept everyone the provider authenticates");
+  }
+
+  Ok(rules)
 }
 
 impl Config {
@@ -85,6 +106,7 @@ impl Config {
         client_secret: required("OIDC_CLIENT_SECRET")?,
         scopes: var("OIDC_SCOPES").map_or_else(|| vec!["groups".to_string()], |v| v.split([',', ' ']).filter(|s| !s.is_empty()).map(String::from).collect()),
         groups_claim: var("OIDC_GROUPS_CLAIM").unwrap_or_else(|| "groups".into()),
+        access: access(&var)?,
         session_idle: duration("SESSION_IDLE", "8h")?,
         session_absolute: duration("SESSION_ABSOLUTE", "168h")?,
       },
@@ -108,6 +130,7 @@ mod tests {
     ("OIDC_ISSUER", "https://idp.example"),
     ("OIDC_CLIENT_ID", "yourdocs"),
     ("OIDC_CLIENT_SECRET", "secret"),
+    ("OIDC_ALLOWED_EMAIL_DOMAINS", "@Example.com"),
   ];
 
   #[test]
@@ -117,7 +140,16 @@ mod tests {
     assert_eq!(config.public_url, "https://docs.example.com");
     assert_eq!(config.bind.port(), 8080);
     assert_eq!(config.oidc.groups_claim, "groups");
+    assert_eq!(config.oidc.access.email_domains, ["example.com"]);
     assert_eq!((config.oidc.session_idle.as_secs(), config.oidc.session_absolute.as_secs()), (8 * 3600, 7 * 24 * 3600));
+  }
+
+  #[test]
+  fn nobody_is_let_in_by_default() {
+    let pairs: Vec<_> = FULL.iter().filter(|(k, _)| *k != "OIDC_ALLOWED_EMAIL_DOMAINS").copied().collect();
+
+    assert!(format!("{:#}", load(&pairs).expect_err("must refuse")).contains("OIDC_ALLOW_ANY_USER"));
+    assert!(load(&[&pairs[..], &[("OIDC_ALLOW_ANY_USER", "true")]].concat()).is_ok());
   }
 
   #[test]

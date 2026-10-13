@@ -4,6 +4,7 @@
 
 #![forbid(unsafe_code)]
 
+mod access;
 mod oidc;
 mod routes;
 mod session;
@@ -21,6 +22,7 @@ use yourdocs_core::UserId;
 use yourdocs_store::{DatabaseConnection, StoreError, create_session, delete_session, session_user};
 
 pub use crate::{
+  access::AccessRules,
   oidc::{Authorization, Identity, Oidc, OidcConfig},
   session::SessionSettings,
 };
@@ -75,6 +77,7 @@ struct OidcAuth {
   oidc: Oidc,
   db: DatabaseConnection,
   sessions: SessionSettings,
+  access: AccessRules,
 }
 
 impl Auth {
@@ -84,8 +87,8 @@ impl Auth {
   }
 
   /// Sign-in through the OpenID Connect provider.
-  pub fn oidc(oidc: Oidc, db: DatabaseConnection, sessions: SessionSettings) -> Self {
-    Self(Arc::new(Mode::Oidc(Box::new(OidcAuth { oidc, db, sessions }))))
+  pub fn oidc(oidc: Oidc, db: DatabaseConnection, sessions: SessionSettings, access: AccessRules) -> Self {
+    Self(Arc::new(Mode::Oidc(Box::new(OidcAuth { oidc, db, sessions, access }))))
   }
 
   /// Who a request comes from: the local user without a login, otherwise the owner of its session cookie.
@@ -188,6 +191,10 @@ mod tests {
         idle,
         absolute: SignedDuration::from_hours(24),
         secure: true,
+      },
+      AccessRules {
+        allow_any: true,
+        ..Default::default()
       },
     );
     let cookie = auth.start_session(user.id).await.unwrap();
