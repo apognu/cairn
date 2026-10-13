@@ -126,25 +126,34 @@ pub async fn set_setting(db: &DatabaseConnection, key: &str, value: &str) -> Res
   Ok(())
 }
 
-/// The theme settings, with defaults for anything not saved yet.
+/// The theme settings, with defaults for anything not saved yet. They are one JSON document; settings saved by the first version of the
+/// theme (separate name, logo and accent rows) are read when there is no document yet.
 pub async fn load_settings(db: &DatabaseConnection) -> Result<Settings, StoreError> {
+  if let Some(json) = get_setting(db, "site.settings").await? {
+    return serde_json::from_str(&json).map_err(|e| StoreError::Invalid(format!("bad settings: {e}")));
+  }
+
   let defaults = Settings::default();
 
   Ok(Settings {
-    site_name: get_setting(db, "site.name").await?.unwrap_or(defaults.site_name),
+    site_name: get_setting(db, "site.name").await?.unwrap_or(defaults.site_name.clone()),
     logo_asset_id: get_setting(db, "site.logo").await?.and_then(|id| id.parse::<AssetId>().ok()),
-    accent: get_setting(db, "site.accent").await?.unwrap_or(defaults.accent),
+    accent: get_setting(db, "site.accent").await?.unwrap_or(defaults.accent.clone()),
+    ..defaults
   })
 }
 
 pub async fn save_settings(db: &DatabaseConnection, settings: &Settings) -> Result<(), StoreError> {
   settings.validate().map_err(StoreError::Invalid)?;
 
-  set_setting(db, "site.name", settings.site_name.trim()).await?;
-  set_setting(db, "site.accent", &settings.accent.to_lowercase()).await?;
-  set_setting(db, "site.logo", &settings.logo_asset_id.map(|id| id.to_string()).unwrap_or_default()).await?;
+  let settings = Settings {
+    site_name: settings.site_name.trim().into(),
+    accent: settings.accent.to_lowercase(),
+    ..settings.clone()
+  };
+  let json = serde_json::to_string(&settings).map_err(|e| StoreError::Other(e.into()))?;
 
-  Ok(())
+  set_setting(db, "site.settings", &json).await
 }
 
 #[cfg(test)]
@@ -173,11 +182,12 @@ mod tests {
     let saved = Settings {
       site_name: " Halyard ".into(),
       logo_asset_id: Some(AssetId::new()),
-      accent: "#AABBCC".into(),
+      accent: "#0B6E4F".into(),
+      ..Settings::default()
     };
     save_settings(&db, &saved).await.unwrap();
     let loaded = load_settings(&db).await.unwrap();
-    assert_eq!((loaded.site_name.as_str(), loaded.accent.as_str(), loaded.logo_asset_id), ("Halyard", "#aabbcc", saved.logo_asset_id));
+    assert_eq!((loaded.site_name.as_str(), loaded.accent.as_str(), loaded.logo_asset_id), ("Halyard", "#0b6e4f", saved.logo_asset_id));
     assert!(matches!(save_settings(&db, &Settings { accent: "nope".into(), ..saved }).await, Err(StoreError::Invalid(_))));
   }
 }
