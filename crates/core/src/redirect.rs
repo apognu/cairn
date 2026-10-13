@@ -200,6 +200,8 @@ pub fn pending_changes(pages: &[Page], redirects: &[Redirect], drafts: &HashMap<
         let edited = match page.kind {
           PageKind::Page => drafts.get(&page.id).is_some_and(|draft| live.revisions.get(&page.id) != Some(draft)) || old.description != page.description,
           PageKind::Link => old.external_url != page.external_url,
+          // Spec updates are never edits: they arrive with every build.
+          PageKind::Api => false,
         };
         if edited {
           kinds.push(ChangeKind::Edited);

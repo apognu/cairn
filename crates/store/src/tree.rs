@@ -18,17 +18,22 @@ pub async fn list_pages(db: &DatabaseConnection) -> Result<Vec<Page>, StoreError
 }
 
 pub async fn create_page(db: &DatabaseConnection, user: UserId, parent: Option<PageId>, title: &str, placement: Placement) -> Result<Page, StoreError> {
-  insert(db, user, parent, title, None, placement).await
+  insert(db, user, parent, title, PageKind::Page, None, placement).await
+}
+
+/// Adds an API reference page. Its sources are set afterwards; until then it is empty.
+pub async fn create_api_page(db: &DatabaseConnection, user: UserId, parent: Option<PageId>, title: &str, placement: Placement) -> Result<Page, StoreError> {
+  insert(db, user, parent, title, PageKind::Api, None, placement).await
 }
 
 /// Adds an external link to the navigation, which behaves like a page that has no content.
 pub async fn create_link(db: &DatabaseConnection, user: UserId, parent: Option<PageId>, title: &str, url: &str, placement: Placement) -> Result<Page, StoreError> {
   let url = check_url(url)?;
 
-  insert(db, user, parent, title, Some(url), placement).await
+  insert(db, user, parent, title, PageKind::Link, Some(url), placement).await
 }
 
-async fn insert(db: &DatabaseConnection, user: UserId, parent: Option<PageId>, title: &str, url: Option<String>, placement: Placement) -> Result<Page, StoreError> {
+async fn insert(db: &DatabaseConnection, user: UserId, parent: Option<PageId>, title: &str, kind: PageKind, url: Option<String>, placement: Placement) -> Result<Page, StoreError> {
   let pages = list_pages(db).await?;
   check_parent(&pages, parent)?;
 
@@ -40,7 +45,7 @@ async fn insert(db: &DatabaseConnection, user: UserId, parent: Option<PageId>, t
   let mut after = pages.clone();
   after.push(Page {
     id,
-    kind: if url.is_some() { PageKind::Link } else { PageKind::Page },
+    kind,
     parent_id: parent,
     position: position.clone(),
     slug: slug.clone(),
@@ -58,7 +63,7 @@ async fn insert(db: &DatabaseConnection, user: UserId, parent: Option<PageId>, t
 
   let row = page::ActiveModel {
     id: Set(id.as_uuid()),
-    kind: Set(if url.is_some() { PageKind::Link } else { PageKind::Page }.as_str().into()),
+    kind: Set(kind.as_str().into()),
     parent_id: Set(parent.map(|p| p.as_uuid())),
     position: Set(position),
     slug: Set(slug),
@@ -106,7 +111,7 @@ pub async fn set_in_header(db: &DatabaseConnection, id: PageId, in_header: bool)
   let pages = list_pages(db).await?;
   let current = find(&pages, id)?;
 
-  if current.kind != PageKind::Page {
+  if !current.kind.has_url() {
     return Err(StoreError::Invalid("only pages can be shown in the header".into()));
   }
 
@@ -252,7 +257,7 @@ fn check_parent(pages: &[Page], parent: Option<PageId>) -> Result<(), StoreError
   let Some(parent) = parent else { return Ok(()) };
 
   match find(pages, parent)?.kind {
-    PageKind::Page => Ok(()),
+    PageKind::Page | PageKind::Api => Ok(()),
     PageKind::Link => Err(StoreError::Invalid("a link cannot have pages under it".into())),
   }
 }
@@ -353,6 +358,7 @@ pub(crate) fn into_page(row: page::Model) -> Result<Page, StoreError> {
 
   let kind = match row.kind.as_str() {
     "link" => PageKind::Link,
+    "api" => PageKind::Api,
     _ => PageKind::Page,
   };
 

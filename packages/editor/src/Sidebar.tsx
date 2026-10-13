@@ -24,6 +24,7 @@ interface Props {
 type Editing =
   | { kind: "create"; parent: string | null }
   | { kind: "create-link"; parent: string }
+  | { kind: "create-api"; parent: string | null }
   | { kind: "rename"; id: string }
   | { kind: "delete"; id: string };
 
@@ -77,6 +78,16 @@ export function Sidebar({ pages, loading, selected, onSelect }: Props) {
     if (editing?.kind === "create") {
       // A page made on purpose is a page to write: open it.
       return create.mutateAsync({ parent_id: editing.parent, title }).then(
+        (page) => {
+          setError(null);
+          closeIfSame();
+          onSelect(page.id);
+        },
+        (e: unknown) => setError(e instanceof Error ? e.message : String(e)),
+      );
+    }
+    if (editing?.kind === "create-api") {
+      return create.mutateAsync({ parent_id: editing.parent, title, kind: "api" }).then(
         (page) => {
           setError(null);
           closeIfSame();
@@ -188,7 +199,7 @@ export function Sidebar({ pages, loading, selected, onSelect }: Props) {
               label={page.kind === "link" ? "Link title" : "Page title"}
               onSubmit={submit}
               onCancel={() => setEditing(null)}
-              askRedirect={page.kind === "page"}
+              askRedirect={page.kind !== "link"}
             />
           ) : (
             <button
@@ -198,13 +209,18 @@ export function Sidebar({ pages, loading, selected, onSelect }: Props) {
               // A link has no content to edit: clicking it edits where it goes.
               onClick={() => (page.kind === "link" ? setEditing({ kind: "rename", id: page.id }) : onSelect(page.id))}
             >
+              {page.kind === "api" && (
+                <span className="api-tag" aria-hidden="true">
+                  API
+                </span>
+              )}
               {page.title}
               {page.kind === "link" && <Icon name="external" size={12} />}
             </button>
           )}
           {changed.has(page.id) && <span className="dot" role="img" aria-label="Unpublished changes" />}
           <span className="actions">
-            {page.kind === "page" && (
+            {page.kind !== "link" && (
               <IconButton
                 label={`Add a subpage to ${page.title}`}
                 glyph="+"
@@ -221,12 +237,19 @@ export function Sidebar({ pages, loading, selected, onSelect }: Props) {
                   text={page.kind === "link" ? "Edit link" : "Rename"}
                   onClick={() => setEditing({ kind: "rename", id: page.id })}
                 />
-                {page.kind === "page" && (
-                  <MenuItem
-                    label={`Add an external link under ${page.title}`}
-                    text="Add external link"
-                    onClick={() => setEditing({ kind: "create-link", parent: page.id })}
-                  />
+                {page.kind !== "link" && (
+                  <>
+                    <MenuItem
+                      label={`Add an API reference under ${page.title}`}
+                      text="Add API reference"
+                      onClick={() => setEditing({ kind: "create-api", parent: page.id })}
+                    />
+                    <MenuItem
+                      label={`Add an external link under ${page.title}`}
+                      text="Add external link"
+                      onClick={() => setEditing({ kind: "create-link", parent: page.id })}
+                    />
+                  </>
                 )}
                 <MenuItem label={`Move ${page.title} up`} text="Move up" onClick={() => doMove(page.id, "up")} />
                 <MenuItem label={`Move ${page.title} down`} text="Move down" onClick={() => doMove(page.id, "down")} />
@@ -249,6 +272,16 @@ export function Sidebar({ pages, loading, selected, onSelect }: Props) {
             {editing?.kind === "create" && editing.parent === page.id && (
               <li style={{ paddingLeft: rowIndent(depth + 1) }}>
                 <TitleForm initial="" label="New page title" onSubmit={submit} onCancel={() => setEditing(null)} />
+              </li>
+            )}
+            {editing?.kind === "create-api" && editing.parent === page.id && (
+              <li style={{ paddingLeft: rowIndent(depth + 1) }}>
+                <TitleForm
+                  initial=""
+                  label="New API reference title"
+                  onSubmit={submit}
+                  onCancel={() => setEditing(null)}
+                />
               </li>
             )}
             {editing?.kind === "create-link" && editing.parent === page.id && (
@@ -286,6 +319,18 @@ export function Sidebar({ pages, loading, selected, onSelect }: Props) {
         >
           <Icon name="plus" size={15} />
         </button>
+        <details className="menu new-menu">
+          <summary aria-label="More ways to add" title="More ways to add">
+            <Icon name="chevron" size={15} />
+          </summary>
+          <div className="menu-pop">
+            <MenuItem
+              label="New API reference"
+              text="API reference"
+              onClick={() => setEditing({ kind: "create-api", parent: null })}
+            />
+          </div>
+        </details>
       </div>
       {error && (
         <p role="alert" className="error">
@@ -300,6 +345,11 @@ export function Sidebar({ pages, loading, selected, onSelect }: Props) {
         {editing?.kind === "create" && editing.parent === null && (
           <li style={{ paddingLeft: rowIndent(0) }}>
             <TitleForm initial="" label="New page title" onSubmit={submit} onCancel={() => setEditing(null)} />
+          </li>
+        )}
+        {editing?.kind === "create-api" && editing.parent === null && (
+          <li style={{ paddingLeft: rowIndent(0) }}>
+            <TitleForm initial="" label="New API reference title" onSubmit={submit} onCancel={() => setEditing(null)} />
           </li>
         )}
       </ul>

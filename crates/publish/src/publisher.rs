@@ -259,7 +259,7 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
     let url_values: serde_json::Map<String, Value> = urls.iter().map(|(id, url)| (id.to_string(), Value::String(url.clone()))).collect();
     let page_info = tree_pages
       .iter()
-      .filter(|p| p.kind == PageKind::Page)
+      .filter(|p| p.kind.has_url())
       .map(|p| (p.id.to_string(), json!({ "title": p.title, "description": p.description })))
       .collect::<serde_json::Map<String, Value>>();
     // The glossary: every term in order, where its entry is, and where the Glossary page itself lives (never on top of a real page).

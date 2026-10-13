@@ -24,11 +24,12 @@ pub async fn pending(db: &DatabaseConnection) -> Result<Pending, PublishError> {
 /// Everything that would stop a publish now: links to deleted pages, images without alt text, pages sharing a URL, and blocks or component
 /// settings the renderer cannot take. Each names its page.
 pub async fn check(db: &DatabaseConnection, pool: &Pool) -> Result<Vec<Problem>, PublishError> {
-  let pages: Vec<_> = list_pages(db).await?.into_iter().filter(|p| p.kind == PageKind::Page).collect();
+  let all = list_pages(db).await?;
+  let pages: Vec<_> = all.iter().filter(|p| p.kind == PageKind::Page).cloned().collect();
   let docs = draft_docs(db).await?;
   let empty = Document::empty();
   let library = load_library(db).await?;
-  let mut found = url_problems(&pages);
+  let mut found = url_problems(&all.iter().filter(|p| p.kind.has_url()).cloned().collect::<Vec<_>>());
 
   for page in &pages {
     // The page as readers will see it, with variables and snippets in place.
@@ -43,7 +44,7 @@ pub async fn check(db: &DatabaseConnection, pool: &Pool) -> Result<Vec<Problem>,
         message: format!("uses a {key} that does not exist"),
       });
     }
-    found.extend(doc_problems(page, doc, &pages));
+    found.extend(doc_problems(page, doc, &all));
 
     let value = serde_json::to_value(doc).map_err(anyhow::Error::from)?;
     for message in pool.validate(&value).await.map_err(|source| PublishError::Render { page: page.title.clone(), source })? {

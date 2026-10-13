@@ -32,7 +32,7 @@ export function buildTree(pages: Page[]): TreeNode[] {
 export function firstPage(pages: Page[]): Page | undefined {
   const visit = (nodes: TreeNode[]): Page | undefined => {
     for (const node of nodes) {
-      if (node.page.kind === "page") return node.page;
+      if (node.page.kind !== "link") return node.page;
       const found = visit(node.children);
       if (found) return found;
     }
@@ -106,7 +106,7 @@ export function dropTarget(pages: Page[], dragId: string, overId: string, zone: 
     target = before(over.parent_id ?? null, over);
   } else if (effective === "inside") {
     target = before(over.id, undefined);
-  } else if (over.kind === "page" && childrenOf(over.id).length > 0) {
+  } else if (over.kind !== "link" && childrenOf(over.id).length > 0) {
     target = before(over.id, childrenOf(over.id)[0]);
   } else {
     const siblings = childrenOf(over.parent_id ?? null);
@@ -122,12 +122,12 @@ export function dropTarget(pages: Page[], dragId: string, overId: string, zone: 
   return unchanged ? null : target;
 }
 
-/** The public URL of every page (links have none), as the server derives it: a custom URL, or the parent's followed by the slug. */
+/** The public URL of every page (links have none; API pages have one like any page), as the server derives it: a custom URL, or the parent's followed by the slug. */
 export function pageUrls(pages: Page[]): Record<string, string> {
   const byId = new Map(pages.map((p) => [p.id, p]));
   const urls: Record<string, string> = {};
 
-  for (const page of pages.filter((p) => p.kind === "page")) {
+  for (const page of pages.filter((p) => p.kind !== "link")) {
     const segments: string[] = [];
     let base = "";
 

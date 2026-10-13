@@ -31,7 +31,7 @@ export function PagePicker({ onPage, onUrl, onClose, nearPage, initialUrl, style
   const input = useRef<HTMLInputElement>(null);
   const root = useRef<HTMLDivElement>(null);
 
-  const all = (pages.data ?? []).filter((p) => p.kind === "page");
+  const all = (pages.data ?? []).filter((p) => p.kind !== "link");
   const urls = useMemo(() => pageUrls(pages.data ?? []), [pages.data]);
   const drafts = new Set(pending.data?.changes.filter((c) => c.kinds.includes("new")).map((c) => c.page_id));
 

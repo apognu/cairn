@@ -83,7 +83,7 @@ function Editing({
           urls: pageUrls(pages.data ?? []),
           pages: Object.fromEntries(
             (pages.data ?? [])
-              .filter((p) => p.kind === "page")
+              .filter((p) => p.kind !== "link")
               .map((p) => [p.id, { title: p.title, description: p.description }]),
           ),
         }}

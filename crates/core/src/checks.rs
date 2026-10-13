@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use serde::Serialize;
 
-use crate::{Document, Page, PageId, PageKind, extract_links, page_urls};
+use crate::{Document, Page, PageId, extract_links, page_urls};
 
 /// What a pre-publish check found wrong.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -48,7 +48,7 @@ fn problem(page: &Page, kind: ProblemKind, message: impl Into<String>) -> Proble
 pub fn doc_problems(page: &Page, doc: &Document, pages: &[Page]) -> Vec<Problem> {
   let mut found = Vec::new();
 
-  let gone = extract_links(doc).iter().filter(|l| !pages.iter().any(|p| p.id == l.target && p.kind == PageKind::Page)).count();
+  let gone = extract_links(doc).iter().filter(|l| !pages.iter().any(|p| p.id == l.target && p.kind.has_url())).count();
   if gone > 0 {
     found.push(problem(
       page,
@@ -115,7 +115,7 @@ mod tests {
   use serde_json::json;
 
   use super::*;
-  use crate::UserId;
+  use crate::{PageKind, UserId};
 
   fn page(title: &str, slug: &str, custom: Option<&str>) -> Page {
     Page {

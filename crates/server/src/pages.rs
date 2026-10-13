@@ -8,7 +8,7 @@ use tracing::instrument;
 use utoipa::ToSchema;
 use utoipa_axum::{router::OpenApiRouter, routes};
 use yourdocs_auth::CurrentUser;
-use yourdocs_core::{OldUrls, Page, PageId, Placement};
+use yourdocs_core::{CoreError, OldUrls, Page, PageId, PageKind, Placement};
 
 use crate::{
   app::AppState,
@@ -32,6 +32,8 @@ struct CreatePage {
   before: Option<PageId>,
   /// Makes the new node an external link to this URL instead of a page.
   external_url: Option<String>,
+  /// `api` creates an API reference page; pages are the default, and links are created through `external_url`.
+  kind: Option<PageKind>,
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -76,9 +78,11 @@ async fn list(State(state): State<AppState>) -> Result<Json<Vec<Page>>, AppError
 #[instrument(skip_all)]
 async fn create(State(state): State<AppState>, CurrentUser(user): CurrentUser, Json(body): Json<CreatePage>) -> Result<(StatusCode, Json<Page>), AppError> {
   let place = placement(body.before);
-  let page = match &body.external_url {
-    Some(url) => yourdocs_store::create_link(&state.db, user, body.parent_id, &body.title, url, place).await?,
-    None => yourdocs_store::create_page(&state.db, user, body.parent_id, &body.title, place).await?,
+  let page = match (&body.external_url, body.kind) {
+    (Some(url), _) => yourdocs_store::create_link(&state.db, user, body.parent_id, &body.title, url, place).await?,
+    (None, Some(PageKind::Api)) => yourdocs_store::create_api_page(&state.db, user, body.parent_id, &body.title, place).await?,
+    (None, Some(PageKind::Link)) => return Err(CoreError::Invalid("a link needs a URL".into()).into()),
+    (None, _) => yourdocs_store::create_page(&state.db, user, body.parent_id, &body.title, place).await?,
   };
 
   Ok((StatusCode::CREATED, Json(page)))
@@ -170,6 +174,7 @@ mod tests {
       title: "Intro".into(),
       before: None,
       external_url: None,
+      kind: None,
     };
 
     let (status, Json(page)) = create(State(state), CurrentUser(local_user_id()), Json(body)).await.unwrap();

@@ -103,7 +103,7 @@ export function RedirectsSettings() {
           <select id={`${id}-page`} value={toPage} onChange={(e) => setToPage(e.target.value)}>
             <option value="">Choose a page…</option>
             {pages.data
-              ?.filter((p) => p.kind === "page")
+              ?.filter((p) => p.kind !== "link")
               .map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.title}

@@ -28,8 +28,9 @@ function usePageMutation<V, R>(run: (vars: V) => Promise<R>) {
 
 /** Creates a page, or an external link when `external_url` is given. */
 export function useCreatePage() {
-  return usePageMutation(async (body: { parent_id: string | null; title: string; external_url?: string }) =>
-    unwrap(await api.POST("/api/pages", { body: { ...body, before: null } })),
+  return usePageMutation(
+    async (body: { parent_id: string | null; title: string; external_url?: string; kind?: "api" }) =>
+      unwrap(await api.POST("/api/pages", { body: { ...body, before: null } })),
   );
 }
 
@@ -307,5 +308,25 @@ export function useRestoreFromTrash() {
   return useMutation({
     mutationFn: async (id: string) => unwrap(await api.POST("/api/trash/{id}/restore", { params: { path: { id } } })),
     onSuccess: () => Promise.all([TRASH, PAGES, PENDING].map((queryKey) => client.invalidateQueries({ queryKey }))),
+  });
+}
+
+type ApiConfig = components["schemas"]["ApiConfig"];
+
+/** The sources of an API reference page. */
+export function useApiConfig(id: string) {
+  return useQuery({
+    queryKey: ["api-config", id],
+    queryFn: async () => unwrap(await api.GET("/api/pages/{id}/api-config", { params: { path: { id } } })),
+  });
+}
+
+export function useSaveApiConfig(id: string) {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (config: ApiConfig) =>
+      unwrap(await api.PUT("/api/pages/{id}/api-config", { params: { path: { id } }, body: config })),
+    onSuccess: (saved) => client.setQueryData(["api-config", id], saved),
   });
 }

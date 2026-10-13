@@ -13,6 +13,8 @@ pub enum PageKind {
   Page,
   /// An entry of the navigation that points to an external URL; it has no content and no children.
   Link,
+  /// An API reference built from OpenAPI specs at every publish; it has no body of its own, but it has a URL and may have children.
+  Api,
 }
 
 impl PageKind {
@@ -20,7 +22,13 @@ impl PageKind {
     match self {
       PageKind::Page => "page",
       PageKind::Link => "link",
+      PageKind::Api => "api",
     }
+  }
+
+  /// Whether the node is a page of the site with a URL of its own (everything but links).
+  pub fn has_url(self) -> bool {
+    self != PageKind::Link
   }
 }
 
@@ -71,7 +79,7 @@ pub fn page_urls(pages: &[Page]) -> HashMap<PageId, String> {
   let by_id: HashMap<PageId, &Page> = pages.iter().map(|p| (p.id, p)).collect();
   let mut urls = HashMap::new();
 
-  for page in pages.iter().filter(|p| p.kind == PageKind::Page) {
+  for page in pages.iter().filter(|p| p.kind.has_url()) {
     // The tree has no cycles (moves are checked), but a bound keeps corrupt data from hanging a publish.
     let mut chain = vec![page];
     while let Some(parent) = chain.last().and_then(|p| p.parent_id).and_then(|id| by_id.get(&id))

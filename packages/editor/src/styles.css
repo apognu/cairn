@@ -2062,3 +2062,72 @@ button.secondary:disabled {
 .editable:focus {
   outline: 2px solid var(--accent);
 }
+
+.new-menu summary {
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border-input);
+  border-radius: 6px;
+  background: var(--bg);
+}
+
+.api-tag {
+  margin-right: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--accent);
+}
+
+.api-source {
+  margin: 0 0 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-input);
+  border-radius: 10px;
+}
+
+.api-source legend {
+  padding: 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.api-source .row-inline {
+  align-items: flex-end;
+}
+
+.api-source .source-foot .form-field {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+.api-source .row-inline .form-field {
+  flex: 1;
+}
+
+.api-check {
+  box-sizing: border-box;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 20px 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-side);
+}
+
+.api-check button {
+  margin-left: auto;
+}
+
+.api-source .form-field input:not([type="checkbox"]) {
+  flex: none;
+  box-sizing: border-box;
+  width: 100%;
+  height: 34px;
+}
+
+.canvas[data-wide] {
+  grid-column: 2 / -1;
+}

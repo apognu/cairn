@@ -49,7 +49,7 @@ fn page_for_update(pages: &[Page], id: PageId) -> Result<&Page, StoreError> {
   let page = pages.iter().find(|p| p.id == id).ok_or(StoreError::NotFound)?;
 
   match page.kind {
-    PageKind::Page => Ok(page),
+    PageKind::Page | PageKind::Api => Ok(page),
     PageKind::Link => Err(StoreError::Invalid("a link has no URL of its own".into())),
   }
 }

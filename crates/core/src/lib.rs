@@ -4,6 +4,7 @@
 
 #![forbid(unsafe_code)]
 
+mod api;
 mod asset;
 mod broadcast;
 mod checks;
@@ -19,6 +20,7 @@ mod release;
 mod settings;
 mod storage;
 
+pub use api::{ApiConfig, ApiDisplay, ApiSource, GitRef, MergeRules};
 pub use asset::{Asset, AssetVariant};
 pub use broadcast::{Broadcast, Event, LocalBroadcast};
 pub use checks::{Problem, ProblemKind, doc_problems, url_problems};

@@ -15,7 +15,7 @@ use yourdocs_publish::{Bundles, FolderTarget, PublishConfig, PublishTarget, Publ
 use yourdocs_render::Pool;
 use yourdocs_store::SqlContentStore;
 
-use crate::{drafts, history, library, links, pages, publish, redirects, settings, uploads, urls};
+use crate::{api_pages, drafts, history, library, links, pages, publish, redirects, settings, uploads, urls};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -59,6 +59,7 @@ pub(crate) fn publisher(
 /// The OpenAPI document and the router serving the same routes, built from one definition.
 pub fn api() -> (Router<AppState>, utoipa::openapi::OpenApi) {
   let (router, mut spec) = pages::routes()
+    .merge(api_pages::routes())
     .merge(drafts::routes())
     .merge(uploads::routes())
     .merge(publish::routes())

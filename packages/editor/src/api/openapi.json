@@ -538,6 +538,105 @@
         }
       }
     },
+    "/api/pages/{id}/api-config": {
+      "get": {
+        "summary": "The sources an API reference page is built from.",
+        "operationId": "getApiConfig",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/PageId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiConfig"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "not an API reference page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Saves the sources. The specs themselves are fetched at every publish, so nothing here counts as a pending change.",
+        "operationId": "saveApiConfig",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/PageId"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApiConfig"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiConfig"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/pages/{id}/backlinks": {
       "get": {
         "summary": "The pages that link to this one.",
@@ -1477,6 +1576,122 @@
           }
         }
       },
+      "ApiConfig": {
+        "type": "object",
+        "description": "What an API reference page is built from: public OpenAPI specs, merged into one document at every publish.",
+        "properties": {
+          "display": {
+            "$ref": "#/components/schemas/ApiDisplay",
+            "default": {
+              "hide_models": false,
+              "request_client": true,
+              "servers": []
+            }
+          },
+          "merge": {
+            "$ref": "#/components/schemas/MergeRules",
+            "default": {
+              "description": null,
+              "title": null,
+              "version": null
+            }
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ApiSource"
+            },
+            "description": "Merged in this order; the first one provides the document's `info` unless overridden.",
+            "default": []
+          }
+        }
+      },
+      "ApiDisplay": {
+        "type": "object",
+        "properties": {
+          "hide_models": {
+            "type": "boolean",
+            "default": false
+          },
+          "request_client": {
+            "type": "boolean",
+            "description": "Lets readers try requests from the page.",
+            "default": true
+          },
+          "servers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Server URLs shown in the reference; the specs' own are used when empty.",
+            "default": []
+          }
+        }
+      },
+      "ApiSource": {
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "A spec at a plain URL.",
+            "required": [
+              "url",
+              "type"
+            ],
+            "properties": {
+              "prefix": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "url"
+                ]
+              },
+              "url": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "A file of a public GitHub repository, or an asset of one of its releases when `asset` is set.",
+            "required": [
+              "repo",
+              "type"
+            ],
+            "properties": {
+              "asset": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "File name of a release asset, instead of a file in the repository."
+              },
+              "git_ref": {
+                "$ref": "#/components/schemas/GitRef"
+              },
+              "path": {
+                "type": "string",
+                "description": "Path of the spec inside the repository; ignored for release assets."
+              },
+              "prefix": {
+                "type": "string"
+              },
+              "repo": {
+                "type": "string",
+                "description": "`owner/name`."
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "github"
+                ]
+              }
+            }
+          }
+        ],
+        "description": "Where one spec comes from. Everything is fetched anonymously over HTTPS."
+      },
       "Asset": {
         "type": "object",
         "description": "An uploaded file. The bytes live in the `AssetStore` under the content hash; this is the row that describes them.",
@@ -1710,6 +1925,17 @@
             ],
             "description": "Makes the new node an external link to this URL instead of a page."
           },
+          "kind": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PageKind",
+                "description": "`api` creates an API reference page; pages are the default, and links are created through `external_url`."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "parent_id": {
             "oneOf": [
               {
@@ -1824,6 +2050,62 @@
           }
         }
       },
+      "GitRef": {
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "The tag of the repository's latest release, looked up at every build.",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "latest_release"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "name",
+              "type"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "tag"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "name",
+              "type"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "branch"
+                ]
+              }
+            }
+          }
+        ],
+        "description": "Which version of a GitHub repository to read."
+      },
       "HeaderBody": {
         "type": "object",
         "required": [
@@ -1932,6 +2214,34 @@
           },
           "title": {
             "type": "string"
+          }
+        }
+      },
+      "MergeRules": {
+        "type": "object",
+        "description": "How the specs combine. Conflicts are build errors; a source's prefix is how they get resolved.",
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Replaces the `info` of the first source when set.",
+            "default": null
+          },
+          "version": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
           }
         }
       },
@@ -2143,7 +2453,8 @@
         "description": "What a tree node is: a page of the site or a link to somewhere else.",
         "enum": [
           "page",
-          "link"
+          "link",
+          "api"
         ]
       },
       "PageUrl": {

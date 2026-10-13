@@ -1,8 +1,8 @@
-use crate::{Page, PageId, PageKind};
+use crate::{Page, PageId};
 
 /// The pages promoted to the header, in header order.
 pub fn header_pages(pages: &[Page]) -> Vec<&Page> {
-  let mut promoted: Vec<&Page> = pages.iter().filter(|p| p.in_header && p.kind == PageKind::Page).collect();
+  let mut promoted: Vec<&Page> = pages.iter().filter(|p| p.in_header && p.kind.has_url()).collect();
   promoted.sort_by(|a, b| a.header_position.cmp(&b.header_position));
   promoted
 }
@@ -18,7 +18,7 @@ pub fn header_section(pages: &[Page], page: PageId) -> Option<PageId> {
   // Bounded like the other tree walks, in case the data is corrupt.
   for _ in 0..64 {
     let p = current?;
-    if p.in_header && p.kind == PageKind::Page {
+    if p.in_header && p.kind.has_url() {
       return Some(p.id);
     }
     current = pages.iter().find(|q| Some(q.id) == p.parent_id);
@@ -64,7 +64,7 @@ mod tests {
   use jiff::Timestamp;
 
   use super::*;
-  use crate::UserId;
+  use crate::{PageKind, UserId};
 
   fn page(slug: &str, parent: Option<&Page>, in_header: bool) -> Page {
     Page {

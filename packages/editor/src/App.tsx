@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { ThemeToggle } from "@yourdocs/renderer";
 import { useCallback, useEffect, useState } from "react";
+import { ApiSettings } from "./ApiSettings";
 import { FixtureView } from "./FixtureView";
 import { HistoryDrawer } from "./HistoryDrawer";
 import { Icon } from "./icons";
@@ -122,7 +123,7 @@ function Editor() {
         <div className="topbar-actions">
           {published !== null && <span className="muted">Published {published} pages</span>}
           <ThemeToggle />
-          {!section && current?.kind === "page" && (
+          {!section && current && current.kind !== "link" && (
             <>
               {liveUrl && site.data ? (
                 <a className="button" href={`${site.data.url}${liveUrl}`} target="_blank" rel="noopener">
@@ -133,9 +134,11 @@ function Editor() {
                   View as reader
                 </button>
               )}
-              <button type="button" aria-pressed={panel === "history"} onClick={() => toggle("history")}>
-                History
-              </button>
+              {current.kind === "page" && (
+                <button type="button" aria-pressed={panel === "history"} onClick={() => toggle("history")}>
+                  History
+                </button>
+              )}
               <button type="button" aria-pressed={panel === "settings"} onClick={() => toggle("settings")}>
                 Page settings
               </button>
@@ -161,8 +164,12 @@ function Editor() {
       ) : (
         <>
           <Sidebar pages={pages.data ?? []} loading={pages.isPending} selected={selected} onSelect={select} />
-          <main className="canvas">
-            {current ? (
+          <main className="canvas" data-wide={current?.kind === "api" || undefined}>
+            {current?.kind === "api" ? (
+              <div className="settings-main">
+                <ApiSettings key={current.id} page={current} />
+              </div>
+            ) : current ? (
               <PageEditor key={`${current.id}-${restores}`} page={current} onStatus={setStatus} panelHost={panelHost} />
             ) : (
               !pages.isPending && (
@@ -174,7 +181,7 @@ function Editor() {
               )
             )}
           </main>
-          <aside className="props" aria-label="Component settings" ref={setPanelHost} />
+          {current?.kind !== "api" && <aside className="props" aria-label="Component settings" ref={setPanelHost} />}
         </>
       )}
       {panel === "history" && current && !section && (

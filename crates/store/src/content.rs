@@ -49,9 +49,9 @@ impl ContentStore for SqlContentStore {
   async fn save_draft(&self, page: PageId, doc: Document, base: Option<RevisionId>, user: UserId) -> Result<Draft, CoreError> {
     let page_row = page::Entity::find_by_id(page.as_uuid()).filter(page::Column::DeletedAt.is_null()).one(&self.db).await.map_err(other)?;
     let Some(page_row) = page_row else { return Err(CoreError::NotFound) };
-    // A link has no body; a draft on one would show up in backlinks and library usages.
-    if page_row.kind == PageKind::Link.as_str() {
-      return Err(CoreError::Invalid("an external link has no content".into()));
+    // Links and API pages have no body; a draft on one would show up in backlinks and library usages.
+    if page_row.kind == PageKind::Link.as_str() || page_row.kind == PageKind::Api.as_str() {
+      return Err(CoreError::Invalid("an external link or an API reference has no content".into()));
     }
 
     let now = Timestamp::now().to_string();

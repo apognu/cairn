@@ -155,6 +155,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/pages/{id}/api-config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The sources an API reference page is built from. */
+        get: operations["getApiConfig"];
+        /** Saves the sources. The specs themselves are fetched at every publish, so nothing here counts as a pending change. */
+        put: operations["saveApiConfig"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/pages/{id}/backlinks": {
         parameters: {
             query?: never;
@@ -510,6 +528,62 @@ export interface components {
             origin: components["schemas"]["RedirectOrigin"];
             path: string;
         };
+        /** @description What an API reference page is built from: public OpenAPI specs, merged into one document at every publish. */
+        ApiConfig: {
+            /**
+             * @default {
+             *       "hide_models": false,
+             *       "request_client": true,
+             *       "servers": []
+             *     }
+             */
+            display: components["schemas"]["ApiDisplay"];
+            /**
+             * @default {
+             *       "description": null,
+             *       "title": null,
+             *       "version": null
+             *     }
+             */
+            merge: components["schemas"]["MergeRules"];
+            /**
+             * @description Merged in this order; the first one provides the document's `info` unless overridden.
+             * @default []
+             */
+            sources: components["schemas"]["ApiSource"][];
+        };
+        ApiDisplay: {
+            /** @default false */
+            hide_models: boolean;
+            /**
+             * @description Lets readers try requests from the page.
+             * @default true
+             */
+            request_client: boolean;
+            /**
+             * @description Server URLs shown in the reference; the specs' own are used when empty.
+             * @default []
+             */
+            servers: string[];
+        };
+        /** @description Where one spec comes from. Everything is fetched anonymously over HTTPS. */
+        ApiSource: {
+            prefix?: string;
+            /** @enum {string} */
+            type: "url";
+            url: string;
+        } | {
+            /** @description File name of a release asset, instead of a file in the repository. */
+            asset?: string | null;
+            git_ref?: components["schemas"]["GitRef"];
+            /** @description Path of the spec inside the repository; ignored for release assets. */
+            path?: string;
+            prefix?: string;
+            /** @description `owner/name`. */
+            repo: string;
+            /** @enum {string} */
+            type: "github";
+        };
         /** @description An uploaded file. The bytes live in the `AssetStore` under the content hash; this is the row that describes them. */
         Asset: {
             /** Format: int64 */
@@ -579,6 +653,7 @@ export interface components {
             before?: components["schemas"]["PageId"] | null;
             /** @description Makes the new node an external link to this URL instead of a page. */
             external_url?: string | null;
+            kind?: components["schemas"]["PageKind"] | null;
             parent_id?: components["schemas"]["PageId"] | null;
             title: string;
         };
@@ -616,6 +691,19 @@ export interface components {
             links: components["schemas"]["SiteLink"][];
             title: string;
         };
+        /** @description Which version of a GitHub repository to read. */
+        GitRef: {
+            /** @enum {string} */
+            type: "latest_release";
+        } | {
+            name: string;
+            /** @enum {string} */
+            type: "tag";
+        } | {
+            name: string;
+            /** @enum {string} */
+            type: "branch";
+        };
         HeaderBody: {
             in_header: boolean;
         };
@@ -649,6 +737,18 @@ export interface components {
         LostUrl: {
             path: string;
             title: string;
+        };
+        /** @description How the specs combine. Conflicts are build errors; a source's prefix is how they get resolved. */
+        MergeRules: {
+            /** @default null */
+            description: string | null;
+            /**
+             * @description Replaces the `info` of the first source when set.
+             * @default null
+             */
+            title: string | null;
+            /** @default null */
+            version: string | null;
         };
         /** @description Optional color overrides for one mode, each `#rrggbb`. What is not set keeps the built-in color. */
         ModeColors: {
@@ -710,7 +810,7 @@ export interface components {
          * @description What a tree node is: a page of the site or a link to somewhere else.
          * @enum {string}
          */
-        PageKind: "page" | "link";
+        PageKind: "page" | "link" | "api";
         /** @description Where a page lives and which old URLs lead to it. */
         PageUrl: {
             aliases: components["schemas"]["Alias"][];
@@ -1350,6 +1450,85 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    getApiConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["PageId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiConfig"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description not an API reference page */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    saveApiConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["PageId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApiConfig"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiConfig"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

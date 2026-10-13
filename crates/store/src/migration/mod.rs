@@ -8,6 +8,7 @@ mod m0004_header;
 mod m0005_backlinks;
 mod m0006_description;
 mod m0007_library;
+mod m0008_api;
 
 struct Migrator;
 
@@ -21,6 +22,7 @@ impl MigratorTrait for Migrator {
       Box::new(m0005_backlinks::Migration),
       Box::new(m0006_description::Migration),
       Box::new(m0007_library::Migration),
+      Box::new(m0008_api::Migration),
     ]
   }
 }
