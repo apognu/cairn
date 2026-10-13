@@ -163,6 +163,11 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
   /// Makes a preview the live site, exactly as it was built. A preview older than the live site is refused: it would put back what
   /// was published since, and a new preview takes a moment.
   pub async fn promote(&self, id: ReleaseId) -> Result<Release, PublishError> {
+    if !self.target.capabilities().promote {
+      return Err(PublishError::Core(yourdocs_core::CoreError::Invalid(
+        "this publish target cannot make a preview the live site; publish to deploy it".into(),
+      )));
+    }
     let _turn = self.running.lock().await;
 
     let (release, version) = get_release(&self.db, id).await?;

@@ -2355,11 +2355,23 @@ button.secondary:disabled {
   cursor: pointer;
 }
 
+/* The preview's state sits at the start of the dialog's footer, its buttons at the end. */
 .publish-preview {
-  display: block;
-  margin: 12px 0 0;
-  padding: 10px 12px;
-  border: 1px solid var(--border-input);
-  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin-right: auto;
+  color: var(--muted);
   font-size: 13px;
+}
+
+.publish-preview svg {
+  flex: none;
+  color: var(--accent);
+}
+
+.publish .dialog-actions {
+  flex-wrap: wrap;
+  align-items: center;
 }

@@ -36,6 +36,8 @@ struct SiteInfo {
 struct SiteCapabilities {
   /// Whether a build can be viewed before it goes live.
   preview: bool,
+  /// Whether that build can then be made live exactly as it is.
+  promote: bool,
 }
 
 /// Where the published site lives, for the editor's "View as reader".
@@ -46,6 +48,7 @@ async fn site(State(state): State<AppState>) -> Json<SiteInfo> {
     url: state.publisher.site_url().to_string(),
     capabilities: SiteCapabilities {
       preview: state.publisher.target().capabilities().preview,
+      promote: state.publisher.target().capabilities().promote,
     },
   })
 }

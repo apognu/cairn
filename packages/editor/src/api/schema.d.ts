@@ -1187,6 +1187,8 @@ export interface components {
         SiteCapabilities: {
             /** @description Whether a build can be viewed before it goes live. */
             preview: boolean;
+            /** @description Whether that build can then be made live exactly as it is. */
+            promote: boolean;
         };
         SiteInfo: {
             /** @description What the configured publish target can do; the editor hides what it cannot. */

@@ -15,7 +15,7 @@ use crate::{OutputFile, PublishError};
 
 /// What Cloudflare accepts of a Worker's static assets (paid plans); checked before anything is uploaded.
 const MAX_FILE_BYTES: usize = 25 * 1024 * 1024;
-const MAX_FILES: usize = 100_000;
+pub(crate) const MAX_FILES: usize = 100_000;
 /// `_redirects`: rules without placeholders, and rules with them.
 const MAX_STATIC_REDIRECTS: usize = 2_000;
 const MAX_DYNAMIC_REDIRECTS: usize = 100;
@@ -100,39 +100,7 @@ impl CloudflareTarget {
 
   /// What would stop an upload: files over the size limit, too many files, too many redirect rules. Each entry says what to change.
   pub fn check(files: &[OutputFile]) -> Vec<String> {
-    let mut problems = Vec::new();
-
-    for file in files.iter().filter(|f| f.bytes.len() > MAX_FILE_BYTES) {
-      problems.push(format!(
-        "{} is {} MiB; Cloudflare accepts files up to 25 MiB. Host large files elsewhere.",
-        file.path,
-        file.bytes.len() / (1024 * 1024)
-      ));
-    }
-    if files.len() > MAX_FILES {
-      problems.push(format!("the site has {} files; Cloudflare accepts up to {MAX_FILES} per Worker", files.len()));
-    }
-
-    if let Some(redirects) = files.iter().find(|f| f.path == "_redirects") {
-      let text = String::from_utf8_lossy(&redirects.bytes);
-      let rules = text.lines().map(str::trim).filter(|l| !l.is_empty() && !l.starts_with('#'));
-      let (dynamic, fixed): (Vec<_>, Vec<_>) = rules.partition(|rule| rule.split_whitespace().next().is_some_and(|from| from.contains('*') || from.contains(':')));
-
-      if fixed.len() > MAX_STATIC_REDIRECTS {
-        problems.push(format!("the site has {} redirects; Cloudflare accepts {MAX_STATIC_REDIRECTS} fixed ones", fixed.len()));
-      }
-      if dynamic.len() > MAX_DYNAMIC_REDIRECTS {
-        problems.push(format!(
-          "the site has {} redirects with wildcards or placeholders; Cloudflare accepts {MAX_DYNAMIC_REDIRECTS}",
-          dynamic.len()
-        ));
-      }
-      if fixed.len() * 10 > MAX_STATIC_REDIRECTS * 9 {
-        tracing::warn!(rules = fixed.len(), limit = MAX_STATIC_REDIRECTS, "the site is close to Cloudflare's limit of fixed redirects");
-      }
-    }
-
-    problems
+    check_limits(files, MAX_FILES)
   }
 
   /// Uploads what Cloudflare does not have yet and makes a version of the Worker from it, without deploying it.
@@ -304,25 +272,63 @@ impl CloudflareTarget {
   }
 }
 
+/// What Cloudflare would refuse, for Workers and Pages alike except for the number of files: files over the size limit, too many files,
+/// too many redirect rules. Each entry says what to change.
+pub(crate) fn check_limits(files: &[OutputFile], max_files: usize) -> Vec<String> {
+  let mut problems = Vec::new();
+
+  for file in files.iter().filter(|f| f.bytes.len() > MAX_FILE_BYTES) {
+    problems.push(format!(
+      "{} is {} MiB; Cloudflare accepts files up to 25 MiB. Host large files elsewhere.",
+      file.path,
+      file.bytes.len() / (1024 * 1024)
+    ));
+  }
+  if files.len() > max_files {
+    problems.push(format!("the site has {} files; Cloudflare accepts up to {max_files}", files.len()));
+  }
+
+  if let Some(redirects) = files.iter().find(|f| f.path == "_redirects") {
+    let text = String::from_utf8_lossy(&redirects.bytes);
+    let rules = text.lines().map(str::trim).filter(|l| !l.is_empty() && !l.starts_with('#'));
+    let (dynamic, fixed): (Vec<_>, Vec<_>) = rules.partition(|rule| rule.split_whitespace().next().is_some_and(|from| from.contains('*') || from.contains(':')));
+
+    if fixed.len() > MAX_STATIC_REDIRECTS {
+      problems.push(format!("the site has {} redirects; Cloudflare accepts {MAX_STATIC_REDIRECTS} fixed ones", fixed.len()));
+    }
+    if dynamic.len() > MAX_DYNAMIC_REDIRECTS {
+      problems.push(format!(
+        "the site has {} redirects with wildcards or placeholders; Cloudflare accepts {MAX_DYNAMIC_REDIRECTS}",
+        dynamic.len()
+      ));
+    }
+    if fixed.len() * 10 > MAX_STATIC_REDIRECTS * 9 {
+      tracing::warn!(rules = fixed.len(), limit = MAX_STATIC_REDIRECTS, "the site is close to Cloudflare's limit of fixed redirects");
+    }
+  }
+
+  problems
+}
+
 /// `_redirects` and `_headers` are sent as settings of the Worker, not as assets.
-fn is_config(path: &str) -> bool {
+pub(crate) fn is_config(path: &str) -> bool {
   matches!(path, "_redirects" | "_headers")
 }
 
 /// The identity of a file's content for Cloudflare: 32 hex characters of the BLAKE3 hash of its Base64 text and extension.
-fn hash(file: &OutputFile) -> String {
+pub(crate) fn hash(file: &OutputFile) -> String {
   let extension = std::path::Path::new(&file.path).extension().and_then(|e| e.to_str()).unwrap_or_default();
   let digest = blake3::hash(format!("{}{extension}", STANDARD.encode(&file.bytes)).as_bytes());
 
   digest.to_hex()[..32].to_string()
 }
 
-fn request_error(error: reqwest::Error) -> PublishError {
+pub(crate) fn request_error(error: reqwest::Error) -> PublishError {
   PublishError::Other(anyhow::anyhow!("cannot reach Cloudflare: {}", error.without_url()))
 }
 
 /// The `result` of a Cloudflare answer, or the reason it gave.
-async fn read<T: for<'de> Deserialize<'de>>(response: reqwest::Response) -> Result<T, PublishError> {
+pub(crate) async fn read<T: for<'de> Deserialize<'de>>(response: reqwest::Response) -> Result<T, PublishError> {
   let status = response.status();
   let bytes = response.bytes().await.map_err(request_error)?;
   let envelope: Result<Envelope<T>, _> = serde_json::from_slice(&bytes);

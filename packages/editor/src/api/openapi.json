@@ -3460,12 +3460,17 @@
       "SiteCapabilities": {
         "type": "object",
         "required": [
-          "preview"
+          "preview",
+          "promote"
         ],
         "properties": {
           "preview": {
             "type": "boolean",
             "description": "Whether a build can be viewed before it goes live."
+          },
+          "promote": {
+            "type": "boolean",
+            "description": "Whether that build can then be made live exactly as it is."
           }
         }
       },

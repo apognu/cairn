@@ -1,6 +1,8 @@
 use std::{path::Path, time::Duration};
 
-use sea_orm::{ConnectOptions, ConnectionTrait, Database, DatabaseConnection, DbBackend, DbErr, Statement};
+use sea_orm::{ConnectOptions, Database, DatabaseConnection, DbErr};
+#[cfg(any(test, feature = "testing"))]
+use sea_orm::{ConnectionTrait, DbBackend, Statement};
 
 use crate::migration;
 

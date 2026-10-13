@@ -178,6 +178,7 @@ pub async fn run_serve() -> anyhow::Result<()> {
   let target = match &config.target {
     config::TargetChoice::SelfHosted => yourdocs_publish::PublishTarget::SelfHosted(yourdocs_publish::FolderTarget::new(config.data_dir.clone())),
     config::TargetChoice::Folder(dir) => yourdocs_publish::PublishTarget::Folder(yourdocs_publish::FolderTarget::new(dir.clone())),
+    config::TargetChoice::Pages(pages) => yourdocs_publish::PublishTarget::Pages(yourdocs_publish::PagesTarget::new(pages.clone())?),
     config::TargetChoice::S3(s3) => yourdocs_publish::PublishTarget::S3(yourdocs_publish::S3Target::new(s3.clone())?),
     config::TargetChoice::Cloudflare(cloudflare) => yourdocs_publish::PublishTarget::Cloudflare(yourdocs_publish::CloudflareTarget::new(cloudflare.clone())?),
   };

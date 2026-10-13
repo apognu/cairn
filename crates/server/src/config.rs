@@ -51,6 +51,8 @@ pub(crate) enum TargetChoice {
   Folder(PathBuf),
   /// Uploaded to a Cloudflare Worker with static assets.
   Cloudflare(yourdocs_publish::CloudflareConfig),
+  /// Deployed to a Cloudflare Pages project.
+  Pages(yourdocs_publish::PagesConfig),
   /// Uploaded to an S3 bucket (or compatible storage) that serves it as a website.
   S3(yourdocs_publish::S3Config),
 }
@@ -215,6 +217,17 @@ impl Config {
             .trim_end_matches('/')
             .to_string(),
         }),
+        "cloudflare-pages" => TargetChoice::Pages(yourdocs_publish::PagesConfig {
+          account_id: required("CLOUDFLARE_ACCOUNT_ID").context("PUBLISH_TARGET=cloudflare-pages needs CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN and CLOUDFLARE_PAGES_PROJECT")?,
+          api_token: required("CLOUDFLARE_API_TOKEN")?,
+          project: required("CLOUDFLARE_PAGES_PROJECT")?,
+          production_branch: var("CLOUDFLARE_PAGES_BRANCH").unwrap_or_else(|| "main".into()),
+          preview_branch: var("CLOUDFLARE_PAGES_PREVIEW_BRANCH").unwrap_or_else(|| "preview".into()),
+          api_url: var("CLOUDFLARE_API_URL")
+            .unwrap_or_else(|| "https://api.cloudflare.com/client/v4".into())
+            .trim_end_matches('/')
+            .to_string(),
+        }),
         "s3" => {
           let endpoint = var("S3_ENDPOINT");
           TargetChoice::S3(yourdocs_publish::S3Config {
@@ -228,7 +241,7 @@ impl Config {
             endpoint,
           })
         }
-        other => bail!("PUBLISH_TARGET={other} is not available: use self-hosted, folder, cloudflare or s3"),
+        other => bail!("PUBLISH_TARGET={other} is not available: use self-hosted, folder, cloudflare, cloudflare-pages or s3"),
       },
       github: github(&var)?,
       oidc: OidcSettings {
@@ -331,6 +344,19 @@ mod tests {
     assert!(matches!(config.target, TargetChoice::Cloudflare(c) if c.worker == "docs"));
     assert_eq!(config.site_url, "https://docs.example.org", "the site is not served from the editor's address");
     assert_eq!(with(&[]).unwrap().site_url, "https://docs.example.com");
+
+    assert!(
+      with(&[("PUBLISH_TARGET", "cloudflare-pages"), ("CLOUDFLARE_ACCOUNT_ID", "a"), ("CLOUDFLARE_API_TOKEN", "t")]).is_err(),
+      "no project"
+    );
+    let pages = [
+      ("PUBLISH_TARGET", "cloudflare-pages"),
+      ("CLOUDFLARE_ACCOUNT_ID", "a"),
+      ("CLOUDFLARE_API_TOKEN", "t"),
+      ("CLOUDFLARE_PAGES_PROJECT", "docs"),
+    ];
+    let TargetChoice::Pages(p) = with(&pages).unwrap().target else { panic!("not Pages") };
+    assert_eq!((p.production_branch.as_str(), p.preview_branch.as_str()), ("main", "preview"));
 
     assert!(with(&[("PUBLISH_TARGET", "s3"), ("S3_BUCKET", "b")]).is_err());
     let s3 = [

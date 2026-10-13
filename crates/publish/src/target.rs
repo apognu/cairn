@@ -2,7 +2,7 @@ use std::path::{Component, Path, PathBuf};
 
 use yourdocs_core::ReleaseId;
 
-use crate::{CloudflareTarget, PublishError, S3Target};
+use crate::{CloudflareTarget, PagesTarget, PublishError, S3Target};
 
 /// A file of the published site, with a path relative to the site root.
 pub struct OutputFile {
@@ -15,6 +15,8 @@ pub struct OutputFile {
 pub struct Capabilities {
   /// Whether a build can be deployed for review before going live.
   pub preview: bool,
+  /// Whether a build that was looked at can be made live exactly as it is. Without it, publishing builds the site again.
+  pub promote: bool,
 }
 
 /// What a target answers for a build it took: the version it made of it, and where it can be looked at before it is live.
@@ -35,13 +37,17 @@ pub enum PublishTarget {
   Cloudflare(CloudflareTarget),
   /// An S3 bucket (or compatible storage) with website hosting: files are uploaded as they changed, with no previews.
   S3(S3Target),
+  /// A Cloudflare Pages project: previews are deployments of another branch and cannot be promoted.
+  Pages(PagesTarget),
 }
 
 impl PublishTarget {
   pub fn capabilities(&self) -> Capabilities {
     match self {
-      PublishTarget::Folder(_) | PublishTarget::S3(_) => Capabilities { preview: false },
-      PublishTarget::SelfHosted(_) | PublishTarget::Cloudflare(_) => Capabilities { preview: true },
+      PublishTarget::Folder(_) | PublishTarget::S3(_) => Capabilities { preview: false, promote: false },
+      PublishTarget::SelfHosted(_) | PublishTarget::Cloudflare(_) => Capabilities { preview: true, promote: true },
+      // A Pages preview is a deployment of another branch, which cannot become the production one.
+      PublishTarget::Pages(_) => Capabilities { preview: true, promote: false },
     }
   }
 
@@ -51,6 +57,7 @@ impl PublishTarget {
       PublishTarget::Folder(_) | PublishTarget::SelfHosted(_) => Vec::new(),
       PublishTarget::Cloudflare(_) => CloudflareTarget::check(files),
       PublishTarget::S3(_) => S3Target::check(files),
+      PublishTarget::Pages(_) => PagesTarget::check(files),
     }
   }
 
@@ -62,6 +69,17 @@ impl PublishTarget {
           return Err(PublishError::Other(anyhow::anyhow!("this publish target has no previews")));
         }
         folder.publish(release, files, live).await.map(|()| Deployed::default())
+      }
+      PublishTarget::Pages(pages) => {
+        if live {
+          return Ok(Deployed {
+            version: Some(pages.publish(&files).await?),
+            preview_url: None,
+          });
+        }
+        let (id, url) = pages.upload(&files).await?;
+
+        Ok(Deployed { version: Some(id), preview_url: url })
       }
       PublishTarget::S3(s3) => {
         if !live {
@@ -84,6 +102,7 @@ impl PublishTarget {
   pub async fn promote(&self, release: ReleaseId, version: Option<&str>) -> Result<(), PublishError> {
     match self {
       PublishTarget::Folder(_) | PublishTarget::S3(_) => Err(PublishError::Other(anyhow::anyhow!("this publish target has no previews"))),
+      PublishTarget::Pages(_) => Err(PublishError::Other(anyhow::anyhow!("Cloudflare Pages cannot make a preview the live site; publish to deploy it"))),
       PublishTarget::SelfHosted(folder) => folder.switch(release).await,
       PublishTarget::Cloudflare(cloudflare) => {
         cloudflare
@@ -97,7 +116,7 @@ impl PublishTarget {
   pub fn site_dir(&self) -> Option<PathBuf> {
     match self {
       PublishTarget::Folder(folder) | PublishTarget::SelfHosted(folder) => Some(folder.site_dir()),
-      PublishTarget::Cloudflare(_) | PublishTarget::S3(_) => None,
+      PublishTarget::Cloudflare(_) | PublishTarget::S3(_) | PublishTarget::Pages(_) => None,
     }
   }
 
@@ -105,7 +124,7 @@ impl PublishTarget {
   pub fn releases_dir(&self) -> Option<PathBuf> {
     match self {
       PublishTarget::SelfHosted(folder) => Some(folder.releases_dir()),
-      PublishTarget::Folder(_) | PublishTarget::Cloudflare(_) | PublishTarget::S3(_) => None,
+      PublishTarget::Folder(_) | PublishTarget::Cloudflare(_) | PublishTarget::S3(_) | PublishTarget::Pages(_) => None,
     }
   }
 }
