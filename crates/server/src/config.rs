@@ -99,8 +99,19 @@ impl Config {
     };
 
     let public_url = required("PUBLIC_URL")?.trim_end_matches('/').to_string();
-    if !public_url.starts_with("http://") && !public_url.starts_with("https://") {
-      bail!("PUBLIC_URL must start with https:// (or http:// on localhost), got {public_url}");
+    // The host without its port; an IPv6 address keeps its brackets, whose colons are not a port's.
+    let host = public_url.split_once("://").map(|(_, rest)| {
+      let authority = rest.split(['/', '?', '#']).next().unwrap_or_default();
+      match authority.split_once(']') {
+        Some((address, _)) if authority.starts_with('[') => format!("{address}]"),
+        _ => authority.split(':').next().unwrap_or_default().to_string(),
+      }
+    });
+    match (public_url.split_once("://").map(|(scheme, _)| scheme), host.as_deref()) {
+      (Some("https"), _) => {}
+      // Sessions travel in a cookie that is only safe over TLS; plain HTTP is for trying things out on this machine.
+      (Some("http"), Some("localhost" | "127.0.0.1" | "[::1]")) => {}
+      _ => bail!("PUBLIC_URL must be the https:// address people use (http:// only for localhost), got {public_url}"),
     }
 
     Ok(Self {
@@ -149,6 +160,24 @@ mod tests {
     assert_eq!(config.oidc.groups_claim, "groups");
     assert_eq!(config.oidc.access.email_domains, ["example.com"]);
     assert_eq!((config.oidc.session_idle.as_secs(), config.oidc.session_absolute.as_secs()), (8 * 3600, 7 * 24 * 3600));
+  }
+
+  #[test]
+  fn the_public_address_must_be_https_unless_it_is_this_machine() {
+    for (url, ok) in [
+      ("https://docs.example.com", true),
+      ("http://localhost:8080", true),
+      ("http://127.0.0.1:8080", true),
+      ("http://[::1]:8080", true),
+      ("http://localhost.evil.example", false),
+      ("http://docs.example.com", false),
+      ("docs.example.com", false),
+      ("ftp://docs.example.com", false),
+    ] {
+      let pairs: Vec<_> = FULL.iter().map(|(k, v)| (*k, if *k == "PUBLIC_URL" { url } else { *v })).collect();
+
+      assert_eq!(load(&pairs).is_ok(), ok, "{url}");
+    }
   }
 
   #[test]
