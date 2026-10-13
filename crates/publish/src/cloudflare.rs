@@ -327,6 +327,27 @@ pub(crate) fn request_error(error: reqwest::Error) -> PublishError {
   PublishError::Other(anyhow::anyhow!("cannot reach Cloudflare: {}", error.without_url()))
 }
 
+/// For calls whose answer has nothing to read: only whether they worked, which can come with a `null` result.
+pub(crate) async fn read_ok(response: reqwest::Response) -> Result<(), PublishError> {
+  let status = response.status();
+  let bytes = response.bytes().await.map_err(request_error)?;
+  let envelope: Option<Envelope<Value>> = serde_json::from_slice(&bytes).ok();
+
+  if status.is_success() {
+    return Ok(());
+  }
+  let reasons: Vec<String> = envelope.and_then(|e| e.errors).into_iter().flatten().map(|e| e.message).collect();
+
+  Err(PublishError::Other(anyhow::anyhow!(
+    "Cloudflare answered {status}: {}",
+    if reasons.is_empty() {
+      String::from_utf8_lossy(&bytes).chars().take(300).collect()
+    } else {
+      reasons.join("; ")
+    }
+  )))
+}
+
 /// The `result` of a Cloudflare answer, or the reason it gave.
 pub(crate) async fn read<T: for<'de> Deserialize<'de>>(response: reqwest::Response) -> Result<T, PublishError> {
   let status = response.status();
@@ -344,6 +365,24 @@ pub(crate) async fn read<T: for<'de> Deserialize<'de>>(response: reqwest::Respon
       String::from_utf8_lossy(&bytes).chars().take(300).collect::<String>()
     ))),
   }
+}
+
+/// The files of a built site folder, for the live tests.
+#[cfg(test)]
+pub(crate) fn walk(root: &std::path::Path, dir: &std::path::Path) -> Vec<OutputFile> {
+  let mut files = Vec::new();
+  for entry in std::fs::read_dir(dir).unwrap().flatten() {
+    let path = entry.path();
+    if path.is_dir() {
+      files.extend(walk(root, &path));
+    } else {
+      files.push(OutputFile {
+        path: path.strip_prefix(root).unwrap().to_string_lossy().into_owned(),
+        bytes: std::fs::read(&path).unwrap(),
+      });
+    }
+  }
+  files
 }
 
 #[cfg(test)]
@@ -605,22 +644,6 @@ mod tests {
     assert!(error.to_string().contains("does not exist"), "{error}");
   }
 
-  fn walk(root: &std::path::Path, dir: &std::path::Path) -> Vec<OutputFile> {
-    let mut files = Vec::new();
-    for entry in std::fs::read_dir(dir).unwrap().flatten() {
-      let path = entry.path();
-      if path.is_dir() {
-        files.extend(walk(root, &path));
-      } else {
-        files.push(OutputFile {
-          path: path.strip_prefix(root).unwrap().to_string_lossy().into_owned(),
-          bytes: std::fs::read(&path).unwrap(),
-        });
-      }
-    }
-    files
-  }
-
   /// Against a real account: `cargo test -p yourdocs-publish live_cloudflare -- --ignored --nocapture` with the `CLOUDFLARE_*` variables set.
   /// Uploads a one-page site as a version and does not deploy it.
   #[tokio::test]
@@ -637,7 +660,7 @@ mod tests {
 
     // `LIVE_SITE_DIR`: a built release folder, to see a whole site go up (many files, several buckets).
     let files = match std::env::var("LIVE_SITE_DIR") {
-      Ok(dir) => walk(std::path::Path::new(&dir), std::path::Path::new(&dir)),
+      Ok(dir) => super::walk(std::path::Path::new(&dir), std::path::Path::new(&dir)),
       Err(_) => vec![file("index.html", "<h1>yourdocs smoke test</h1>"), file("404.html", "not found"), file("_redirects", "/old/ /new/ 301")],
     };
     let version = target.upload(&files).await;

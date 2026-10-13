@@ -12,7 +12,7 @@ use serde_json::{Value, json};
 
 use crate::{
   OutputFile, PublishError,
-  cloudflare::{check_limits, hash, is_config, read, request_error},
+  cloudflare::{check_limits, hash, is_config, read, read_ok, request_error},
 };
 
 /// What Pages accepts of a project's files on the free plan, the stricter of its plans.
@@ -95,7 +95,8 @@ impl PagesTarget {
       .text("branch", branch.to_string());
     for name in ["_redirects", "_headers"] {
       if let Some(file) = files.iter().find(|f| f.path == name) {
-        form = form.text(name, String::from_utf8_lossy(&file.bytes).into_owned());
+        // As files, the way Wrangler sends them: as plain fields Pages ignores them.
+        form = form.part(name, multipart::Part::bytes(file.bytes.clone()).file_name(name));
       }
     }
 
@@ -160,13 +161,13 @@ impl PagesTarget {
       .send()
       .await
       .map_err(request_error)?;
-    read::<Value>(response).await.map(|_| ())
+    read_ok(response).await
   }
 
   async fn send_bucket(&self, jwt: &str, bucket: Vec<Value>) -> Result<(), PublishError> {
     let response = self.http.post(self.asset_url("/upload")).bearer_auth(jwt).json(&bucket).send().await.map_err(request_error)?;
 
-    read::<Value>(response).await.map(|_| ())
+    read_ok(response).await
   }
 
   /// Assets are not under the account: the upload token says whose they are.
@@ -195,7 +196,7 @@ impl PagesTarget {
     let body = json!({ "name": self.config.project, "production_branch": self.config.production_branch });
     let response = self.http.post(self.project("")).bearer_auth(&self.config.api_token).json(&body).send().await.map_err(request_error)?;
 
-    read::<Value>(response).await.map(|_| ())
+    read_ok(response).await
   }
 }
 
@@ -372,5 +373,32 @@ mod tests {
 
     assert_eq!(PagesTarget::check(&files).len(), 1);
     assert!(PagesTarget::check(&files[..20_000]).is_empty());
+  }
+
+  /// Against a real account: `cargo test -p yourdocs-publish live_pages -- --ignored` with the `CLOUDFLARE_*` variables and
+  /// `CLOUDFLARE_PAGES_PROJECT` set. Deploys a one-page site to the preview branch, never to production.
+  #[tokio::test]
+  #[ignore = "needs a Cloudflare account"]
+  async fn live_pages_accepts_a_preview_deployment() {
+    let var = |name| std::env::var(name).unwrap_or_else(|_| panic!("{name} is not set"));
+    let target = PagesTarget::new(PagesConfig {
+      account_id: var("CLOUDFLARE_ACCOUNT_ID"),
+      api_token: var("CLOUDFLARE_API_TOKEN"),
+      project: var("CLOUDFLARE_PAGES_PROJECT"),
+      production_branch: "main".into(),
+      preview_branch: "preview".into(),
+      api_url: "https://api.cloudflare.com/client/v4".into(),
+    })
+    .unwrap();
+
+    // `LIVE_SITE_DIR`: a built release folder, to see a whole site go up.
+    let files = match std::env::var("LIVE_SITE_DIR") {
+      Ok(dir) => crate::cloudflare::walk(std::path::Path::new(&dir), std::path::Path::new(&dir)),
+      Err(_) => vec![file("index.html", "<h1>yourdocs smoke test</h1>"), file("404.html", "not found"), file("_redirects", "/old/ /new/ 301")],
+    };
+    let result = target.upload(&files).await;
+
+    // The failure message carries Cloudflare's own answer; the address is in the dashboard when it works.
+    result.unwrap();
   }
 }
