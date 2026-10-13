@@ -1,6 +1,6 @@
 import { useEffect, useId, useState } from "react";
 import type { components } from "./api/schema";
-import { useApiConfig, useSaveApiConfig } from "./queries";
+import { useApiConfig, useCheckApiConfig, useSaveApiConfig } from "./queries";
 
 type ApiConfig = components["schemas"]["ApiConfig"];
 type ApiSource = components["schemas"]["ApiSource"];
@@ -14,6 +14,7 @@ export function ApiSettings({ page }: { page: Page }) {
   const id = useId();
   const config = useApiConfig(page.id);
   const save = useSaveApiConfig(page.id);
+  const check = useCheckApiConfig(page.id);
   const [draft, setDraft] = useState<ApiConfig | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -185,12 +186,11 @@ export function ApiSettings({ page }: { page: Page }) {
         Show schema models
       </label>
 
-      <output className="api-check">
-        <span className="muted">The specs are checked and merged when you publish.</span>
-        <button type="button" className="secondary" disabled title="Available soon">
-          Check sources now
+      <CheckResult result={check.data} error={check.error?.message} pending={check.isPending}>
+        <button type="button" className="secondary" disabled={check.isPending} onClick={() => check.mutate(draft)}>
+          {check.isPending ? "Checking…" : "Check sources now"}
         </button>
-      </output>
+      </CheckResult>
 
       {error && (
         <p role="alert" className="error-text">
@@ -296,3 +296,60 @@ function GithubFields({
     </>
   );
 }
+
+type Check = components["schemas"]["ApiCheck"];
+
+/** What the last "Check sources now" found, or a reminder that the specs are only read at publish time. */
+function CheckResult({
+  result,
+  error,
+  pending,
+  children,
+}: {
+  result: Check | undefined;
+  error: string | undefined;
+  pending: boolean;
+  children: React.ReactNode;
+}) {
+  const errors = result?.errors ?? (error ? [error] : []);
+  const merged = result && result.errors.length === 0;
+
+  return (
+    <output className="api-check" data-state={errors.length > 0 ? "error" : merged ? "ok" : undefined}>
+      <div className="api-check-head">
+        {pending ? (
+          <span className="muted">Fetching the sources…</span>
+        ) : merged ? (
+          <span>
+            Merged: <strong>{count(result.operations_count, "operation")}</strong> in {count(result.tags.length, "tag")}
+            , no conflicts.
+          </span>
+        ) : errors.length > 0 ? (
+          <span>The sources could not be merged.</span>
+        ) : (
+          <span className="muted">The specs are fetched and merged when you publish.</span>
+        )}
+        {children}
+      </div>
+      {errors.length > 0 && (
+        <ul className="api-errors">
+          {errors.map((message) => (
+            <li key={message}>{message}</li>
+          ))}
+        </ul>
+      )}
+      {merged && result.sources.length > 0 && (
+        <ul className="api-resolved">
+          {result.sources.map((source) => (
+            <li key={source.url}>
+              <span>{source.label}</span>
+              <span className="mono">{source.tag ?? source.etag ?? "fetched"}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </output>
+  );
+}
+
+const count = (n: number, noun: string) => `${n} ${noun}${n === 1 ? "" : "s"}`;

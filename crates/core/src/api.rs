@@ -89,6 +89,32 @@ impl Default for ApiDisplay {
   }
 }
 
+/// An operation of a merged spec, as the page's fallback, the search index and the pre-publish checks read it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+pub struct Operation {
+  /// Upper case: `GET`.
+  pub method: String,
+  pub path: String,
+  pub summary: Option<String>,
+  pub description: Option<String>,
+  pub tags: Vec<String>,
+  pub operation_id: Option<String>,
+}
+
+/// Where one spec was read from at a build, as recorded in the release.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+pub struct ResolvedSource {
+  /// The source as written: a URL, or `owner/name` and the file or asset.
+  pub label: String,
+  /// The address the file came from.
+  pub url: String,
+  /// The release tag a GitHub source was read at.
+  pub tag: Option<String>,
+  pub etag: Option<String>,
+}
+
 impl ApiConfig {
   /// Checks what a user can type. Nothing is fetched here.
   pub fn validate(&self) -> Result<(), String> {

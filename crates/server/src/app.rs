@@ -26,6 +26,8 @@ pub struct AppState {
   pub publisher: Arc<Publisher<SqlContentStore, LocalAssetStore, LocalBroadcast>>,
   /// The editor built with the custom components, when there is one; otherwise the embedded editor is served.
   pub editor_dir: Option<Arc<std::path::PathBuf>>,
+  /// Which API pages are being checked right now, and the spec each check last merged.
+  pub api_checks: Arc<crate::api_pages::ApiChecks>,
 }
 
 /// What the publisher needs besides the stores: the browser files every page links to, and the deployment's settings.
@@ -149,6 +151,7 @@ pub(crate) async fn test_state_with_dir() -> (AppState, std::path::PathBuf) {
     assets,
     db,
     editor_dir: None,
+    api_checks: Default::default(),
   };
 
   (state, dir)

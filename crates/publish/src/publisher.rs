@@ -10,18 +10,18 @@ use futures_util::{StreamExt, TryStreamExt, stream};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use yourdocs_core::{
-  AssetId, AssetStore, Broadcast, ContentStore, Document, Event, Page, PageId, PageKind, Release, ReleaseStatus, RevisionId, UserId, effective_redirects, expand, extract_links, header_section,
-  original_key, page_urls, term_anchors, term_refs, variant_key,
+  ApiConfig, ApiDisplay, AssetId, AssetStore, Broadcast, ContentStore, Document, Event, Page, PageId, PageKind, Release, ReleaseStatus, RevisionId, UserId, effective_redirects, expand, extract_links,
+  header_section, original_key, page_urls, term_anchors, term_refs, variant_key,
 };
 use yourdocs_render::{Pool, Shell, highlight_css};
 use yourdocs_store::{
-  DatabaseConnection, add_release_pages, assets_by_ids, create_release, get_setting, latest_live_release, list_pages, list_redirects, live_release, load_library, load_settings, set_release_status,
-  set_setting,
+  DatabaseConnection, ReleaseSpec, add_release_pages, assets_by_ids, create_release, get_setting, latest_live_release, list_api_configs, list_pages, list_redirects, live_release, load_library,
+  load_settings, record_release_specs, release_specs, set_release_status, set_setting,
 };
 
 use crate::{
-  PublishError,
-  api::ApiHosts,
+  ApiProblem, PublishError,
+  api::{ApiHosts, ResolvedApi, ResolvedSpec, SourceFetcher, resolve},
   generated,
   markdown::{Site, page_markdown},
   search,
@@ -66,6 +66,9 @@ pub struct PublishConfig {
 /// How many pages are in V8 at once. Below the pool's queue size, so a big site never gets "busy" from its own publish.
 const RENDER_CONCURRENCY: usize = 16;
 
+/// How many API pages fetch their specs at once.
+const API_CONCURRENCY: usize = 4;
+
 /// The setting that remembers which bundles the live site was last rendered with.
 const BUNDLES_SETTING: &str = "publish.bundles";
 
@@ -93,6 +96,7 @@ pub struct Publisher<C: ContentStore, A: AssetStore, B: Broadcast> {
   broadcast: B,
   // Releases are built one at a time; a second publish waits for the first.
   running: tokio::sync::Mutex<()>,
+  fetcher: SourceFetcher,
   /// How many pages went through V8 since startup; pages whose output could be reused are not counted.
   renders: Arc<AtomicUsize>,
 }
@@ -103,6 +107,8 @@ struct PageSource {
   revision: RevisionId,
   /// When the revision being published was saved: the page's "last updated".
   updated: jiff::Timestamp,
+  /// An API page has no document: it is its merged spec.
+  api: Option<ResolvedApi>,
 }
 
 impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
@@ -114,9 +120,10 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
       pool: parts.pool,
       target: parts.target,
       bundles: parts.bundles,
-      config: parts.config,
       broadcast: parts.broadcast,
       running: tokio::sync::Mutex::new(()),
+      fetcher: SourceFetcher::new(parts.config.api_hosts.clone()).expect("the HTTP client for API sources must build"),
+      config: parts.config,
       renders: Arc::new(AtomicUsize::new(0)),
     }
   }
@@ -146,8 +153,11 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
     }
 
     let tree_pages = list_pages(&self.db).await?;
+    // Every build reads the specs again; one that cannot be read stops the publish before anything is created.
+    let apis = self.resolve_apis(&tree_pages).await?;
     // Links are navigation only: nothing to render, nothing in the sitemap.
-    let sources = self.sources(tree_pages.iter().filter(|p| p.kind == PageKind::Page).cloned().collect(), user).await?;
+    let mut sources = self.sources(tree_pages.iter().filter(|p| p.kind == PageKind::Page).cloned().collect(), user).await?;
+    sources.extend(api_sources(&tree_pages, apis));
 
     let rules = effective_redirects(&list_redirects(&self.db).await?, &tree_pages);
     // Frozen with the release: the next "what changed" comparison reads them back.
@@ -186,8 +196,30 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
         doc: expand(&revision.doc, &library).0,
         revision: revision.id,
         updated: revision.created_at,
+        api: None,
       });
     }
+
+    // The specs as they were: a new bundle must not pull in what upstream changed since.
+    let recorded = release_specs(&self.db, previous.id).await?;
+    let mut apis = Vec::new();
+    for spec in recorded {
+      let bytes = self.assets.get(&ResolvedApi::store_key(&spec.spec_hash)).await?;
+      apis.push(ResolvedApi {
+        page_id: spec.page_id,
+        bytes,
+        hash: spec.spec_hash,
+        sources: spec.sources,
+        operations: spec.operations,
+        display: Default::default(),
+      });
+    }
+    // The display settings are the page's own and not part of what was resolved.
+    let configs = list_api_configs(&self.db).await?;
+    for api in &mut apis {
+      api.display = configs.get(&api.page_id).map(|c| c.display.clone()).unwrap_or_default();
+    }
+    sources.extend(api_sources(&live.pages, apis));
 
     let release = create_release(
       &self.db,
@@ -248,10 +280,62 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
         doc: expand(&revision.doc, &library).0,
         revision: revision.id,
         updated: revision.created_at,
+        api: None,
       });
     }
 
     Ok(sources)
+  }
+
+  /// Fetches and merges the sources of an API page's settings without publishing anything, for "Check sources now".
+  pub async fn check_api(&self, config: &ApiConfig) -> Result<ResolvedSpec, String> {
+    resolve(&self.fetcher, config).await
+  }
+
+  /// Fetches and merges the specs of every API page, keeping the merged documents in the asset store for rollbacks and republishes.
+  /// Every page that fails is named.
+  async fn resolve_apis(&self, tree_pages: &[Page]) -> Result<Vec<ResolvedApi>, PublishError> {
+    let configs = list_api_configs(&self.db).await?;
+    let jobs: Vec<(Page, ApiConfig)> = tree_pages
+      .iter()
+      .filter(|p| p.kind == PageKind::Api)
+      .map(|page| (page.clone(), configs.get(&page.id).cloned().unwrap_or_default()))
+      .collect();
+
+    // A named function, not a closure: borrowed closures make this future too lifetime-generic for the HTTP handler that awaits it.
+    let results: Vec<_> = stream::iter(jobs.into_iter().map(|(page, config)| resolve_page(&self.fetcher, page, config)))
+      .buffer_unordered(API_CONCURRENCY)
+      .collect()
+      .await;
+
+    let mut apis = Vec::new();
+    let mut problems = Vec::new();
+    for (page, result, display) in results {
+      match result {
+        Ok(spec) => {
+          self.assets.put(&ResolvedApi::store_key(&spec.hash), spec.bytes.clone()).await?;
+          apis.push(ResolvedApi {
+            page_id: page.id,
+            bytes: spec.bytes,
+            hash: spec.hash,
+            sources: spec.sources,
+            operations: spec.operations,
+            display,
+          });
+        }
+        Err(message) => problems.push(ApiProblem {
+          page_title: page.title.clone(),
+          message,
+        }),
+      }
+    }
+
+    if !problems.is_empty() {
+      problems.sort_by(|a, b| a.page_title.cmp(&b.page_title));
+      return Err(PublishError::Api(problems));
+    }
+
+    Ok(apis)
   }
 
   /// Renders everything, then deploys. Nothing reaches the target unless every page rendered.
@@ -307,28 +391,35 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
           ""
         };
 
+        let page_url = &urls[&source.page.id];
+        let mut input = json!({
+          "doc": source.doc,
+          "context": {
+            "site": site_ctx,
+            "page": { "id": source.page.id, "title": source.page.title, "description": source.page.description },
+            "nav": nav,
+            "breadcrumbs": breadcrumbs(tree_pages, &urls, source.page.id),
+            "previous": previous,
+            "next": next,
+            "updated": source.updated.to_zoned(jiff::tz::TimeZone::UTC).date().to_string(),
+            "markdown": format!("/{}", markdown_path(&urls[&source.page.id])),
+            "header": header,
+            "section": header_section(tree_pages, source.page.id),
+            "urls": only(&url_values, &referenced),
+            "pages": only(&page_info, &referenced),
+            "assets": source_assets(&source.doc, &asset_meta),
+            "terms": terms,
+            "today": today,
+          },
+        });
+        if let Some(api) = &source.api {
+          input["context"]["api"] = api_context(api, page_url);
+          input["context"]["updated"] = json!("");
+        }
+
         RenderJob {
           pool: self.pool.clone(),
-          input: json!({
-            "doc": source.doc,
-            "context": {
-              "site": site_ctx,
-              "page": { "id": source.page.id, "title": source.page.title, "description": source.page.description },
-              "nav": nav,
-              "breadcrumbs": breadcrumbs(tree_pages, &urls, source.page.id),
-              "previous": previous,
-              "next": next,
-              "updated": source.updated.to_zoned(jiff::tz::TimeZone::UTC).date().to_string(),
-              "markdown": format!("/{}", markdown_path(&urls[&source.page.id])),
-              "header": header,
-              "section": header_section(tree_pages, source.page.id),
-              "urls": only(&url_values, &referenced),
-              "pages": only(&page_info, &referenced),
-              "assets": source_assets(&source.doc, &asset_meta),
-              "terms": terms,
-              "today": today,
-            },
-          }),
+          input,
           title: source.page.title.clone(),
           description: source.page.description.clone(),
           site_name: site_name.clone(),
@@ -348,7 +439,14 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
       .try_collect()
       .await?;
 
-    let (mut files, hashes): (Vec<_>, Vec<_>) = rendered.into_iter().unzip();
+    let (mut files, mut hashes): (Vec<_>, Vec<_>) = rendered.into_iter().unzip();
+    // An API page has no revision to record; what it was built from goes in `release_api_specs`.
+    let apis: Vec<&ResolvedApi> = sources.iter().filter_map(|s| s.api.as_ref()).collect();
+    hashes.retain(|(id, _, _)| !apis.iter().any(|a| a.page_id == *id));
+    files.extend(apis.iter().map(|api| OutputFile {
+      path: api.spec_path(&urls[&api.page_id]),
+      bytes: api.bytes.clone(),
+    }));
 
     let listed: Vec<(&Page, &str)> = pages.iter().map(|p| (p, urls[&p.id].as_str())).collect();
     // The site root goes to the first top-level page. Positions only order siblings: the lowest one in the whole tree can be a child's.
@@ -444,6 +542,16 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
 
     // Recorded before the switch: once the site is live, what it holds must already be known.
     add_release_pages(&self.db, release.id, hashes).await?;
+    let specs: Vec<ReleaseSpec> = apis
+      .iter()
+      .map(|api| ReleaseSpec {
+        page_id: api.page_id,
+        spec_hash: api.hash.clone(),
+        sources: api.sources.clone(),
+        operations: api.operations.clone(),
+      })
+      .collect();
+    record_release_specs(&self.db, release.id, &specs).await?;
     self.target.publish(release.id, files).await?;
 
     Ok(())
@@ -554,6 +662,39 @@ async fn render_job<A: AssetStore>(job: RenderJob, cache: Arc<A>, renders: Arc<A
   Ok((OutputFile { path: job.path, bytes }, (job.page_id, job.revision, hash)))
 }
 
+async fn resolve_page(fetcher: &SourceFetcher, page: Page, config: ApiConfig) -> (Page, Result<ResolvedSpec, String>, ApiDisplay) {
+  let result = resolve(fetcher, &config).await;
+
+  (page, result, config.display)
+}
+
+/// The API pages as sources to render: no document, and an id for a revision that is never recorded.
+fn api_sources(tree_pages: &[Page], apis: Vec<ResolvedApi>) -> Vec<PageSource> {
+  apis
+    .into_iter()
+    .filter_map(|api| {
+      let page = tree_pages.iter().find(|p| p.id == api.page_id)?.clone();
+
+      Some(PageSource {
+        page,
+        doc: Document::empty(),
+        revision: RevisionId::new(),
+        updated: jiff::Timestamp::UNIX_EPOCH,
+        api: Some(api),
+      })
+    })
+    .collect()
+}
+
+/// What an API page's render depends on besides the page: where its spec is, and the operations for the fallback.
+fn api_context(api: &ResolvedApi, page_url: &str) -> Value {
+  json!({
+    "specUrl": format!("/{}", api.spec_path(page_url)),
+    "operations": api.operations,
+    "display": { "servers": api.display.servers, "hideModels": api.display.hide_models, "requestClient": api.display.request_client },
+  })
+}
+
 /// The entries of `map` for the IDs in `only`.
 fn only(map: &serde_json::Map<String, Value>, ids: &HashSet<String>) -> Value {
   Value::Object(map.iter().filter(|(id, _)| ids.contains(*id)).map(|(id, v)| (id.clone(), v.clone())).collect())
@@ -600,6 +741,10 @@ mod tests {
   }
 
   async fn fixture() -> Fixture {
+    fixture_with(ApiHosts::default()).await
+  }
+
+  async fn fixture_with(api_hosts: ApiHosts) -> Fixture {
     let dir = std::env::temp_dir().join(format!("yourdocs-publish-{}", uuid::Uuid::now_v7()));
     std::fs::create_dir_all(&dir).unwrap();
     let db = connect(&dir.join("test.db")).await.unwrap();
@@ -618,7 +763,7 @@ mod tests {
       config: PublishConfig {
         site_url: "https://docs.example.com".into(),
         pagefind: std::env::var("PAGEFIND_BIN").unwrap_or_else(|_| concat!(env!("CARGO_MANIFEST_DIR"), "/../../node_modules/.bin/pagefind").into()),
-        api_hosts: ApiHosts::default(),
+        api_hosts,
       },
       broadcast: LocalBroadcast::new(),
     });
@@ -1240,5 +1385,141 @@ mod tests {
     let glossary = std::fs::read_to_string(site.join("glossary/index.html")).unwrap();
     let (api, blue) = (glossary.find("id=\"api\"").unwrap(), glossary.find("id=\"blue-green-deploy\"").unwrap());
     assert!(api < blue && glossary.contains("talk to each other"));
+  }
+
+  mod apis {
+    use yourdocs_core::{ApiConfig, ApiSource, GitRef};
+    use yourdocs_store::{create_api_page, release_specs, save_api_config};
+
+    use super::*;
+    use crate::api::testing::{StandIn, spec};
+
+    fn github(repo: &str, path: &str, asset: Option<&str>) -> ApiSource {
+      ApiSource::Github {
+        repo: repo.into(),
+        path: path.into(),
+        git_ref: GitRef::LatestRelease,
+        asset: asset.map(Into::into),
+        prefix: String::new(),
+      }
+    }
+
+    /// An API page built from the latest release of two repositories, next to a plain page, and a stand-in that serves them.
+    async fn site() -> (Fixture, StandIn, Page, UserId) {
+      let github_stand_in = StandIn::start().await;
+      github_stand_in.set_latest("acme/orders", "v1.0.0");
+      github_stand_in.set_file("/acme/orders/releases/download/v1.0.0/openapi.json", &spec("Orders", "1.0.0", "get", "/orders", "listOrders"));
+      github_stand_in.set_latest("acme/billing", "v2.0.0");
+      github_stand_in.set_file("/acme/billing/v2.0.0/api/billing.json", &spec("Billing", "2.0.0", "get", "/invoices", "listInvoices"));
+
+      let f = fixture_with(github_stand_in.hosts()).await;
+      let user = UserId::new();
+      let plain = create_page(&f.db, user, None, "Guide", Placement::Last).await.unwrap();
+      f.content
+        .save_draft(plain.id, doc(serde_json::json!({ "type": "doc", "content": [{ "type": "paragraph" }] })), None, user)
+        .await
+        .unwrap();
+      let api = create_api_page(&f.db, user, None, "Orders API", Placement::Last).await.unwrap();
+      let config = ApiConfig {
+        sources: vec![github("acme/orders", "", Some("openapi.json")), github("acme/billing", "api/billing.json", None)],
+        ..Default::default()
+      };
+      save_api_config(&f.db, api.id, &config, user).await.unwrap();
+
+      (f, github_stand_in, api, user)
+    }
+
+    fn live_target(f: &Fixture) -> std::path::PathBuf {
+      std::fs::read_link(f.dir.join("out/site")).unwrap()
+    }
+
+    #[tokio::test]
+    async fn the_merged_spec_is_published_and_recorded_with_where_it_came_from() {
+      let (f, _github, api, user) = site().await;
+      let release = f.publisher.publish(user).await.unwrap();
+
+      let recorded = release_specs(&f.db, release.id).await.unwrap();
+      assert_eq!(recorded.len(), 1);
+      let spec_file = f.dir.join(format!("out/site/_api/orders-api.{}.json", recorded[0].spec_hash));
+      let merged: serde_json::Value = serde_json::from_slice(&std::fs::read(spec_file).unwrap()).unwrap();
+      assert!(merged.pointer("/paths/~1orders/get").is_some() && merged.pointer("/paths/~1invoices/get").is_some());
+
+      assert_eq!(recorded[0].page_id, api.id);
+      assert_eq!(recorded[0].sources.iter().map(|s| s.tag.as_deref()).collect::<Vec<_>>(), [Some("v1.0.0"), Some("v2.0.0")]);
+      assert_eq!(recorded[0].operations.iter().map(|o| o.method.as_str()).collect::<Vec<_>>(), ["GET", "GET"]);
+      assert!(f.dir.join("out/site/orders-api/index.html").exists());
+      // The page has no revision of its own.
+      assert_eq!(release.page_count, 2);
+    }
+
+    #[tokio::test]
+    async fn an_unreachable_source_fails_the_publish_and_the_previous_release_stays_live() {
+      let (f, github_stand_in, _api, user) = site().await;
+      f.publisher.publish(user).await.unwrap();
+      let live = live_target(&f);
+      let releases = std::fs::read_dir(f.dir.join("out/releases")).unwrap().count();
+
+      github_stand_in.remove_file("/acme/billing/v2.0.0/api/billing.json");
+      let error = f.publisher.publish(user).await.unwrap_err();
+
+      assert!(
+        matches!(&error, PublishError::Api(problems) if problems[0].page_title == "Orders API" && problems[0].message.contains("acme/billing api/billing.json: HTTP 404")),
+        "{error:?}"
+      );
+      assert_eq!(live_target(&f), live);
+      assert_eq!(std::fs::read_dir(f.dir.join("out/releases")).unwrap().count(), releases);
+    }
+
+    #[tokio::test]
+    async fn a_new_upstream_release_is_picked_up_and_only_the_api_page_renders_again() {
+      let (f, github_stand_in, _api, user) = site().await;
+      let first = f.publisher.publish(user).await.unwrap();
+      let rendered = f.publisher.renders();
+
+      // Nothing changed upstream: the same spec, the same hash, and every page comes from the render cache.
+      let again = f.publisher.publish(user).await.unwrap();
+      assert_eq!(f.publisher.renders(), rendered);
+      assert_eq!(release_specs(&f.db, again.id).await.unwrap()[0].spec_hash, release_specs(&f.db, first.id).await.unwrap()[0].spec_hash);
+
+      github_stand_in.set_latest("acme/orders", "v1.1.0");
+      github_stand_in.set_file("/acme/orders/releases/download/v1.1.0/openapi.json", &spec("Orders", "1.1.0", "get", "/orders", "listOrdersV2"));
+      let next = f.publisher.publish(user).await.unwrap();
+
+      let recorded = release_specs(&f.db, next.id).await.unwrap();
+      assert_ne!(recorded[0].spec_hash, release_specs(&f.db, first.id).await.unwrap()[0].spec_hash);
+      assert_eq!(recorded[0].sources[0].tag.as_deref(), Some("v1.1.0"));
+      assert_eq!(f.publisher.renders(), rendered + 1);
+    }
+
+    #[tokio::test]
+    async fn publishing_again_for_new_bundles_uses_the_recorded_specs_and_never_the_network() {
+      let (f, github_stand_in, _api, user) = site().await;
+      let first = f.publisher.publish(user).await.unwrap();
+      let recorded = release_specs(&f.db, first.id).await.unwrap();
+      let hits = github_stand_in.hits();
+
+      // Upstream moves on, and the bundles change.
+      github_stand_in.set_latest("acme/orders", "v9.9.9");
+      let restarted = Publisher::new(PublisherParts {
+        db: f.db.clone(),
+        content: f.content.clone(),
+        assets: Arc::new(LocalAssetStore::new(&f.dir.join("assets")).unwrap()),
+        pool: f.publisher.pool.clone(),
+        target: PublishTarget::Folder(FolderTarget::new(f.dir.join("out"))),
+        bundles: Bundles::new("ssr", b"console.log(2)".to_vec(), b"body{}".to_vec()),
+        config: PublishConfig {
+          site_url: "https://docs.example.com".into(),
+          pagefind: std::env::var("PAGEFIND_BIN").unwrap_or_else(|_| concat!(env!("CARGO_MANIFEST_DIR"), "/../../node_modules/.bin/pagefind").into()),
+          api_hosts: github_stand_in.hosts(),
+        },
+        broadcast: LocalBroadcast::new(),
+      });
+      let release = restarted.republish_for_bundles().await.unwrap().expect("the bundles changed");
+
+      assert_eq!(github_stand_in.hits(), hits);
+      let again = release_specs(&f.db, release.id).await.unwrap();
+      assert_eq!(again, recorded);
+      assert!(f.dir.join(format!("out/site/_api/orders-api.{}.json", again[0].spec_hash)).exists());
+    }
   }
 }

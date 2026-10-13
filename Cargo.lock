@@ -4385,12 +4385,12 @@ dependencies = [
 name = "yourdocs-apispec"
 version = "0.0.0"
 dependencies = [
- "serde",
  "serde_json",
  "serde_norway",
  "thiserror",
  "tokio",
  "url",
+ "yourdocs-core",
 ]
 
 [[package]]
@@ -4461,6 +4461,7 @@ dependencies = [
  "tokio",
  "tracing",
  "uuid",
+ "yourdocs-apispec",
  "yourdocs-assets",
  "yourdocs-core",
  "yourdocs-render",

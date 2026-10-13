@@ -16,7 +16,7 @@ mod releases;
 mod tree;
 mod urls;
 
-pub use api::{get_api_config, save_api_config};
+pub use api::{ReleaseSpec, get_api_config, list_api_configs, record_release_specs, release_specs, save_api_config};
 pub use assets::{NewAsset, asset_by_hash, asset_by_id, assets_by_ids, get_or_create_asset};
 pub use connect::{StoreError, connect};
 pub use content::SqlContentStore;

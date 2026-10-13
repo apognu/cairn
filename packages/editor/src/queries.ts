@@ -330,3 +330,11 @@ export function useSaveApiConfig(id: string) {
     onSuccess: (saved) => client.setQueryData(["api-config", id], saved),
   });
 }
+
+/** Fetches and merges the sources of the form as it stands, the way a publish would, without publishing. */
+export function useCheckApiConfig(id: string) {
+  return useMutation({
+    mutationFn: async (config: ApiConfig) =>
+      unwrap(await api.POST("/api/pages/{id}/api-config/check", { params: { path: { id } }, body: config })),
+  });
+}

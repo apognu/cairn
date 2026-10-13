@@ -173,6 +173,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/pages/{id}/api-config/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Fetches and merges the given sources (the unsaved form as it stands) the way a publish would, without creating anything. */
+        post: operations["checkApiConfig"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/pages/{id}/backlinks": {
         parameters: {
             query?: never;
@@ -528,6 +545,18 @@ export interface components {
             origin: components["schemas"]["RedirectOrigin"];
             path: string;
         };
+        /** @description What fetching and merging a page's sources gave. */
+        ApiCheck: {
+            /** @description Why the sources could not be merged, one sentence each. Empty when they merged. */
+            errors: string[];
+            /** @description The first operations, for a glance. */
+            operations: components["schemas"]["Operation"][];
+            /** @description All operations of the merged spec. */
+            operations_count: number;
+            /** @description Where each source was read from, and at which release. */
+            sources: components["schemas"]["ResolvedSource"][];
+            tags: string[];
+        };
         /** @description What an API reference page is built from: public OpenAPI specs, merged into one document at every publish. */
         ApiConfig: {
             /**
@@ -778,6 +807,16 @@ export interface components {
             /** @description ...or to this URL or path. */
             to_url?: string | null;
         };
+        /** @description An operation of a merged spec, as the page's fallback, the search index and the pre-publish checks read it. */
+        Operation: {
+            description?: string | null;
+            /** @description Upper case: `GET`. */
+            method: string;
+            operation_id?: string | null;
+            path: string;
+            summary?: string | null;
+            tags: string[];
+        };
         /** @description A node of the page tree. */
         Page: {
             /** Format: date-time */
@@ -877,6 +916,16 @@ export interface components {
             /** @description Keep the old URL working with a redirect. Defaults to true. */
             redirect?: boolean | null;
             title: string;
+        };
+        /** @description Where one spec was read from at a build, as recorded in the release. */
+        ResolvedSource: {
+            etag?: string | null;
+            /** @description The source as written: a URL, or `owner/name` and the file or asset. */
+            label: string;
+            /** @description The release tag a GitHub source was read at. */
+            tag?: string | null;
+            /** @description The address the file came from. */
+            url: string;
         };
         Restore: {
             revision_id: components["schemas"]["RevisionId"];
@@ -1521,6 +1570,56 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    checkApiConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["PageId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApiConfig"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiCheck"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description a check of this page is already running */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

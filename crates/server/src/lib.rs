@@ -61,6 +61,7 @@ pub async fn run_dev(bind: SocketAddr, site_bind: SocketAddr, data_dir: PathBuf)
 
   let state = AppState {
     editor_dir: bundles.editor_dir.clone().map(Arc::new),
+    api_checks: Default::default(),
     publisher: app::publisher(
       db.clone(),
       content.clone(),

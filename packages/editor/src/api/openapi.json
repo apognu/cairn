@@ -637,6 +637,71 @@
         }
       }
     },
+    "/api/pages/{id}/api-config/check": {
+      "post": {
+        "summary": "Fetches and merges the given sources (the unsaved form as it stands) the way a publish would, without creating anything.",
+        "operationId": "checkApiConfig",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/PageId"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApiConfig"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiCheck"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "a check of this page is already running",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/pages/{id}/backlinks": {
       "get": {
         "summary": "The pages that link to this one.",
@@ -1576,6 +1641,51 @@
           }
         }
       },
+      "ApiCheck": {
+        "type": "object",
+        "description": "What fetching and merging a page's sources gave.",
+        "required": [
+          "sources",
+          "operations_count",
+          "tags",
+          "operations",
+          "errors"
+        ],
+        "properties": {
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Why the sources could not be merged, one sentence each. Empty when they merged."
+          },
+          "operations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Operation"
+            },
+            "description": "The first operations, for a glance."
+          },
+          "operations_count": {
+            "type": "integer",
+            "description": "All operations of the merged spec.",
+            "minimum": 0
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ResolvedSource"
+            },
+            "description": "Where each source was read from, and at which release."
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "ApiConfig": {
         "type": "object",
         "description": "What an API reference page is built from: public OpenAPI specs, merged into one document at every publish.",
@@ -2358,6 +2468,48 @@
           }
         }
       },
+      "Operation": {
+        "type": "object",
+        "description": "An operation of a merged spec, as the page's fallback, the search index and the pre-publish checks read it.",
+        "required": [
+          "method",
+          "path",
+          "tags"
+        ],
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "method": {
+            "type": "string",
+            "description": "Upper case: `GET`."
+          },
+          "operation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "path": {
+            "type": "string"
+          },
+          "summary": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "Page": {
         "type": "object",
         "description": "A node of the page tree.",
@@ -2678,6 +2830,37 @@
           },
           "title": {
             "type": "string"
+          }
+        }
+      },
+      "ResolvedSource": {
+        "type": "object",
+        "description": "Where one spec was read from at a build, as recorded in the release.",
+        "required": [
+          "label",
+          "url"
+        ],
+        "properties": {
+          "etag": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "label": {
+            "type": "string",
+            "description": "The source as written: a URL, or `owner/name` and the file or asset."
+          },
+          "tag": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The release tag a GitHub source was read at."
+          },
+          "url": {
+            "type": "string",
+            "description": "The address the file came from."
           }
         }
       },

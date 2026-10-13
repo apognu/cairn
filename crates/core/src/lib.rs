@@ -20,7 +20,7 @@ mod release;
 mod settings;
 mod storage;
 
-pub use api::{ApiConfig, ApiDisplay, ApiSource, GitRef, MergeRules};
+pub use api::{ApiConfig, ApiDisplay, ApiSource, GitRef, MergeRules, Operation, ResolvedSource};
 pub use asset::{Asset, AssetVariant};
 pub use broadcast::{Broadcast, Event, LocalBroadcast};
 pub use checks::{Problem, ProblemKind, doc_problems, url_problems};

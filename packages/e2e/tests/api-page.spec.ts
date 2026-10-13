@@ -27,6 +27,12 @@ test("an API page is created, saved, moved, promoted and restored like a page", 
   const config = await (await request.get(`/api/pages/${id}/api-config`)).json();
   expect(config.sources).toEqual([{ type: "url", url: "https://example.com/orders.yaml", prefix: "orders" }]);
 
+  // "Check sources now" reads the form as it stands, and says why a source cannot be used (nothing here is allowed to reach the network).
+  await page.getByLabel("Spec URL").fill("https://10.0.0.1/orders.yaml");
+  await page.getByRole("button", { name: "Check sources now" }).click();
+  await expect(page.getByText("The sources could not be merged.")).toBeVisible();
+  await expect(page.getByText("is not an HTTPS address on the public internet")).toBeVisible();
+
   // A source that is not an https URL is refused with a reason.
   await page.getByLabel("Spec URL").fill("http://example.com/orders.yaml");
   await page.getByRole("button", { name: "Save", exact: true }).click();
@@ -58,4 +64,7 @@ test("an API page is created, saved, moved, promoted and restored like a page", 
   await page.getByRole("button", { name: `Restore ${title}` }).click();
   await expect(page.getByRole("status")).toContainText("at its old place");
   expect((await (await request.get(`/api/pages/${id}/api-config`)).json()).sources).toHaveLength(1);
+
+  // Every publish reads the sources of every API page, and this one points nowhere: it must not block the other tests' publishes.
+  await request.delete(`/api/pages/${id}`);
 });

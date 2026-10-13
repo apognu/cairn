@@ -20,6 +20,7 @@ sha2 = "0.11.1"
 thiserror = "2.0.21"
 tokio = { version = "1.53.2", features = ["rt", "sync", "fs", "macros", "process", "net"] }
 tracing = "0.1.44"
+yourdocs-apispec = { version = "0.0.0", path = "../apispec" }
 yourdocs-core = { version = "0.0.0", path = "../core" }
 yourdocs-render = { version = "0.0.0", path = "../render" }
 yourdocs-store = { version = "0.0.0", path = "../store" }

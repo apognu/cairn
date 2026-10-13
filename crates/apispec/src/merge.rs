@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
-use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
+use yourdocs_core::Operation;
 
 use crate::ApiSpecError;
 
@@ -21,18 +21,6 @@ pub struct MergeOptions {
   pub version: Option<String>,
   pub description: Option<String>,
   pub servers: Vec<String>,
-}
-
-/// An operation of the merged document, as the page's fallback, the search index and the checks use it.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Operation {
-  /// Upper case: `GET`.
-  pub method: String,
-  pub path: String,
-  pub summary: Option<String>,
-  pub description: Option<String>,
-  pub tags: Vec<String>,
-  pub operation_id: Option<String>,
 }
 
 #[derive(Debug)]

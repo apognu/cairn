@@ -2107,9 +2107,7 @@ button.secondary:disabled {
 .api-check {
   box-sizing: border-box;
   width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 12px;
+  display: block;
   margin: 20px 0;
   padding: 12px 14px;
   border: 1px solid var(--border);
@@ -2117,8 +2115,42 @@ button.secondary:disabled {
   background: var(--bg-side);
 }
 
-.api-check button {
+.api-check-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.api-check-head button {
   margin-left: auto;
+}
+
+.api-check[data-state="ok"] {
+  border-color: var(--accent);
+}
+
+.api-check[data-state="error"] {
+  border-color: var(--danger);
+}
+
+.api-errors,
+.api-resolved {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+}
+
+.api-errors {
+  color: var(--danger);
+}
+
+.api-resolved li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 0;
+  border-top: 1px solid var(--border);
 }
 
 .api-source .form-field input:not([type="checkbox"]) {
