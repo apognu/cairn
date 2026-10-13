@@ -41,7 +41,14 @@
             }
           },
           "413": {
-            "description": "the file is too large"
+            "description": "the file is too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           },
           "422": {
             "description": "not a supported image, too many pixels, or damaged",

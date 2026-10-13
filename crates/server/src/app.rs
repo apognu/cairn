@@ -85,6 +85,7 @@ pub fn router(state: AppState) -> Router {
     .route("/_a/{name}", get(uploads::serve))
     .merge(api().0)
     .fallback(crate::editor::serve)
+    .layer(middleware::from_fn(crate::error::rejections_as_json))
     .layer(middleware::from_fn(local_host_only))
     .with_state(state)
 }

@@ -21,14 +21,17 @@ use crate::{
 const MAX_UPLOAD: usize = 25 * 1024 * 1024;
 
 pub(crate) fn routes() -> OpenApiRouter<AppState> {
-  OpenApiRouter::new().routes(routes!(upload)).layer(DefaultBodyLimit::max(MAX_UPLOAD))
+  OpenApiRouter::new()
+    .routes(routes!(upload))
+    .layer(axum::middleware::from_fn(|request, next| crate::error::too_large_upload(MAX_UPLOAD / (1024 * 1024), request, next)))
+    .layer(DefaultBodyLimit::max(MAX_UPLOAD))
 }
 
 /// Uploads an image (the request body is the file). Uploading bytes that are already stored returns the existing asset.
 #[utoipa::path(post, path = "/api/assets", operation_id = "uploadAsset", request_body(content = String, content_type = "application/octet-stream"), responses(
   (status = 201, body = Asset, description = "stored as a new asset"),
   (status = 200, body = Asset, description = "the same file was already stored"),
-  (status = 413, description = "the file is too large"),
+  (status = 413, body = ErrorBody, description = "the file is too large"),
   (status = 422, body = ErrorBody, description = "not a supported image, too many pixels, or damaged"),
 ))]
 #[instrument(skip_all)]
