@@ -89,18 +89,7 @@ pub async fn set_in_header(db: &DatabaseConnection, id: PageId, in_header: bool)
   }
 
   let position = if in_header && !current.in_header {
-    let last = pages
-      .iter()
-      .filter(|p| p.in_header)
-      .filter_map(|p| p.header_position.as_deref())
-      .max()
-      .map(|p| FractionalIndex::from_string(p).map_err(|e| StoreError::Invalid(format!("bad position: {e}"))))
-      .transpose()?;
-    Some(
-      FractionalIndex::new(last.as_ref(), None)
-        .ok_or_else(|| StoreError::Invalid("header positions are out of order".into()))?
-        .to_string(),
-    )
+    Some(last_header_position(&pages)?)
   } else {
     current.header_position.clone().filter(|_| in_header)
   };
@@ -289,7 +278,24 @@ fn unique_slug(pages: &[Page], parent: Option<PageId>, title: &str, ignoring: Op
 }
 
 /// The fractional position for a page placed among the children of `parent`, ignoring `moving` (the page being moved).
-fn position_for(pages: &[Page], parent: Option<PageId>, moving: Option<PageId>, placement: Placement) -> Result<String, StoreError> {
+/// A header position after every page already in the header.
+pub(crate) fn last_header_position(pages: &[Page]) -> Result<String, StoreError> {
+  let last = pages
+    .iter()
+    .filter(|p| p.in_header)
+    .filter_map(|p| p.header_position.as_deref())
+    .max()
+    .map(|p| FractionalIndex::from_string(p).map_err(|e| StoreError::Invalid(format!("bad position: {e}"))))
+    .transpose()?;
+
+  Ok(
+    FractionalIndex::new(last.as_ref(), None)
+      .ok_or_else(|| StoreError::Invalid("header positions are out of order".into()))?
+      .to_string(),
+  )
+}
+
+pub(crate) fn position_for(pages: &[Page], parent: Option<PageId>, moving: Option<PageId>, placement: Placement) -> Result<String, StoreError> {
   let siblings: Vec<&Page> = pages.iter().filter(|p| p.parent_id == parent && Some(p.id) != moving).collect();
 
   let (lower, upper) = match placement {

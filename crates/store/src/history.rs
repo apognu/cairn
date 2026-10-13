@@ -3,13 +3,13 @@
 use std::collections::HashMap;
 
 use jiff::Timestamp;
-use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set};
-use yourdocs_core::{Page, PageId, ReleaseId, RevisionId, UserId, page_urls};
+use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set, TransactionTrait};
+use yourdocs_core::{Page, PageId, Placement, ReleaseId, RevisionId, UserId, page_urls};
 
 use crate::{
   StoreError,
   entity::{page, release, release_page, revision},
-  tree::{into_page, list_pages},
+  tree::{into_page, last_header_position, list_pages, position_for},
 };
 
 /// One saved version of a page.
@@ -35,9 +35,9 @@ pub async fn page_history(db: &DatabaseConnection, page: PageId) -> Result<Vec<H
     .all(db)
     .await?;
 
-  // Which releases each version went out in, keeping the newest.
-  let ids: Vec<_> = rows.iter().map(|r| r.id).collect();
-  let released = release_page::Entity::find().filter(release_page::Column::RevisionId.is_in(ids)).all(db).await?;
+  // Which releases each version went out in, keeping the newest. By page, not by a list of revision IDs, which a long-edited page would
+  // push past the database's limit on bound parameters.
+  let released = release_page::Entity::find().filter(release_page::Column::PageId.eq(page.as_uuid())).all(db).await?;
   let releases: HashMap<_, _> = release::Entity::find().all(db).await?.into_iter().filter(|r| r.status == "live").map(|r| (r.id, r)).collect();
   let mut released_in: HashMap<uuid::Uuid, (ReleaseId, Timestamp)> = HashMap::new();
   for rp in released {
@@ -138,6 +138,19 @@ pub async fn restore_page(db: &DatabaseConnection, id: PageId) -> Result<(Page, 
   }
   let kept = parent == row.parent_id && slug == row.slug;
 
+  // Positions are computed from the live pages only, so a page added while this one was in the trash can hold its old position (every
+  // first child gets the same one). Two equal positions leave the order to chance and refuse any drop between them: the page then goes
+  // just before the sibling that took its place.
+  let parent_id = parent.map(PageId::from);
+  let position = match live.iter().find(|l| l.parent_id == parent_id && l.position == row.position) {
+    Some(taken) => position_for(&live, parent_id, None, Placement::Before(taken.id))?,
+    None => row.position.clone(),
+  };
+  let header_taken = row.header_position.is_some() && live.iter().any(|l| l.in_header && l.header_position == row.header_position);
+  let header_position = if header_taken { Some(last_header_position(&live)?) } else { row.header_position.clone() };
+
+  // All of the subtree comes back, or none of it.
+  let tx = db.begin().await?;
   let together: Vec<_> = rows.iter().filter(|r| r.deleted_at == row.deleted_at && (r.id == row.id || descends_from(&rows, r, row.id))).collect();
   for r in together {
     let mut active = page::ActiveModel {
@@ -149,9 +162,12 @@ pub async fn restore_page(db: &DatabaseConnection, id: PageId) -> Result<(Page, 
     if r.id == row.id {
       active.parent_id = Set(parent);
       active.slug = Set(slug.clone());
+      active.position = Set(position.clone());
+      active.header_position = Set(header_position.clone());
     }
-    active.update(db).await?;
+    active.update(&tx).await?;
   }
+  tx.commit().await?;
 
   let restored = list_pages(db).await?.into_iter().find(|p| p.id == id).ok_or(StoreError::NotFound)?;
 
@@ -176,6 +192,11 @@ mod tests {
     let install = create_page(&db, user, Some(guide.id), "Install", Placement::Last).await.unwrap();
     let linux = create_page(&db, user, Some(install.id), "Linux", Placement::Last).await.unwrap();
     let url = |pages: &[Page], id: PageId| page_urls(pages)[&id].clone();
+    // Two siblings with one position have no order, and nothing can be dropped between them.
+    let distinct_positions = |pages: Vec<Page>| {
+      let mut seen = std::collections::HashSet::new();
+      pages.iter().all(|p| seen.insert((p.parent_id, p.position.clone())))
+    };
     let before = url(&list_pages(&db).await.unwrap(), linux.id);
 
     delete_page(&db, install.id).await.unwrap();
@@ -193,11 +214,14 @@ mod tests {
     create_page(&db, user, Some(guide.id), "Install", Placement::Last).await.unwrap();
     let (again, kept) = restore_page(&db, install.id).await.unwrap();
     assert!(!kept && again.slug == "install-2");
+    assert!(distinct_positions(list_pages(&db).await.unwrap()), "the new Install took the old position");
 
     // And when its parent is gone it returns to the top level.
     delete_page(&db, again.id).await.unwrap();
     delete_page(&db, guide.id).await.unwrap();
+    create_page(&db, user, None, "About", Placement::Last).await.unwrap();
     let (top, kept) = restore_page(&db, again.id).await.unwrap();
     assert!(!kept && top.parent_id.is_none());
+    assert!(distinct_positions(list_pages(&db).await.unwrap()), "every first child has the same position");
   }
 }
