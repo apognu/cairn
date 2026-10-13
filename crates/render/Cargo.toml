@@ -16,3 +16,4 @@ tokio = { version = "1", features = ["sync", "time", "rt-multi-thread", "macros"
 serde_json = "1"
 syntect = { version = "5.3.0", default-features = false, features = ["default-fancy"] }
 maud = "0.27.0"
+v8 = "135.1.1"

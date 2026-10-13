@@ -2,12 +2,11 @@
 
 #![forbid(unsafe_code)]
 
+mod engine;
 mod highlight;
 mod platform;
 mod pool;
 mod shell;
-
-use ssr_rs::Ssr;
 
 pub use highlight::highlight_css;
 pub use pool::Pool;
@@ -19,30 +18,9 @@ pub enum RenderError {
   Invalid(String),
   #[error("render queue is full")]
   Busy,
+  /// The render ran past its time and was stopped; the worker is fine and takes the next job.
   #[error("render timed out")]
   Timeout,
   #[error(transparent)]
   Other(#[from] anyhow::Error),
-}
-
-/// Calls `SSR.render(doc)` (ssr_rs takes the exported object as entry point) from a bundled `ssr.js`; one instance per thread because V8 isolates are `!Send`.
-pub(crate) struct Renderer {
-  ssr: Ssr<'static, 'static>,
-}
-
-impl Renderer {
-  pub(crate) fn new(script: &str) -> Result<Self, RenderError> {
-    let ssr = Ssr::from(script.to_string(), "SSR").map_err(|e| RenderError::Invalid(e.to_string()))?;
-
-    Ok(Self { ssr })
-  }
-
-  pub(crate) fn render(&mut self, doc: &serde_json::Value) -> Result<String, RenderError> {
-    let params = serde_json::to_string(doc).map_err(|e| RenderError::Other(e.into()))?;
-
-    let html = self.ssr.render_to_string(Some(&params)).map_err(|e| RenderError::Invalid(e.to_string()))?;
-
-    // On the worker thread, not in the async handler: highlighting is CPU work.
-    Ok(highlight::highlight_code_blocks(&html))
-  }
 }

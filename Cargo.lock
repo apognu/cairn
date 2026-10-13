@@ -4208,6 +4208,7 @@ dependencies = [
  "syntect",
  "thiserror",
  "tokio",
+ "v8",
 ]
 
 [[package]]
