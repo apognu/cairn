@@ -1,4 +1,4 @@
-import { mergeAttributes, Node } from "@tiptap/core";
+import { Mark, mergeAttributes, Node } from "@tiptap/core";
 import CodeBlock from "@tiptap/extension-code-block";
 import { Table, TableCell, TableHeader, TableRow } from "@tiptap/extension-table";
 import UniqueID from "@tiptap/extension-unique-id";
@@ -189,6 +189,23 @@ const Tabs = Node.create({
   },
 });
 
+/** Words marked as a glossary term: shown dotted here, and a definition on hover with a link to the Glossary page once published. */
+const Term = Mark.create({
+  name: "term",
+  inclusive: false,
+  addAttributes() {
+    return {
+      term: {
+        default: "",
+        parseHTML: (el) => el.getAttribute("data-term") ?? "",
+        renderHTML: (attrs) => ({ "data-term": attrs.term }),
+      },
+    };
+  },
+  parseHTML: () => [{ tag: "dfn[data-term]" }],
+  renderHTML: ({ HTMLAttributes }) => ["dfn", mergeAttributes({ class: "term" }, HTMLAttributes), 0],
+});
+
 const Step = Node.create({
   name: "step",
   // The first paragraph is the step's title; whatever follows is its body.
@@ -227,6 +244,7 @@ const blockTypes = [
 export const buildExtensions = (editable: boolean) => [
   StarterKit.configure({ codeBlock: false, link: false, trailingNode: editable ? undefined : false }),
   PageLink,
+  Term,
   CodeWithFileName,
   Table,
   TableRow,

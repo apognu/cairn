@@ -58,7 +58,7 @@
     },
     "/api/library": {
       "get": {
-        "summary": "Every variable and snippet.",
+        "summary": "Every variable, snippet and glossary term.",
         "operationId": "listLibrary",
         "responses": {
           "200": {
@@ -115,6 +115,46 @@
           },
           "422": {
             "description": "not a usable name, or the snippet would include itself",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/library/terms": {
+      "put": {
+        "summary": "Creates or changes a glossary term. A marked term shows its definition on hover and links to the generated Glossary page.",
+        "operationId": "saveTerm",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TermBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LibraryEntry"
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "empty or too long",
             "content": {
               "application/json": {
                 "schema": {
@@ -1546,7 +1586,7 @@
       },
       "LibraryEntry": {
         "type": "object",
-        "description": "A variable or snippet of the library, with the pages that use it.",
+        "description": "A variable, snippet or glossary term of the library, with the pages that use it.",
         "required": [
           "id",
           "kind",
@@ -1579,7 +1619,7 @@
               "string",
               "null"
             ],
-            "description": "The value of a variable."
+            "description": "The value of a variable, or the definition of a term."
           },
           "used_in": {
             "type": "array",
@@ -2089,6 +2129,21 @@
         "properties": {
           "doc": {
             "$ref": "#/components/schemas/Document"
+          }
+        }
+      },
+      "TermBody": {
+        "type": "object",
+        "required": [
+          "term",
+          "definition"
+        ],
+        "properties": {
+          "definition": {
+            "type": "string"
+          },
+          "term": {
+            "type": "string"
           }
         }
       },

@@ -23,7 +23,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Every variable and snippet. */
+        /** Every variable, snippet and glossary term. */
         get: operations["listLibrary"];
         put?: never;
         post?: never;
@@ -43,6 +43,23 @@ export interface paths {
         get?: never;
         /** Creates or changes a snippet. One that would include itself is refused, with the chain in the message. */
         put: operations["saveSnippet"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/library/terms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Creates or changes a glossary term. A marked term shows its definition on hover and links to the generated Glossary page. */
+        put: operations["saveTerm"];
         post?: never;
         delete?: never;
         options?: never;
@@ -467,13 +484,13 @@ export interface components {
          * @enum {string}
          */
         Inactive: "page_at_path" | "target_gone" | "loop";
-        /** @description A variable or snippet of the library, with the pages that use it. */
+        /** @description A variable, snippet or glossary term of the library, with the pages that use it. */
         LibraryEntry: {
             doc?: components["schemas"]["Document"] | null;
             id: string;
             key: string;
             kind: components["schemas"]["EntryKind"];
-            /** @description The value of a variable. */
+            /** @description The value of a variable, or the definition of a term. */
             text_value?: string | null;
             used_in: components["schemas"]["UsedBy"][];
         };
@@ -624,6 +641,10 @@ export interface components {
         SnippetBody: {
             doc: components["schemas"]["Document"];
         };
+        TermBody: {
+            definition: string;
+            term: string;
+        };
         UsedBy: {
             page_id: components["schemas"]["PageId"];
             title: string;
@@ -734,6 +755,38 @@ export interface operations {
                 };
             };
             /** @description not a usable name, or the snippet would include itself */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    saveTerm: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TermBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibraryEntry"][];
+                };
+            };
+            /** @description empty or too long */
             422: {
                 headers: {
                     [name: string]: unknown;

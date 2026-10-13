@@ -1,8 +1,9 @@
 import type { Editor } from "@tiptap/core";
 import { useEditorState } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
-import { useId } from "react";
+import { useId, useState } from "react";
 import { PICKER_EVENT, type PickerRequest } from "./pageLink";
+import { useLibrary } from "./queries";
 
 const languages = ["bash", "css", "html", "javascript", "json", "python", "rust", "sql", "toml", "typescript", "yaml"];
 
@@ -77,6 +78,8 @@ function ImageTools({ editor }: { editor: Editor }) {
 }
 
 function TextTools({ editor }: { editor: Editor }) {
+  const [marking, setMarking] = useState(false);
+  const terms = (useLibrary().data ?? []).filter((e) => e.kind === "term").map((e) => e.key);
   const active = useEditorState({
     editor,
     selector: ({ editor: e }) => ({
@@ -85,8 +88,43 @@ function TextTools({ editor }: { editor: Editor }) {
       strike: e.isActive("strike"),
       code: e.isActive("code"),
       link: e.isActive("link"),
+      term: e.isActive("term"),
     }),
   });
+
+  if (marking) {
+    const { from, to } = editor.state.selection;
+    const words = editor.state.doc.textBetween(from, to).trim().toLowerCase();
+
+    return (
+      <form
+        className="bubble"
+        onSubmit={(e) => {
+          e.preventDefault();
+          const term = String(new FormData(e.currentTarget).get("term") ?? "");
+          if (term) editor.chain().focus().setMark("term", { term }).run();
+          setMarking(false);
+        }}
+      >
+        <select
+          name="term"
+          aria-label="Glossary term"
+          defaultValue={terms.find((t) => t.toLowerCase() === words) ?? ""}
+        >
+          <option value="">{terms.length === 0 ? "No terms defined yet" : "Choose a term…"}</option>
+          {terms.map((t) => (
+            <option key={t} value={t}>
+              {t}
+            </option>
+          ))}
+        </select>
+        <button type="submit">Apply</button>
+        <button type="button" onClick={() => setMarking(false)}>
+          Cancel
+        </button>
+      </form>
+    );
+  }
 
   const tool = (label: string, glyph: string, on: boolean, run: () => void) => (
     <button type="button" aria-label={label} aria-pressed={on} onClick={run} onMouseDown={(e) => e.preventDefault()}>
@@ -100,6 +138,9 @@ function TextTools({ editor }: { editor: Editor }) {
       {tool("Italic", "I", active.italic, () => editor.chain().focus().toggleItalic().run())}
       {tool("Strikethrough", "S", active.strike, () => editor.chain().focus().toggleStrike().run())}
       {tool("Code", "</>", active.code, () => editor.chain().focus().toggleCode().run())}
+      {tool("Glossary term", "Aa", active.term, () =>
+        active.term ? editor.chain().focus().unsetMark("term").run() : setMarking(true),
+      )}
       {tool("Link", "🔗", active.link, () => {
         const { from, to } = editor.state.selection;
         editor.view.dom.dispatchEvent(

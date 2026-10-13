@@ -224,6 +224,12 @@ export function useSaveVariable() {
   );
 }
 
+export function useSaveTerm() {
+  return useLibraryMutation(async (body: { term: string; definition: string }) =>
+    unwrap(await api.PUT("/api/library/terms", { body })),
+  );
+}
+
 export function useSaveSnippet() {
   return useLibraryMutation(async ({ key, doc }: { key: string; doc: unknown }) =>
     unwrap(await api.PUT("/api/library/snippets/{key}", { params: { path: { key } }, body: { doc } })),

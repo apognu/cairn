@@ -60,3 +60,40 @@ test("a variable and a snippet are used on a page, and a snippet cannot include 
   expect(html).toContain("9.9.9");
   expect(html).toContain(`Install the tool before ${tag}.`);
 });
+
+test("a term marked in a page shows as a dfn linking to the Glossary page", async ({ page }) => {
+  const tag = Math.random().toString(36).slice(2, 8);
+  const [term, title] = [`Zorbing ${tag}`, `Terms ${tag}`];
+
+  await page.goto("/#settings=library");
+  await page.getByLabel("New term", { exact: true }).fill(term);
+  await page.getByLabel("New term definition").fill("Rolling downhill in a ball");
+  await page.getByRole("button", { name: "Add term" }).click();
+  await expect(page.getByLabel(`Definition of ${term}`)).toHaveValue("Rolling downhill in a ball");
+
+  await page.getByRole("button", { name: "Back to pages" }).click();
+  await page.getByRole("button", { name: "New page" }).click();
+  await page.getByLabel("New page title").fill(title);
+  await page.keyboard.press("Enter");
+  await page.locator(".ProseMirror").click();
+  await page.keyboard.type(`We love ${term} a lot`);
+  // Select the term's words and mark them.
+  for (let i = 0; i < " a lot".length; i++) await page.keyboard.press("ArrowLeft");
+  await page.keyboard.down("Shift");
+  for (let i = 0; i < term.length; i++) await page.keyboard.press("ArrowLeft");
+  await page.keyboard.up("Shift");
+  await page.getByRole("button", { name: "Glossary term" }).click();
+  await page.getByLabel("Glossary term", { exact: true }).selectOption(term);
+  await page.getByRole("button", { name: "Apply" }).click();
+  await expect(page.locator(".ProseMirror dfn.term")).toHaveText(term);
+  await expect(page.getByRole("status")).toHaveText("Saved");
+
+  await publishAll(page);
+  const html = readFileSync(`.e2e-data/site/${title.toLowerCase().replace(/\W+/g, "-")}/index.html`, "utf8");
+  expect(html).toMatch(
+    new RegExp(
+      `<dfn class="term"><a href="/glossary/#zorbing-${tag}" data-definition="Rolling downhill in a ball">${term}</a></dfn>`,
+    ),
+  );
+  expect(readFileSync(".e2e-data/site/glossary/index.html", "utf8")).toContain(term);
+});

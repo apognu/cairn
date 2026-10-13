@@ -1,14 +1,17 @@
 import type { DocNode } from "@yourdocs/renderer";
 import { useId, useRef, useState } from "react";
 import { Canvas } from "./Canvas";
-import { useDeleteEntry, useLibrary, useSaveSnippet, useSaveVariable } from "./queries";
+import { useDeleteEntry, useLibrary, useSaveSnippet, useSaveTerm, useSaveVariable } from "./queries";
 
 /** Reusable content: variables written inline and snippets included as blocks, edited once and used on many pages. */
 export function LibrarySettings() {
   const library = useLibrary();
   const saveVariable = useSaveVariable();
   const saveSnippet = useSaveSnippet();
+  const saveTerm = useSaveTerm();
   const remove = useDeleteEntry();
+  const [term, setTerm] = useState("");
+  const [definition, setDefinition] = useState("");
   const id = useId();
   const [name, setName] = useState("");
   const [value, setValue] = useState("");
@@ -22,6 +25,10 @@ export function LibrarySettings() {
     setName("");
     setValue("");
   };
+  const clearTermForm = () => {
+    setTerm("");
+    setDefinition("");
+  };
   const toggle = (entry: string) => {
     draft.current = null;
     setEditing(editing === entry ? null : entry);
@@ -31,7 +38,7 @@ export function LibrarySettings() {
   };
 
   const entries = library.data ?? [];
-  const error = saveVariable.error ?? saveSnippet.error ?? remove.error;
+  const error = saveVariable.error ?? saveSnippet.error ?? saveTerm.error ?? remove.error;
 
   return (
     <div className="settings-form wide">
@@ -197,6 +204,92 @@ export function LibrarySettings() {
         />
         <button type="submit" disabled={!snippetName || saveSnippet.isPending}>
           Add snippet
+        </button>
+      </form>
+
+      <h2>Glossary terms</h2>
+      <p className="muted">
+        Mark words in a page as a term to show this definition on hover and link them to the Glossary page, which lists
+        every term.
+      </p>
+      <table className="changes" aria-label="Glossary terms">
+        <thead>
+          <tr>
+            <th scope="col">Term</th>
+            <th scope="col">Definition</th>
+            <th scope="col">Used in</th>
+            <th scope="col">
+              <span className="sr-only">Actions</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {entries.filter((e) => e.kind === "term").length === 0 && (
+            <tr>
+              <td colSpan={4} className="muted">
+                No terms yet.
+              </td>
+            </tr>
+          )}
+          {entries
+            .filter((e) => e.kind === "term")
+            .map((e) => (
+              <tr key={e.id}>
+                <td>
+                  <strong>{e.key}</strong>
+                </td>
+                <td>
+                  <input
+                    aria-label={`Definition of ${e.key}`}
+                    defaultValue={e.text_value ?? ""}
+                    onBlur={(ev) =>
+                      ev.target.value !== (e.text_value ?? "") &&
+                      saveTerm.mutate({ term: e.key, definition: ev.target.value })
+                    }
+                  />
+                </td>
+                <td>
+                  {e.used_in.length === 0 ? (
+                    <span className="muted">no pages</span>
+                  ) : (
+                    `${e.used_in.length} ${e.used_in.length === 1 ? "page" : "pages"}`
+                  )}
+                </td>
+                <td>
+                  <button
+                    type="button"
+                    className="icon"
+                    aria-label={`Delete term ${e.key}`}
+                    onClick={() => remove.mutate(e.id)}
+                  >
+                    ×
+                  </button>
+                </td>
+              </tr>
+            ))}
+        </tbody>
+      </table>
+      <form
+        className="row-inline"
+        onSubmit={(ev) => {
+          ev.preventDefault();
+          saveTerm.mutate({ term, definition }, { onSuccess: clearTermForm });
+        }}
+      >
+        <input
+          aria-label="New term"
+          placeholder="Blue-green deploy"
+          value={term}
+          onChange={(e) => setTerm(e.target.value)}
+        />
+        <input
+          aria-label="New term definition"
+          placeholder="Switching all traffic to a new release at once"
+          value={definition}
+          onChange={(e) => setDefinition(e.target.value)}
+        />
+        <button type="submit" disabled={!term || !definition || saveTerm.isPending}>
+          Add term
         </button>
       </form>
 
