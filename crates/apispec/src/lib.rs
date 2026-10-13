@@ -4,11 +4,13 @@
 
 mod bundle;
 mod error;
+mod merge;
 mod pointer;
 mod validate;
 
 pub use bundle::{Fetch, bundle};
 pub use error::ApiSpecError;
+pub use merge::{MergeInput, MergeOptions, Merged, Operation, merge};
 pub use validate::validate;
 
 use serde_json::Value;

@@ -9,6 +9,9 @@ pub enum ApiSpecError {
   /// The document is not an OpenAPI 3.0 or 3.1 document, or a reference does not lead anywhere.
   #[error("{0}")]
   Invalid(String),
+  /// Two sources define the same thing differently.
+  #[error("{0}")]
+  Conflict(String),
   /// A spec that points to too many files, or too deep.
   #[error("{0}")]
   Limit(String),
