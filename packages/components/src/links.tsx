@@ -40,7 +40,7 @@ function PageCard({ id }: { id: string | undefined }) {
       <span className="link-card-title">
         {info.title}
         <Arrow />
-      </span>
+      </span>{" "}
       {info.description && <span className="link-card-description">{info.description}</span>}
     </a>
   );

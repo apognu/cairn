@@ -71,8 +71,12 @@ test("promoting a page with children limits the published sidebar to that branch
   await publishAll(page);
 
   const html = (path: string) => readFileSync(`.e2e-data/site/${path}/index.html`, "utf8");
-  const sidebar = (text: string) =>
-    text.slice(text.indexOf('class="site-nav"'), text.indexOf("</nav>", text.indexOf('class="site-nav"')));
+  // The page list: on narrow screens the sidebar also repeats the header sections above it, in a list of their own.
+  const sidebar = (text: string) => {
+    const nav = text.slice(text.indexOf('class="site-nav"'), text.indexOf("</nav>", text.indexOf('class="site-nav"')));
+    const sections = nav.indexOf('class="site-nav-sections"');
+    return sections === -1 ? nav : nav.slice(nav.indexOf("</ul>", sections));
+  };
 
   const inside = html(`${slug(section)}/${slug(child)}`);
   expect(sidebar(inside)).toContain(`/${slug(section)}/${slug(child)}/`);

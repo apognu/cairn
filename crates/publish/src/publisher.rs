@@ -656,10 +656,15 @@ mod tests {
     f.publisher.publish(user).await.unwrap();
 
     let read = |path: &str| std::fs::read_to_string(f.dir.join("out/site").join(path)).unwrap();
+    // The page list only: on narrow screens the sidebar also repeats the header sections above it.
     let sidebar = |html: &str| {
       let start = html.find("class=\"site-nav\"").unwrap();
       let end = html[start..].find("</nav>").unwrap();
-      html[start..start + end].to_string()
+      let nav = &html[start..start + end];
+      match nav.find("class=\"site-nav-sections\"") {
+        Some(sections) => nav[sections + nav[sections..].find("</ul>").unwrap()..].to_string(),
+        None => nav.to_string(),
+      }
     };
 
     // Inside the section: its pages only. Elsewhere: the rest. Both pages see the header entry.

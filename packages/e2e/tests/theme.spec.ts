@@ -83,7 +83,7 @@ test("pages are prefetched on hover and fade between each other", async ({ page,
   let href = "";
   await expect(async () => {
     await reader.goto(`${SITE}/${slug}/`);
-    const other = reader.locator(`.site-nav a:not([href="/${slug}/"])`).first();
+    const other = reader.locator(`.site-nav > ul:not(.site-nav-sections) a:not([href="/${slug}/"])`).first();
     href = (await other.getAttribute("href")) ?? "";
     await other.hover();
     await expect(reader.locator(`link[rel="prefetch"][href$="${href}"]`)).toHaveCount(1, { timeout: 2000 });

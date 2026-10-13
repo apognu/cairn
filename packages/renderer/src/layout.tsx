@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useRef } from "react";
+import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 import type { Heading } from "./headings";
 import { ThemeToggle } from "./ThemeToggle";
 import type { NavNode, RenderContext } from "./types";
@@ -110,11 +110,47 @@ export function SiteLayout({
   children: ReactNode;
 }) {
   const toc = headings.filter((h) => h.level >= 2 && h.level <= 3);
+  // On narrow screens the navigation is a panel opened from the header; wide screens always show it.
+  const [navOpen, setNavOpen] = useState(false);
+  const navId = useId();
+
+  useEffect(() => {
+    if (!navOpen) return;
+
+    const onKey = (event: KeyboardEvent) => event.key === "Escape" && setNavOpen(false);
+    document.addEventListener("keydown", onKey);
+    document.documentElement.style.overflow = "hidden";
+
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.documentElement.style.overflow = "";
+    };
+  }, [navOpen]);
 
   return (
-    <div className="site" data-embedded={embedded || undefined}>
+    <div className="site" data-embedded={embedded || undefined} data-nav-open={navOpen || undefined}>
       {!embedded && (
         <header className="site-header">
+          <button
+            type="button"
+            className="nav-toggle"
+            aria-label="Menu"
+            aria-expanded={navOpen}
+            aria-controls={navId}
+            onClick={() => setNavOpen(!navOpen)}
+          >
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              aria-hidden="true"
+            >
+              <path d={navOpen ? "M6 6l12 12M18 6L6 18" : "M4 7h16M4 12h16M4 17h16"} strokeLinecap="round" />
+            </svg>
+          </button>
           <a href="/" className="site-name">
             {context.site.logo && (
               <img
@@ -142,7 +178,18 @@ export function SiteLayout({
       )}
       <div className="site-body">
         {!embedded && (
-          <nav className="site-nav" aria-label="Pages">
+          <nav className="site-nav" id={navId} aria-label="Pages">
+            {context.header.length > 0 && (
+              <ul className="site-nav-sections">
+                {context.header.map((item) => (
+                  <li key={item.id}>
+                    <a href={item.href} aria-current={item.id === context.section ? "page" : undefined}>
+                      {item.title}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            )}
             <NavList nodes={context.nav} currentId={context.page.id} />
           </nav>
         )}

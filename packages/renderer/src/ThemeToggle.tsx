@@ -21,7 +21,7 @@ export function ThemeToggle() {
       }}
     >
       <span aria-hidden="true">{glyphs[choice]}</span>
-      {` ${labels[choice]}`}
+      <span className="theme-label">{` ${labels[choice]}`}</span>
     </button>
   );
 }

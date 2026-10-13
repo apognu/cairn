@@ -30,8 +30,14 @@ export function FeatureCard({ feature: f }: { feature: Feature }) {
       <span className="feature-text">
         <span className="feature-title">
           {f.title}
-          {isNew && <span className="feature-new">New</span>}
+          {isNew && (
+            <>
+              {"\u00a0"}
+              <span className="feature-new">New</span>
+            </>
+          )}
         </span>
+        {/* Not drawn between flex items, but keeps the title and description apart in search excerpts. */}{" "}
         {f.description && <span className="feature-description">{f.description}</span>}
       </span>
     </>
