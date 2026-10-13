@@ -27,6 +27,8 @@ export function Canvas({ doc, context, editable = true, embedded = false, onChan
     extensions: buildExtensions(editable),
     content: doc,
     editable,
+    // Opening a page to edit puts the cursor at the end of it, ready to type.
+    autofocus: editable ? "end" : false,
     onUpdate: ({ editor: e }) => onChange?.(e.getJSON() as DocNode),
     onBlur: () => onBlur?.(),
     editorProps: {

@@ -56,7 +56,15 @@ export function TitleForm({
       }}
       onKeyDown={(e) => e.key === "Escape" && onCancel()}
     >
-      <input aria-label={label} value={value} onChange={(e) => setValue(e.target.value)} />
+      <input
+        aria-label={label}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        // Opening the form is the whole point of the click: type right away, with an existing name selected to replace.
+        // biome-ignore lint/a11y/noAutofocus: the form appears in response to the user's action
+        autoFocus
+        onFocus={(e) => e.currentTarget.select()}
+      />
       {isLink && (
         <input
           aria-label="Link URL"
@@ -69,7 +77,7 @@ export function TitleForm({
       {askRedirect && (
         <label className="keep-url">
           <input type="checkbox" checked={keep} onChange={(e) => setKeep(e.target.checked)} />
-          Keep the old URL as a redirect
+          Keep old URL as redirect
         </label>
       )}
       {/* A form with two text fields only submits on Enter when it has a submit button. */}

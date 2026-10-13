@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { DeleteDialog } from "./DeleteDialog";
 import { Icon } from "./icons";
 import { useCreatePage, useDeletePage, useMovePage, usePending, useRenamePage } from "./queries";
@@ -50,9 +50,36 @@ export function Sidebar({ pages, loading, selected, onSelect }: Props) {
       (e: unknown) => setError(e instanceof Error ? e.message : String(e)),
     );
 
+  // An open row menu closes on a click anywhere else, on Escape, and when focus leaves it.
+  useEffect(() => {
+    const close = (except?: Element | null) => {
+      for (const menu of document.querySelectorAll<HTMLDetailsElement>("details.menu[open]")) {
+        if (menu !== except) menu.removeAttribute("open");
+      }
+    };
+    const onPointer = (e: PointerEvent) => close((e.target as Element | null)?.closest("details.menu"));
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && close();
+
+    document.addEventListener("pointerdown", onPointer);
+    document.addEventListener("keydown", onKey);
+
+    return () => {
+      document.removeEventListener("pointerdown", onPointer);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, []);
+
   const submit = (title: string, url?: string, keepOldUrl?: boolean) => {
     if (editing?.kind === "create") {
-      return run(create.mutateAsync({ parent_id: editing.parent, title }), () => setEditing(null));
+      // A page made on purpose is a page to write: open it.
+      return create.mutateAsync({ parent_id: editing.parent, title }).then(
+        (page) => {
+          setError(null);
+          setEditing(null);
+          onSelect(page.id);
+        },
+        (e: unknown) => setError(e instanceof Error ? e.message : String(e)),
+      );
     }
     if (editing?.kind === "create-link" && url) {
       return run(create.mutateAsync({ parent_id: editing.parent, title, external_url: url }), () => setEditing(null));

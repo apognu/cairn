@@ -1332,3 +1332,22 @@ button.primary:disabled {
   padding: 0;
   list-style: none;
 }
+
+.keep-url {
+  font-size: 12px;
+}
+
+.title-form input[type="checkbox"] {
+  width: auto;
+  height: auto;
+}
+
+.title-form input:not([type="checkbox"]) {
+  height: 26px;
+  font-size: 13px;
+}
+
+/* A row being renamed shows its form, not its buttons. */
+.row:has(.title-form) .actions {
+  display: none;
+}
