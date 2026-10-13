@@ -85,12 +85,34 @@ async fn show_release(state: &AppState, headers: &HeaderMap, original: &Uri, rel
     (Ok(uri), _) => uri,
     _ => return StatusCode::NOT_FOUND.into_response(),
   };
-  let mut response = site::respond(&dir, &uri, &format!("/_preview/{id}"), false).await;
+  let prefix = format!("/_preview/{id}");
+  let mut response = stay_inside(site::respond(&dir, &uri, &prefix, false).await, &prefix).await;
   // A preview is not for search engines, nor for shared caches.
   response.headers_mut().insert(header::CACHE_CONTROL, header::HeaderValue::from_static("private, no-store"));
   response.headers_mut().insert("x-robots-tag", header::HeaderValue::from_static("noindex"));
 
   response
+}
+
+/// The pages link to their stylesheet, script, images and each other with root-relative paths, which in a preview would lead to the
+/// live site (and to nothing before the first publish). In HTML they are moved under the preview's prefix.
+async fn stay_inside(response: Response, prefix: &str) -> Response {
+  let is_html = response.headers().get(header::CONTENT_TYPE).and_then(|v| v.to_str().ok()).is_some_and(|v| v.starts_with("text/html"));
+  if !is_html {
+    return response;
+  }
+
+  let (mut parts, body) = response.into_parts();
+  let Ok(bytes) = axum::body::to_bytes(body, 64 * 1024 * 1024).await else {
+    return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+  };
+  let html = String::from_utf8_lossy(&bytes)
+    .replace("=\"/", &format!("=\"{prefix}/"))
+    .replace(&format!("=\"{prefix}//"), "=\"//")
+    .replace(", /", &format!(", {prefix}/"));
+  parts.headers.remove(header::CONTENT_LENGTH);
+
+  Response::from_parts(parts, axum::body::Body::from(html))
 }
 
 #[cfg(test)]
@@ -132,6 +154,8 @@ mod tests {
     std::fs::create_dir_all(release.join("guide")).unwrap();
     std::fs::write(release.join("guide/index.html"), "the guide").unwrap();
     std::fs::write(release.join("404.html"), "nothing here").unwrap();
+    std::fs::create_dir_all(release.join("linked")).unwrap();
+    std::fs::write(release.join("linked/index.html"), "<link href=\"/assets/a.css\"><a href=\"//other.example/\">").unwrap();
     std::os::unix::fs::symlink(std::path::Path::new("releases").join(RELEASE), dir.join("out/site")).unwrap();
 
     let user = yourdocs_store::upsert_user(&state.db, "https://idp.example", "alice", "alice@example.com", "Alice").await.unwrap();
@@ -164,6 +188,12 @@ mod tests {
       ("/_preview/not-a-release/guide/", true, StatusCode::NOT_FOUND, ""),
       ("/_preview/a%0d%0aSet-Cookie:x=y", true, StatusCode::NOT_FOUND, ""),
       ("/_preview/00000000-0000-0000-0000-000000000000/guide/", true, StatusCode::NOT_FOUND, ""),
+      (
+        &format!("/_preview/{RELEASE}/linked/"),
+        true,
+        StatusCode::OK,
+        "<link href=\"/_preview/01a135ec-ebd6-70b5-ab47-242eef382f96/assets/a.css\"><a href=\"//other.example/\">",
+      ),
       ("/api/pages", false, StatusCode::NOT_FOUND, "nothing here"),
       ("/_editor/api/pages", false, StatusCode::UNAUTHORIZED, ""),
       ("/_editor/api/pages", true, StatusCode::OK, ""),
