@@ -17,6 +17,11 @@ export function usePending() {
   return useQuery({ queryKey: PENDING, queryFn: async () => unwrap(await api.GET("/api/publish/changes")) });
 }
 
+/** How many things a publish would change: the pages, and the site settings as one more. */
+export function pendingCount(pending: components["schemas"]["Pending"] | undefined): number {
+  return pending ? pending.changes.length + (pending.settings ? 1 : 0) : 0;
+}
+
 function usePageMutation<V, R>(run: (vars: V) => Promise<R>) {
   const client = useQueryClient();
   return useMutation({
@@ -121,7 +126,10 @@ export function useSaveSettings() {
       unwrap(await api.PUT("/api/settings", { body: settings })),
     onSuccess: (saved) => {
       client.setQueryData(["settings"], saved);
-      return client.invalidateQueries({ queryKey: ["theme-css"] });
+      return Promise.all([
+        client.invalidateQueries({ queryKey: ["theme-css"] }),
+        client.invalidateQueries({ queryKey: PENDING }),
+      ]);
     },
   });
 }
@@ -327,7 +335,10 @@ export function useSaveApiConfig(id: string) {
   return useMutation({
     mutationFn: async (config: ApiConfig) =>
       unwrap(await api.PUT("/api/pages/{id}/api-config", { params: { path: { id } }, body: config })),
-    onSuccess: (saved) => client.setQueryData(["api-config", id], saved),
+    onSuccess: (saved) => {
+      client.setQueryData(["api-config", id], saved);
+      return client.invalidateQueries({ queryKey: PENDING });
+    },
   });
 }
 

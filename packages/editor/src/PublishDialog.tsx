@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef } from "react";
 import type { components } from "./api/schema";
 import { Icon } from "./icons";
-import { useChecks, usePending, usePublish } from "./queries";
+import { pendingCount, useChecks, usePending, usePublish } from "./queries";
 
 type Change = components["schemas"]["Change"];
 
@@ -26,6 +26,8 @@ export function PublishDialog({ onClose, onPublished }: { onClose: () => void; o
   useEffect(() => dialog.current?.showModal(), []);
 
   const changes = pending.data?.changes ?? [];
+  const settingsChanged = pending.data?.settings ?? false;
+  const count = pendingCount(pending.data);
   const lost = pending.data?.lost_urls ?? [];
   const broken = pending.data?.broken_links ?? [];
   const lostPaths = new Set(lost.map((l) => l.path));
@@ -34,7 +36,7 @@ export function PublishDialog({ onClose, onPublished }: { onClose: () => void; o
     <dialog ref={dialog} className="settings publish" aria-labelledby={`${id}-title`} onClose={onClose}>
       <h2 id={`${id}-title`}>Publish changes</h2>
       <p className="muted">
-        {changes.length === 0 ? "Nothing has changed since the live site." : "Compared with the live site."}
+        {count === 0 ? "Nothing has changed since the live site." : "Compared with the live site."}
       </p>
 
       {problems.length > 0 && (
@@ -87,7 +89,7 @@ export function PublishDialog({ onClose, onPublished }: { onClose: () => void; o
         </div>
       )}
 
-      {changes.length > 0 && (
+      {count > 0 && (
         <table className="changes">
           <thead>
             <tr>
@@ -96,6 +98,19 @@ export function PublishDialog({ onClose, onPublished }: { onClose: () => void; o
             </tr>
           </thead>
           <tbody>
+            {settingsChanged && (
+              <tr>
+                <td>
+                  <span className="badge" data-kind="edited">
+                    {badge.edited}
+                  </span>
+                </td>
+                <td>
+                  <strong>Site and theme</strong>
+                  <div className="url-note">every page is rendered again</div>
+                </td>
+              </tr>
+            )}
             {changes.map((c) => (
               <tr key={c.page_id}>
                 <td>
@@ -142,9 +157,9 @@ export function PublishDialog({ onClose, onPublished }: { onClose: () => void; o
         >
           {publish.isPending
             ? "Publishing…"
-            : changes.length === 0
+            : count === 0
               ? "Publish site"
-              : `Publish ${changes.length} ${changes.length === 1 ? "change" : "changes"}`}
+              : `Publish ${count} ${count === 1 ? "change" : "changes"}`}
         </button>
       </div>
     </dialog>

@@ -8,7 +8,7 @@ import { Icon } from "./icons";
 import { PageEditor } from "./PageEditor";
 import { PageSettings } from "./PageSettings";
 import { PublishDialog } from "./PublishDialog";
-import { usePages, usePending, useSettings, useSiteInfo } from "./queries";
+import { pendingCount, usePages, usePending, useSettings, useSiteInfo } from "./queries";
 import { type SettingsSection, SettingsView, sectionTitle } from "./SettingsView";
 import { Sidebar } from "./Sidebar";
 import { firstPage, type Page, pageUrls } from "./tree";
@@ -155,7 +155,7 @@ function Editor() {
               setShowPublish(true);
             }}
           >
-            {pending.data && pending.data.changes.length > 0 ? `Publish · ${pending.data.changes.length}` : "Publish"}
+            {pendingCount(pending.data) > 0 ? `Publish · ${pendingCount(pending.data)}` : "Publish"}
           </button>
         </div>
       </header>

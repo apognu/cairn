@@ -1,4 +1,5 @@
 import { LibrarySettings } from "./LibrarySettings";
+import { usePending } from "./queries";
 import { RedirectsSettings } from "./RedirectsSettings";
 import { SiteSettings } from "./SiteSettings";
 import { TrashSettings } from "./TrashSettings";
@@ -22,6 +23,8 @@ export function SettingsView({
   onSection: (section: SettingsSection) => void;
   onClose: () => void;
 }) {
+  const pending = usePending();
+
   return (
     <>
       <nav className="sidebar settings-nav" aria-label="Settings">
@@ -40,6 +43,9 @@ export function SettingsView({
                 >
                   {sectionTitle[key]}
                 </button>
+                {key === "site" && pending.data?.settings && (
+                  <span className="dot" role="img" aria-label="Unpublished changes" />
+                )}
               </div>
             </li>
           ))}
