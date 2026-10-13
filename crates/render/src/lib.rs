@@ -14,6 +14,7 @@ pub use shell::{Shell, document};
 
 #[derive(Debug, thiserror::Error)]
 pub enum RenderError {
+  /// The document or its input cannot be rendered: the author can fix it. Infrastructure failures are `Other`.
   #[error("render failed: {0}")]
   Invalid(String),
   #[error("render queue is full")]

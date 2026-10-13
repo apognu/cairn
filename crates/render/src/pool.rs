@@ -56,7 +56,7 @@ impl Pool {
   pub async fn validate(&self, doc: &serde_json::Value) -> Result<Vec<String>, RenderError> {
     let answer = self.render(serde_json::json!({ "validate": true, "doc": doc })).await?;
 
-    serde_json::from_str(&answer).map_err(|e| RenderError::Invalid(format!("the validation answer is not a list: {e}")))
+    serde_json::from_str(&answer).map_err(|e| RenderError::Other(anyhow::anyhow!("the validation answer is not a list: {e}")))
   }
 
   /// Renders `{ "doc": …, "context": … }` (the shape `ssr.js` expects) to the page HTML.
@@ -65,13 +65,13 @@ impl Pool {
 
     self.queue.try_send(Job { doc, reply }).map_err(|e| match e {
       TrySendError::Full(_) => RenderError::Busy,
-      TrySendError::Disconnected(_) => RenderError::Invalid("render pool is shut down".into()),
+      TrySendError::Disconnected(_) => RenderError::Other(anyhow::anyhow!("render pool is shut down")),
     })?;
 
     // The worker stops a render that runs past the timeout and answers with `Timeout`; this wait is only a safety net behind it.
     match tokio::time::timeout(self.timeout + GRACE, response).await {
       Ok(Ok(result)) => result,
-      Ok(Err(_)) => Err(RenderError::Invalid("render worker stopped".into())),
+      Ok(Err(_)) => Err(RenderError::Other(anyhow::anyhow!("render worker stopped"))),
       Err(_) => Err(RenderError::Timeout),
     }
   }

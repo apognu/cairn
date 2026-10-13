@@ -21,7 +21,7 @@ pub(crate) fn run(script: &str, ready: impl FnOnce(Result<v8::IsolateHandle, Ren
   let scope = &mut v8::ContextScope::new(scope, context);
 
   let Some(render) = load(scope, script) else {
-    ready(Err(RenderError::Invalid("the render bundle did not load or has no SSR.render function".into())));
+    ready(Err(RenderError::Other(anyhow::anyhow!("the render bundle did not load or has no SSR.render function"))));
     return;
   };
   ready(Ok(handle.clone()));
