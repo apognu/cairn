@@ -168,9 +168,31 @@ pub async fn run_serve() -> anyhow::Result<()> {
   tracing::info!(address = %config.bind, public_url = %config.public_url, "listening");
   // Forwarded headers are believed only from the configured proxies, which needs to know who is connecting.
   let app = serving::serve_router(state).layer(axum::middleware::from_fn_with_state(config.trusted_proxies.clone(), proxy::forwarded));
-  axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>()).await.context("server stopped")?;
+  axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>())
+    .with_graceful_shutdown(shutdown_signal())
+    .await
+    .context("server stopped")?;
 
   Ok(())
+}
+
+/// Resolves when the process is asked to stop (SIGTERM from a container runtime or systemd, or Ctrl-C), so requests in flight finish.
+/// Without it a container, whose server is process 1, ignores SIGTERM and is killed after a timeout.
+async fn shutdown_signal() {
+  let terminate = async {
+    match tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) {
+      Ok(mut signal) => {
+        signal.recv().await;
+      }
+      Err(_) => std::future::pending().await,
+    }
+  };
+
+  tokio::select! {
+    _ = tokio::signal::ctrl_c() => {}
+    _ = terminate => {}
+  }
+  tracing::info!("stopping");
 }
 
 /// GitHub's hosts for API sources. The variables exist for tests and mirrors; a deployment normally sets neither.

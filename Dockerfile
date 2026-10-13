@@ -2,7 +2,7 @@
 #
 # Two images come out of this file:
 #   docker build --target builder -t yourdocs/builder:1 .   the toolchain that bundles custom components
-#   docker build --target runtime -t yourdocs/runtime:1 .   the server (add --build-arg or COPY a /app/bundles from the builder)
+#   docker build --target runtime -t yourdocs/runtime:1 .   the server (COPY a /app/bundles from the builder to add custom components)
 
 # The JavaScript workspace, installed. The base of the builder image.
 FROM oven/bun:1 AS js
@@ -29,16 +29,27 @@ COPY Cargo.toml Cargo.lock .rustfmt.toml ./
 COPY crates ./crates
 COPY --from=web /opt/yourdocs/packages/editor/dist packages/editor/dist
 COPY --from=web /opt/yourdocs/packages/renderer/dist packages/renderer/dist
-RUN cargo build --release -p yourdocs-cli
+# The caches keep the downloaded crates and the compiled dependencies (V8 above all) between builds; the binary is copied out because
+# the cache mount is not part of the image.
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/src/target \
+    cargo build --release -p yourdocs-cli && cp target/release/yourdocs /yourdocs
 
 FROM debian:bookworm-slim AS runtime
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates libstdc++6 && rm -rf /var/lib/apt/lists/*
-COPY --from=server /src/target/release/yourdocs /usr/local/bin/yourdocs
+COPY --from=server /yourdocs /usr/local/bin/yourdocs
 COPY --from=js /opt/pagefind /usr/local/bin/pagefind
 ENV PAGEFIND_BIN=/usr/local/bin/pagefind
 # Bundles made by `yourdocs build-components` go here; without them the binary's own are used.
-RUN mkdir -p /app/bundles /data
+RUN useradd --system --uid 10001 --home-dir /data yourdocs \
+ && mkdir -p /app/bundles /data \
+ && chown yourdocs /data
+USER yourdocs
 WORKDIR /data
-# Until the server mode of M5, the runtime image runs `dev`, which only listens on loopback: reach it with `--network host`.
+# The database, uploads and the published site: the one thing to keep (a named volume starts out owned by the user above).
+VOLUME /data
+ENV DATA_DIR=/data BIND=0.0.0.0:8080
+EXPOSE 8080
+# Plain HTTP on one port; HTTPS comes from a reverse proxy in front (see docs/DEPLOY.md). `yourdocs dev` is for trying things on a laptop.
 ENTRYPOINT ["yourdocs"]
-CMD ["dev", "--data-dir", "/data"]
+CMD ["serve"]
