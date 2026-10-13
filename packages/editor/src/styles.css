@@ -6,9 +6,50 @@
 }
 
 button,
-input {
+input,
+textarea,
+select {
   font: inherit;
   color: inherit;
+}
+
+/* Editor chrome outside the canvas shares one scale: 14px text, 13px help, 12px labels. The canvas keeps the site's 16px. */
+.drawer,
+.settings-main,
+.settings,
+.picker {
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+/* Checkboxes and radios are controls with a label beside them, never text-field sized. */
+input[type="checkbox"],
+input[type="radio"] {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--accent);
+}
+
+.form-field label.form-check,
+.form-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 6px;
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.form-check code {
+  margin-left: auto;
+}
+
+small,
+.form-field small {
+  font-size: 13px;
 }
 
 :focus-visible {
@@ -566,7 +607,7 @@ fieldset.bubble {
   font-weight: 600;
 }
 
-.form-field input,
+.form-field input:not([type="checkbox"]):not([type="radio"]),
 .form-field select {
   height: 34px;
   padding: 0 10px;
@@ -801,7 +842,7 @@ button.primary:disabled {
   min-width: 0;
 }
 
-.form-field input,
+.form-field input:not([type="checkbox"]):not([type="radio"]),
 .form-field select {
   width: 100%;
 }
@@ -1350,4 +1391,25 @@ button.primary:disabled {
 /* A row being renamed shows its form, not its buttons. */
 .row:has(.title-form) .actions {
   display: none;
+}
+
+/* Section headings in the drawer: the same size and weight whether a legend or a heading. */
+.drawer legend,
+.drawer h3 {
+  padding: 0;
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.drawer h3 small {
+  font-weight: 400;
+}
+
+.drawer .form-field {
+  margin-bottom: 18px;
+}
+
+.drawer > p.muted {
+  font-size: 13px;
 }
