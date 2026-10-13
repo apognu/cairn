@@ -102,6 +102,11 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
     &self.target
   }
 
+  /// The public address of the site, without a trailing slash.
+  pub fn site_url(&self) -> &str {
+    &self.config.site_url
+  }
+
   /// Publishes every page's latest saved draft as a new release and makes it live.
   pub async fn publish(&self, user: UserId) -> Result<Release, PublishError> {
     let _turn = self.running.lock().await;
@@ -227,7 +232,7 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
             "doc": source.doc,
             "context": {
               "site": { "name": site_name, "logo": logo },
-              "page": { "id": source.page.id, "title": source.page.title },
+              "page": { "id": source.page.id, "title": source.page.title, "description": source.page.description },
               "nav": nav,
               "breadcrumbs": breadcrumbs(tree_pages, &urls, source.page.id),
               "previous": previous,

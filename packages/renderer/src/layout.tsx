@@ -96,23 +96,54 @@ function SearchBox() {
   return <div className="site-search" ref={container} />;
 }
 
+/** The section being read: the last heading scrolled past the top of the window, or the first one. */
+function useActiveHeading(anchors: string[]): string | undefined {
+  const [active, setActive] = useState<string | undefined>(undefined);
+  const key = anchors.join(" ");
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `key` stands for the list of anchors
+  useEffect(() => {
+    if (anchors.length === 0) return;
+
+    const update = () => {
+      let current = anchors[0];
+      for (const anchor of anchors) {
+        const top = document.getElementById(anchor)?.getBoundingClientRect().top;
+        if (top !== undefined && top <= 140) current = anchor;
+      }
+      setActive(current);
+    };
+    update();
+    window.addEventListener("scroll", update, { passive: true });
+
+    return () => window.removeEventListener("scroll", update);
+  }, [key]);
+
+  return active;
+}
+
 /** The site chrome around a page body: header, navigation, title and table of contents. */
 export function SiteLayout({
   context,
   headings,
   embedded = false,
+  lead,
   children,
 }: {
   context: RenderContext;
   headings: Heading[];
   /** Leaves out the site header and navigation, for the editor, which has its own. */
   embedded?: boolean;
+  /** Replaces the lead drawn from the page's description: the editor puts a field there to write it in place. */
+  lead?: ReactNode;
   children: ReactNode;
 }) {
   const toc = headings.filter((h) => h.level >= 2 && h.level <= 3);
   // On narrow screens the navigation is a panel opened from the header; wide screens always show it.
   const [navOpen, setNavOpen] = useState(false);
   const navId = useId();
+  const active = useActiveHeading(embedded ? [] : toc.map((h) => h.anchor));
+  const [tocOpen, setTocOpen] = useState(false);
 
   useEffect(() => {
     if (!navOpen) return;
@@ -176,6 +207,28 @@ export function SiteLayout({
           <ThemeToggle />
         </header>
       )}
+      {!embedded && toc.length > 0 && (
+        // Narrow screens have no column for the table of contents: it folds into a bar under the header.
+        <details className="toc-bar" open={tocOpen} onToggle={(e) => setTocOpen(e.currentTarget.open)}>
+          <summary>
+            <span className="muted">On this page:</span>
+            <strong>{toc.find((h) => h.anchor === active)?.text ?? toc[0].text}</strong>
+          </summary>
+          <ul>
+            {toc.map((h) => (
+              <li key={h.anchor} data-level={h.level}>
+                <a
+                  href={`#${h.anchor}`}
+                  aria-current={h.anchor === active ? "location" : undefined}
+                  onClick={() => setTocOpen(false)}
+                >
+                  {h.text}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
       <div className="site-body">
         {!embedded && (
           <nav className="site-nav" id={navId} aria-label="Pages">
@@ -206,6 +259,7 @@ export function SiteLayout({
             </nav>
           )}
           {context.page.title ? <h1 className="doc-title">{context.page.title}</h1> : null}
+          {lead ?? (context.page.description ? <p className="doc-lead">{context.page.description}</p> : null)}
           {!embedded && (context.updated || context.markdown) && (
             <div className="doc-meta" data-pagefind-ignore="">
               {context.updated && <span>Last updated {longDate(context.updated)}</span>}
@@ -239,7 +293,9 @@ export function SiteLayout({
             <ul>
               {toc.map((h) => (
                 <li key={h.anchor} data-level={h.level}>
-                  <a href={`#${h.anchor}`}>{h.text}</a>
+                  <a href={`#${h.anchor}`} aria-current={h.anchor === active ? "location" : undefined}>
+                    {h.text}
+                  </a>
                 </li>
               ))}
             </ul>
