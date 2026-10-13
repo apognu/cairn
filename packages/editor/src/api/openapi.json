@@ -702,6 +702,43 @@
         }
       }
     },
+    "/api/pages/{id}/api-spec": {
+      "get": {
+        "summary": "The merged spec of the page's last successful check, or, before any, of the live release: what the settings screen previews.",
+        "operationId": "getApiSpec",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/PageId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "nothing was merged yet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/pages/{id}/backlinks": {
       "get": {
         "summary": "The pages that link to this one.",
@@ -1441,6 +1478,23 @@
         }
       }
     },
+    "/api/scalar.js": {
+      "get": {
+        "summary": "The API reference script (Scalar), for the settings screen's preview.",
+        "operationId": "getScalarScript",
+        "responses": {
+          "200": {
+            "content": {
+              "text/javascript": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/settings": {
       "get": {
         "summary": "The site name, logo and accent color.",
@@ -1693,6 +1747,7 @@
           "display": {
             "$ref": "#/components/schemas/ApiDisplay",
             "default": {
+              "beta": false,
               "hide_models": false,
               "request_client": true,
               "servers": []
@@ -1719,6 +1774,11 @@
       "ApiDisplay": {
         "type": "object",
         "properties": {
+          "beta": {
+            "type": "boolean",
+            "description": "Shows a \"Beta\" pill after the page's name in the site's sidebar.",
+            "default": false
+          },
           "hide_models": {
             "type": "boolean",
             "default": false

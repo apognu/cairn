@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use serde_json::{Value, json};
 use yourdocs_core::{AssetId, Document, Page, PageId, header_pages, in_sidebar, sidebar_root};
@@ -10,8 +10,8 @@ pub(crate) fn output_path(url: &str) -> String {
 
 /// The sidebar for `current` (`None` for pages outside the tree, like the 404 page), in the order of `pages` (which is by position).
 /// A page inside a promoted section sees only that section; other pages see the rest of the site. Links point outside the site.
-pub(crate) fn nav_tree(pages: &[Page], urls: &HashMap<PageId, String>, current: Option<PageId>) -> Vec<Value> {
-  fn children(pages: &[Page], urls: &HashMap<PageId, String>, root: Option<PageId>, parent: Option<PageId>) -> Vec<Value> {
+pub(crate) fn nav_tree(pages: &[Page], urls: &HashMap<PageId, String>, betas: &HashSet<PageId>, current: Option<PageId>) -> Vec<Value> {
+  fn children(pages: &[Page], urls: &HashMap<PageId, String>, betas: &HashSet<PageId>, root: Option<PageId>, parent: Option<PageId>) -> Vec<Value> {
     pages
       .iter()
       .filter(|p| p.parent_id == parent && in_sidebar(pages, root, p))
@@ -21,13 +21,21 @@ pub(crate) fn nav_tree(pages: &[Page], urls: &HashMap<PageId, String>, current: 
           None => (urls.get(&p.id)?.as_str(), false),
         };
 
-        Some(json!({ "id": p.id, "title": p.title, "href": href, "external": external, "children": children(pages, urls, root, Some(p.id)) }))
+        let nodes = children(pages, urls, betas, root, Some(p.id));
+
+        let mut node = json!({ "id": p.id, "title": p.title, "href": href, "external": external, "children": nodes });
+        // A pill after the title, for API references marked as beta.
+        if betas.contains(&p.id) {
+          node["badge"] = json!("Beta");
+        }
+
+        Some(node)
       })
       .collect()
   }
 
   let root = sidebar_root(pages, current);
-  children(pages, urls, root, root)
+  children(pages, urls, betas, root, root)
 }
 
 /// The pages above `page`, outermost first, as `{ title, href }` for the breadcrumb trail. An ancestor without a URL is skipped.
@@ -131,7 +139,7 @@ mod tests {
     assert_eq!(urls[&install.id], "/guide/install/");
     assert_eq!(output_path("/guide/install/"), "guide/install/index.html");
 
-    let nav = nav_tree(&pages, &urls, Some(install.id));
+    let nav = nav_tree(&pages, &urls, &HashSet::new(), Some(install.id));
     assert_eq!(nav[0]["children"][0]["href"], "/guide/install/");
   }
 
@@ -147,7 +155,7 @@ mod tests {
     let urls = page_urls(&pages);
 
     assert!(!urls.contains_key(&link.id));
-    let nav = nav_tree(&pages, &urls, None);
+    let nav = nav_tree(&pages, &urls, &HashSet::new(), None);
     assert_eq!(nav[0]["children"][0]["href"], "https://status.example.com");
     assert_eq!(nav[0]["children"][0]["external"], true);
   }
@@ -166,7 +174,7 @@ mod tests {
     assert_eq!(trail[1]["href"], "/guide/install/");
 
     // Order is the tree's, depth first: guide, install, linux, faq.
-    let nav = nav_tree(&pages, &urls, Some(linux.id));
+    let nav = nav_tree(&pages, &urls, &HashSet::new(), Some(linux.id));
     let (previous, next) = previous_next(&nav, linux.id);
     assert_eq!((previous.unwrap()["title"].as_str(), next.unwrap()["title"].as_str()), (Some("install"), Some("faq")));
     assert_eq!(previous_next(&nav, guide.id).0, None);

@@ -1,4 +1,5 @@
 import { RenderEnvContext } from "@yourdocs/components";
+import { ApiReference } from "./ApiReference";
 import { collectHeadings } from "./headings";
 import { SiteLayout } from "./layout";
 import { migrateDoc } from "./migrate";
@@ -15,8 +16,12 @@ export function Page({ doc: saved, context }: RenderInput) {
     <RenderEnvContext.Provider
       value={{ urls: full.urls, pages: full.pages, variables: {}, snippets: {}, editing: false, today: full.today }}
     >
-      <SiteLayout context={full} headings={list}>
-        {renderNode(doc, { urls: full.urls, terms: full.terms, assets: full.assets, anchors: byNode }, 0)}
+      <SiteLayout context={full} headings={full.api ? [] : list}>
+        {full.api ? (
+          <ApiReference api={full.api} />
+        ) : (
+          renderNode(doc, { urls: full.urls, terms: full.terms, assets: full.assets, anchors: byNode }, 0)
+        )}
       </SiteLayout>
     </RenderEnvContext.Provider>
   );

@@ -1,12 +1,27 @@
-use serde_json::Value;
+use serde_json::{Value, json};
 
 use crate::{ApiSpecError, pointer::resolve};
 
 /// Longest chain of references that only point at one another before it counts as a loop.
 const MAX_CHAIN: usize = 32;
 
-/// Checks that a bundled document is OpenAPI 3.0 or 3.1 with what Scalar and the merge need, and that every reference leads somewhere.
-/// It is not a schema validation: a spec with odd keywords passes, one that cannot be read does not.
+/// Fills in what a spec in the wild often leaves out, so it can still be read: no `openapi` version is taken for 3.0.3, and a missing
+/// title or version gets a placeholder.
+pub fn normalize(doc: &mut Value) {
+  let Some(root) = doc.as_object_mut() else { return };
+
+  if !root.contains_key("openapi") && !root.contains_key("swagger") {
+    root.insert("openapi".into(), "3.0.3".into());
+  }
+  let info = root.entry("info").or_insert_with(|| json!({}));
+  if let Some(info) = info.as_object_mut() {
+    info.entry("title").or_insert_with(|| "API".into());
+    info.entry("version").or_insert_with(|| "0.0.0".into());
+  }
+}
+
+/// Checks that a bundled document can be merged and shown, and that every reference leads somewhere. It is not a schema validation: a
+/// spec with odd keywords passes, one that cannot be read does not.
 pub fn validate(doc: &Value) -> Result<(), ApiSpecError> {
   let invalid = |message: String| Err(ApiSpecError::Invalid(message));
 
@@ -14,19 +29,11 @@ pub fn validate(doc: &Value) -> Result<(), ApiSpecError> {
     return invalid(format!("Swagger {} is not supported: convert the spec to OpenAPI 3", swagger.as_str().unwrap_or("2.0")));
   }
 
-  let Some(version) = doc.get("openapi").and_then(Value::as_str) else {
-    return invalid("the document has no `openapi` version".into());
-  };
-  let v31 = version.starts_with("3.1.");
-  if !v31 && !version.starts_with("3.0.") {
-    return invalid(format!("OpenAPI {version} is not supported: use 3.0.x or 3.1.x"));
+  let version = doc.get("openapi").and_then(Value::as_str).unwrap_or("3.0.3");
+  if !version.starts_with("3.") {
+    return invalid(format!("OpenAPI {version} is not supported: use a 3.x version"));
   }
-
-  for field in ["title", "version"] {
-    if !doc.pointer(&format!("/info/{field}")).is_some_and(Value::is_string) {
-      return invalid(format!("`info.{field}` is missing"));
-    }
-  }
+  let v31 = !version.starts_with("3.0.");
 
   // 3.1 lets a document hold only components or webhooks.
   let has = |key: &str| doc.get(key).is_some_and(Value::is_object);
@@ -41,6 +48,12 @@ pub fn validate(doc: &Value) -> Result<(), ApiSpecError> {
     );
   }
 
+  Ok(())
+}
+
+/// Checks that every `#/…` reference of a (merged) document leads somewhere. A source may use the components of another source, so this
+/// runs on the result of the merge and not on each source.
+pub fn validate_refs(doc: &Value) -> Result<(), ApiSpecError> {
   check_refs(doc, doc)
 }
 

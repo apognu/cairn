@@ -2163,3 +2163,40 @@ button.secondary:disabled {
 .canvas[data-wide] {
   grid-column: 2 / -1;
 }
+
+.api-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 640px) minmax(320px, 1fr);
+  gap: 32px;
+  align-items: start;
+}
+
+.api-preview {
+  position: sticky;
+  top: 0;
+  max-height: calc(100vh - 100px);
+  overflow: auto;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-side);
+}
+
+.api-preview .section-head {
+  margin: 0 0 10px;
+}
+
+.api-preview h2 {
+  margin: 0;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.row-inline button.primary[type="submit"] {
+  height: 32px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--text);
+  color: var(--bg);
+}

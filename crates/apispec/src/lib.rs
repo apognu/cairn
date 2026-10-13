@@ -11,7 +11,7 @@ mod validate;
 pub use bundle::{Fetch, bundle};
 pub use error::ApiSpecError;
 pub use merge::{MergeInput, MergeOptions, Merged, merge};
-pub use validate::validate;
+pub use validate::{normalize, validate, validate_refs};
 
 use serde_json::Value;
 
@@ -27,7 +27,8 @@ pub fn parse(bytes: &[u8]) -> Result<Value, ApiSpecError> {
 
 /// Parses a spec, pulls in everything it references from other files, and checks the result.
 pub async fn load(bytes: &[u8], url: &str, fetch: &impl Fetch) -> Result<Value, ApiSpecError> {
-  let bundled = bundle(parse(bytes)?, url, fetch).await?;
+  let mut bundled = bundle(parse(bytes)?, url, fetch).await?;
+  normalize(&mut bundled);
   validate(&bundled)?;
 
   Ok(bundled)
@@ -169,6 +170,41 @@ components:
   }
 
   #[tokio::test]
+  async fn a_spec_without_version_or_info_is_taken_as_it_is() {
+    let loose = loaded("paths:\n  /a:\n    get: { responses: { '200': { description: ok } } }\n", &[]).await.unwrap();
+
+    assert_eq!(loose.get("openapi"), Some(&json!("3.0.3")));
+    assert_eq!(loose.pointer("/info/title"), Some(&json!("API")));
+    assert_eq!(loose.pointer("/info/version"), Some(&json!("0.0.0")));
+  }
+
+  #[tokio::test]
+  async fn a_source_may_refer_to_components_another_source_defines() {
+    let second = "openapi: 3.0.0\ninfo: { title: B, version: '1' }\npaths:\n  /b:\n    get:\n      responses:\n        '200':\n          description: ok\n          content: { application/json: { schema: { $ref: '#/components/schemas/Shared' } } }\n";
+    let spec = loaded(second, &[]).await.unwrap();
+    assert!(validate_refs(&spec).is_err());
+
+    let first = json!({ "openapi": "3.0.0", "info": { "title": "A", "version": "1" }, "paths": {}, "components": { "schemas": { "Shared": { "type": "object" } } } });
+    let merged = merge(
+      vec![
+        MergeInput {
+          label: "a".into(),
+          spec: first,
+          prefix: String::new(),
+        },
+        MergeInput {
+          label: "b".into(),
+          spec,
+          prefix: String::new(),
+        },
+      ],
+      &MergeOptions::default(),
+    )
+    .unwrap();
+    assert!(validate_refs(&merged.spec).is_ok());
+  }
+
+  #[tokio::test]
   async fn json_and_yaml_both_parse() {
     let json = r#"{"openapi":"3.0.0","info":{"title":"T","version":"1"},"paths":{}}"#;
 
@@ -223,8 +259,7 @@ components:
       (json!({"openapi": "3.0.3", "info": {"title": "T", "version": "1"}, "components": {}}), Some("no `paths`")),
       (json!({"swagger": "2.0", "info": {"title": "T", "version": "1"}, "paths": {}}), Some("Swagger 2.0 is not supported")),
       (json!({"openapi": "4.0.0", "info": {"title": "T", "version": "1"}, "paths": {}}), Some("OpenAPI 4.0.0 is not supported")),
-      (json!({"openapi": "3.0.3", "info": {"title": "T"}, "paths": {}}), Some("`info.version` is missing")),
-      (json!({"title": "no version"}), Some("no `openapi` version")),
+      (json!({"title": "nothing to show"}), Some("no `paths`")),
       (
         json!({"openapi": "3.0.3", "info": {"title": "T", "version": "1"}, "paths": {"/a": {"get": {"x": {"$ref": "#/components/schemas/Gone"}}}}}),
         Some("does not lead to anything"),
@@ -245,7 +280,7 @@ components:
     ];
 
     for (doc, expected) in cases {
-      match (validate(&doc), expected) {
+      match (validate(&doc).and_then(|()| validate_refs(&doc)), expected) {
         (Ok(()), None) => {}
         (Err(e), Some(text)) => assert!(e.to_string().contains(text), "{e}"),
         (got, expected) => panic!("{got:?} but expected {expected:?}"),

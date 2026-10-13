@@ -17,6 +17,8 @@
       "!**/.yourdocs",
       "!**/.e2e-bundles",
       "!**/.e2e-custom-data",
+      "!**/.e2e-api-data",
+      "!**/.e2e-tmp-data",
       "!**/.work"
     ]
   },

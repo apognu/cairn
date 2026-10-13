@@ -5,7 +5,9 @@ export default defineConfig({
   // Publishing takes everything pending, whoever made it. Tests that read the list of pending changes run after the others finish,
   // so no other test's publish can swallow their changes in between.
   projects: [
-    { name: "main", testIgnore: /(redirects|checks|custom)\.spec/ },
+    { name: "main", testIgnore: /(redirects|checks|custom|api-reference)\.spec/ },
+    // A third server whose GitHub is `stand-in.ts`, so API pages read specs the tests control.
+    { name: "api", testMatch: /api-reference\.spec/, use: { baseURL: "http://127.0.0.1:3300" } },
     // A second server running with bundles `build-components` made from `examples/components`.
     { name: "custom", testMatch: /custom\.spec/, use: { baseURL: "http://127.0.0.1:3200" } },
     { name: "pending-changes", testMatch: /redirects\.spec/, dependencies: ["main"] },
@@ -15,6 +17,22 @@ export default defineConfig({
   use: { baseURL: "http://127.0.0.1:3000" },
   // The binary is built by `cargo build` beforehand; Playwright only starts it, on an empty database.
   webServer: [
+    {
+      command: "bun stand-in.ts",
+      url: "http://127.0.0.1:3390/__state/reset",
+      reuseExistingServer: !process.env.CI,
+    },
+    {
+      command:
+        "rm -rf .e2e-api-data && ../../target/debug/yourdocs dev --data-dir .e2e-api-data --bind 127.0.0.1:3300 --site-bind 127.0.0.1:3301",
+      env: {
+        PAGEFIND_BIN: "../../node_modules/.bin/pagefind",
+        GITHUB_BASE_URL: "http://127.0.0.1:3390",
+        RAW_BASE_URL: "http://127.0.0.1:3390",
+      },
+      url: "http://127.0.0.1:3300/api/pages",
+      reuseExistingServer: !process.env.CI,
+    },
     {
       command: "rm -rf .e2e-data && ../../target/debug/yourdocs dev --data-dir .e2e-data",
       env: { PAGEFIND_BIN: "../../node_modules/.bin/pagefind" },

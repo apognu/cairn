@@ -1,7 +1,7 @@
 use futures_util::future::join_all;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
-use yourdocs_apispec::{Fetch, MergeInput, MergeOptions, load, merge};
+use yourdocs_apispec::{Fetch, MergeInput, MergeOptions, load, merge, validate_refs};
 use yourdocs_core::{ApiConfig, Operation, ResolvedSource};
 
 use super::fetch::SourceFetcher;
@@ -74,6 +74,7 @@ pub async fn resolve(fetcher: &SourceFetcher, config: &ApiConfig) -> Result<Reso
     servers: config.display.servers.clone(),
   };
   let merged = merge(inputs, &options).map_err(|e| e.to_string())?;
+  validate_refs(&merged.spec).map_err(|e| e.to_string())?;
 
   let bytes = serde_json::to_vec(&merged.spec).map_err(|e| e.to_string())?;
   let hash = Sha256::digest(&bytes).iter().take(8).map(|b| format!("{b:02x}")).collect();

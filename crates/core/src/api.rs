@@ -77,6 +77,8 @@ pub struct ApiDisplay {
   pub hide_models: bool,
   /// Lets readers try requests from the page.
   pub request_client: bool,
+  /// Shows a "Beta" pill after the page's name in the site's sidebar.
+  pub beta: bool,
 }
 
 impl Default for ApiDisplay {
@@ -85,6 +87,7 @@ impl Default for ApiDisplay {
       servers: Vec::new(),
       hide_models: false,
       request_client: true,
+      beta: false,
     }
   }
 }

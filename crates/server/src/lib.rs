@@ -62,6 +62,7 @@ pub async fn run_dev(bind: SocketAddr, site_bind: SocketAddr, data_dir: PathBuf)
   let state = AppState {
     editor_dir: bundles.editor_dir.clone().map(Arc::new),
     api_checks: Default::default(),
+    scalar_js: Arc::new(bundles.scalar_js.clone()),
     publisher: app::publisher(
       db.clone(),
       content.clone(),
@@ -69,7 +70,7 @@ pub async fn run_dev(bind: SocketAddr, site_bind: SocketAddr, data_dir: PathBuf)
       pool.clone(),
       &data_dir,
       app::PublishSetup {
-        bundles: yourdocs_publish::Bundles::new(&bundles.ssr_js, bundles.client_js, bundles.site_css),
+        bundles: yourdocs_publish::Bundles::new(&bundles.ssr_js, bundles.client_js, bundles.site_css, bundles.scalar_js),
         config: yourdocs_publish::PublishConfig {
           // Without PUBLIC_URL, the address `dev` serves the site on, whichever port it was given.
           site_url: env::var("PUBLIC_URL").unwrap_or_else(|_| format!("http://{site_bind}")).trim_end_matches('/').to_string(),

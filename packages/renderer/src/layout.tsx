@@ -90,6 +90,7 @@ function NavList({ nodes, currentId }: { nodes: NavNode[]; currentId?: string })
           <a href={node.href} aria-current={node.id === currentId ? "page" : undefined}>
             {node.title}
             {node.external && <ExternalMark />}
+            {node.badge && <span className="nav-badge">{node.badge}</span>}
           </a>
           {node.children.length > 0 && <NavList nodes={node.children} currentId={currentId} />}
         </li>
@@ -221,7 +222,12 @@ export function SiteLayout({
   }, [navOpen]);
 
   return (
-    <div className="site" data-embedded={embedded || undefined} data-nav-open={navOpen || undefined}>
+    <div
+      className="site"
+      data-embedded={embedded || undefined}
+      data-api={context.api ? "" : undefined}
+      data-nav-open={navOpen || undefined}
+    >
       {!embedded && (
         <Slot name="Header" slots={slots} context={context}>
           <header className="site-header">

@@ -1,3 +1,4 @@
+export { ApiReference } from "./ApiReference";
 export { collectHeadings, type Heading } from "./headings";
 export { SiteLayout } from "./layout";
 export { migrateDoc } from "./migrate";

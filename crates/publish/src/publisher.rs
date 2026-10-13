@@ -33,14 +33,16 @@ use crate::{
 pub struct Bundles {
   pub client_js: Vec<u8>,
   pub site_css: Vec<u8>,
+  /// The self-hosted API reference script; only pages of that kind load it.
+  pub scalar_js: Vec<u8>,
   /// Identifies this set of bundles, `ssr.js` included: pages rendered by other bundles are rendered again.
   pub hash: String,
 }
 
 impl Bundles {
-  pub fn new(ssr_js: &str, client_js: Vec<u8>, site_css: Vec<u8>) -> Self {
+  pub fn new(ssr_js: &str, client_js: Vec<u8>, site_css: Vec<u8>, scalar_js: Vec<u8>) -> Self {
     let mut digest = Sha256::new();
-    for part in [ssr_js.as_bytes(), &client_js, &site_css] {
+    for part in [ssr_js.as_bytes(), &client_js, &site_css, &scalar_js] {
       digest.update((part.len() as u64).to_le_bytes());
       digest.update(part);
     }
@@ -48,6 +50,7 @@ impl Bundles {
     Self {
       client_js,
       site_css,
+      scalar_js,
       hash: digest.finalize().iter().map(|b| format!("{b:02x}")).collect(),
     }
   }
@@ -366,15 +369,23 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
     let site_ctx = json!({ "name": site_name, "logo": logo, "logoDark": logo_dark, "headerLinks": settings.header_links, "footer": settings.footer });
     let theme_css = settings.theme_css();
 
-    let bundle_files = bundle_files(&self.bundles);
+    let mut bundle_files = bundle_files(&self.bundles);
+    // Only API pages load it, so a site without any does not carry its 4 MB in every release.
+    let scalar_url = sources.iter().any(|s| s.api.is_some()).then(|| {
+      let (name, bytes) = scalar_file(&self.bundles);
+      bundle_files.push((name.clone(), bytes));
+      format!("/{name}")
+    });
     let stylesheets: Vec<String> = bundle_files.iter().filter(|(name, _)| name.ends_with(".css")).map(|(name, _)| format!("/{name}")).collect();
     let script = bundle_files.iter().find(|(name, _)| name.ends_with(".js")).map(|(name, _)| format!("/{name}")).unwrap_or_default();
+
+    let betas: HashSet<PageId> = sources.iter().filter_map(|s| s.api.as_ref()).filter(|api| api.display.beta).map(|api| api.page_id).collect();
 
     // The jobs own their data: borrowed closures here make the future too lifetime-generic for the HTTP handler that awaits it.
     let jobs: Vec<RenderJob> = sources
       .iter()
       .map(|source| {
-        let nav = nav_tree(tree_pages, &urls, Some(source.page.id));
+        let nav = nav_tree(tree_pages, &urls, &betas, Some(source.page.id));
         let (previous, next) = previous_next(&nav, source.page.id);
         // Only what the page refers to goes into its context: renaming one page must not change the input of every other, or nothing
         // could be reused.
@@ -413,8 +424,10 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
           },
         });
         if let Some(api) = &source.api {
-          input["context"]["api"] = api_context(api, page_url);
+          input["context"]["api"] = api_context(api, page_url, scalar_url.as_deref());
           input["context"]["updated"] = json!("");
+          // Only Scalar's own view is offered, no Markdown copy.
+          input["context"]["markdown"] = Value::Null;
         }
 
         RenderJob {
@@ -496,7 +509,7 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
         input: json!({
           "doc": { "type": "doc", "content": blocks },
           // A fixed ID keeps the page searchable and its render cacheable.
-          "context": { "site": site_ctx, "page": { "id": "00000000-0000-7000-8000-00000000610c", "title": "Glossary" }, "nav": nav_tree(tree_pages, &urls, None), "header": header, "urls": {}, "assets": {}, "today": "" },
+          "context": { "site": site_ctx, "page": { "id": "00000000-0000-7000-8000-00000000610c", "title": "Glossary" }, "nav": nav_tree(tree_pages, &urls, &betas, None), "header": header, "urls": {}, "assets": {}, "today": "" },
         }),
         title: "Glossary".into(),
         description: None,
@@ -517,7 +530,7 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
       pool: self.pool.clone(),
       input: json!({
         "doc": { "type": "doc", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "There is no page at this address. Use the navigation or the search to find what you were looking for." }] }] },
-        "context": { "site": site_ctx, "page": { "title": "Page not found" }, "notFound": true, "nav": nav_tree(tree_pages, &urls, None), "header": header, "urls": {}, "assets": {}, "today": "" },
+        "context": { "site": site_ctx, "page": { "title": "Page not found" }, "notFound": true, "nav": nav_tree(tree_pages, &urls, &betas, None), "header": header, "urls": {}, "assets": {}, "today": "" },
       }),
       title: "Page not found".into(),
       description: None,
@@ -687,9 +700,10 @@ fn api_sources(tree_pages: &[Page], apis: Vec<ResolvedApi>) -> Vec<PageSource> {
 }
 
 /// What an API page's render depends on besides the page: where its spec is, and the operations for the fallback.
-fn api_context(api: &ResolvedApi, page_url: &str) -> Value {
+fn api_context(api: &ResolvedApi, page_url: &str, scalar_url: Option<&str>) -> Value {
   json!({
     "specUrl": format!("/{}", api.spec_path(page_url)),
+    "scalarUrl": scalar_url,
     "operations": api.operations,
     "display": { "servers": api.display.servers, "hideModels": api.display.hide_models, "requestClient": api.display.request_client },
   })
@@ -707,6 +721,12 @@ fn source_assets(doc: &Document, meta: &HashMap<String, Value>) -> Value {
     .collect();
 
   Value::Object(used)
+}
+
+fn scalar_file(bundles: &Bundles) -> (String, Vec<u8>) {
+  let digest: String = Sha256::digest(&bundles.scalar_js).iter().take(4).map(|b| format!("{b:02x}")).collect();
+
+  (format!("assets/scalar-{digest}.js"), bundles.scalar_js.clone())
 }
 
 /// The shared browser files with names that carry their content hash, so they can be cached for a year.
@@ -759,7 +779,7 @@ mod tests {
       assets: Arc::new(LocalAssetStore::new(&dir.join("assets")).unwrap()),
       pool,
       target: PublishTarget::Folder(FolderTarget::new(dir.join("out"))),
-      bundles: Bundles::new("ssr", b"console.log(1)".to_vec(), b"body{}".to_vec()),
+      bundles: Bundles::new("ssr", b"console.log(1)".to_vec(), b"body{}".to_vec(), b"window.Scalar = {}".to_vec()),
       config: PublishConfig {
         site_url: "https://docs.example.com".into(),
         pagefind: std::env::var("PAGEFIND_BIN").unwrap_or_else(|_| concat!(env!("CARGO_MANIFEST_DIR"), "/../../node_modules/.bin/pagefind").into()),
@@ -1166,7 +1186,7 @@ mod tests {
       assets: Arc::new(LocalAssetStore::new(&f.dir.join("assets")).unwrap()),
       pool: f.publisher.pool.clone(),
       target: PublishTarget::Folder(FolderTarget::new(f.dir.join("out"))),
-      bundles: Bundles::new("ssr", b"console.log(2)".to_vec(), b"body{}".to_vec()),
+      bundles: Bundles::new("ssr", b"console.log(2)".to_vec(), b"body{}".to_vec(), b"window.Scalar = {}".to_vec()),
       config: PublishConfig {
         site_url: "https://docs.example.com".into(),
         pagefind: std::env::var("PAGEFIND_BIN").unwrap_or_else(|_| concat!(env!("CARGO_MANIFEST_DIR"), "/../../node_modules/.bin/pagefind").into()),
@@ -1447,7 +1467,9 @@ mod tests {
       assert_eq!(recorded[0].page_id, api.id);
       assert_eq!(recorded[0].sources.iter().map(|s| s.tag.as_deref()).collect::<Vec<_>>(), [Some("v1.0.0"), Some("v2.0.0")]);
       assert_eq!(recorded[0].operations.iter().map(|o| o.method.as_str()).collect::<Vec<_>>(), ["GET", "GET"]);
-      assert!(f.dir.join("out/site/orders-api/index.html").exists());
+      // Search reads the operations from a hidden block; there is no visible list.
+      let html = std::fs::read_to_string(f.dir.join("out/site/orders-api/index.html")).unwrap();
+      assert!(html.contains("<div hidden=\"\">") && html.contains("listOrders summary") && html.contains("/invoices"), "{html}");
       // The page has no revision of its own.
       assert_eq!(release.page_count, 2);
     }
@@ -1506,7 +1528,7 @@ mod tests {
         assets: Arc::new(LocalAssetStore::new(&f.dir.join("assets")).unwrap()),
         pool: f.publisher.pool.clone(),
         target: PublishTarget::Folder(FolderTarget::new(f.dir.join("out"))),
-        bundles: Bundles::new("ssr", b"console.log(2)".to_vec(), b"body{}".to_vec()),
+        bundles: Bundles::new("ssr", b"console.log(2)".to_vec(), b"body{}".to_vec(), b"window.Scalar = {}".to_vec()),
         config: PublishConfig {
           site_url: "https://docs.example.com".into(),
           pagefind: std::env::var("PAGEFIND_BIN").unwrap_or_else(|_| concat!(env!("CARGO_MANIFEST_DIR"), "/../../node_modules/.bin/pagefind").into()),

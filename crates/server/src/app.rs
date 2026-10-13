@@ -28,6 +28,8 @@ pub struct AppState {
   pub editor_dir: Option<Arc<std::path::PathBuf>>,
   /// Which API pages are being checked right now, and the spec each check last merged.
   pub api_checks: Arc<crate::api_pages::ApiChecks>,
+  /// The API reference script, which the editor's preview loads from `/api/scalar.js`.
+  pub scalar_js: Arc<Vec<u8>>,
 }
 
 /// What the publisher needs besides the stores: the browser files every page links to, and the deployment's settings.
@@ -136,7 +138,7 @@ pub(crate) async fn test_state_with_dir() -> (AppState, std::path::PathBuf) {
       pool.clone(),
       &dir.join("out"),
       PublishSetup {
-        bundles: Bundles::new(&bundles.ssr_js, bundles.client_js, bundles.site_css),
+        bundles: Bundles::new(&bundles.ssr_js, bundles.client_js, bundles.site_css, bundles.scalar_js),
         config: PublishConfig {
           site_url: "http://localhost:3001".into(),
           pagefind: "pagefind-not-installed".into(),
@@ -152,6 +154,7 @@ pub(crate) async fn test_state_with_dir() -> (AppState, std::path::PathBuf) {
     db,
     editor_dir: None,
     api_checks: Default::default(),
+    scalar_js: Arc::new(Vec::new()),
   };
 
   (state, dir)

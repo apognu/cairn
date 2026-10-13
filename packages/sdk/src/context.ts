@@ -2,7 +2,37 @@ export type SiteImage = { src: string; width?: number; height?: number };
 export type SiteLink = { label: string; url: string };
 
 /** `external` marks a link that leaves the site. */
-export type NavNode = { id: string; title: string; href: string; external?: boolean; children: NavNode[] };
+export type NavNode = {
+  id: string;
+  title: string;
+  href: string;
+  external?: boolean;
+  /** A short pill after the title, such as "Beta". */
+  badge?: string;
+  children: NavNode[];
+};
+
+/** An operation of an API reference page, as listed in the merged spec. Only the search index reads them. */
+export type ApiOperation = {
+  /** Upper case: `GET`. */
+  method: string;
+  path: string;
+  summary?: string | null;
+  description?: string | null;
+  tags: string[];
+  operation_id?: string | null;
+};
+
+/** What an API reference page shows instead of a document. */
+export type ApiContext = {
+  /** Where the merged OpenAPI document is served. */
+  specUrl: string;
+  /** The self-hosted Scalar script; absent where the page is only rendered on the server. */
+  scalarUrl?: string;
+  /** Written into the page, hidden, so the site search finds operations; readers see Scalar only. */
+  operations: ApiOperation[];
+  display: { servers: string[]; hideModels: boolean; requestClient: boolean };
+};
 
 /** Everything outside the document that a page needs to render. Built by the server, never fetched during render. */
 export type RenderContext = {
@@ -46,4 +76,6 @@ export type RenderContext = {
   today: string;
   /** True for the page shown when no page matches the address. */
   notFound?: boolean;
+  /** Present on an API reference page, which shows this instead of its (empty) document. */
+  api?: ApiContext;
 };

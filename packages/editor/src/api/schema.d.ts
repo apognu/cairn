@@ -190,6 +190,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/pages/{id}/api-spec": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The merged spec of the page's last successful check, or, before any, of the live release: what the settings screen previews. */
+        get: operations["getApiSpec"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/pages/{id}/backlinks": {
         parameters: {
             query?: never;
@@ -432,6 +449,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/scalar.js": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The API reference script (Scalar), for the settings screen's preview. */
+        get: operations["getScalarScript"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/settings": {
         parameters: {
             query?: never;
@@ -561,6 +595,7 @@ export interface components {
         ApiConfig: {
             /**
              * @default {
+             *       "beta": false,
              *       "hide_models": false,
              *       "request_client": true,
              *       "servers": []
@@ -582,6 +617,11 @@ export interface components {
             sources: components["schemas"]["ApiSource"][];
         };
         ApiDisplay: {
+            /**
+             * @description Shows a "Beta" pill after the page's name in the site's sidebar.
+             * @default false
+             */
+            beta: boolean;
             /** @default false */
             hide_models: boolean;
             /**
@@ -1637,6 +1677,36 @@ export interface operations {
             };
         };
     };
+    getApiSpec: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["PageId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string;
+                };
+            };
+            /** @description nothing was merged yet */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     getBacklinks: {
         parameters: {
             query?: never;
@@ -2231,6 +2301,25 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    getScalarScript: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/javascript": string;
                 };
             };
         };

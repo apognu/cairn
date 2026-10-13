@@ -13,6 +13,8 @@ pub(crate) struct BundleSet {
   pub(crate) ssr_js: String,
   pub(crate) client_js: Vec<u8>,
   pub(crate) site_css: Vec<u8>,
+  /// The API reference script, written into releases that have API pages and served to the editor's preview.
+  pub(crate) scalar_js: Vec<u8>,
   /// The editor built with the custom components, served from disk instead of the embedded one.
   pub(crate) editor_dir: Option<PathBuf>,
 }
@@ -45,6 +47,7 @@ impl BundleSet {
       ssr_js: String::from_utf8(read("ssr.js")?).context("ssr.js is not valid UTF-8")?,
       client_js: read("client.js")?,
       site_css: read("site.css")?,
+      scalar_js: read("scalar.js")?,
       editor_dir: editor.join("index.html").is_file().then_some(editor),
     })
   }
@@ -60,6 +63,7 @@ impl BundleSet {
       ssr_js: String::from_utf8(embedded("ssr.js")?).context("ssr.js is not valid UTF-8")?,
       client_js: embedded("client.js")?,
       site_css: embedded("site.css")?,
+      scalar_js: embedded("scalar.js")?,
       editor_dir: None,
     })
   }
@@ -73,7 +77,13 @@ mod tests {
     let dir = std::env::temp_dir().join(format!("yourdocs-bundles-{}", uuid::Uuid::now_v7()));
     std::fs::create_dir_all(dir.join("editor")).unwrap();
     std::fs::write(dir.join("manifest.json"), format!(r#"{{ "sdk_version": {sdk_version}, "components": [], "slots": [] }}"#)).unwrap();
-    for (name, body) in [("ssr.js", "var SSR = {}"), ("client.js", "1"), ("site.css", "a{}"), ("editor/index.html", "<html></html>")] {
+    for (name, body) in [
+      ("ssr.js", "var SSR = {}"),
+      ("client.js", "1"),
+      ("site.css", "a{}"),
+      ("scalar.js", "2"),
+      ("editor/index.html", "<html></html>"),
+    ] {
       std::fs::write(dir.join(name), body).unwrap();
     }
 

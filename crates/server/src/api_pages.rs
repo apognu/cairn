@@ -6,14 +6,17 @@ use std::{
 use axum::{
   Json,
   extract::{Path, State},
+  http::header,
+  response::IntoResponse,
 };
 use serde::Serialize;
 use tracing::instrument;
 use utoipa::ToSchema;
 use utoipa_axum::{router::OpenApiRouter, routes};
 use yourdocs_auth::CurrentUser;
-use yourdocs_core::{ApiConfig, CoreError, Operation, PageId, ResolvedSource};
-use yourdocs_store::{StoreError, get_api_config, save_api_config};
+use yourdocs_core::{ApiConfig, AssetStore, CoreError, Operation, PageId, ResolvedSource};
+use yourdocs_publish::ResolvedApi;
+use yourdocs_store::{StoreError, get_api_config, latest_live_release, release_specs, save_api_config};
 
 use crate::{
   app::AppState,
@@ -49,7 +52,11 @@ impl Drop for Running<'_> {
 }
 
 pub(crate) fn routes() -> OpenApiRouter<AppState> {
-  OpenApiRouter::new().routes(routes!(get_config, put_config)).routes(routes!(check_config))
+  OpenApiRouter::new()
+    .routes(routes!(get_config, put_config))
+    .routes(routes!(check_config))
+    .routes(routes!(get_spec))
+    .routes(routes!(scalar_js))
 }
 
 /// The sources an API reference page is built from.
@@ -74,6 +81,37 @@ async fn put_config(State(state): State<AppState>, CurrentUser(user): CurrentUse
   save_api_config(&state.db, id, &config, user).await?;
 
   Ok(Json(get_api_config(&state.db, id).await?))
+}
+
+/// The merged spec of the page's last successful check, or, before any, of the live release: what the settings screen previews.
+#[utoipa::path(get, path = "/api/pages/{id}/api-spec", operation_id = "getApiSpec", params(("id" = PageId, Path)), responses(
+  (status = 200, content_type = "application/json", body = String),
+  (status = 404, body = ErrorBody, description = "nothing was merged yet"),
+))]
+#[instrument(skip_all, fields(page_id = %id))]
+async fn get_spec(State(state): State<AppState>, Path(id): Path<PageId>) -> Result<impl IntoResponse, AppError> {
+  let checked = state.api_checks.last.lock().expect("the lock is never held across a panic").get(&id).cloned();
+  let bytes = match checked {
+    Some(bytes) => bytes.as_ref().clone(),
+    None => {
+      let live = latest_live_release(&state.db).await?.ok_or(AppError::NotFound)?;
+      let spec = release_specs(&state.db, live.id).await?.into_iter().find(|s| s.page_id == id).ok_or(AppError::NotFound)?;
+
+      state.assets.get(&ResolvedApi::store_key(&spec.spec_hash)).await?
+    }
+  };
+
+  Ok(([(header::CONTENT_TYPE, "application/json"), (header::CACHE_CONTROL, "no-cache")], bytes))
+}
+
+/// The API reference script (Scalar), for the settings screen's preview.
+#[utoipa::path(get, path = "/api/scalar.js", operation_id = "getScalarScript", responses((status = 200, content_type = "text/javascript", body = String)))]
+#[instrument(skip_all)]
+async fn scalar_js(State(state): State<AppState>) -> impl IntoResponse {
+  (
+    [(header::CONTENT_TYPE, "text/javascript; charset=utf-8"), (header::CACHE_CONTROL, "no-cache")],
+    state.scalar_js.as_ref().clone(),
+  )
 }
 
 /// What fetching and merging a page's sources gave.
