@@ -2,7 +2,7 @@ use std::path::{Component, Path, PathBuf};
 
 use yourdocs_core::ReleaseId;
 
-use crate::{CloudflareTarget, PublishError};
+use crate::{CloudflareTarget, PublishError, S3Target};
 
 /// A file of the published site, with a path relative to the site root.
 pub struct OutputFile {
@@ -33,12 +33,14 @@ pub enum PublishTarget {
   SelfHosted(FolderTarget),
   /// A Cloudflare Worker with static assets: builds are uploaded as versions, which can be looked at and then deployed.
   Cloudflare(CloudflareTarget),
+  /// An S3 bucket (or compatible storage) with website hosting: files are uploaded as they changed, with no previews.
+  S3(S3Target),
 }
 
 impl PublishTarget {
   pub fn capabilities(&self) -> Capabilities {
     match self {
-      PublishTarget::Folder(_) => Capabilities { preview: false },
+      PublishTarget::Folder(_) | PublishTarget::S3(_) => Capabilities { preview: false },
       PublishTarget::SelfHosted(_) | PublishTarget::Cloudflare(_) => Capabilities { preview: true },
     }
   }
@@ -48,6 +50,7 @@ impl PublishTarget {
     match self {
       PublishTarget::Folder(_) | PublishTarget::SelfHosted(_) => Vec::new(),
       PublishTarget::Cloudflare(_) => CloudflareTarget::check(files),
+      PublishTarget::S3(_) => S3Target::check(files),
     }
   }
 
@@ -59,6 +62,12 @@ impl PublishTarget {
           return Err(PublishError::Other(anyhow::anyhow!("this publish target has no previews")));
         }
         folder.publish(release, files, live).await.map(|()| Deployed::default())
+      }
+      PublishTarget::S3(s3) => {
+        if !live {
+          return Err(PublishError::Other(anyhow::anyhow!("this publish target has no previews")));
+        }
+        s3.publish(&files).await.map(|()| Deployed::default())
       }
       PublishTarget::Cloudflare(cloudflare) => {
         let version = if live { cloudflare.publish(&files).await? } else { cloudflare.upload(&files).await? };
@@ -74,7 +83,7 @@ impl PublishTarget {
   /// Makes a release that was handed over without going live the site, as it was handed over.
   pub async fn promote(&self, release: ReleaseId, version: Option<&str>) -> Result<(), PublishError> {
     match self {
-      PublishTarget::Folder(_) => Err(PublishError::Other(anyhow::anyhow!("this publish target has no previews"))),
+      PublishTarget::Folder(_) | PublishTarget::S3(_) => Err(PublishError::Other(anyhow::anyhow!("this publish target has no previews"))),
       PublishTarget::SelfHosted(folder) => folder.switch(release).await,
       PublishTarget::Cloudflare(cloudflare) => {
         cloudflare
@@ -88,7 +97,7 @@ impl PublishTarget {
   pub fn site_dir(&self) -> Option<PathBuf> {
     match self {
       PublishTarget::Folder(folder) | PublishTarget::SelfHosted(folder) => Some(folder.site_dir()),
-      PublishTarget::Cloudflare(_) => None,
+      PublishTarget::Cloudflare(_) | PublishTarget::S3(_) => None,
     }
   }
 
@@ -96,7 +105,7 @@ impl PublishTarget {
   pub fn releases_dir(&self) -> Option<PathBuf> {
     match self {
       PublishTarget::SelfHosted(folder) => Some(folder.releases_dir()),
-      PublishTarget::Folder(_) | PublishTarget::Cloudflare(_) => None,
+      PublishTarget::Folder(_) | PublishTarget::Cloudflare(_) | PublishTarget::S3(_) => None,
     }
   }
 }

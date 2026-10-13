@@ -49,6 +49,8 @@ pub(crate) enum TargetChoice {
   Folder(PathBuf),
   /// Uploaded to a Cloudflare Worker with static assets.
   Cloudflare(yourdocs_publish::CloudflareConfig),
+  /// Uploaded to an S3 bucket (or compatible storage) that serves it as a website.
+  S3(yourdocs_publish::S3Config),
 }
 
 #[derive(Debug, Clone)]
@@ -202,7 +204,20 @@ impl Config {
             .trim_end_matches('/')
             .to_string(),
         }),
-        other => bail!("PUBLISH_TARGET={other} is not available: use self-hosted, folder or cloudflare"),
+        "s3" => {
+          let endpoint = var("S3_ENDPOINT");
+          TargetChoice::S3(yourdocs_publish::S3Config {
+            bucket: required("S3_BUCKET").context("PUBLISH_TARGET=s3 needs S3_BUCKET, S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY")?,
+            region: var("S3_REGION").unwrap_or_else(|| "us-east-1".into()),
+            prefix: var("S3_PREFIX").unwrap_or_default(),
+            access_key: required("S3_ACCESS_KEY_ID")?,
+            secret_key: required("S3_SECRET_ACCESS_KEY")?,
+            // A custom endpoint (MinIO, R2, …) is nearly always addressed by path; AWS by bucket name.
+            path_style: var("S3_PATH_STYLE").map_or(endpoint.is_some(), |v| v.eq_ignore_ascii_case("true")),
+            endpoint,
+          })
+        }
+        other => bail!("PUBLISH_TARGET={other} is not available: use self-hosted, folder, cloudflare or s3"),
       },
       github: github(&var)?,
       oidc: OidcSettings {
@@ -296,6 +311,19 @@ mod tests {
     assert!(matches!(config.target, TargetChoice::Cloudflare(c) if c.worker == "docs"));
     assert_eq!(config.site_url, "https://docs.example.org", "the site is not served from the editor's address");
     assert_eq!(with(&[]).unwrap().site_url, "https://docs.example.com");
+
+    assert!(with(&[("PUBLISH_TARGET", "s3"), ("S3_BUCKET", "b")]).is_err());
+    let s3 = [
+      ("PUBLISH_TARGET", "s3"),
+      ("S3_BUCKET", "docs"),
+      ("S3_ACCESS_KEY_ID", "k"),
+      ("S3_SECRET_ACCESS_KEY", "s"),
+      ("S3_ENDPOINT", "http://minio:9000"),
+    ];
+    let TargetChoice::S3(minio) = with(&s3).unwrap().target else { panic!("not S3") };
+    assert!(minio.path_style, "a custom endpoint is addressed by path");
+    let TargetChoice::S3(aws) = with(&s3[..4]).unwrap().target else { panic!("not S3") };
+    assert!(!aws.path_style && aws.region == "us-east-1" && aws.endpoint.is_none());
     assert!(with(&[("PUBLISH_TARGET", "ftp")]).is_err());
   }
 
