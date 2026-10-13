@@ -37,6 +37,7 @@ export type JsonSchema = {
   "x-field"?: string;
   properties?: Record<string, JsonSchema>;
   items?: JsonSchema;
+  minItems?: number;
 };
 
 /** The JSON Schema of a component's props, which the editor turns into a form. */

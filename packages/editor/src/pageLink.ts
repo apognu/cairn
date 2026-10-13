@@ -14,17 +14,30 @@ export const PageLink = Link.extend({
         parseHTML: (el) => el.getAttribute("data-page-id"),
         renderHTML: (attrs) => (attrs.pageId ? { "data-page-id": attrs.pageId } : {}),
       },
+      // A section of the target page. The server and the renderer read it; without it here, the next save would drop it.
+      anchor: {
+        default: null,
+        parseHTML: (el) => el.getAttribute("data-anchor"),
+        renderHTML: (attrs) => (attrs.anchor ? { "data-anchor": attrs.anchor } : {}),
+      },
     };
   },
   renderHTML({ HTMLAttributes, mark }) {
-    const byId = mark.attrs.pageId ? pageUrlRegistry.urls[String(mark.attrs.pageId)] : undefined;
-    return (
-      this.parent?.({ mark, HTMLAttributes: byId ? { ...HTMLAttributes, href: byId } : HTMLAttributes }) ?? [
-        "a",
-        HTMLAttributes,
-        0,
-      ]
-    );
+    const anchor = mark.attrs.anchor ? `#${String(mark.attrs.anchor)}` : "";
+    let attributes: Record<string, unknown> = HTMLAttributes;
+
+    if (mark.attrs.pageId) {
+      const byId = pageUrlRegistry.urls[String(mark.attrs.pageId)];
+      // A page that no longer exists: the published page shows plain words, the editor shows them as a link to fix, never the stale
+      // address saved next to the ID.
+      attributes = byId
+        ? { ...HTMLAttributes, href: `${byId}${anchor}` }
+        : { ...HTMLAttributes, href: null, "data-broken": "", title: "This page no longer exists" };
+    } else if (anchor && HTMLAttributes.href) {
+      attributes = { ...HTMLAttributes, href: `${String(HTMLAttributes.href)}${anchor}` };
+    }
+
+    return this.parent?.({ mark, HTMLAttributes: attributes }) ?? ["a", attributes, 0];
   },
 }).configure({ openOnClick: false });
 

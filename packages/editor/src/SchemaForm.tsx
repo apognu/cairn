@@ -177,6 +177,8 @@ function ListField({
               <button
                 type="button"
                 aria-label={`Remove ${label} ${i + 1}`}
+                // Fewer than the schema allows and the component could no longer render.
+                disabled={value.length <= (schema.minItems ?? 0)}
                 onClick={(e) => {
                   e.preventDefault();
                   onChange(value.filter((_, j) => j !== i));
@@ -221,14 +223,22 @@ function PageField({ id, value, onChange }: { id: string; value: string; onChang
   const pages = usePages();
   const [open, setOpen] = useState(false);
   const chosen = pages.data?.find((p) => p.id === value);
+  // Still pointing at a page that was deleted: it counts as a broken link until it is changed or removed.
+  const gone = Boolean(value) && pages.data !== undefined && !chosen;
 
   return (
     <div className="page-field">
       <button type="button" id={id} className="page-field-button" aria-haspopup="dialog" onClick={() => setOpen(true)}>
-        {chosen ? chosen.title : <span className="muted">No link</span>}
-        <span className="link-button">{chosen ? "Change" : "Choose"}</span>
+        {chosen ? (
+          chosen.title
+        ) : gone ? (
+          <span className="error-text">Deleted page</span>
+        ) : (
+          <span className="muted">No link</span>
+        )}
+        <span className="link-button">{value ? "Change" : "Choose"}</span>
       </button>
-      {chosen && (
+      {value && (
         <button type="button" className="icon" aria-label="Remove link" onClick={() => onChange("")}>
           ×
         </button>

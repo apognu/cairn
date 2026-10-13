@@ -1640,3 +1640,25 @@ button.primary:disabled {
 .settings-nav .row {
   padding-left: 10px;
 }
+
+/* A link to a page that was deleted: published as plain words, flagged here so the author fixes it. */
+.ProseMirror a[data-broken] {
+  color: var(--danger);
+  text-decoration: underline wavy;
+  text-underline-offset: 3px;
+}
+
+/* A component whose settings do not fit its schema: shown, so it can be selected and fixed. */
+.component-invalid {
+  display: block;
+  padding: 10px 14px;
+  border: 1px dashed var(--danger);
+  border-radius: 8px;
+  color: var(--danger);
+  font-size: 14px;
+}
+
+span[data-label] > .component-invalid {
+  display: inline;
+  padding: 0 4px;
+}
