@@ -718,8 +718,13 @@ a.feature-card:hover {
 .site-links {
   display: flex;
   gap: 4px;
-  margin-left: 16px;
+  margin-left: auto;
   padding-right: 8px;
+}
+
+/* Both want the free space of the header: the links take it, and the search follows them. */
+.site-links + .site-search {
+  margin-left: 0;
 }
 
 .site-links a {

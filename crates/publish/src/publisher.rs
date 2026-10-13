@@ -14,7 +14,10 @@ use yourdocs_core::{
   original_key, page_urls, term_anchors, term_refs, variant_key,
 };
 use yourdocs_render::{Pool, Shell, highlight_css};
-use yourdocs_store::{DatabaseConnection, add_release_pages, assets_by_ids, create_release, list_pages, list_redirects, load_library, load_settings, set_release_status};
+use yourdocs_store::{
+  DatabaseConnection, add_release_pages, assets_by_ids, create_release, get_setting, latest_live_release, list_pages, list_redirects, live_release, load_library, load_settings, set_release_status,
+  set_setting,
+};
 
 use crate::{
   PublishError, generated,
@@ -28,6 +31,24 @@ use crate::{
 pub struct Bundles {
   pub client_js: Vec<u8>,
   pub site_css: Vec<u8>,
+  /// Identifies this set of bundles, `ssr.js` included: pages rendered by other bundles are rendered again.
+  pub hash: String,
+}
+
+impl Bundles {
+  pub fn new(ssr_js: &str, client_js: Vec<u8>, site_css: Vec<u8>) -> Self {
+    let mut digest = Sha256::new();
+    for part in [ssr_js.as_bytes(), &client_js, &site_css] {
+      digest.update((part.len() as u64).to_le_bytes());
+      digest.update(part);
+    }
+
+    Self {
+      client_js,
+      site_css,
+      hash: digest.finalize().iter().map(|b| format!("{b:02x}")).collect(),
+    }
+  }
 }
 
 /// Settings that come from the deployment rather than the content.
@@ -40,6 +61,9 @@ pub struct PublishConfig {
 
 /// How many pages are in V8 at once. Below the pool's queue size, so a big site never gets "busy" from its own publish.
 const RENDER_CONCURRENCY: usize = 16;
+
+/// The setting that remembers which bundles the live site was last rendered with.
+const BUNDLES_SETTING: &str = "publish.bundles";
 
 /// Everything a `Publisher` is made of.
 pub struct PublisherParts<C, A, B> {
@@ -131,12 +155,62 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
     )
     .await?;
 
-    match self.build_and_deploy(&release, &tree_pages, &rules, &sources).await {
+    self.deploy(release, &tree_pages, &rules, &sources).await
+  }
+
+  /// Renders the live release again when the bundles changed since it was last rendered: the same pages at the same revisions, with the new
+  /// components. Nothing unpublished goes out. A failure leaves the live site as it is, and the next start tries again.
+  pub async fn republish_for_bundles(&self) -> Result<Option<Release>, PublishError> {
+    let _turn = self.running.lock().await;
+    if get_setting(&self.db, BUNDLES_SETTING).await?.as_deref() == Some(self.bundles.hash.as_str()) {
+      return Ok(None);
+    }
+
+    let (Some(live), Some(previous)) = (live_release(&self.db).await?, latest_live_release(&self.db).await?) else {
+      // Nothing published yet: the first publish renders with these bundles anyway.
+      set_setting(&self.db, BUNDLES_SETTING, &self.bundles.hash).await?;
+      return Ok(None);
+    };
+
+    let library = load_library(&self.db).await?;
+    let mut sources = Vec::new();
+    for page in live.pages.iter().filter(|p| p.kind == PageKind::Page) {
+      let Some(revision) = live.revisions.get(&page.id) else { continue };
+      let revision = self.content.revision(*revision).await?;
+      sources.push(PageSource {
+        page: page.clone(),
+        doc: expand(&revision.doc, &library).0,
+        revision: revision.id,
+        updated: revision.created_at,
+      });
+    }
+
+    let release = create_release(
+      &self.db,
+      previous.created_by,
+      serde_json::to_string(&live.pages).map_err(anyhow::Error::from)?,
+      serde_json::to_string(&live.redirects).map_err(anyhow::Error::from)?,
+    )
+    .await?;
+    let release = self.deploy(release, &live.pages, &live.redirects, &sources).await?;
+    tracing::info!(release_id = %release.id, pages = release.page_count, "republished for new bundles");
+
+    Ok(Some(release))
+  }
+
+  /// Renders and deploys a release that was just created, then marks it live (or failed).
+  async fn deploy(&self, release: Release, tree_pages: &[Page], rules: &[(String, String)], sources: &[PageSource]) -> Result<Release, PublishError> {
+    match self.build_and_deploy(&release, tree_pages, rules, sources).await {
       Ok(()) => {
         // The site is already live: a failure here leaves the record behind it, which the log has to say.
         if let Err(error) = set_release_status(&self.db, release.id, ReleaseStatus::Live).await {
           tracing::error!(release_id = %release.id, %error, "the release is live but could not be marked so");
           return Err(error.into());
+        }
+        // Every live release is rendered by these bundles; the next start republishes only when they change. Failing to note it only costs
+        // a needless republish, so it does not turn a live release into an error.
+        if let Err(error) = set_setting(&self.db, BUNDLES_SETTING, &self.bundles.hash).await {
+          tracing::warn!(release_id = %release.id, %error, "could not record the bundles of the live release");
         }
         tracing::info!(release_id = %release.id, pages = sources.len(), "release is live");
         self.broadcast.send(Event::Published { release: release.id });
@@ -257,6 +331,7 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
           stylesheets: stylesheets.clone(),
           script: script.clone(),
           theme_css: theme_css.clone(),
+          bundle_hash: self.bundles.hash.clone(),
           page_id: source.page.id,
           revision: source.revision,
           path: output_path(&urls[&source.page.id]),
@@ -327,6 +402,7 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
         stylesheets: stylesheets.clone(),
         script: script.clone(),
         theme_css: theme_css.clone(),
+        bundle_hash: self.bundles.hash.clone(),
         page_id: PageId::new(),
         revision: RevisionId::new(),
         path: output_path(glossary_url),
@@ -347,6 +423,7 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
       stylesheets: stylesheets.clone(),
       script: script.clone(),
       theme_css: theme_css.clone(),
+      bundle_hash: self.bundles.hash.clone(),
       page_id: PageId::new(),
       revision: RevisionId::new(),
       path: "404.html".into(),
@@ -414,6 +491,7 @@ struct RenderJob {
   stylesheets: Vec<String>,
   script: String,
   theme_css: String,
+  bundle_hash: String,
   page_id: PageId,
   revision: RevisionId,
   path: String,
@@ -439,6 +517,7 @@ async fn render_job<A: AssetStore>(job: RenderJob, cache: Arc<A>, renders: Arc<A
       &job.stylesheets.join(","),
       &job.script,
       &job.theme_css,
+      &job.bundle_hash,
     ] {
       digest.update(part.as_bytes());
       digest.update([0]);
@@ -531,10 +610,7 @@ mod tests {
       assets: Arc::new(LocalAssetStore::new(&dir.join("assets")).unwrap()),
       pool,
       target: PublishTarget::Folder(FolderTarget::new(dir.join("out"))),
-      bundles: Bundles {
-        client_js: b"console.log(1)".to_vec(),
-        site_css: b"body{}".to_vec(),
-      },
+      bundles: Bundles::new("ssr", b"console.log(1)".to_vec(), b"body{}".to_vec()),
       config: PublishConfig {
         site_url: "https://docs.example.com".into(),
         pagefind: std::env::var("PAGEFIND_BIN").unwrap_or_else(|_| concat!(env!("CARGO_MANIFEST_DIR"), "/../../node_modules/.bin/pagefind").into()),
@@ -914,6 +990,87 @@ mod tests {
     f.publisher.publish(user).await.unwrap();
     assert_eq!(f.publisher.renders(), 5 + 4);
     assert!(std::fs::read_to_string(site.join("three/index.html")).unwrap().contains(">Uno<"));
+  }
+
+  #[tokio::test]
+  async fn new_bundles_render_the_live_release_again_once_and_never_publish_drafts() {
+    let f = fixture().await;
+    let user = UserId::new();
+    let paragraph = |text: &str| doc(serde_json::json!({ "type": "doc", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": text }] }] }));
+
+    let mut drafts = Vec::new();
+    for title in ["One", "Two", "Three"] {
+      let page = create_page(&f.db, user, None, title, Placement::Last).await.unwrap();
+      drafts.push((page.id, f.content.save_draft(page.id, paragraph("published text"), None, user).await.unwrap()));
+    }
+    f.publisher.publish(user).await.unwrap();
+
+    // The same bundles: nothing to do.
+    assert!(f.publisher.republish_for_bundles().await.unwrap().is_none());
+
+    // A draft nobody published yet, and a start with other bundles over the same site (a new process: its render counter starts at 0).
+    f.content.save_draft(drafts[0].0, paragraph("unpublished draft"), drafts[0].1.base_revision_id, user).await.unwrap();
+    let restarted = Publisher::new(PublisherParts {
+      db: f.db.clone(),
+      content: f.content.clone(),
+      assets: Arc::new(LocalAssetStore::new(&f.dir.join("assets")).unwrap()),
+      pool: f.publisher.pool.clone(),
+      target: PublishTarget::Folder(FolderTarget::new(f.dir.join("out"))),
+      bundles: Bundles::new("ssr", b"console.log(2)".to_vec(), b"body{}".to_vec()),
+      config: PublishConfig {
+        site_url: "https://docs.example.com".into(),
+        pagefind: std::env::var("PAGEFIND_BIN").unwrap_or_else(|_| concat!(env!("CARGO_MANIFEST_DIR"), "/../../node_modules/.bin/pagefind").into()),
+      },
+      broadcast: LocalBroadcast::new(),
+    });
+
+    let release = restarted.republish_for_bundles().await.unwrap().expect("the bundles changed");
+    // Three pages and the 404 page, each rendered once, and the draft stayed a draft.
+    assert_eq!((release.status, restarted.renders()), (ReleaseStatus::Live, 4));
+    let site = f.dir.join("out/site");
+    assert!(std::fs::read_to_string(site.join("one/index.html")).unwrap().contains("published text"));
+
+    // Once: the next start with the same bundles renders nothing.
+    assert!(restarted.republish_for_bundles().await.unwrap().is_none());
+    assert_eq!(restarted.renders(), 4);
+  }
+
+  #[tokio::test]
+  async fn changing_the_accent_color_renders_every_page_again() {
+    use yourdocs_core::Settings;
+    use yourdocs_store::save_settings;
+
+    let f = fixture().await;
+    let user = UserId::new();
+    for title in ["One", "Two", "Three"] {
+      let page = create_page(&f.db, user, None, title, Placement::Last).await.unwrap();
+      f.content
+        .save_draft(page.id, doc(serde_json::json!({ "type": "doc", "content": [{ "type": "paragraph" }] })), None, user)
+        .await
+        .unwrap();
+    }
+
+    // Three pages and the 404 page.
+    f.publisher.publish(user).await.unwrap();
+    assert_eq!(f.publisher.renders(), 4);
+
+    save_settings(
+      &f.db,
+      &Settings {
+        accent: "#aa3300".into(),
+        ..Settings::default()
+      },
+    )
+    .await
+    .unwrap();
+    f.publisher.publish(user).await.unwrap();
+    assert_eq!(f.publisher.renders(), 8);
+    for slug in ["one", "two", "three"] {
+      assert!(
+        std::fs::read_to_string(f.dir.join(format!("out/site/{slug}/index.html"))).unwrap().contains("--accent-base:#aa3300"),
+        "{slug}"
+      );
+    }
   }
 
   #[tokio::test]

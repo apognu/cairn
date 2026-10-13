@@ -15,7 +15,7 @@ use yourdocs_publish::{Bundles, FolderTarget, PublishConfig, PublishTarget, Publ
 use yourdocs_render::Pool;
 use yourdocs_store::SqlContentStore;
 
-use crate::{assets::Assets, drafts, history, library, links, pages, publish, redirects, settings, uploads, urls};
+use crate::{drafts, history, library, links, pages, publish, redirects, settings, uploads, urls};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -24,6 +24,14 @@ pub struct AppState {
   pub content: SqlContentStore,
   pub assets: Arc<LocalAssetStore>,
   pub publisher: Arc<Publisher<SqlContentStore, LocalAssetStore, LocalBroadcast>>,
+  /// The editor built with the custom components, when there is one; otherwise the embedded editor is served.
+  pub editor_dir: Option<Arc<std::path::PathBuf>>,
+}
+
+/// What the publisher needs besides the stores: the browser files every page links to, and the deployment's settings.
+pub(crate) struct PublishSetup {
+  pub(crate) bundles: Bundles,
+  pub(crate) config: PublishConfig,
 }
 
 /// The publisher for a data directory: the pages become a site under `<data_dir>/site`.
@@ -33,27 +41,17 @@ pub(crate) fn publisher(
   assets: Arc<LocalAssetStore>,
   pool: Arc<Pool>,
   data_dir: &std::path::Path,
-  config: PublishConfig,
+  setup: PublishSetup,
   broadcast: LocalBroadcast,
 ) -> anyhow::Result<Arc<Publisher<SqlContentStore, LocalAssetStore, LocalBroadcast>>> {
-  let embedded = |name: &str| {
-    Assets::get(name)
-      .map(|f| f.data.into_owned())
-      .ok_or_else(|| anyhow::anyhow!("{name} is not embedded, run `bun run build` first"))
-  };
-  let bundles = Bundles {
-    client_js: embedded("client.js")?,
-    site_css: embedded("site.css")?,
-  };
-
   Ok(Arc::new(Publisher::new(PublisherParts {
     db,
     content,
     assets,
     pool,
     target: PublishTarget::Folder(FolderTarget::new(data_dir.to_path_buf())),
-    bundles,
-    config,
+    bundles: setup.bundles,
+    config: setup.config,
     broadcast,
   })))
 }
@@ -117,8 +115,8 @@ pub(crate) async fn test_state() -> AppState {
 
 #[cfg(test)]
 pub(crate) async fn test_state_with_dir() -> (AppState, std::path::PathBuf) {
-  let script = Assets::get("ssr.js").expect("ssr.js is missing, run `bun run build` first");
-  let pool = Pool::new(std::str::from_utf8(&script.data).unwrap(), 1, 8, std::time::Duration::from_secs(5)).unwrap();
+  let bundles = crate::bundles::BundleSet::load(None, false).expect("the bundles are missing, run `bun run build` first");
+  let pool = Pool::new(&bundles.ssr_js, 1, 8, std::time::Duration::from_secs(5)).unwrap();
   let dir = std::env::temp_dir().join(format!("yourdocs-server-{}", uuid::Uuid::now_v7()));
   std::fs::create_dir_all(&dir).unwrap();
   let db = yourdocs_store::connect(&dir.join("test.db")).await.unwrap();
@@ -134,9 +132,12 @@ pub(crate) async fn test_state_with_dir() -> (AppState, std::path::PathBuf) {
       assets.clone(),
       pool.clone(),
       &dir.join("out"),
-      PublishConfig {
-        site_url: "http://localhost:3001".into(),
-        pagefind: "pagefind-not-installed".into(),
+      PublishSetup {
+        bundles: Bundles::new(&bundles.ssr_js, bundles.client_js, bundles.site_css),
+        config: PublishConfig {
+          site_url: "http://localhost:3001".into(),
+          pagefind: "pagefind-not-installed".into(),
+        },
       },
       LocalBroadcast::new(),
     )
@@ -145,6 +146,7 @@ pub(crate) async fn test_state_with_dir() -> (AppState, std::path::PathBuf) {
     content,
     assets,
     db,
+    editor_dir: None,
   };
 
   (state, dir)

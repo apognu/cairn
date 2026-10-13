@@ -4,6 +4,7 @@
 
 mod app;
 mod assets;
+mod bundles;
 mod drafts;
 mod editor;
 mod error;
@@ -25,7 +26,7 @@ use yourdocs_render::Pool;
 
 use crate::{
   app::{AppState, router},
-  assets::Assets,
+  bundles::BundleSet,
 };
 
 /// The OpenAPI spec of the HTTP API, as pretty-printed JSON.
@@ -44,9 +45,12 @@ pub async fn run_dev(bind: SocketAddr, site_bind: SocketAddr, data_dir: PathBuf)
   std::fs::create_dir_all(&data_dir).with_context(|| format!("cannot create {}", data_dir.display()))?;
   let db = yourdocs_store::connect(&data_dir.join("yourdocs.db")).await.context("cannot open the database")?;
 
-  let script = Assets::get("ssr.js").context("ssr.js is not embedded, run `bun run build` before `cargo build`")?;
-  let script = std::str::from_utf8(&script.data).context("ssr.js is not valid UTF-8")?;
-  let pool = Pool::new(script, 2, 64, Duration::from_secs(5)).context("failed to start the render pool")?;
+  // The runtime image keeps the bundles `build-components` made in /app/bundles; anywhere else the ones in the binary are used.
+  let bundles = match env::var_os("BUNDLES_DIR") {
+    Some(dir) => BundleSet::load(Some(&PathBuf::from(dir)), true)?,
+    None => BundleSet::load(Some(std::path::Path::new("/app/bundles")), false)?,
+  };
+  let pool = Pool::new(&bundles.ssr_js, 2, 64, Duration::from_secs(5)).context("failed to start the render pool")?;
 
   let pool = Arc::new(pool);
   let content = yourdocs_store::SqlContentStore::new(db.clone());
@@ -55,16 +59,20 @@ pub async fn run_dev(bind: SocketAddr, site_bind: SocketAddr, data_dir: PathBuf)
   let events = yourdocs_core::LocalBroadcast::new();
 
   let state = AppState {
+    editor_dir: bundles.editor_dir.clone().map(Arc::new),
     publisher: app::publisher(
       db.clone(),
       content.clone(),
       assets.clone(),
       pool.clone(),
       &data_dir,
-      yourdocs_publish::PublishConfig {
-        // Without PUBLIC_URL, the address `dev` serves the site on, whichever port it was given.
-        site_url: env::var("PUBLIC_URL").unwrap_or_else(|_| format!("http://{site_bind}")).trim_end_matches('/').to_string(),
-        pagefind: env::var("PAGEFIND_BIN").unwrap_or_else(|_| "pagefind".into()),
+      app::PublishSetup {
+        bundles: yourdocs_publish::Bundles::new(&bundles.ssr_js, bundles.client_js, bundles.site_css),
+        config: yourdocs_publish::PublishConfig {
+          // Without PUBLIC_URL, the address `dev` serves the site on, whichever port it was given.
+          site_url: env::var("PUBLIC_URL").unwrap_or_else(|_| format!("http://{site_bind}")).trim_end_matches('/').to_string(),
+          pagefind: env::var("PAGEFIND_BIN").unwrap_or_else(|_| "pagefind".into()),
+        },
       },
       events.clone(),
     )?,
@@ -74,6 +82,16 @@ pub async fn run_dev(bind: SocketAddr, site_bind: SocketAddr, data_dir: PathBuf)
     assets,
     db,
   };
+
+  // A site last rendered by other bundles (new components, a new version) is rendered again in the background, with what is live.
+  let publisher = state.publisher.clone();
+  tokio::spawn(async move {
+    match publisher.republish_for_bundles().await {
+      Ok(Some(release)) => tracing::info!(release_id = %release.id, "the live site was rendered again for the new bundles"),
+      Ok(None) => {}
+      Err(error) => tracing::error!(%error, "cannot render the live site again for the new bundles; it is tried again at the next start"),
+    }
+  });
 
   let editor = tokio::net::TcpListener::bind(bind).await.with_context(|| format!("cannot bind {bind}"))?;
   let site = tokio::net::TcpListener::bind(site_bind).await.with_context(|| format!("cannot bind {site_bind}"))?;
