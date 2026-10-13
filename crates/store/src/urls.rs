@@ -84,6 +84,13 @@ pub async fn set_custom_url(db: &DatabaseConnection, id: PageId, path: Option<&s
   let before = list_pages(db).await?;
   page_for_update(&before, id)?;
   let path = path.map(normalize_path).transpose()?;
+  // A page's address is a folder in the published site: `/sitemap.xml/` or `/guide.md/` would collide with the files the site generates
+  // (an alias is only a redirect rule, so it may keep an old `.html` address).
+  if let Some(path) = &path
+    && path.contains('.')
+  {
+    return Err(StoreError::Invalid(format!("\"{path}\" is not a usable page address: a dot would clash with the site's own files")));
+  }
 
   // The page and everything below it get new URLs: each must be free.
   let mut after = before.clone();
@@ -224,6 +231,10 @@ mod tests {
     // Another page's URL, by derivation or by custom URL.
     let err = add_alias(&db, webhooks.id, "/rollbacks").await.unwrap_err();
     assert!(matches!(&err, StoreError::Conflict(m) if m.contains("Rollbacks")), "{err}");
+    for taken in ["/sitemap.xml", "/guide.md"] {
+      let err = set_custom_url(&db, webhooks.id, Some(taken), OldUrls::Redirect).await.unwrap_err();
+      assert!(matches!(&err, StoreError::Invalid(m) if m.contains("dot")), "{taken}: {err}");
+    }
     let err = set_custom_url(&db, webhooks.id, Some("/rollbacks/"), OldUrls::Redirect).await.unwrap_err();
     assert!(matches!(&err, StoreError::Conflict(m) if m.contains("Rollbacks")), "{err}");
 

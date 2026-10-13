@@ -127,9 +127,12 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
     .await?;
 
     match self.build_and_deploy(&release, &tree_pages, &rules, &sources).await {
-      Ok(hashes) => {
-        add_release_pages(&self.db, release.id, hashes).await?;
-        set_release_status(&self.db, release.id, ReleaseStatus::Live).await?;
+      Ok(()) => {
+        // The site is already live: a failure here leaves the record behind it, which the log has to say.
+        if let Err(error) = set_release_status(&self.db, release.id, ReleaseStatus::Live).await {
+          tracing::error!(release_id = %release.id, %error, "the release is live but could not be marked so");
+          return Err(error.into());
+        }
         tracing::info!(release_id = %release.id, pages = sources.len(), "release is live");
         self.broadcast.send(Event::Published { release: release.id });
 
@@ -169,7 +172,7 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
   }
 
   /// Renders everything, then deploys. Nothing reaches the target unless every page rendered.
-  async fn build_and_deploy(&self, release: &Release, tree_pages: &[Page], rules: &[(String, String)], sources: &[PageSource]) -> Result<Vec<(PageId, RevisionId, String)>, PublishError> {
+  async fn build_and_deploy(&self, release: &Release, tree_pages: &[Page], rules: &[(String, String)], sources: &[PageSource]) -> Result<(), PublishError> {
     let pages: Vec<Page> = sources.iter().map(|s| s.page.clone()).collect();
     let urls = page_urls(tree_pages);
     let header = header_items(tree_pages, &urls);
@@ -261,12 +264,14 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
     let (mut files, hashes): (Vec<_>, Vec<_>) = rendered.into_iter().unzip();
 
     let listed: Vec<(&Page, &str)> = pages.iter().map(|p| (p, urls[&p.id].as_str())).collect();
+    // The site root goes to the first top-level page. Positions only order siblings: the lowest one in the whole tree can be a child's.
+    let home = pages.iter().find(|p| p.parent_id.is_none()).or(pages.first());
     let site_url = self.config.site_url.as_str();
     let generated = [
       ("sitemap.xml", generated::sitemap(site_url, &listed)),
       ("robots.txt", generated::robots(site_url)),
       ("llms.txt", generated::llms_txt(&site_name, site_url, &listed)),
-      ("_redirects", generated::redirects(listed.first().map(|(_, url)| *url), rules)),
+      ("_redirects", generated::redirects(home.map(|p| urls[&p.id].as_str()), rules)),
     ];
     files.extend(generated.into_iter().map(|(path, text)| OutputFile {
       path: path.into(),
@@ -348,9 +353,11 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
     files.extend(asset_files);
     files.extend(bundle_files.into_iter().map(|(path, bytes)| OutputFile { path, bytes }));
 
+    // Recorded before the switch: once the site is live, what it holds must already be known.
+    add_release_pages(&self.db, release.id, hashes).await?;
     self.target.publish(release.id, files).await?;
 
-    Ok(hashes)
+    Ok(())
   }
 
   /// The image files the pages use, and what the renderer needs to know about them.
@@ -407,10 +414,16 @@ struct RenderJob {
 /// Renders one page, or reuses what an identical render produced before. The cache is content addressed: the key is a hash of everything the
 /// HTML depends on (the render input, the page's own title and description, the site name and accent, the stylesheets and script), so the same
 /// key always means the same file and nothing ever has to be invalidated.
+/// Part of every render cache key. The JS bundles are in the key by their hashed names, but the page shell and code highlighting are Rust:
+/// a release changes the version, and the number is bumped when either changes between releases. Otherwise unchanged pages would keep
+/// the old output for good.
+const RENDER_FORMAT: &str = concat!(env!("CARGO_PKG_VERSION"), "/1");
+
 async fn render_job<A: AssetStore>(job: RenderJob, cache: Arc<A>, renders: Arc<AtomicUsize>) -> Result<(OutputFile, (PageId, RevisionId, String)), PublishError> {
   let key = {
     let mut digest = Sha256::new();
     for part in [
+      RENDER_FORMAT,
       &job.input.to_string(),
       &job.title,
       job.description.as_deref().unwrap_or_default(),
@@ -611,6 +624,24 @@ mod tests {
     assert_eq!(std::fs::read_to_string(f.dir.join("out/site/page/index.html")).unwrap(), before);
     // No half-written release is left behind either.
     assert_eq!(std::fs::read_dir(f.dir.join("out/releases")).unwrap().count(), 1);
+  }
+
+  #[tokio::test]
+  async fn the_site_root_goes_to_the_first_top_level_page() {
+    use yourdocs_core::OldUrls;
+    use yourdocs_store::move_page;
+
+    let f = fixture().await;
+    let user = UserId::new();
+    let guide = create_page(&f.db, user, None, "Guide", Placement::Last).await.unwrap();
+    let install = create_page(&f.db, user, Some(guide.id), "Install", Placement::Last).await.unwrap();
+    let linux = create_page(&f.db, user, Some(guide.id), "Linux", Placement::Last).await.unwrap();
+    // Dropped before its first sibling, Linux gets the lowest position of the whole tree.
+    move_page(&f.db, linux.id, Some(guide.id), Placement::Before(install.id), OldUrls::Redirect).await.unwrap();
+
+    f.publisher.publish(user).await.unwrap();
+    let rules = std::fs::read_to_string(f.dir.join("out/site/_redirects")).unwrap();
+    assert!(rules.starts_with("/ /guide/ 302\n"), "{rules}");
   }
 
   #[tokio::test]
