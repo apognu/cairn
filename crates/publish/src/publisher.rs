@@ -801,7 +801,7 @@ mod tests {
         height: Some(info.height),
         bytes: png.len() as u64,
         variants,
-        placeholder: Some(processed.placeholder),
+        placeholder: processed.placeholder,
         uploaded_by: user,
       },
     )

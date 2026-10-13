@@ -69,11 +69,11 @@ async fn upload(State(state): State<AppState>, CurrentUser(user): CurrentUser, b
     NewAsset {
       sha256,
       mime: info.mime.into(),
-      width: Some(info.width),
-      height: Some(info.height),
+      width: Some(processed.width),
+      height: Some(processed.height),
       bytes,
       variants,
-      placeholder: Some(processed.placeholder),
+      placeholder: processed.placeholder,
       uploaded_by: user,
     },
   )

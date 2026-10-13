@@ -1,6 +1,6 @@
 use std::io::Cursor;
 
-use image::{DynamicImage, ImageReader, Limits, imageops::FilterType};
+use image::{DynamicImage, ImageDecoder, ImageReader, Limits, imageops::FilterType};
 use yourdocs_core::CoreError;
 
 use crate::ImageInfo;
@@ -39,9 +39,12 @@ pub struct EncodedVariant {
 /// The scaled copies of a picture and the color to show while it loads.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Processed {
+  /// The size as displayed: a photo turned by its EXIF orientation has its sides swapped compared to the file header.
+  pub width: u32,
+  pub height: u32,
   pub variants: Vec<EncodedVariant>,
-  /// `#rrggbb`, the average color.
-  pub placeholder: String,
+  /// `#rrggbb`, the average color; none for a picture with transparent parts, which would show the color through them for good.
+  pub placeholder: Option<String>,
 }
 
 /// The widths to produce for a picture `width` pixels wide: the standard ones narrower than it, and its own width when that is not
@@ -70,11 +73,23 @@ pub fn process(bytes: &[u8], info: &ImageInfo) -> Result<Processed, CoreError> {
   limits.max_alloc = Some(MAX_PIXELS * 4 + (64 << 20));
   reader.limits(limits);
 
-  let image = reader.decode().map_err(|e| CoreError::Invalid(format!("the image cannot be decoded: {e}")))?;
+  let invalid = |e: image::ImageError| CoreError::Invalid(format!("the image cannot be decoded: {e}"));
+  let mut decoder = reader.into_decoder().map_err(invalid)?;
+  // Phones store photos as shot and an EXIF tag saying how to turn them; the WebP variants carry no EXIF, so they are turned here.
+  let orientation = decoder.orientation().map_err(invalid)?;
+  let mut image = DynamicImage::from_decoder(decoder).map_err(invalid)?;
+  image.apply_orientation(orientation);
+
   let placeholder = average_color(&image);
+  let (width, height) = (image.width(), image.height());
 
   if info.mime == "image/gif" {
-    return Ok(Processed { variants: Vec::new(), placeholder });
+    return Ok(Processed {
+      width,
+      height,
+      variants: Vec::new(),
+      placeholder,
+    });
   }
 
   let variants = target_widths(image.width())
@@ -93,14 +108,15 @@ pub fn process(bytes: &[u8], info: &ImageInfo) -> Result<Processed, CoreError> {
     })
     .collect();
 
-  Ok(Processed { variants, placeholder })
+  Ok(Processed { width, height, variants, placeholder })
 }
 
-fn average_color(image: &DynamicImage) -> String {
-  let pixel = image.resize_exact(1, 1, FilterType::Triangle).to_rgb8();
-  let [r, g, b] = pixel.get_pixel(0, 0).0;
+fn average_color(image: &DynamicImage) -> Option<String> {
+  let pixel = image.resize_exact(1, 1, FilterType::Triangle).to_rgba8();
+  let [r, g, b, a] = pixel.get_pixel(0, 0).0;
 
-  format!("#{r:02x}{g:02x}{b:02x}")
+  // Some transparency, averaged with the rest: the placeholder would stay visible behind the transparent parts once loaded.
+  (a >= 250).then(|| format!("#{r:02x}{g:02x}{b:02x}"))
 }
 
 #[cfg(test)]
@@ -134,7 +150,34 @@ mod tests {
     let sizes: Vec<_> = processed.variants.iter().map(|v| (v.width, v.height)).collect();
     assert_eq!(sizes, [(480, 240), (960, 480), (1200, 600)]);
     assert!(processed.variants.iter().all(|v| v.bytes.starts_with(b"RIFF") && v.bytes[8..12] == *b"WEBP"));
-    assert_eq!(processed.placeholder, "#c82828");
+    assert_eq!(processed.placeholder.as_deref(), Some("#c82828"));
+  }
+
+  #[test]
+  fn a_photo_is_turned_the_way_its_exif_says() {
+    let mut jpeg = Vec::new();
+    RgbImage::from_pixel(40, 20, image::Rgb([90, 90, 90])).write_to(&mut Cursor::new(&mut jpeg), ImageFormat::Jpeg).unwrap();
+    // An APP1 segment right after the start marker: EXIF, little-endian TIFF, one entry saying "orientation 6" (turn 90° clockwise).
+    let exif: &[u8] = &[
+      0xFF, 0xE1, 0x00, 0x22, b'E', b'x', b'i', b'f', 0, 0, b'I', b'I', 0x2A, 0, 8, 0, 0, 0, 1, 0, 0x12, 0x01, 3, 0, 1, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0,
+    ];
+    jpeg.splice(2..2, exif.iter().copied());
+    let info = inspect(&jpeg).unwrap();
+
+    let processed = process(&jpeg, &info).unwrap();
+    assert_eq!((processed.width, processed.height), (20, 40));
+    assert_eq!(processed.variants.iter().map(|v| (v.width, v.height)).collect::<Vec<_>>(), [(20, 40)]);
+  }
+
+  #[test]
+  fn a_transparent_picture_has_no_placeholder() {
+    let mut bytes = Vec::new();
+    image::RgbaImage::from_fn(4, 4, |x, _| image::Rgba([0, 0, 0, if x < 2 { 0 } else { 255 }]))
+      .write_to(&mut Cursor::new(&mut bytes), ImageFormat::Png)
+      .unwrap();
+    let info = inspect(&bytes).unwrap();
+
+    assert_eq!(process(&bytes, &info).unwrap().placeholder, None);
   }
 
   #[test]
