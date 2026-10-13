@@ -54,7 +54,9 @@ async fn serve(State(state): State<SiteState>, uri: Uri) -> Response {
     candidate
   } else if candidate.join("index.html").is_file() {
     let query = uri.query().map(|q| format!("?{q}")).unwrap_or_default();
-    return (StatusCode::MOVED_PERMANENTLY, [(header::LOCATION, format!("{path}/{query}"))]).into_response();
+    // One leading slash: `//guide/` would be read as the host `guide`. The raw path keeps its encoding, as a header needs.
+    let location = format!("/{}/{query}", uri.path().trim_start_matches('/'));
+    return (StatusCode::MOVED_PERMANENTLY, [(header::LOCATION, location)]).into_response();
   } else {
     return not_found(&state.dir).await;
   };
@@ -133,6 +135,22 @@ mod tests {
   fn request_paths_cannot_leave_the_site_folder() {
     for (path, expected) in [("/", Some("")), ("/a/b/", Some("a/b/")), ("/a/../../etc/passwd", None), ("/..", None)] {
       assert_eq!(safe_relative(path), expected.map(PathBuf::from), "{path}");
+    }
+  }
+
+  #[tokio::test]
+  async fn the_slash_redirect_stays_on_the_site() {
+    let dir = std::env::temp_dir().join(format!("yourdocs-site-{}", uuid::Uuid::now_v7()));
+    std::fs::create_dir_all(dir.join("guide")).unwrap();
+    std::fs::write(dir.join("guide/index.html"), "guide").unwrap();
+    let state = SiteState {
+      dir,
+      events: LocalBroadcast::default(),
+    };
+
+    for (path, expected) in [("/guide", "/guide/"), ("//guide", "/guide/"), ("/guide?a=1", "/guide/?a=1")] {
+      let response = serve(State(state.clone()), path.parse().unwrap()).await;
+      assert_eq!(response.headers()[header::LOCATION], expected, "{path}");
     }
   }
 }

@@ -33,3 +33,7 @@ yourdocs-core = { version = "0.0.0", path = "../core", features = ["openapi"] }
 yourdocs-publish = { version = "0.0.0", path = "../publish" }
 yourdocs-render = { path = "../render" }
 yourdocs-store = { version = "0.0.0", path = "../store" }
+
+[dev-dependencies]
+# Already in the tree through axum; `oneshot` drives a router in tests.
+tower = { version = "0.5.3", features = ["util"] }

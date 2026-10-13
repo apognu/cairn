@@ -3,7 +3,7 @@ use std::sync::Arc;
 use axum::{
   Router,
   body::Body,
-  http::{Request, StatusCode, header},
+  http::{Method, Request, StatusCode, header},
   middleware::{self, Next},
   response::{IntoResponse, Response},
   routing::get,
@@ -87,15 +87,27 @@ pub fn router(state: AppState) -> Router {
 }
 
 /// Without a login, a page on another origin could drive the API through a DNS-rebinding name that resolves to 127.0.0.1; refusing foreign Host headers closes that.
+/// It could also post a plain form or a `no-cors` fetch to `localhost` directly, which needs no preflight: changes must come from the editor's own origin.
 async fn local_host_only(request: Request<Body>, next: Next) -> Response {
-  let host = request.headers().get(header::HOST).and_then(|h| h.to_str().ok()).unwrap_or("");
+  let headers = request.headers();
+  let host = headers.get(header::HOST).and_then(|h| h.to_str().ok()).unwrap_or("");
   let name = host.rsplit_once(':').filter(|(_, port)| port.chars().all(|c| c.is_ascii_digit())).map_or(host, |(name, _)| name);
 
-  if matches!(name, "localhost" | "127.0.0.1" | "[::1]") {
-    next.run(request).await
-  } else {
-    StatusCode::FORBIDDEN.into_response()
+  if !matches!(name, "localhost" | "127.0.0.1" | "[::1]") {
+    return StatusCode::FORBIDDEN.into_response();
   }
+
+  // Browsers send Origin with every cross-origin request that changes something; tools such as curl send none and are local anyway.
+  let changes = !matches!(*request.method(), Method::GET | Method::HEAD | Method::OPTIONS);
+  let origin = headers.get(header::ORIGIN).map(|o| o.to_str().unwrap_or(""));
+  if changes
+    && let Some(origin) = origin
+    && origin.split_once("://").map(|(_, authority)| authority) != Some(host)
+  {
+    return StatusCode::FORBIDDEN.into_response();
+  }
+
+  next.run(request).await
 }
 
 #[cfg(test)]
@@ -136,4 +148,36 @@ pub(crate) async fn test_state_with_dir() -> (AppState, std::path::PathBuf) {
   };
 
   (state, dir)
+}
+
+#[cfg(test)]
+mod tests {
+  use axum::routing::post;
+  use tower::ServiceExt;
+
+  use super::*;
+
+  #[tokio::test]
+  async fn changes_are_accepted_only_from_the_editor_origin() {
+    let app = Router::new().route("/api/publish", post(|| async { "ok" })).layer(middleware::from_fn(local_host_only));
+
+    // (Host, Origin, expected status): no Origin is a local tool; a foreign Origin is another site posting a form.
+    for (host, origin, expected) in [
+      ("127.0.0.1:3000", None, StatusCode::OK),
+      ("127.0.0.1:3000", Some("http://127.0.0.1:3000"), StatusCode::OK),
+      ("localhost:5173", Some("http://localhost:5173"), StatusCode::OK),
+      ("127.0.0.1:3000", Some("https://evil.example"), StatusCode::FORBIDDEN),
+      ("127.0.0.1:3000", Some("http://localhost:8080"), StatusCode::FORBIDDEN),
+      ("127.0.0.1:3000", Some("null"), StatusCode::FORBIDDEN),
+      ("evil.example", None, StatusCode::FORBIDDEN),
+    ] {
+      let mut request = Request::post("/api/publish").header(header::HOST, host);
+      if let Some(origin) = origin {
+        request = request.header(header::ORIGIN, origin);
+      }
+
+      let response = app.clone().oneshot(request.body(Body::empty()).unwrap()).await.unwrap();
+      assert_eq!(response.status(), expected, "{host} {origin:?}");
+    }
+  }
 }
