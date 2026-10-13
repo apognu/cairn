@@ -1,4 +1,4 @@
-import type { Editor } from "@tiptap/core";
+import { type Editor, isTextSelection } from "@tiptap/core";
 import { useEditorState } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import { useId, useState } from "react";
@@ -14,8 +14,13 @@ export function BubbleMenus({ editor }: { editor: Editor }) {
       <BubbleMenu
         editor={editor}
         updateDelay={0}
-        shouldShow={({ editor: e, from, to }) =>
-          from !== to && e.isEditable && !e.isActive("codeBlock") && !e.isActive("image")
+        // A selected node (a rule, a component) has nothing to format; only selected text does.
+        shouldShow={({ editor: e, state }) =>
+          isTextSelection(state.selection) &&
+          !state.selection.empty &&
+          e.isEditable &&
+          !e.isActive("codeBlock") &&
+          !e.isActive("image")
         }
       >
         <TextTools editor={editor} />
