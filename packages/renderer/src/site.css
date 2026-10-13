@@ -762,6 +762,7 @@ a.link-card:hover {
 
 /* Above and below the page: where it sits in the tree, when it changed, and the way on. */
 .breadcrumbs {
+  line-height: 22px;
   display: flex;
   flex-wrap: wrap;
   gap: 0 6px;
@@ -783,7 +784,9 @@ a.link-card:hover {
   color: var(--text-body);
 }
 
+/* Whole-pixel line heights keep everything below at whole-pixel positions, so text is drawn the same wherever the page is compared. */
 .doc-meta {
+  line-height: 22px;
   display: flex;
   flex-wrap: wrap;
   align-items: center;

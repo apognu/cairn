@@ -1,7 +1,9 @@
 import { expect, test } from "@playwright/test";
+import { publishFixture, quiet } from "./helpers";
 
-test("tabs render on the server and switch after hydration", async ({ page }) => {
-  await page.goto("/docs/demo");
+test("tabs render on the server and switch after hydration", async ({ page, request }) => {
+  await quiet(page);
+  await page.goto(await publishFixture(request, "tabs"));
 
   const linux = page.getByRole("tab", { name: "Linux" });
   const macos = page.getByRole("tab", { name: "macOS" });

@@ -18,14 +18,7 @@ mod site;
 mod uploads;
 mod urls;
 
-use std::{
-  collections::HashMap,
-  env,
-  net::SocketAddr,
-  path::PathBuf,
-  sync::{Arc, RwLock},
-  time::Duration,
-};
+use std::{env, net::SocketAddr, path::PathBuf, sync::Arc, time::Duration};
 
 use anyhow::{Context, bail};
 use yourdocs_render::Pool;
@@ -55,20 +48,6 @@ pub async fn run_dev(bind: SocketAddr, site_bind: SocketAddr, data_dir: PathBuf)
   let script = std::str::from_utf8(&script.data).context("ssr.js is not valid UTF-8")?;
   let pool = Pool::new(script, 2, 64, Duration::from_secs(5)).context("failed to start the render pool")?;
 
-  // The spike has no storage yet: start with the fixture so a page exists to look at.
-  let mut docs = HashMap::new();
-  for (name, source) in [
-    ("demo", include_str!("../../../fixtures/tabs.json")),
-    ("article", include_str!("../../../fixtures/article.json")),
-    ("features", include_str!("../../../fixtures/features.json")),
-    ("steps", include_str!("../../../fixtures/steps.json")),
-    ("cards", include_str!("../../../fixtures/cards.json")),
-    ("filetree", include_str!("../../../fixtures/filetree.json")),
-    ("codegroup", include_str!("../../../fixtures/codegroup.json")),
-  ] {
-    docs.insert(name.to_string(), serde_json::from_str(source).with_context(|| format!("invalid fixture {name}"))?);
-  }
-
   let pool = Arc::new(pool);
   let content = yourdocs_store::SqlContentStore::new(db.clone());
   let assets = Arc::new(yourdocs_assets::LocalAssetStore::new(&data_dir.join("assets")).context("cannot open the asset store")?);
@@ -89,7 +68,7 @@ pub async fn run_dev(bind: SocketAddr, site_bind: SocketAddr, data_dir: PathBuf)
       events.clone(),
     )?,
     pool,
-    docs: Arc::new(RwLock::new(docs)),
+
     content,
     assets,
     db,

@@ -1,4 +1,5 @@
-import { expect, type Page } from "@playwright/test";
+import { readFileSync } from "node:fs";
+import { type APIRequestContext, expect, type Page } from "@playwright/test";
 
 /**
  * Opens the publish dialog and confirms it, then waits for the "Published N pages" note. Every test shares one site, and a page another
@@ -37,4 +38,27 @@ export const PNG = Buffer.from(
 /** Stops a tab of the published site from reloading itself when another test publishes (the dev server's live reload). */
 export async function quiet(page: Page) {
   await page.route("**/__reload", (route) => route.abort());
+}
+
+export const SITE = "http://127.0.0.1:3001";
+
+/**
+ * Publishes a fixture document (`fixtures/<name>.json`) as a real page and returns its address on the site. The page is made through
+ * the API, so the document goes through the same save, check, render and publish as anything an author writes. A publish that is
+ * refused because another test has an unfinished page is tried again.
+ */
+export async function publishFixture(request: APIRequestContext, name: string): Promise<string> {
+  const title = `fx ${name} ${Math.random().toString(36).slice(2, 8)}`;
+  const doc = JSON.parse(readFileSync(new URL(`../../../fixtures/${name}.json`, import.meta.url), "utf8"));
+
+  const page = await (await request.post("/api/pages", { data: { parent_id: null, title } })).json();
+  const saved = await request.put(`/api/pages/${page.id}/draft`, { data: { doc, base_revision_id: null } });
+  expect(saved.ok(), await saved.text()).toBe(true);
+
+  await expect(async () => {
+    const response = await request.post("/api/publish");
+    expect(response.ok(), await response.text()).toBe(true);
+  }).toPass({ timeout: 30_000 });
+
+  return `${SITE}/${title.toLowerCase().replace(/\W+/g, "-")}/`;
 }

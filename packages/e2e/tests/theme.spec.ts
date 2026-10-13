@@ -79,8 +79,8 @@ test("pages are prefetched on hover and fade between each other", async ({ page,
   await publishAll(page);
 
   const reader = await page.context().newPage();
+  await quiet(reader);
   let href = "";
-  // A publish by another test reloads open tabs of the site, so the whole look-and-hover is attempted again if the page was replaced.
   await expect(async () => {
     await reader.goto(`${SITE}/${slug}/`);
     const other = reader.locator(`.site-nav a:not([href="/${slug}/"])`).first();

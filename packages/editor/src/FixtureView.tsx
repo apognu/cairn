@@ -1,16 +1,12 @@
 import type { DocNode } from "@yourdocs/renderer";
-import { useEffect, useState } from "react";
 import { Canvas } from "./Canvas";
 
-/** Shows a sample document read-only in the full site layout, to compare with its published render (`/docs/<name>`). */
+/**
+ * Shows a document read-only in the full site layout, to compare with the same document published. The document is read from the
+ * browser's `localStorage` under `fixture:<name>`, where the comparison test puts it.
+ */
 export function FixtureView({ name }: { name: string }) {
-  const [doc, setDoc] = useState<DocNode | null>(null);
+  const stored = window.localStorage.getItem(`fixture:${name}`);
 
-  useEffect(() => {
-    fetch(`/api/docs/${encodeURIComponent(name)}`)
-      .then((r) => r.json())
-      .then(setDoc);
-  }, [name]);
-
-  return doc ? <Canvas doc={doc} editable={false} /> : null;
+  return stored ? <Canvas doc={JSON.parse(stored) as DocNode} editable={false} /> : null;
 }

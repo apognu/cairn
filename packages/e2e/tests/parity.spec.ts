@@ -1,13 +1,22 @@
-import { expect, type Page, test } from "@playwright/test";
+import { expect, test } from "@playwright/test";
+import { publishFixture, quiet } from "./helpers";
 
-// The same document through two paths: rendered by V8 and hydrated, or built entirely in the browser.
-async function open(page: Page, path: string): Promise<string[]> {
+// The page the server rendered in V8 must hydrate in the browser without React finding a difference, and then work.
+test("a published page hydrates without mismatches", async ({ page, request }) => {
   const problems: string[] = [];
   page.on("pageerror", (e) => problems.push(e.message));
-  // A missing search index (404 for pagefind files) is expected outside a published site.
-  page.on("console", (m) => m.type() === "error" && !m.text().includes("404") && problems.push(m.text()));
+  // A missing search index (404 for pagefind files) is expected when nothing has been indexed yet, and `quiet` aborts the live reload request.
+  page.on(
+    "console",
+    (m) =>
+      m.type() === "error" && !m.text().includes("404") && !m.text().includes("ERR_FAILED") && problems.push(m.text()),
+  );
+  await quiet(page);
 
-  await page.goto(path);
+  const address = await publishFixture(request, "tabs");
+  expect(await (await request.get(address)).text()).toContain("Use the package manager.");
+
+  await page.goto(address);
   await expect(page.getByRole("tab", { name: "Linux" })).toBeVisible();
   // Hydration is done once a click changes the selection.
   await page.getByRole("tab", { name: "macOS" }).click();
@@ -15,31 +24,5 @@ async function open(page: Page, path: string): Promise<string[]> {
   await page.getByRole("tab", { name: "Linux" }).click();
   await expect(page.getByRole("tab", { name: "Linux" })).toHaveAttribute("aria-selected", "true");
 
-  return problems;
-}
-
-test("V8 render and browser render are identical", async ({ browser }) => {
-  const server = await browser.newPage({ viewport: { width: 900, height: 600 } });
-  const client = await browser.newPage({ viewport: { width: 900, height: 600 } });
-
-  // Look at the server render before hydration touches it.
-  await server.goto("/docs/demo", { waitUntil: "commit" });
-  const ssrHtml = await (await server.request.get("/docs/demo")).text();
-  expect(ssrHtml).toContain("Use the package manager.");
-
-  const serverProblems = await open(server, "/docs/demo");
-  const clientProblems = await open(client, "/docs/demo/client");
-
-  expect(serverProblems, "hydration errors").toEqual([]);
-  expect(clientProblems).toEqual([]);
-  expect(await server.locator("#root").innerHTML()).toBe(await client.locator("#root").innerHTML());
-
-  for (const tab of ["Linux", "macOS"]) {
-    await server.getByRole("tab", { name: tab }).click();
-    await client.getByRole("tab", { name: tab }).click();
-
-    const left = await server.screenshot();
-    const right = await client.screenshot();
-    expect(left.equals(right), `screenshots differ for the ${tab} tab`).toBe(true);
-  }
+  expect(problems, "hydration errors").toEqual([]);
 });

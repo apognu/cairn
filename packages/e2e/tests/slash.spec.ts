@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { publishFixture, quiet } from "./helpers";
 
 test("a callout and a code block can be inserted from the slash menu", async ({ page }) => {
   const title = `Slash ${Math.random().toString(36).slice(2, 8)}`;
@@ -29,8 +30,9 @@ test("a callout and a code block can be inserted from the slash menu", async ({ 
   await expect(editor.locator("pre[data-file-name='config.json'] code.language-json")).toHaveCount(1);
 });
 
-test("published code is highlighted", async ({ page }) => {
-  await page.goto("/docs/article");
+test("published code is highlighted", async ({ page, request }) => {
+  await quiet(page);
+  await page.goto(await publishFixture(request, "article"));
 
   await expect(page.locator("pre code.language-json span[class*='hl-']").first()).toBeVisible();
 });

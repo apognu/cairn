@@ -15,7 +15,7 @@ export default defineConfig({
   webServer: {
     command: "rm -rf .e2e-data && ../../target/debug/yourdocs dev --data-dir .e2e-data",
     env: { PAGEFIND_BIN: "../../node_modules/.bin/pagefind" },
-    url: "http://127.0.0.1:3000/docs/demo",
+    url: "http://127.0.0.1:3000/api/pages",
     reuseExistingServer: !process.env.CI,
   },
 });
