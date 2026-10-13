@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use jiff::Timestamp;
 use sea_orm::{ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter, Set, sea_query::OnConflict};
-use yourdocs_core::{Document, EntryKind, Library, PageId, UserId, entry_refs, snippet_cycle};
+use yourdocs_core::{Document, EntryKind, Library, PageId, UserId, entry_refs, snippet_cycle, term_refs};
 
 use crate::{
   StoreError,
@@ -69,7 +69,9 @@ pub async fn load_library(db: &DatabaseConnection) -> Result<Library, StoreError
       EntryKind::Snippet => {
         library.snippets.insert(entry.key, entry.doc.unwrap_or_else(Document::empty));
       }
-      EntryKind::Term => {}
+      EntryKind::Term => {
+        library.terms.insert(entry.key, entry.text_value.unwrap_or_default());
+      }
     }
   }
 
@@ -111,6 +113,19 @@ pub async fn save_variable(db: &DatabaseConnection, user: UserId, key: &str, val
   upsert(db, user, EntryKind::Variable, key, Some(value.to_string()), None).await
 }
 
+/// Creates or changes a glossary term: the words as written, and a short definition.
+pub async fn save_term(db: &DatabaseConnection, user: UserId, term: &str, definition: &str) -> Result<(), StoreError> {
+  let term = term.trim();
+  if term.is_empty() || term.chars().count() > 80 {
+    return Err(StoreError::Invalid("a term is 1 to 80 characters".into()));
+  }
+  if definition.trim().is_empty() || definition.chars().count() > 400 {
+    return Err(StoreError::Invalid("a definition is 1 to 400 characters".into()));
+  }
+
+  upsert(db, user, EntryKind::Term, term, Some(definition.trim().to_string()), None).await
+}
+
 /// Creates or changes a snippet. A snippet that would include itself, directly or through other snippets, is refused.
 pub async fn save_snippet(db: &DatabaseConnection, user: UserId, key: &str, doc: &Document) -> Result<(), StoreError> {
   check_key(key)?;
@@ -135,7 +150,7 @@ pub async fn delete_entry(db: &DatabaseConnection, id: uuid::Uuid) -> Result<(),
     .map(|e| e.key.as_str())
     .collect();
 
-  if entry.kind != EntryKind::Term && (!entry.used_in.is_empty() || !included_by.is_empty()) {
+  if !entry.used_in.is_empty() || !included_by.is_empty() {
     return Err(StoreError::Conflict(format!(
       "{} {} is still used by {} page(s) and {} snippet(s)",
       entry.kind.as_str(),
@@ -155,7 +170,8 @@ pub(crate) async fn replace_usages(db: &impl ConnectionTrait, page: PageId, doc:
   entry_usage::Entity::delete_many().filter(entry_usage::Column::PageId.eq(page.as_uuid())).exec(db).await?;
 
   let (variables, snippets) = entry_refs(doc);
-  if variables.is_empty() && snippets.is_empty() {
+  let terms = term_refs(doc);
+  if variables.is_empty() && snippets.is_empty() && terms.is_empty() {
     return Ok(());
   }
 
@@ -165,6 +181,7 @@ pub(crate) async fn replace_usages(db: &impl ConnectionTrait, page: PageId, doc:
     .iter()
     .filter_map(|k| used.get(&("variable".to_string(), k.clone())))
     .chain(snippets.iter().filter_map(|k| used.get(&("snippet".to_string(), k.clone()))))
+    .chain(terms.iter().filter_map(|k| used.get(&("term".to_string(), k.clone()))))
     .map(|entry| entry_usage::ActiveModel {
       entry_id: Set(*entry),
       page_id: Set(page.as_uuid()),

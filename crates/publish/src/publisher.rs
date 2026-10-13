@@ -11,7 +11,7 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use yourdocs_core::{
   AssetId, AssetStore, Broadcast, ContentStore, Document, Event, Page, PageId, PageKind, Release, ReleaseStatus, RevisionId, UserId, effective_redirects, expand, extract_links, header_section,
-  original_key, page_urls, variant_key,
+  original_key, page_urls, term_anchors, term_refs, variant_key,
 };
 use yourdocs_render::{Pool, Shell, highlight_css};
 use yourdocs_store::{DatabaseConnection, add_release_pages, assets_by_ids, create_release, list_pages, list_redirects, load_library, load_settings, set_release_status};
@@ -180,6 +180,12 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
       .filter(|p| p.kind == PageKind::Page)
       .map(|p| (p.id.to_string(), json!({ "title": p.title, "description": p.description })))
       .collect::<serde_json::Map<String, Value>>();
+    // The glossary: every term in order, where its entry is, and where the Glossary page itself lives (never on top of a real page).
+    let library = load_library(&self.db).await?;
+    let mut glossary_terms: Vec<String> = library.terms.keys().cloned().collect();
+    glossary_terms.sort_by_key(|t| t.to_lowercase());
+    let anchors = term_anchors(&glossary_terms);
+    let glossary_url = if urls.values().any(|u| u == "/glossary/") { "/glossary-terms/" } else { "/glossary/" };
     let settings = load_settings(&self.db).await?;
     let site_name = settings.site_name.clone();
     let today = jiff::Zoned::now().date().to_string();
@@ -201,6 +207,11 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
         // could be reused.
         let referenced: HashSet<String> = extract_links(&source.doc).into_iter().map(|l| l.target.to_string()).collect();
         // The date only matters to components that count down to one, and it changes every day.
+        // Only the terms this page marks go into its context, so defining another term leaves it alone.
+        let terms: serde_json::Map<String, Value> = term_refs(&source.doc)
+          .into_iter()
+          .filter_map(|t| Some((t.clone(), json!({ "definition": library.terms.get(&t)?, "href": format!("{glossary_url}#{}", anchors.get(&t)?) }))))
+          .collect();
         let today = if serde_json::to_string(&source.doc.0).is_ok_and(|json| json.contains("\"newUntil\"")) {
           today.as_str()
         } else {
@@ -225,6 +236,7 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
               "urls": only(&url_values, &referenced),
               "pages": only(&page_info, &referenced),
               "assets": source_assets(&source.doc, &asset_meta),
+              "terms": terms,
               "today": today,
             },
           }),
@@ -278,6 +290,36 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
       path: markdown_path(&urls[&s.page.id]),
       bytes: page_markdown(&s.page.title, s.page.description.as_deref(), &s.doc, &site).into_bytes(),
     }));
+
+    if !glossary_terms.is_empty() {
+      let blocks: Vec<Value> = glossary_terms
+        .iter()
+        .flat_map(|t| {
+          [
+            json!({ "type": "heading", "attrs": { "level": 2 }, "content": [{ "type": "text", "text": t }] }),
+            json!({ "type": "paragraph", "content": [{ "type": "text", "text": library.terms[t] }] }),
+          ]
+        })
+        .collect();
+      let glossary = RenderJob {
+        pool: self.pool.clone(),
+        input: json!({
+          "doc": { "type": "doc", "content": blocks },
+          // A fixed ID keeps the page searchable and its render cacheable.
+          "context": { "site": { "name": site_name, "logo": logo }, "page": { "id": "00000000-0000-7000-8000-00000000610c", "title": "Glossary" }, "nav": nav_tree(tree_pages, &urls, None), "header": header, "urls": {}, "assets": {}, "today": "" },
+        }),
+        title: "Glossary".into(),
+        description: None,
+        site_name: site_name.clone(),
+        stylesheets: stylesheets.clone(),
+        script: script.clone(),
+        accent: settings.accent.clone(),
+        page_id: PageId::new(),
+        revision: RevisionId::new(),
+        path: output_path(glossary_url),
+      };
+      files.push(render_job(glossary, self.assets.clone(), self.renders.clone()).await?.0);
+    }
 
     // The page people land on for a URL that does not exist, with the site navigation to find their way.
     let not_found = RenderJob {
@@ -952,5 +994,44 @@ mod tests {
       matches!(&blocked, Err(PublishError::Blocked(p)) if p[0].page_title == "Lost" && p[0].message.contains("snippet nope")),
       "{blocked:?}"
     );
+  }
+
+  #[tokio::test]
+  async fn a_marked_term_is_a_dfn_linking_to_the_generated_glossary_page() {
+    use yourdocs_store::save_term;
+
+    let f = fixture().await;
+    let user = UserId::new();
+    save_term(&f.db, user, "Blue-green deploy", "Switching all traffic to a new release at once.").await.unwrap();
+    save_term(&f.db, user, "API", "A way for programs to talk to each other.").await.unwrap();
+
+    let page = create_page(&f.db, user, None, "Deploying", Placement::Last).await.unwrap();
+    f.content
+      .save_draft(
+        page.id,
+        doc(serde_json::json!({ "type": "doc", "content": [{ "type": "paragraph", "content": [
+          { "type": "text", "text": "Use a " },
+          { "type": "text", "text": "blue-green deploy", "marks": [{ "type": "term", "attrs": { "term": "Blue-green deploy" } }] },
+        ] }] })),
+        None,
+        user,
+      )
+      .await
+      .unwrap();
+    f.publisher.publish(user).await.unwrap();
+
+    let site = f.dir.join("out/site");
+    let html = std::fs::read_to_string(site.join("deploying/index.html")).unwrap();
+    assert!(
+      html.contains("<dfn class=\"term\"><a href=\"/glossary/#blue-green-deploy\" data-definition=\"Switching all traffic to a new release at once.\">blue-green deploy</a></dfn>"),
+      "{html}"
+    );
+    // The page only carries the term it uses.
+    assert!(!html.contains("talk to each other"));
+
+    // The Glossary page lists every term in alphabetical order, with the anchors the links use.
+    let glossary = std::fs::read_to_string(site.join("glossary/index.html")).unwrap();
+    let (api, blue) = (glossary.find("id=\"api\"").unwrap(), glossary.find("id=\"blue-green-deploy\"").unwrap());
+    assert!(api < blue && glossary.contains("talk to each other"));
   }
 }

@@ -851,3 +851,41 @@ a.link-card:hover {
   padding: 10px 14px;
   margin-bottom: 1em;
 }
+
+/* Glossary terms: dotted underline, definition on hover and keyboard focus. */
+dfn.term {
+  font-style: normal;
+}
+
+dfn.term a {
+  position: relative;
+  color: inherit;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+
+dfn.term a[data-definition]:hover::after,
+dfn.term a[data-definition]:focus-visible::after {
+  content: attr(data-definition);
+  position: absolute;
+  z-index: 10;
+  bottom: calc(100% + 6px);
+  left: 0;
+  width: max-content;
+  max-width: 280px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-input);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text-body);
+  box-shadow: 0 8px 24px rgba(16, 20, 22, 0.18);
+  font-size: 13.5px;
+  line-height: 1.45;
+  text-decoration: none;
+}
+
+/* In the editor the mark is a plain element, with the same dotted look. */
+dfn.term:not(:has(a)) {
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}

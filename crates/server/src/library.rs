@@ -19,6 +19,7 @@ pub(crate) fn routes() -> OpenApiRouter<AppState> {
     .routes(routes!(list))
     .routes(routes!(put_variable))
     .routes(routes!(put_snippet))
+    .routes(routes!(put_term))
     .routes(routes!(remove))
 }
 
@@ -28,14 +29,14 @@ struct UsedBy {
   title: String,
 }
 
-/// A variable or snippet of the library, with the pages that use it.
+/// A variable, snippet or glossary term of the library, with the pages that use it.
 #[derive(Serialize, ToSchema)]
 struct LibraryEntry {
   #[schema(value_type = String)]
   id: uuid::Uuid,
   kind: EntryKind,
   key: String,
-  /// The value of a variable.
+  /// The value of a variable, or the definition of a term.
   text_value: Option<String>,
   /// The content of a snippet.
   doc: Option<Document>,
@@ -45,6 +46,12 @@ struct LibraryEntry {
 #[derive(Deserialize, ToSchema)]
 struct VariableBody {
   value: String,
+}
+
+#[derive(Deserialize, ToSchema)]
+struct TermBody {
+  term: String,
+  definition: String,
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -59,7 +66,6 @@ async fn entries(state: &AppState) -> Result<Vec<LibraryEntry>, AppError> {
     yourdocs_store::list_entries(&state.db)
       .await?
       .into_iter()
-      .filter(|e| e.kind != EntryKind::Term)
       .map(|e| LibraryEntry {
         id: e.id,
         kind: e.kind,
@@ -81,7 +87,7 @@ async fn entries(state: &AppState) -> Result<Vec<LibraryEntry>, AppError> {
   )
 }
 
-/// Every variable and snippet.
+/// Every variable, snippet and glossary term.
 #[utoipa::path(get, path = "/api/library", operation_id = "listLibrary", responses((status = 200, body = Vec<LibraryEntry>)))]
 #[instrument(skip_all)]
 async fn list(State(state): State<AppState>) -> Result<Json<Vec<LibraryEntry>>, AppError> {
@@ -108,6 +114,18 @@ async fn put_variable(State(state): State<AppState>, CurrentUser(user): CurrentU
 #[instrument(skip_all, fields(key = %key))]
 async fn put_snippet(State(state): State<AppState>, CurrentUser(user): CurrentUser, Path(key): Path<String>, Json(body): Json<SnippetBody>) -> Result<Json<Vec<LibraryEntry>>, AppError> {
   yourdocs_store::save_snippet(&state.db, user, &key, &body.doc).await?;
+
+  Ok(Json(entries(&state).await?))
+}
+
+/// Creates or changes a glossary term. A marked term shows its definition on hover and links to the generated Glossary page.
+#[utoipa::path(put, path = "/api/library/terms", operation_id = "saveTerm", request_body = TermBody, responses(
+  (status = 200, body = Vec<LibraryEntry>),
+  (status = 422, body = ErrorBody, description = "empty or too long"),
+))]
+#[instrument(skip_all)]
+async fn put_term(State(state): State<AppState>, CurrentUser(user): CurrentUser, Json(body): Json<TermBody>) -> Result<Json<Vec<LibraryEntry>>, AppError> {
+  yourdocs_store::save_term(&state.db, user, &body.term, &body.definition).await?;
 
   Ok(Json(entries(&state).await?))
 }

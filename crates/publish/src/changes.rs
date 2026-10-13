@@ -1,4 +1,4 @@
-use yourdocs_core::{Document, Live, PageKind, Pending, Problem, ProblemKind, doc_problems, expand, pending_changes, url_problems};
+use yourdocs_core::{Document, Live, PageKind, Pending, Problem, ProblemKind, doc_problems, expand, pending_changes, term_refs, url_problems};
 use yourdocs_render::Pool;
 use yourdocs_store::{DatabaseConnection, all_links, draft_docs, draft_revisions, list_pages, list_redirects, live_release, load_library};
 
@@ -34,7 +34,8 @@ pub async fn check(db: &DatabaseConnection, pool: &Pool) -> Result<Vec<Problem>,
     // The page as readers will see it, with variables and snippets in place.
     let (doc, missing) = expand(docs.get(&page.id).unwrap_or(&empty), &library);
     let doc = &doc;
-    for key in missing {
+    let unknown_terms = term_refs(doc).into_iter().filter(|t| !library.terms.contains_key(t)).map(|t| format!("term {t}"));
+    for key in missing.into_iter().chain(unknown_terms) {
       found.push(Problem {
         page_id: page.id,
         page_title: page.title.clone(),

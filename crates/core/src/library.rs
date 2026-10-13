@@ -36,6 +36,8 @@ impl EntryKind {
 pub struct Library {
   pub variables: HashMap<String, String>,
   pub snippets: HashMap<String, Document>,
+  /// Glossary term to its short definition.
+  pub terms: HashMap<String, String>,
 }
 
 /// The node types that stand for library entries; the node's `key` attribute names the entry.
@@ -62,6 +64,41 @@ pub fn entry_refs(doc: &Document) -> (BTreeSet<String>, BTreeSet<String>) {
   }
 
   (variables, snippets)
+}
+
+/// The mark that ties words to a glossary term; its `term` attribute names the entry.
+pub const TERM_MARK: &str = "term";
+
+/// The glossary terms a document marks, sorted.
+pub fn term_refs(doc: &Document) -> BTreeSet<String> {
+  doc
+    .0
+    .walk()
+    .into_iter()
+    .flat_map(|n| n.marks.iter().flatten())
+    .filter(|m| m.kind == TERM_MARK)
+    .filter_map(|m| Some(m.attrs.as_ref()?.get("term")?.as_str()?.to_string()))
+    .collect()
+}
+
+/// The anchor each term gets on the generated Glossary page: the slug of the term, numbered when two slugs collide, exactly as the renderer
+/// numbers headings. `terms` must be in the order the page lists them.
+pub fn term_anchors(terms: &[String]) -> HashMap<String, String> {
+  let mut seen: HashMap<String, usize> = HashMap::new();
+
+  terms
+    .iter()
+    .map(|term| {
+      let base = match crate::slugify(term) {
+        s if s.is_empty() => "section".to_string(),
+        s => s,
+      };
+      let count = seen.entry(base.clone()).or_default();
+      *count += 1;
+
+      (term.clone(), if *count == 1 { base } else { format!("{base}-{count}") })
+    })
+    .collect()
 }
 
 /// The document with every variable replaced by its text and every snippet by its content, and the keys that have no entry
@@ -160,6 +197,7 @@ mod tests {
   fn variables_and_nested_snippets_are_expanded_and_missing_ones_reported() {
     let library = Library {
       variables: HashMap::from([("version".into(), "2.4".into())]),
+      terms: HashMap::new(),
       snippets: HashMap::from([
         (
           "outer".into(),
@@ -182,6 +220,22 @@ mod tests {
     assert_eq!(expanded.0.walk().iter().find(|n| n.text.as_deref() == Some("2.4")).unwrap().marks.as_ref().unwrap()[0].kind, "bold");
     assert_eq!(missing, ["snippet gone", "variable nope"]);
     assert_eq!(entry_refs(&page).1.into_iter().collect::<Vec<_>>(), ["gone", "outer"]);
+  }
+
+  #[test]
+  fn finds_marked_terms_and_numbers_colliding_anchors() {
+    let doc = doc(json!([{ "type": "paragraph", "content": [
+      { "type": "text", "text": "a", "marks": [{ "type": "term", "attrs": { "term": "Blue-green deploy" } }] },
+      { "type": "text", "text": "b", "marks": [{ "type": "bold" }, { "type": "term", "attrs": { "term": "API" } }] },
+    ] }]));
+
+    assert_eq!(term_refs(&doc).into_iter().collect::<Vec<_>>(), ["API", "Blue-green deploy"]);
+
+    let anchors = term_anchors(&["API".into(), "Blue-green deploy".into(), "blue green deploy".into()]);
+    assert_eq!(
+      (anchors["API"].as_str(), anchors["Blue-green deploy"].as_str(), anchors["blue green deploy"].as_str()),
+      ("api", "blue-green-deploy", "blue-green-deploy-2")
+    );
   }
 
   #[test]

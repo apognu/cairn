@@ -4,6 +4,7 @@ import type { DocMark, DocNode, RenderContext } from "./types";
 
 export type NodeContext = {
   urls: RenderContext["urls"];
+  terms?: RenderContext["terms"];
   assets: RenderContext["assets"];
   anchors: WeakMap<DocNode, string>;
 };
@@ -178,6 +179,20 @@ function wrapMark(inner: ReactNode, mark: DocMark, ctx: NodeContext): ReactNode 
       return <s>{inner}</s>;
     case "code":
       return <code>{inner}</code>;
+    case "term": {
+      // A marked term shows its definition on hover and focus and leads to its entry on the Glossary page; one the glossary no longer
+      // has is just its words.
+      const entry = ctx.terms?.[String(attrs.term)];
+      if (!entry) return inner;
+
+      return (
+        <dfn className="term">
+          <a href={entry.href} data-definition={entry.definition}>
+            {inner}
+          </a>
+        </dfn>
+      );
+    }
     case "link": {
       // A link by page ID follows the page: the address saved next to it is only for editors, and goes stale when the page moves.
       const href = attrs.pageId ? ctx.urls[String(attrs.pageId)] : attrs.href ? String(attrs.href) : undefined;
@@ -235,7 +250,7 @@ const blockTypes = new Set([
   "tabs",
   "tabPanel",
 ]);
-const markTypes = new Set(["bold", "italic", "underline", "strike", "code", "link"]);
+const markTypes = new Set(["bold", "italic", "underline", "strike", "code", "link", "term"]);
 
 /** What would stop this document from rendering: unknown nodes and marks, and component props that do not fit their schema. */
 export function validateDoc(doc: DocNode): string[] {

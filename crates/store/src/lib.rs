@@ -17,7 +17,7 @@ mod urls;
 pub use assets::{NewAsset, asset_by_hash, asset_by_id, assets_by_ids, get_or_create_asset};
 pub use connect::{StoreError, connect};
 pub use content::SqlContentStore;
-pub use library::{Entry, delete_entry, list_entries, load_library, save_snippet, save_variable};
+pub use library::{Entry, delete_entry, list_entries, load_library, save_snippet, save_term, save_variable};
 pub use links::{StoredLink, all_links};
 pub use migration::migrate;
 pub use redirects::{draft_docs, draft_revisions, list_redirects};

@@ -33,6 +33,8 @@ export type RenderContext = {
   urls: Record<string, string>;
   /** Page ID to the title and description other pages show about it, for link cards. */
   pages: Record<string, { title: string; description?: string | null }>;
+  /** Glossary term to its definition and the address of its entry, for the terms this page marks. */
+  terms: Record<string, { definition: string; href: string }>;
   /** Asset ID to what the published page needs to show it: its URL and, when known, its size. */
   assets: Record<
     string,
@@ -52,6 +54,7 @@ export const defaultContext: RenderContext = {
   header: [],
   urls: {},
   pages: {},
+  terms: {},
   assets: {},
   today: "",
 };
