@@ -66,17 +66,20 @@ pub fn highlight_css() -> String {
   let light = theme_rules("InspiredGitHub");
   let dark = theme_rules("base16-ocean.dark");
 
+  // Each theme applies only in its own mode. Scoping one and not the other lets the unscoped theme win wherever its selector has more
+  // classes, so light colors leaked into dark mode.
   format!(
-    "{light}\n@media (prefers-color-scheme: dark) {{\n{}}}\n{}",
-    scoped(&dark, ":root:not([data-theme=\"light\"]) "),
-    scoped(&dark, ":root[data-theme=\"dark\"] ")
+    "@media not (prefers-color-scheme: dark) {{\n{}}}\n{}@media (prefers-color-scheme: dark) {{\n{}}}\n{}",
+    scoped(&light, ":root:not([data-theme=\"dark\"])"),
+    scoped(&light, ":root[data-theme=\"light\"]"),
+    scoped(&dark, ":root:not([data-theme=\"light\"])"),
+    scoped(&dark, ":root[data-theme=\"dark\"]"),
   )
 }
 
 fn theme_rules(name: &str) -> String {
   let theme = &THEMES.themes[name];
 
-  // Backgrounds come from the site's own code block style, so only token colors are kept.
   css_for_theme_with_class_style(theme, STYLE)
     .unwrap_or_default()
     .lines()
@@ -85,12 +88,20 @@ fn theme_rules(name: &str) -> String {
     .join("\n")
 }
 
-/// Prefixes every selector line, which syntect emits as `.hl-a.hl-b {`.
+/// Puts `prefix` before every selector of every rule; a rule's selector list can span several lines.
 fn scoped(rules: &str, prefix: &str) -> String {
-  rules
-    .lines()
-    .map(|line| if line.starts_with('.') { format!("{prefix}{line}\n") } else { format!("{line}\n") })
-    .collect()
+  let mut out = String::new();
+
+  for rule in rules.split_inclusive('}') {
+    let Some((selectors, body)) = rule.split_once('{') else { continue };
+    // Comments (the theme's name) sit before the first selector.
+    let selectors = selectors.rsplit_once("*/").map_or(selectors, |(_, after)| after);
+    let selectors = selectors.split(',').map(|s| format!("{prefix} {}", s.trim())).collect::<Vec<_>>().join(", ");
+
+    out.push_str(&format!("{selectors} {{{body}\n"));
+  }
+
+  out
 }
 
 #[cfg(test)]
@@ -114,5 +125,14 @@ mod tests {
     assert!(css.contains("@media (prefers-color-scheme: dark)"));
     assert!(css.contains(":root[data-theme=\"dark\"] .hl-"), "{css}");
     assert!(!css.contains("background-color"));
+
+    // Every selector is scoped to one mode, or the theme with the longer selectors wins in both.
+    for rule in css.split('}') {
+      let Some((head, _)) = rule.rsplit_once('{') else { continue };
+      let selectors = head.rsplit_once('{').map_or(head, |(_, inner)| inner);
+      for selector in selectors.split(',') {
+        assert!(selector.trim().starts_with(":root"), "unscoped selector {selector:?}");
+      }
+    }
   }
 }
