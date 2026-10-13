@@ -7,13 +7,17 @@
   "files": {
     "includes": [
       "packages/**",
+      "examples/**",
       "*.json",
       "!**/dist",
       "!**/node_modules",
       "!**/src/api",
       "!**/test-results",
       "!**/.e2e-data",
-      "!**/.yourdocs"
+      "!**/.yourdocs",
+      "!**/.e2e-bundles",
+      "!**/.e2e-custom-data",
+      "!**/.work"
     ]
   },
   "linter": {

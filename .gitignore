@@ -6,3 +6,5 @@ test-results/
 playwright-report/
 .e2e-data/
 .work/
+.e2e-bundles/
+.e2e-custom-data/

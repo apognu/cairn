@@ -9,7 +9,7 @@ const outDir = () => mkdtempSync(join(tmpdir(), "yourdocs-bundles-"));
 
 test("a folder of components becomes bundles and a manifest with schemas and the SDK version", async () => {
   const out = outDir();
-  await buildComponents(fixture("ok"), out);
+  await buildComponents(resolve(import.meta.dir, "../../../examples/components"), out);
 
   for (const file of ["ssr.js", "client.js", "site.css", "manifest.json", "editor/index.html"])
     expect(existsSync(join(out, file)), file).toBe(true);
