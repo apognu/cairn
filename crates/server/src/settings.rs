@@ -2,7 +2,7 @@ use axum::{Json, extract::State};
 use tracing::instrument;
 use utoipa_axum::{router::OpenApiRouter, routes};
 use yourdocs_core::{CoreError, Settings};
-use yourdocs_store::{asset_by_id, load_settings, save_settings};
+use yourdocs_store::{StoreError, asset_by_id, load_settings, save_settings};
 
 use crate::{
   app::AppState,
@@ -29,7 +29,10 @@ async fn get_settings(State(state): State<AppState>) -> Result<Json<Settings>, A
 async fn put_settings(State(state): State<AppState>, Json(settings): Json<Settings>) -> Result<Json<Settings>, AppError> {
   // The logo must be an asset that exists, or every page would publish a broken header image.
   if let Some(logo) = settings.logo_asset_id {
-    asset_by_id(&state.db, logo).await.map_err(|_| CoreError::Invalid("the logo is not an uploaded image".into()))?;
+    asset_by_id(&state.db, logo).await.map_err(|e| match e {
+      StoreError::NotFound => AppError::from(CoreError::Invalid("the logo is not an uploaded image".into())),
+      e => e.into(),
+    })?;
   }
 
   save_settings(&state.db, &settings).await?;
