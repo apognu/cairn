@@ -28,6 +28,20 @@ export function buildTree(pages: Page[]): TreeNode[] {
   return roots;
 }
 
+/** The first page (not link) in the order of the tree, the way a reader would meet it. */
+export function firstPage(pages: Page[]): Page | undefined {
+  const visit = (nodes: TreeNode[]): Page | undefined => {
+    for (const node of nodes) {
+      if (node.page.kind === "page") return node.page;
+      const found = visit(node.children);
+      if (found) return found;
+    }
+    return undefined;
+  };
+
+  return visit(buildTree(pages));
+}
+
 function siblingsOf(pages: Page[], parentId: string | null): Page[] {
   return pages.filter((p) => (p.parent_id ?? null) === parentId);
 }

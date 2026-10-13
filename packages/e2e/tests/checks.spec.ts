@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { PNG } from "./helpers";
+import { nameNewPage, PNG } from "./helpers";
 
 test("a page with a problem blocks publishing, naming the page, until it is fixed", async ({ page, request }) => {
   const title = `Checked ${Math.random().toString(36).slice(2, 8)}`;
@@ -8,8 +8,7 @@ test("a page with a problem blocks publishing, naming the page, until it is fixe
   try {
     await page.goto("/");
     await page.getByRole("button", { name: "New page" }).click();
-    await page.getByLabel("New page title").fill(title);
-    await page.keyboard.press("Enter");
+    await nameNewPage(page, title);
     await page.getByRole("button", { name: title, exact: true }).click();
     pageId = (await (await request.get("/api/pages")).json()).find((p: { title: string }) => p.title === title).id;
 

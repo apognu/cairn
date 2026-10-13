@@ -1,12 +1,12 @@
 import { expect, test } from "@playwright/test";
+import { nameNewPage } from "./helpers";
 
 const suffix = () => Math.random().toString(36).slice(2, 8);
 
 async function newPage(page: import("@playwright/test").Page, title: string) {
   await page.goto("/");
   await page.getByRole("button", { name: "New page" }).click();
-  await page.getByLabel("New page title").fill(title);
-  await page.keyboard.press("Enter");
+  await nameNewPage(page, title);
   await page.getByRole("button", { name: title, exact: true }).click();
   await expect(page.locator(".ProseMirror")).toBeVisible();
 }

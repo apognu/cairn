@@ -1,13 +1,12 @@
 import { expect, test } from "@playwright/test";
-import { publishFixture, quiet } from "./helpers";
+import { nameNewPage, publishFixture, quiet } from "./helpers";
 
 test("a callout and a code block can be inserted from the slash menu", async ({ page }) => {
   const title = `Slash ${Math.random().toString(36).slice(2, 8)}`;
 
   await page.goto("/");
   await page.getByRole("button", { name: "New page" }).click();
-  await page.getByLabel("New page title").fill(title);
-  await page.keyboard.press("Enter");
+  await nameNewPage(page, title);
   await page.getByRole("button", { name: title, exact: true }).click();
 
   const editor = page.locator(".ProseMirror");
@@ -42,8 +41,7 @@ test("the bubble menu formats a selection", async ({ page }) => {
 
   await page.goto("/");
   await page.getByRole("button", { name: "New page" }).click();
-  await page.getByLabel("New page title").fill(title);
-  await page.keyboard.press("Enter");
+  await nameNewPage(page, title);
   await page.getByRole("button", { name: title, exact: true }).click();
 
   const editor = page.locator(".ProseMirror");
@@ -67,8 +65,7 @@ test("a component's settings form edits the document", async ({ page, request })
 
   await page.goto("/");
   await page.getByRole("button", { name: "New page" }).click();
-  await page.getByLabel("New page title").fill(title);
-  await page.keyboard.press("Enter");
+  await nameNewPage(page, title);
   await page.getByRole("button", { name: title, exact: true }).click();
   const id = new URL(page.url()).hash.replace("#page=", "");
 
@@ -94,8 +91,7 @@ test("feature tabs are edited through their settings form", async ({ page }) => 
 
   await page.goto("/");
   await page.getByRole("button", { name: "New page" }).click();
-  await page.getByLabel("New page title").fill(title);
-  await page.keyboard.press("Enter");
+  await nameNewPage(page, title);
   await page.getByRole("button", { name: title, exact: true }).click();
 
   const editor = page.locator(".ProseMirror");

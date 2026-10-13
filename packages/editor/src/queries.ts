@@ -99,6 +99,15 @@ export function usePublish() {
   });
 }
 
+/** Where the published site lives. Fixed for the life of the server. */
+export function useSiteInfo() {
+  return useQuery({
+    queryKey: ["site"],
+    staleTime: Number.POSITIVE_INFINITY,
+    queryFn: async () => unwrap(await api.GET("/api/site")),
+  });
+}
+
 export function useSettings() {
   return useQuery({ queryKey: ["settings"], queryFn: async () => unwrap(await api.GET("/api/settings")) });
 }

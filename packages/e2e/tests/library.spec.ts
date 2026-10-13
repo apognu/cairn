@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
-import { publishAll } from "./helpers";
+import { nameNewPage, publishAll } from "./helpers";
 
 test("a variable and a snippet are used on a page, and a snippet cannot include itself", async ({ page }) => {
   const tag = Math.random().toString(36).slice(2, 8);
@@ -36,8 +36,7 @@ test("a variable and a snippet are used on a page, and a snippet cannot include 
   // Both are used on a page, and reach the published HTML.
   await page.getByRole("button", { name: "Back to pages" }).click();
   await page.getByRole("button", { name: "New page" }).click();
-  await page.getByLabel("New page title").fill(title);
-  await page.keyboard.press("Enter");
+  await nameNewPage(page, title);
   await page.locator(".ProseMirror").click();
   await page.keyboard.type("Version ");
   await page.keyboard.type("/variable");
@@ -73,8 +72,7 @@ test("a term marked in a page shows as a dfn linking to the Glossary page", asyn
 
   await page.getByRole("button", { name: "Back to pages" }).click();
   await page.getByRole("button", { name: "New page" }).click();
-  await page.getByLabel("New page title").fill(title);
-  await page.keyboard.press("Enter");
+  await nameNewPage(page, title);
   await page.locator(".ProseMirror").click();
   await page.keyboard.type(`We love ${term} a lot`);
   // Select the term's words and mark them.

@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { publishAll } from "./helpers";
+import { nameNewPage, publishAll } from "./helpers";
 
 const SITE = "http://127.0.0.1:3001";
 
@@ -14,8 +14,7 @@ test("a move adds a redirect, an Alt-drop does not, and the publish dialog flags
   await page.goto("/");
   for (const title of [section, kept, dropped]) {
     await page.getByRole("button", { name: "New page" }).click();
-    await page.getByLabel("New page title").fill(title);
-    await page.keyboard.press("Enter");
+    await nameNewPage(page, title);
     await expect(page.getByRole("button", { name: title, exact: true })).toBeVisible();
   }
   await publishAll(page);

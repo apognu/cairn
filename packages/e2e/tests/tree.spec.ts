@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { nameNewPage } from "./helpers";
 
 test("nested pages survive a reload", async ({ page }) => {
   const suffix = Math.random().toString(36).slice(2, 8);
@@ -6,8 +7,7 @@ test("nested pages survive a reload", async ({ page }) => {
 
   await page.goto("/");
   await page.getByRole("button", { name: "New page" }).click();
-  await page.getByLabel("New page title").fill(names[0]);
-  await page.keyboard.press("Enter");
+  await nameNewPage(page, names[0]);
   await expect(page.getByRole("button", { name: names[0], exact: true })).toBeVisible();
 
   for (const [parent, child] of [
@@ -16,8 +16,7 @@ test("nested pages survive a reload", async ({ page }) => {
   ]) {
     await page.getByRole("button", { name: parent, exact: true }).hover();
     await page.getByRole("button", { name: `Add a subpage to ${parent}` }).click();
-    await page.getByLabel("New page title").fill(child);
-    await page.keyboard.press("Enter");
+    await nameNewPage(page, child);
     await expect(page.getByRole("button", { name: child, exact: true })).toBeVisible();
   }
 
@@ -35,8 +34,7 @@ test("a page can be dragged under a new parent and an external link added", asyn
   await page.goto("/");
   for (const title of [section, other, mover]) {
     await page.getByRole("button", { name: "New page" }).click();
-    await page.getByLabel("New page title").fill(title);
-    await page.keyboard.press("Enter");
+    await nameNewPage(page, title);
     await expect(page.getByRole("button", { name: title, exact: true })).toBeVisible();
   }
 

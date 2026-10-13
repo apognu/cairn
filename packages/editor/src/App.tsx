@@ -6,10 +6,10 @@ import { Icon } from "./icons";
 import { PageEditor } from "./PageEditor";
 import { PageSettings } from "./PageSettings";
 import { PublishDialog } from "./PublishDialog";
-import { usePages, usePending, useSettings } from "./queries";
+import { usePages, usePending, useSettings, useSiteInfo } from "./queries";
 import { type SettingsSection, SettingsView, sectionTitle } from "./SettingsView";
 import { Sidebar } from "./Sidebar";
-import type { Page } from "./tree";
+import { firstPage, type Page, pageUrls } from "./tree";
 import type { SaveStatus } from "./useDraftSync";
 
 const statusText: Record<SaveStatus, string> = {
@@ -50,8 +50,9 @@ function Editor() {
   const pending = usePending();
   const [published, setPublished] = useState<number | null>(null);
   const [showPublish, setShowPublish] = useState(false);
-  const [showPageSettings, setShowPageSettings] = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
+  // One side panel at a time; its button opens and closes it.
+  const [panel, setPanel] = useState<"history" | "settings" | null>(null);
+  const toggle = (next: "history" | "settings") => setPanel((open) => (open === next ? null : next));
   // Bumped when a version is restored, so the editor loads the new draft instead of keeping the old text.
   const [restores, setRestores] = useState(0);
   const settings = useSettings();
@@ -73,6 +74,20 @@ function Editor() {
     window.history.replaceState(null, "", id ? `#page=${id}` : window.location.pathname);
     setSelected(id);
   }, []);
+
+  // There is always a page open when there is one: on arrival, and after the open page was deleted.
+  // A page just created is selected before the list that holds it comes back: only a settled list says a page is really gone.
+  useEffect(() => {
+    if (section || !pages.data || pages.isFetching || current) return;
+    const first = firstPage(pages.data);
+    if (first) select(first.id);
+  }, [section, pages.data, pages.isFetching, current, select]);
+
+  // The page as readers see it now: its live address, which is the old one while a move or rename is pending, and none before its
+  // first publish.
+  const site = useSiteInfo();
+  const change = pending.data?.changes.find((c) => c.page_id === current?.id);
+  const liveUrl = current && (change ? change.old_url : pageUrls(pages.data ?? [])[current.id]);
 
   const openSettings = (next: SettingsSection | null) => {
     window.history.replaceState(
@@ -104,10 +119,19 @@ function Editor() {
           <ThemeToggle />
           {!section && current?.kind === "page" && (
             <>
-              <button type="button" onClick={() => setShowHistory(true)}>
+              {liveUrl && site.data ? (
+                <a className="button" href={`${site.data.url}${liveUrl}`} target="_blank" rel="noopener">
+                  View as reader
+                </a>
+              ) : (
+                <button type="button" disabled title="This page has not been published yet">
+                  View as reader
+                </button>
+              )}
+              <button type="button" aria-pressed={panel === "history"} onClick={() => toggle("history")}>
                 History
               </button>
-              <button type="button" onClick={() => setShowPageSettings(true)}>
+              <button type="button" aria-pressed={panel === "settings"} onClick={() => toggle("settings")}>
                 Page settings
               </button>
             </>
@@ -148,14 +172,17 @@ function Editor() {
           <aside className="props" aria-label="Component settings" ref={setPanelHost} />
         </>
       )}
-      {showHistory && current && (
+      {panel === "history" && current && !section && (
         <HistoryDrawer
+          key={current.id}
           page={current}
-          onClose={() => setShowHistory(false)}
+          onClose={() => setPanel(null)}
           onRestored={() => setRestores((n) => n + 1)}
         />
       )}
-      {showPageSettings && current && <PageSettings page={current} onClose={() => setShowPageSettings(false)} />}
+      {panel === "settings" && current && !section && (
+        <PageSettings key={current.id} page={current} onClose={() => setPanel(null)} />
+      )}
       {showPublish && <PublishDialog onClose={() => setShowPublish(false)} onPublished={setPublished} />}
     </div>
   );

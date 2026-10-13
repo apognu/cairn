@@ -1,14 +1,13 @@
 import { readFileSync } from "node:fs";
 import { expect, type Page, test } from "@playwright/test";
-import { PNG, publishAll, quiet } from "./helpers";
+import { nameNewPage, PNG, publishAll, quiet } from "./helpers";
 
 const SITE = "http://127.0.0.1:3001";
 
 async function newPage(page: Page, title: string) {
   await page.goto("/");
   await page.getByRole("button", { name: "New page" }).click();
-  await page.getByLabel("New page title").fill(title);
-  await page.keyboard.press("Enter");
+  await nameNewPage(page, title);
   await page.getByRole("button", { name: title, exact: true }).click();
 }
 

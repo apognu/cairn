@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
-import { publishAll } from "./helpers";
+import { nameNewPage, publishAll } from "./helpers";
 
 const SITE = "http://127.0.0.1:3001";
 
@@ -15,8 +15,7 @@ test("an alias used by another page is refused naming it, and a custom URL redir
   await page.goto("/");
   for (const title of [first, second]) {
     await page.getByRole("button", { name: "New page" }).click();
-    await page.getByLabel("New page title").fill(title);
-    await page.keyboard.press("Enter");
+    await nameNewPage(page, title);
     await expect(page.getByRole("button", { name: title, exact: true })).toBeVisible();
   }
 
@@ -50,15 +49,12 @@ test("promoting a page with children limits the published sidebar to that branch
 
   await page.goto("/");
   await page.getByRole("button", { name: "New page" }).click();
-  await page.getByLabel("New page title").fill(section);
-  await page.keyboard.press("Enter");
+  await nameNewPage(page, section);
   await page.getByRole("button", { name: section, exact: true }).hover();
   await page.getByRole("button", { name: `Add a subpage to ${section}` }).click();
-  await page.getByLabel("New page title").fill(child);
-  await page.keyboard.press("Enter");
+  await nameNewPage(page, child);
   await page.getByRole("button", { name: "New page" }).click();
-  await page.getByLabel("New page title").fill(other);
-  await page.keyboard.press("Enter");
+  await nameNewPage(page, other);
   await expect(page.getByRole("button", { name: other, exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: section, exact: true }).click();

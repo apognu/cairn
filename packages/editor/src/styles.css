@@ -795,6 +795,7 @@ button.primary:disabled {
   cursor: default;
 }
 
+.topbar-actions a.button,
 .topbar-actions button:not(.primary):not(.theme-toggle) {
   height: 32px;
   padding: 0 12px;
@@ -1121,13 +1122,15 @@ button.primary:disabled {
 }
 
 /* Page settings slides in from the right, like the mockup's side panel. */
+/* A side panel under the top bar: the canvas stays visible and the top bar usable while it is open. */
 .drawer {
   position: fixed;
-  inset: 0 0 0 auto;
+  inset: 52px 0 0 auto;
+  z-index: 30;
   width: 440px;
   max-width: 100vw;
-  height: 100vh;
-  max-height: 100vh;
+  height: calc(100vh - 52px);
+  max-height: none;
   margin: 0;
   padding: 20px 24px;
   border: 0;
@@ -1136,10 +1139,6 @@ button.primary:disabled {
   color: var(--text);
   box-shadow: -12px 0 32px rgba(16, 20, 22, 0.16);
   overflow-y: auto;
-}
-
-.drawer::backdrop {
-  background: rgba(0, 0, 0, 0.25);
 }
 
 .drawer-head {
@@ -1661,4 +1660,58 @@ button.primary:disabled {
 span[data-label] > .component-invalid {
   display: inline;
   padding: 0 4px;
+}
+
+/* Top bar: the theme toggle and links drawn as buttons match its 32px buttons. */
+.topbar .theme-toggle {
+  width: 32px;
+  height: 32px;
+  margin-left: 0;
+}
+
+.topbar-actions a.button {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text);
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.topbar-actions button:disabled {
+  color: var(--muted);
+  cursor: default;
+}
+
+.topbar-actions button[aria-pressed="true"]:not(.primary) {
+  background: var(--hover);
+}
+
+/* The canvas makes room for an open side panel instead of running under it. */
+.shell:has(> .drawer[open]) .canvas {
+  padding-right: 440px;
+}
+
+.shell:has(> .wide-drawer[open]) .canvas {
+  padding-right: 520px;
+}
+
+/* The description field reads as the published lead; only its placeholder and focus show it can be edited. */
+.lead-field {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  resize: none;
+  overflow: hidden;
+}
+
+.lead-field::placeholder {
+  color: var(--muted);
+  opacity: 0.6;
+}
+
+.lead-field:focus-visible {
+  outline: none;
 }

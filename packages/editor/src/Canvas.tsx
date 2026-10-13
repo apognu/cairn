@@ -8,7 +8,7 @@ import {
   renderNodes,
   SiteLayout,
 } from "@yourdocs/renderer";
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { BubbleMenus } from "./BubbleMenus";
 import { buildExtensions } from "./extensions";
 import { PagePicker } from "./PagePicker";
@@ -29,6 +29,8 @@ interface Props {
   onBlur?: () => void;
   /** Where the settings panel of the component under the cursor is drawn. */
   panelHost?: HTMLElement | null;
+  /** Drawn under the title in place of the description: the field to write it. */
+  lead?: ReactNode;
 }
 
 /** The page body as ProseMirror, mounted where the published page puts its content. */
@@ -41,6 +43,7 @@ export function Canvas({
   onReady,
   onBlur,
   panelHost,
+  lead,
 }: Props) {
   const editor = useEditor({
     extensions: buildExtensions(editable),
@@ -153,7 +156,7 @@ export function Canvas({
     <RenderEnvContext.Provider
       value={{ urls: full.urls, pages: full.pages, variables, snippets, editing: editable, today: full.today }}
     >
-      <SiteLayout context={full} headings={headings} embedded={embedded}>
+      <SiteLayout context={full} headings={headings} embedded={embedded} lead={lead}>
         <EditorContent editor={editor} />
         {editor && editable && <BubbleMenus editor={editor} />}
         {editor && editable && panelHost && <PropsPanel editor={editor} host={panelHost} />}

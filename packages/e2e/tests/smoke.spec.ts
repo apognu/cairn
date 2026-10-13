@@ -1,5 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
-import { PNG, publishAll, quiet } from "./helpers";
+import { nameNewPage, PNG, publishAll, quiet } from "./helpers";
 
 // The whole path of the M1 acceptance criteria: write three nested pages with an image and a callout, publish, and read them on the
 // published site with working search.
@@ -13,8 +13,7 @@ async function createPage(page: Page, title: string, parent?: string) {
   } else {
     await page.getByRole("button", { name: "New page" }).click();
   }
-  await page.getByLabel("New page title").fill(title);
-  await page.keyboard.press("Enter");
+  await nameNewPage(page, title);
   await expect(page.getByRole("button", { name: title, exact: true })).toBeVisible();
 }
 

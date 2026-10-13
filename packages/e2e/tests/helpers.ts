@@ -62,3 +62,13 @@ export async function publishFixture(request: APIRequestContext, name: string): 
 
   return `${SITE}/${title.toLowerCase().replace(/\W+/g, "-")}/`;
 }
+
+/**
+ * Types the title of a page being created (the "New page" or "Add a subpage" form is open) and waits for the editor to open it. The
+ * editor always has a page open, so until the new one is there another page's editor is on screen, and typing would go into it.
+ */
+export async function nameNewPage(page: Page, title: string) {
+  await page.getByLabel("New page title").fill(title);
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".crumbs")).toContainText(title);
+}

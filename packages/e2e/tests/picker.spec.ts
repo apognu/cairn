@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
-import { publishAll } from "./helpers";
+import { nameNewPage, publishAll } from "./helpers";
 
 test("a page created from the picker is in the tree and its link survives a move", async ({ page, request }) => {
   const suffix = Math.random().toString(36).slice(2, 8);
@@ -10,8 +10,7 @@ test("a page created from the picker is in the tree and its link survives a move
   await page.goto("/");
   for (const title of [home, section]) {
     await page.getByRole("button", { name: "New page" }).click();
-    await page.getByLabel("New page title").fill(title);
-    await page.keyboard.press("Enter");
+    await nameNewPage(page, title);
     await expect(page.getByRole("button", { name: title, exact: true })).toBeVisible();
   }
 
@@ -51,8 +50,7 @@ test("deleting a linked page lists every page that links to it", async ({ page }
   await page.goto("/");
   for (const title of [target, first, second]) {
     await page.getByRole("button", { name: "New page" }).click();
-    await page.getByLabel("New page title").fill(title);
-    await page.keyboard.press("Enter");
+    await nameNewPage(page, title);
     await expect(page.getByRole("button", { name: title, exact: true })).toBeVisible();
   }
 
@@ -92,16 +90,14 @@ test("a link card shows the title and description of the page it points to", asy
   await page.goto("/");
   for (const title of [target, host]) {
     await page.getByRole("button", { name: "New page" }).click();
-    await page.getByLabel("New page title").fill(title);
-    await page.keyboard.press("Enter");
+    await nameNewPage(page, title);
     await expect(page.getByRole("button", { name: title, exact: true })).toBeVisible();
   }
 
+  // Written in place, under the title, where readers see it as the lead.
   await page.getByRole("button", { name: target, exact: true }).click();
-  await page.getByRole("button", { name: "Page settings" }).click();
-  await page.getByLabel("Description").fill("What the target page is about");
-  await page.getByLabel("Description").blur();
-  await page.getByRole("button", { name: "Close page settings" }).click();
+  await page.locator(".canvas").getByLabel("Description").fill("What the target page is about");
+  await page.keyboard.press("Enter");
 
   await page.getByRole("button", { name: host, exact: true }).click();
   await page.locator(".ProseMirror").click();

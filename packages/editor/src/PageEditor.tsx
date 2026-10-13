@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { api } from "./api/client";
 import { unwrap } from "./api/unwrap";
 import { Canvas } from "./Canvas";
+import { LeadField } from "./LeadField";
 import { readLocal } from "./localDrafts";
 import { usePages } from "./queries";
 import { type Page, pageUrls } from "./tree";
@@ -87,6 +88,7 @@ function Editing({
           ),
         }}
         embedded
+        lead={<LeadField page={page} />}
         onChange={onChange}
         onReady={baseline}
         panelHost={panelHost}

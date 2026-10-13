@@ -8,6 +8,7 @@ import {
   useSetDescription,
   useSetHeader,
 } from "./queries";
+import { useSidePanel } from "./sidePanel";
 import type { Page } from "./tree";
 
 const originLabel = { move: "moved", rename: "previous URL", manual: "manual" } as const;
@@ -28,7 +29,7 @@ export function PageSettings({ page, onClose }: { page: Page; onClose: () => voi
   const [useCustom, setUseCustom] = useState(false);
   const [alias, setAlias] = useState("");
 
-  useEffect(() => dialog.current?.showModal(), []);
+  useSidePanel(dialog);
   useEffect(() => {
     if (!url.data) return;
     setUseCustom(url.data.custom_url !== null && url.data.custom_url !== undefined);

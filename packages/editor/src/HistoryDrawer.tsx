@@ -4,6 +4,7 @@ import { api } from "./api/client";
 import { unwrap } from "./api/unwrap";
 import { blockLines, diffLines } from "./diff";
 import { useHistory, useRestoreVersion, useRevision } from "./queries";
+import { useSidePanel } from "./sidePanel";
 import type { Page } from "./tree";
 import { saveSettled } from "./useDraftSync";
 
@@ -31,7 +32,7 @@ export function HistoryDrawer({
   const [current, setCurrent] = useState<DocNode | null>(null);
   const revision = useRevision(chosen);
 
-  useEffect(() => dialog.current?.showModal(), []);
+  useSidePanel(dialog);
   // What the page is now, to compare the chosen version with: after the save that leaving the canvas for this button started.
   useEffect(() => {
     saveSettled(page.id)

@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { PNG } from "./helpers";
+import { nameNewPage, PNG } from "./helpers";
 
 test("uploading the same file twice stores it once", async ({ request }) => {
   // A file unique to this run, so the first upload really creates an asset.
@@ -29,8 +29,7 @@ test("an image can be inserted from the slash menu and given alt text", async ({
 
   await page.goto("/");
   await page.getByRole("button", { name: "New page" }).click();
-  await page.getByLabel("New page title").fill(title);
-  await page.keyboard.press("Enter");
+  await nameNewPage(page, title);
   await page.getByRole("button", { name: title, exact: true }).click();
   const id = new URL(page.url()).hash.replace("#page=", "");
 
