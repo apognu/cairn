@@ -14,6 +14,9 @@ pub(crate) struct Config {
   /// The address readers and editors use, without a trailing slash: the origin of redirects, cookies and canonical links.
   pub(crate) public_url: String,
 
+  // Proxy
+  pub(crate) trusted_proxies: crate::proxy::TrustedProxies,
+
   // Publishing
   pub(crate) target: TargetChoice,
 
@@ -130,6 +133,7 @@ impl Config {
       bind: parsed("BIND", "0.0.0.0:8080")?,
       data_dir: var("DATA_DIR").map_or_else(|| PathBuf::from("/data"), PathBuf::from),
       public_url,
+      trusted_proxies: crate::proxy::TrustedProxies::parse(&var("TRUSTED_PROXIES").unwrap_or_default()).map_err(|e| anyhow::anyhow!("TRUSTED_PROXIES: {e}"))?,
       target: match var("PUBLISH_TARGET").as_deref().unwrap_or("self-hosted") {
         "self-hosted" => TargetChoice::SelfHosted,
         "folder" => TargetChoice::Folder(

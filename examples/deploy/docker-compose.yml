@@ -1,0 +1,47 @@
+# yourdocs behind Caddy, which gets the HTTPS certificate and forwards requests to the app.
+# Copy this folder, copy `.env.example` to `.env`, fill it in, then `docker compose up -d`.
+services:
+  yourdocs:
+    image: yourdocs/runtime:latest
+    restart: unless-stopped
+    command: ["serve"]
+    environment:
+      PUBLIC_URL: https://${DOMAIN}
+      OIDC_ISSUER: ${OIDC_ISSUER}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET}
+      # Who may sign in: members of these groups, or addresses on these domains (at least one of the two).
+      OIDC_ALLOWED_GROUPS: ${OIDC_ALLOWED_GROUPS:-}
+      OIDC_ALLOWED_EMAIL_DOMAINS: ${OIDC_ALLOWED_EMAIL_DOMAINS:-}
+      # Forwarded headers are believed only from Caddy, which has an address in this network.
+      TRUSTED_PROXIES: 172.28.0.0/24
+    volumes:
+      - yourdocs:/data
+    networks:
+      - web
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+    depends_on:
+      - yourdocs
+    networks:
+      - web
+
+volumes:
+  yourdocs:
+  caddy-data:
+
+networks:
+  web:
+    ipam:
+      config:
+        - subnet: 172.28.0.0/24

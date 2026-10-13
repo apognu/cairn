@@ -1,0 +1,4 @@
+{$DOMAIN} {
+	# The app speaks plain HTTP on 8080; Caddy adds the certificate and the X-Forwarded-* headers.
+	reverse_proxy yourdocs:8080
+}

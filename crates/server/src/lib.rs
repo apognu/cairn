@@ -15,6 +15,7 @@ mod library;
 mod links;
 mod me;
 mod pages;
+mod proxy;
 mod publish;
 mod redirects;
 mod serving;
@@ -165,7 +166,9 @@ pub async fn run_serve() -> anyhow::Result<()> {
 
   let listener = tokio::net::TcpListener::bind(config.bind).await.with_context(|| format!("cannot bind {}", config.bind))?;
   tracing::info!(address = %config.bind, public_url = %config.public_url, "listening");
-  axum::serve(listener, serving::serve_router(state)).await.context("server stopped")?;
+  // Forwarded headers are believed only from the configured proxies, which needs to know who is connecting.
+  let app = serving::serve_router(state).layer(axum::middleware::from_fn_with_state(config.trusted_proxies.clone(), proxy::forwarded));
+  axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>()).await.context("server stopped")?;
 
   Ok(())
 }

@@ -17,6 +17,7 @@ staticClients:
     redirectURIs:
       - http://127.0.0.1:8080/_editor/auth/callback
       - http://localhost:8080/_editor/auth/callback
+      - https://localhost:8443/_editor/auth/callback
 
 enablePasswordDB: true
 
