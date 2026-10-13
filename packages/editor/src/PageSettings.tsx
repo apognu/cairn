@@ -36,11 +36,27 @@ export function PageSettings({ page, onClose }: { page: Page; onClose: () => voi
   }, [url.data]);
 
   const data = url.data;
-  const error = setCustom.error ?? addAlias.error ?? removeAlias.error ?? setHeader.error ?? setDescription.error;
+  // Errors show next to what caused them; these have no field of their own.
+  const error = removeAlias.error ?? setHeader.error ?? setDescription.error;
   const saveUrl = (path: string | null) => setCustom.mutate({ custom_url: path });
+  const savedDescription = useRef(page.description ?? "");
+  const saveDescription = () => {
+    if (description === savedDescription.current) return;
+    savedDescription.current = description;
+    setDescription.mutate({ id: page.id, description });
+  };
 
   return (
-    <dialog ref={dialog} className="drawer" aria-labelledby={`${id}-title`} onClose={onClose}>
+    <dialog
+      ref={dialog}
+      className="drawer"
+      aria-labelledby={`${id}-title`}
+      onClose={() => {
+        // Escape closes the drawer without moving the focus out of the description first.
+        saveDescription();
+        onClose();
+      }}
+    >
       <header className="drawer-head">
         <h2 id={`${id}-title`}>Page settings</h2>
         <button type="button" className="icon" aria-label="Close page settings" onClick={() => dialog.current?.close()}>
@@ -64,8 +80,10 @@ export function PageSettings({ page, onClose }: { page: Page; onClose: () => voi
                   if (data.custom_url) saveUrl(null);
                 }}
               />
-              From its place in the tree
-              <code className="mono muted">{data.derived_url}</code>
+              <span>From its place in the tree</span>
+              <code className="mono muted" title={data.derived_url}>
+                {data.derived_url}
+              </code>
             </label>
             <label className="form-check">
               <input type="radio" name={`${id}-mode`} checked={useCustom} onChange={() => setUseCustom(true)} />
@@ -90,6 +108,11 @@ export function PageSettings({ page, onClose }: { page: Page; onClose: () => voi
                 </button>
               </form>
             )}
+            {useCustom && setCustom.error && (
+              <small role="alert" className="error-text">
+                {setCustom.error.message}
+              </small>
+            )}
             {useCustom && <small className="muted">Stays the same when the page moves in the tree.</small>}
           </fieldset>
 
@@ -97,8 +120,8 @@ export function PageSettings({ page, onClose }: { page: Page; onClose: () => voi
             <h3>
               Aliases <small className="muted">old URLs that redirect here</small>
             </h3>
-            <ul className="aliases" aria-label="Aliases">
-              {data.aliases.length === 0 && <li className="muted">None yet.</li>}
+            {data.aliases.length === 0 && <p className="muted empty">None yet.</p>}
+            <ul className="aliases" aria-label="Aliases" hidden={data.aliases.length === 0}>
               {data.aliases.map((a) => (
                 <li key={a.path}>
                   <code className="mono">{a.path}</code>
@@ -138,34 +161,11 @@ export function PageSettings({ page, onClose }: { page: Page; onClose: () => voi
                 Add
               </button>
             </form>
-          </section>
-
-          <div className="form-field">
-            <label htmlFor={`${id}-description`}>Description</label>
-            <textarea
-              id={`${id}-description`}
-              rows={3}
-              maxLength={300}
-              value={description}
-              placeholder="A sentence for link cards and search results"
-              onChange={(e) => setDescriptionText(e.target.value)}
-              onBlur={() =>
-                description !== (page.description ?? "") && setDescription.mutate({ id: page.id, description })
-              }
-            />
-          </div>
-
-          <section className="form-field">
-            <h3>Linked from</h3>
-            <ul className="aliases" aria-label="Linked from">
-              {backlinks.data?.linked_from.length === 0 && <li className="muted">No page links here yet.</li>}
-              {backlinks.data?.linked_from.map((l) => (
-                <li key={`${l.source_id}-${l.kind}`}>
-                  <span>{l.source_title}</span>
-                  <span className="badge">{l.kind}</span>
-                </li>
-              ))}
-            </ul>
+            {addAlias.error && (
+              <small role="alert" className="error-text">
+                {addAlias.error.message}
+              </small>
+            )}
           </section>
 
           <fieldset className="form-field">
@@ -181,6 +181,33 @@ export function PageSettings({ page, onClose }: { page: Page; onClose: () => voi
             </label>
             <small className="muted">A page with subpages becomes a section with a sidebar of its own.</small>
           </fieldset>
+
+          <section className="form-field">
+            <h3>Search and sharing</h3>
+            <label htmlFor={`${id}-description`}>Description</label>
+            <textarea
+              id={`${id}-description`}
+              rows={3}
+              maxLength={300}
+              value={description}
+              placeholder="A sentence for link cards and search results"
+              onChange={(e) => setDescriptionText(e.target.value)}
+              onBlur={saveDescription}
+            />
+          </section>
+
+          <section className="form-field">
+            <h3>Linked from</h3>
+            {backlinks.data?.linked_from.length === 0 && <p className="muted empty">No page links here yet.</p>}
+            <ul className="aliases" aria-label="Linked from" hidden={!backlinks.data?.linked_from.length}>
+              {backlinks.data?.linked_from.map((l) => (
+                <li key={`${l.source_id}-${l.kind}`}>
+                  <span>{l.source_title}</span>
+                  <span className="badge">{l.kind}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
 
           {error && (
             <p role="alert" className="error-text">

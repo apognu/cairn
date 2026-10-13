@@ -217,7 +217,9 @@ export function Sidebar({ pages, loading, selected, onSelect }: Props) {
                 <MenuItem label={`Move ${page.title} down`} text="Move down" onClick={() => doMove(page.id, "down")} />
                 <MenuItem label={`Indent ${page.title}`} text="Indent" onClick={() => doMove(page.id, "indent")} />
                 <MenuItem label={`Outdent ${page.title}`} text="Outdent" onClick={() => doMove(page.id, "outdent")} />
+                <hr />
                 <MenuItem
+                  danger
                   label={`Delete ${page.title}`}
                   text="Delete…"
                   onClick={() => setEditing({ kind: "delete", id: page.id })}

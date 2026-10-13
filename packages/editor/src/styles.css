@@ -43,8 +43,17 @@ input[type="radio"] {
   font-weight: 400;
 }
 
+/* A long path gives way to the label beside it. */
 .form-check code {
+  min-width: 0;
   margin-left: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.form-check > span {
+  flex: none;
 }
 
 small,
@@ -311,6 +320,20 @@ small,
   border-radius: 8px;
   background: var(--bg);
   box-shadow: 0 8px 24px rgba(16, 20, 22, 0.18);
+  /* Not the color of the selected row the menu opens from. */
+  color: var(--text);
+  font-weight: 400;
+}
+
+.menu-pop hr {
+  width: 100%;
+  margin: 4px 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+
+.menu-pop button.danger {
+  color: var(--danger);
 }
 
 .menu-pop button {
@@ -724,7 +747,7 @@ fieldset.bubble {
   border-radius: 12px;
 }
 
-/* The name of the selected component, as a tag on its outline. */
+/* The name of the selected component, as a tag set on its outline like a legend: above the outline it would cover the block before. */
 .ProseMirror-selectednode > [data-label] {
   position: relative;
 }
@@ -732,15 +755,16 @@ fieldset.bubble {
 .ProseMirror-selectednode > [data-label]::before {
   content: attr(data-label);
   position: absolute;
-  bottom: calc(100% + 8px);
-  left: -8px;
-  padding: 3px 8px;
-  border-radius: 6px 6px 0 0;
+  z-index: 1;
+  top: -16px;
+  left: 12px;
+  padding: 1px 7px;
+  border-radius: 5px;
   background: var(--accent);
   color: var(--bg);
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 700;
-  line-height: 1.4;
+  line-height: 16px;
 }
 
 .topbar-actions {
@@ -805,15 +829,42 @@ button.primary:disabled {
   gap: 8px;
 }
 
-.row-inline input[type="color"] {
-  width: 44px;
-  padding: 2px;
+.logo-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 56px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-input);
+  border-radius: 8px;
+}
+
+.logo-field > :first-child {
+  margin-right: auto;
 }
 
 .logo-preview {
-  max-height: 40px;
-  max-width: 160px;
-  align-self: flex-start;
+  max-height: 36px;
+  max-width: 200px;
+}
+
+.logo-field button,
+.logo-field label.button {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--border-input);
+  border-radius: 7px;
+  background: var(--bg);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.logo-field input:focus-visible + label {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .dialog-actions {
@@ -1137,6 +1188,15 @@ button.primary:disabled {
 
 .aliases li:last-child {
   border-bottom: 0;
+}
+
+.aliases[hidden] {
+  display: none;
+}
+
+.drawer p.empty {
+  margin: 0 0 8px;
+  font-size: 13px;
 }
 
 .aliases .badge {
@@ -1551,4 +1611,32 @@ button.primary:disabled {
   margin: 0 0 12px;
   padding: 0;
   list-style: none;
+}
+
+/* The accent color: a swatch, its hex value and a note, after the generic field rules they narrow. */
+.color-field {
+  align-items: center;
+}
+
+.form-field .color-field input[type="color"] {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  padding: 2px;
+  cursor: pointer;
+}
+
+.form-field .color-field input:not([type="color"]) {
+  flex: none;
+  width: 110px;
+  font-family: var(--font-mono);
+}
+
+.color-field small {
+  flex: 1;
+}
+
+/* Settings sections reuse the tree's rows, at the inset of a top-level page. */
+.settings-nav .row {
+  padding-left: 10px;
 }

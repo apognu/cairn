@@ -135,7 +135,13 @@ function Editor() {
             {current ? (
               <PageEditor key={`${current.id}-${restores}`} page={current} onStatus={setStatus} panelHost={panelHost} />
             ) : (
-              <p className="muted pad">Create a page in the sidebar to get started.</p>
+              !pages.isPending && (
+                <p className="muted pad">
+                  {pages.data?.length
+                    ? "Choose a page in the sidebar to edit it."
+                    : "Create a page in the sidebar to get started."}
+                </p>
+              )
             )}
           </main>
           <aside className="props" aria-label="Component settings" ref={setPanelHost} />

@@ -24,7 +24,7 @@ export function SettingsView({
 }) {
   return (
     <>
-      <nav className="sidebar" aria-label="Settings">
+      <nav className="sidebar settings-nav" aria-label="Settings">
         <button type="button" className="back" onClick={onClose}>
           ← Back to pages
         </button>

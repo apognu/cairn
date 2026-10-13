@@ -226,6 +226,8 @@ const SlashList = forwardRef<ListHandle, SuggestionProps<SlashItem, SlashItem>>(
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: the highlighted row restarts at the top whenever the list changes
   useEffect(() => setActive(0), [items]);
+  // The list scrolls: the option the arrows reach stays in view.
+  useEffect(() => document.getElementById(`slash-${active}`)?.scrollIntoView({ block: "nearest" }), [active]);
 
   useImperativeHandle(ref, () => ({
     onKeyDown(event) {
@@ -285,11 +287,24 @@ const SlashList = forwardRef<ListHandle, SuggestionProps<SlashItem, SlashItem>>(
   );
 });
 
+const MENU_HEIGHT = 476;
+const MENU_WIDTH = 393;
+const MARGIN = 8;
+
+/** Below the cursor, or above it when there is more room there; never past the edges of the window. */
 function place(element: HTMLElement, props: SuggestionProps<SlashItem, SlashItem>) {
   const rect = props.clientRect?.();
   if (!rect) return;
-  element.style.left = `${rect.left}px`;
-  element.style.top = `${rect.bottom + 4}px`;
+
+  const below = window.innerHeight - rect.bottom - MARGIN;
+  const above = rect.top - MARGIN;
+  const up = below < Math.min(MENU_HEIGHT, 280) && above > below;
+  const menu = element.firstElementChild;
+
+  element.style.left = `${Math.max(MARGIN, Math.min(rect.left, window.innerWidth - MENU_WIDTH - MARGIN))}px`;
+  element.style.top = up ? "" : `${rect.bottom + 4}px`;
+  element.style.bottom = up ? `${window.innerHeight - rect.top + 4}px` : "";
+  if (menu instanceof HTMLElement) menu.style.maxHeight = `${Math.min(MENU_HEIGHT, up ? above : below)}px`;
 }
 
 /** Typing "/" at the start of a block or after a space opens a menu of blocks to insert. */

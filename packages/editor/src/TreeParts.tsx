@@ -8,10 +8,21 @@ export function IconButton({ label, glyph, onClick }: { label: string; glyph: st
   );
 }
 
-export function MenuItem({ label, text, onClick }: { label: string; text: string; onClick: () => void }) {
+export function MenuItem({
+  label,
+  text,
+  onClick,
+  danger = false,
+}: {
+  label: string;
+  text: string;
+  onClick: () => void;
+  danger?: boolean;
+}) {
   return (
     <button
       type="button"
+      className={danger ? "danger" : undefined}
       aria-label={label}
       onClick={(e) => {
         e.currentTarget.closest("details")?.removeAttribute("open");
