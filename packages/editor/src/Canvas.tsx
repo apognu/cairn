@@ -4,6 +4,7 @@ import {
   collectHeadings,
   type DocNode,
   defaultContext,
+  migrateDoc,
   type RenderContext,
   renderNodes,
   SiteLayout,
@@ -47,7 +48,8 @@ export function Canvas({
 }: Props) {
   const editor = useEditor({
     extensions: buildExtensions(editable),
-    content: doc,
+    // A page saved by an older version of a component is upgraded as it opens.
+    content: migrateDoc(doc),
     editable,
     onCreate: ({ editor: e }) => onReady?.(e.getJSON() as DocNode),
     onUpdate: ({ editor: e }) => onChange?.(e.getJSON() as DocNode),

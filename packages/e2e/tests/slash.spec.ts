@@ -113,3 +113,29 @@ test("feature tabs are edited through their settings form", async ({ page }) => 
   await panel.getByLabel("New until").first().fill("2000-01-01");
   await expect(editor.locator(".feature-new")).toHaveCount(0);
 });
+
+test("a card title is written on the canvas and lands in the page settings", async ({ page }) => {
+  const title = `Editable ${Math.random().toString(36).slice(2, 8)}`;
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "New page" }).click();
+  await nameNewPage(page, title);
+  await page.getByRole("button", { name: title, exact: true }).click();
+
+  const editor = page.locator(".ProseMirror");
+  await editor.click();
+  await page.keyboard.type("/cards");
+  await page.keyboard.press("Enter");
+
+  const cardTitle = editor.locator(".feature-title .editable");
+  await expect(cardTitle).toHaveText("Card");
+  await cardTitle.click();
+  await page.keyboard.press("Control+A");
+  await page.keyboard.type("Quick start");
+  await page.keyboard.press("Enter");
+  await expect(cardTitle).toHaveText("Quick start");
+
+  // The same props the settings form edits.
+  await editor.locator(".feature-grid").click();
+  await expect(page.getByLabel("Title").first()).toHaveValue("Quick start");
+});

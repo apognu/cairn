@@ -1,5 +1,7 @@
 import { componentsByName, Tabs } from "@yourdocs/components";
+import { EditableScopeContext, upgradeProps } from "@yourdocs/sdk";
 import { Fragment, type ReactNode } from "react";
+import { migrateDoc } from "./migrate";
 import type { DocMark, DocNode, RenderContext } from "./types";
 
 export type NodeContext = {
@@ -131,8 +133,14 @@ export function renderNode(node: DocNode, ctx: NodeContext, key: number): ReactN
       const component = componentsByName.get(node.type);
       if (!component) throw new Error(`unknown node type: ${node.type}`);
 
-      // Parsing fills defaults and drops attrs that are not props (block IDs).
-      return <Fragment key={key}>{component.render(component.props.parse(attrs), children)}</Fragment>;
+      // Parsing fills defaults and drops attrs that are not props (block IDs, the version).
+      const props = component.props.parse(upgradeProps(component, attrs));
+
+      return (
+        <EditableScopeContext.Provider key={key} value={{ props }}>
+          {component.render(props, children)}
+        </EditableScopeContext.Provider>
+      );
     }
   }
 }
@@ -253,7 +261,8 @@ const blockTypes = new Set([
 const markTypes = new Set(["bold", "italic", "underline", "strike", "code", "link", "term"]);
 
 /** What would stop this document from rendering: unknown nodes and marks, and component props that do not fit their schema. */
-export function validateDoc(doc: DocNode): string[] {
+export function validateDoc(saved: DocNode): string[] {
+  const doc = migrateDoc(saved);
   const problems: string[] = [];
 
   const visit = (node: DocNode) => {

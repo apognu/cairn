@@ -25,7 +25,7 @@ export const cards = defineComponent({
     <div className="feature-grid" data-columns={props.columns}>
       {props.cards.map((c, i) => (
         // biome-ignore lint/suspicious/noArrayIndexKey: cards are positional
-        <FeatureCard key={i} feature={c} />
+        <FeatureCard key={i} feature={c} path={`cards.${i}`} />
       ))}
     </div>
   ),

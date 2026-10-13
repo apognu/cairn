@@ -1,11 +1,13 @@
 import { RenderEnvContext } from "@yourdocs/components";
 import { collectHeadings } from "./headings";
 import { SiteLayout } from "./layout";
+import { migrateDoc } from "./migrate";
 import { renderNode } from "./render";
 import { defaultContext, type RenderInput } from "./types";
 
 /** A whole published page. The V8 renderer, the browser hydration and the editor's reader view all render this. */
-export function Page({ doc, context }: RenderInput) {
+export function Page({ doc: saved, context }: RenderInput) {
+  const doc = migrateDoc(saved);
   const full = { ...defaultContext, ...context };
   const { list, byNode } = collectHeadings(doc);
 

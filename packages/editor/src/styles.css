@@ -2046,3 +2046,19 @@ button.secondary:disabled {
   font: 12.5px / 1.5 var(--font-mono);
   resize: vertical;
 }
+
+/* Text of a component written on the canvas (`<Editable>`). */
+.editable {
+  border-radius: 3px;
+  outline: 1px dashed transparent;
+  outline-offset: 2px;
+  cursor: text;
+}
+
+.editable:hover {
+  outline-color: var(--border-input);
+}
+
+.editable:focus {
+  outline: 2px solid var(--accent);
+}

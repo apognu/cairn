@@ -1,4 +1,4 @@
-import { date, defineComponent, icon, link, z } from "@yourdocs/sdk";
+import { date, defineComponent, Editable, icon, link, z } from "@yourdocs/sdk";
 import { useEffect, useId, useState } from "react";
 import { useRenderEnv } from "./env";
 import { Icon, iconNames } from "./icons";
@@ -15,8 +15,8 @@ const feature = z.object({
 
 type Feature = z.infer<typeof feature>;
 
-/** The card both feature components use: icon, title, description, and a link to a page when one is set. */
-export function FeatureCard({ feature: f }: { feature: Feature }) {
+/** The card both feature components use: icon, title, description, and a link to a page when one is set. With `path` (where the card sits in the props) its title is written on the canvas. */
+export function FeatureCard({ feature: f, path }: { feature: Feature; path?: string }) {
   const { urls, today } = useRenderEnv();
   const href = f.page ? urls[f.page] : f.href;
   // A date in the past hides the tag at the next render; without a date the tag never shows.
@@ -29,7 +29,7 @@ export function FeatureCard({ feature: f }: { feature: Feature }) {
       </span>
       <span className="feature-text">
         <span className="feature-title">
-          {f.title}
+          {path ? <Editable path={`${path}.title`} /> : f.title}
           {isNew && (
             <>
               {"\u00a0"}

@@ -15,7 +15,7 @@ import {
   variable,
   whatsNew,
 } from "@yourdocs/components";
-import { type AnyComponent, propsSchema } from "@yourdocs/sdk";
+import { type AnyComponent, propsSchema, VERSION_ATTR } from "@yourdocs/sdk";
 import { ComponentView } from "./ComponentView";
 import { PageLink, PagePickerTriggers } from "./pageLink";
 import { SlashCommand } from "./slash";
@@ -86,7 +86,11 @@ function atomComponent(definition: AnyComponent, inline = false) {
     atom: true,
     draggable: true,
     addAttributes() {
-      return Object.fromEntries(Object.keys(properties).map((key) => [key, { default: properties[key].default }]));
+      return {
+        ...Object.fromEntries(Object.keys(properties).map((key) => [key, { default: properties[key].default }])),
+        // Records which version of the component wrote the props; `migrate` reads it when the component changes.
+        [VERSION_ATTR]: { default: definition.version },
+      };
     },
     parseHTML: () => [{ tag: `${inline ? "span" : "div"}[data-component="${definition.name}"]` }],
     renderHTML: () => [inline ? "span" : "div", { "data-component": definition.name }],

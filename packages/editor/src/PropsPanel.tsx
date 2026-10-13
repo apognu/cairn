@@ -39,7 +39,9 @@ export function PropsPanel({ editor, host }: { editor: Editor; host: HTMLElement
           {component.name} · v{component.version}
         </span>
       </div>
-      <p className="muted">Built-in component · form generated from its schema</p>
+      <p className="muted">
+        {component.name.includes("/") ? "Custom" : "Built-in"} component · form generated from its schema
+      </p>
       <SchemaForm
         schema={propsSchema(component)}
         value={active.attrs}

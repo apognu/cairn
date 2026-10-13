@@ -11,6 +11,7 @@ export { Callout, type CalloutProps, callout } from "./Callout";
 export { customSlots } from "./custom";
 export { type RenderEnv, RenderEnvContext, useRenderEnv } from "./env";
 export { FeatureCard, featureTabs, whatsNew } from "./features";
+export { Icon, iconNames } from "./icons";
 export { linkCard, relatedPages, seeAlso } from "./links";
 export { snippet, variable } from "./reusable";
 export { Tabs, type TabsProps } from "./Tabs";
