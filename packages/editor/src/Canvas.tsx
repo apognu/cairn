@@ -80,7 +80,9 @@ export function Canvas({
       active instanceof HTMLInputElement ||
       active instanceof HTMLTextAreaElement ||
       active instanceof HTMLSelectElement;
-    if (!typing) editor.commands.focus("end");
+    // The caret goes to the end, but the page stays at its top: scrolling to the caret would open a long page at its bottom.
+    if (!typing) editor.commands.focus("end", { scrollIntoView: false });
+    editor.view.dom.closest(".canvas")?.scrollTo({ top: 0 });
   }, [editor, editable]);
 
   const editorRef = useRef(editor);
