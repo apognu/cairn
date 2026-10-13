@@ -5,6 +5,7 @@ import { ApiSettings } from "./ApiSettings";
 import { FixtureView } from "./FixtureView";
 import { HistoryDrawer } from "./HistoryDrawer";
 import { Icon } from "./icons";
+import { useCloseMenus } from "./menus";
 import { PageEditor } from "./PageEditor";
 import { PageSettings } from "./PageSettings";
 import { PublishDialog } from "./PublishDialog";
@@ -12,6 +13,7 @@ import { pendingCount, usePages, usePending, useSettings, useSiteInfo } from "./
 import { type SettingsSection, SettingsView, sectionTitle } from "./SettingsView";
 import { Sidebar } from "./Sidebar";
 import { firstPage, type Page, pageUrls } from "./tree";
+import { UserMenu } from "./UserMenu";
 import type { SaveStatus } from "./useDraftSync";
 
 const statusText: Record<SaveStatus, string> = {
@@ -45,6 +47,7 @@ function breadcrumb(pages: Page[], page: Page): string[] {
 }
 
 function Editor() {
+  useCloseMenus();
   const pages = usePages();
   // The selected page lives in the URL, so a reload comes back to it.
   const [selected, setSelected] = useState(() => new URLSearchParams(window.location.hash.slice(1)).get("page"));
@@ -123,6 +126,7 @@ function Editor() {
         <div className="topbar-actions">
           {published !== null && <span className="muted">Published {published} pages</span>}
           <ThemeToggle />
+          <UserMenu />
           {!section && current && current.kind !== "link" && (
             <>
               {liveUrl && site.data ? (

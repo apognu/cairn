@@ -11,5 +11,6 @@ pub(crate) mod release;
 pub(crate) mod release_api_spec;
 pub(crate) mod release_page;
 pub(crate) mod revision;
+pub(crate) mod session;
 pub(crate) mod setting;
 pub(crate) mod user;

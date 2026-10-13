@@ -6,19 +6,24 @@
 
 mod oidc;
 mod routes;
+mod session;
 
 use std::sync::Arc;
 
 use axum::{
   Json, Router,
-  extract::{FromRef, FromRequestParts},
-  http::{StatusCode, request::Parts},
+  extract::{FromRef, FromRequestParts, Request, State},
+  http::{HeaderMap, StatusCode, request::Parts},
+  middleware::Next,
   response::{IntoResponse, Response},
 };
 use yourdocs_core::UserId;
-use yourdocs_store::{DatabaseConnection, StoreError};
+use yourdocs_store::{DatabaseConnection, StoreError, create_session, delete_session, session_user};
 
-pub use crate::oidc::{Authorization, Identity, Oidc, OidcConfig};
+pub use crate::{
+  oidc::{Authorization, Identity, Oidc, OidcConfig},
+  session::SessionSettings,
+};
 
 /// The user every request runs as in `yourdocs dev`. A fixed value so rows written in earlier sessions still point at it.
 pub fn local_user_id() -> UserId {
@@ -69,6 +74,7 @@ enum Mode {
 struct OidcAuth {
   oidc: Oidc,
   db: DatabaseConnection,
+  sessions: SessionSettings,
 }
 
 impl Auth {
@@ -78,8 +84,50 @@ impl Auth {
   }
 
   /// Sign-in through the OpenID Connect provider.
-  pub fn oidc(oidc: Oidc, db: DatabaseConnection) -> Self {
-    Self(Arc::new(Mode::Oidc(Box::new(OidcAuth { oidc, db }))))
+  pub fn oidc(oidc: Oidc, db: DatabaseConnection, sessions: SessionSettings) -> Self {
+    Self(Arc::new(Mode::Oidc(Box::new(OidcAuth { oidc, db, sessions }))))
+  }
+
+  /// Who a request comes from: the local user without a login, otherwise the owner of its session cookie.
+  pub async fn authenticate(&self, headers: &HeaderMap) -> Result<UserId, AuthError> {
+    match &*self.0 {
+      Mode::Local => Ok(local_user_id()),
+      Mode::Oidc(oidc) => {
+        let token = oidc.sessions.token(headers).ok_or(AuthError::Unauthorized)?;
+
+        session_user(&oidc.db, &session::hash_token(token), oidc.sessions.idle).await?.ok_or(AuthError::Unauthorized)
+      }
+    }
+  }
+
+  /// Starts a session for a user who just signed in; returns the `Set-Cookie` value.
+  pub(crate) async fn start_session(&self, user: UserId) -> Result<String, AuthError> {
+    let Mode::Oidc(oidc) = &*self.0 else {
+      return Err(AuthError::Login("this server has no login".into()));
+    };
+    let token = session::new_token();
+
+    create_session(&oidc.db, &session::hash_token(&token), user, oidc.sessions.absolute).await?;
+
+    Ok(oidc.sessions.set_cookie(&token))
+  }
+
+  /// Ends the session of a request, if it has one; returns the `Set-Cookie` value that removes the cookie.
+  pub(crate) async fn end_session(&self, headers: &HeaderMap) -> Result<String, AuthError> {
+    let Mode::Oidc(oidc) = &*self.0 else {
+      return Err(AuthError::Login("this server has no login".into()));
+    };
+
+    if let Some(token) = oidc.sessions.token(headers) {
+      delete_session(&oidc.db, &session::hash_token(token)).await?;
+    }
+
+    Ok(oidc.sessions.clear_cookie())
+  }
+
+  /// Whether requests need a login.
+  pub fn requires_login(&self) -> bool {
+    matches!(&*self.0, Mode::Oidc(_))
   }
 
   /// The login routes (`/auth/…`); empty without a provider.
@@ -98,18 +146,76 @@ where
 {
   type Rejection = AuthError;
 
-  async fn from_request_parts(_: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
-    match &*Auth::from_ref(state).0 {
-      Mode::Local => Ok(CurrentUser(local_user_id())),
-      // Sessions come with M5.2.
-      Mode::Oidc(_) => Err(AuthError::Unauthorized),
+  async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+    // The login guard already resolved it for routes behind it.
+    if let Some(user) = parts.extensions.get::<CurrentUser>() {
+      return Ok(*user);
     }
+
+    Auth::from_ref(state).authenticate(&parts.headers).await.map(CurrentUser)
+  }
+}
+
+/// Middleware: refuses requests without a valid login, so a route cannot be left open by a handler that forgot to take `CurrentUser`.
+pub async fn require_login(State(auth): State<Auth>, mut request: Request, next: Next) -> Response {
+  match auth.authenticate(request.headers()).await {
+    Ok(user) => {
+      request.extensions_mut().insert(CurrentUser(user));
+      next.run(request).await
+    }
+    Err(error) => error.into_response(),
   }
 }
 
 #[cfg(test)]
 mod tests {
+  use axum::http::{HeaderValue, header};
+  use jiff::SignedDuration;
+  use yourdocs_store::{connect, upsert_user};
+
   use super::*;
+
+  async fn signed_in(idle: SignedDuration) -> (Auth, HeaderMap) {
+    let dir = std::env::temp_dir().join(format!("yourdocs-auth-{}", uuid::Uuid::now_v7()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let db = connect(&dir.join("test.db")).await.unwrap();
+    let user = upsert_user(&db, "https://idp.example", "alice", "alice@example.com", "Alice").await.unwrap();
+
+    let auth = Auth::oidc(
+      Oidc::unreachable(),
+      db,
+      SessionSettings {
+        idle,
+        absolute: SignedDuration::from_hours(24),
+        secure: true,
+      },
+    );
+    let cookie = auth.start_session(user.id).await.unwrap();
+    let mut headers = HeaderMap::new();
+    headers.insert(header::COOKIE, HeaderValue::from_str(cookie.split(';').next().unwrap()).unwrap());
+
+    (auth, headers)
+  }
+
+  #[tokio::test]
+  async fn a_session_authenticates_until_logout() {
+    let (auth, headers) = signed_in(SignedDuration::from_hours(1)).await;
+
+    assert!(auth.authenticate(&headers).await.is_ok());
+    assert!(matches!(auth.authenticate(&HeaderMap::new()).await, Err(AuthError::Unauthorized)));
+
+    auth.end_session(&headers).await.unwrap();
+
+    assert!(matches!(auth.authenticate(&headers).await, Err(AuthError::Unauthorized)));
+  }
+
+  #[tokio::test]
+  async fn an_idle_session_is_refused() {
+    // A negative idle time is already exceeded when the session is created: no sleeping in a test.
+    let (auth, headers) = signed_in(SignedDuration::from_secs(-1)).await;
+
+    assert!(matches!(auth.authenticate(&headers).await, Err(AuthError::Unauthorized)));
+  }
 
   #[test]
   fn local_user_is_stable() {

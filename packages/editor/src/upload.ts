@@ -1,5 +1,6 @@
 import type { Editor } from "@tiptap/core";
 import { useSyncExternalStore } from "react";
+import { signIn } from "./api/client";
 import type { components } from "./api/schema";
 
 type Asset = components["schemas"]["Asset"];
@@ -40,6 +41,7 @@ async function send(file: File): Promise<Asset> {
     headers: { "Content-Type": "application/octet-stream" },
     body: file,
   });
+  if (response.status === 401) signIn();
   const body: unknown = await response.json().catch(() => ({}));
 
   if (!response.ok) throw new Error((body as { message?: string }).message ?? `Upload failed (${response.status})`);

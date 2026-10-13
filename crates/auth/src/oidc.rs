@@ -69,6 +69,35 @@ impl Oidc {
     Ok(Self { config, metadata, http, redirect })
   }
 
+  /// A provider that is never contacted, for tests of what happens after a login.
+  #[cfg(test)]
+  pub(crate) fn unreachable() -> Self {
+    use openidconnect::{AuthUrl, EmptyAdditionalProviderMetadata, JsonWebKeySetUrl, ResponseTypes, core::CoreSubjectIdentifierType};
+
+    let metadata = CoreProviderMetadata::new(
+      IssuerUrl::new("https://idp.example".into()).unwrap(),
+      AuthUrl::new("https://idp.example/auth".into()).unwrap(),
+      JsonWebKeySetUrl::new("https://idp.example/keys".into()).unwrap(),
+      vec![ResponseTypes::new(vec![CoreResponseType::Code])],
+      vec![CoreSubjectIdentifierType::Public],
+      vec![openidconnect::core::CoreJwsSigningAlgorithm::RsaSsaPkcs1V15Sha256],
+      EmptyAdditionalProviderMetadata {},
+    );
+
+    Self {
+      config: OidcConfig {
+        issuer: "https://idp.example".into(),
+        client_id: "editor".into(),
+        client_secret: String::new(),
+        scopes: vec![],
+        groups_claim: "groups".into(),
+      },
+      metadata,
+      http: reqwest::Client::new(),
+      redirect: RedirectUrl::new("https://docs.example/auth/callback".into()).unwrap(),
+    }
+  }
+
   fn client(&self) -> Client {
     CoreClient::from_provider_metadata(
       self.metadata.clone(),

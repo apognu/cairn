@@ -272,6 +272,33 @@
         }
       }
     },
+    "/api/me": {
+      "get": {
+        "summary": "The signed-in user.",
+        "operationId": "getMe",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/pages": {
       "get": {
         "summary": "Every live page, ordered by position.",
@@ -3311,6 +3338,26 @@
             "$ref": "#/components/schemas/PageId"
           },
           "title": {
+            "type": "string"
+          }
+        }
+      },
+      "User": {
+        "type": "object",
+        "description": "Someone who signed in through an identity provider.",
+        "required": [
+          "id",
+          "email",
+          "name"
+        ],
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "id": {
+            "$ref": "#/components/schemas/UserId"
+          },
+          "name": {
             "type": "string"
           }
         }

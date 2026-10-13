@@ -15,7 +15,7 @@ use yourdocs_publish::{Bundles, FolderTarget, PublishConfig, PublishTarget, Publ
 use yourdocs_render::Pool;
 use yourdocs_store::SqlContentStore;
 
-use crate::{api_pages, drafts, history, library, links, pages, publish, redirects, settings, uploads, urls};
+use crate::{api_pages, drafts, history, library, links, me, pages, publish, redirects, settings, uploads, urls};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -80,6 +80,7 @@ pub fn api() -> (Router<AppState>, utoipa::openapi::OpenApi) {
     .merge(links::routes())
     .merge(library::routes())
     .merge(history::routes())
+    .merge(me::routes())
     .split_for_parts();
   // The router's default info describes utoipa-axum itself.
   spec.info = utoipa::openapi::InfoBuilder::new().title("yourdocs").version(env!("CARGO_PKG_VERSION")).build();
@@ -89,11 +90,13 @@ pub fn api() -> (Router<AppState>, utoipa::openapi::OpenApi) {
 
 pub fn router(state: AppState) -> Router {
   let auth = yourdocs_auth::Auth::routes().with_state(state.auth.clone());
+  // Everything that reads or changes the site's content needs a login; only the sign-in routes and the editor's own files are open.
+  let guard = middleware::from_fn_with_state(state.auth.clone(), yourdocs_auth::require_login);
+  let content = Router::new().route("/_a/{name}", get(uploads::serve)).merge(api().0).layer(guard);
 
   Router::new()
     .merge(auth)
-    .route("/_a/{name}", get(uploads::serve))
-    .merge(api().0)
+    .merge(content)
     .fallback(crate::editor::serve)
     .layer(middleware::from_fn(crate::error::rejections_as_json))
     .layer(middleware::from_fn(local_host_only))

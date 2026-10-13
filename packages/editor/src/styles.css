@@ -327,6 +327,35 @@ small,
   font-weight: 400;
 }
 
+.menu-note {
+  margin: 0;
+  padding: 6px 10px;
+  color: var(--muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+/* In the top bar the menu is a button like its neighbors, not the row-sized icon of the tree. */
+.user-menu summary {
+  width: auto;
+  max-width: 180px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--border-input);
+  border-radius: 7px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+  line-height: 30px;
+}
+
+.user-menu .menu-pop {
+  top: 36px;
+  min-width: 200px;
+}
+
 .menu-pop hr {
   width: 100%;
   margin: 4px 0;

@@ -13,6 +13,7 @@ mod error;
 mod history;
 mod library;
 mod links;
+mod me;
 mod pages;
 mod publish;
 mod redirects;
@@ -70,8 +71,9 @@ async fn prepare(data_dir: &std::path::Path, site_url: String, auth: AuthSetup) 
   let auth = match auth {
     AuthSetup::Local => yourdocs_auth::Auth::local(),
     AuthSetup::Oidc(settings, redirect) => {
+      let sessions = settings.sessions(redirect.starts_with("https://"));
       let oidc = yourdocs_auth::Oidc::discover(settings.into(), &redirect).await?;
-      yourdocs_auth::Auth::oidc(oidc, db.clone())
+      yourdocs_auth::Auth::oidc(oidc, db.clone(), sessions)
     }
   };
 

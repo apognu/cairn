@@ -1,9 +1,9 @@
 use axum::{
   Router,
   extract::{Query, State},
-  http::StatusCode,
+  http::{HeaderMap, HeaderValue, StatusCode, header},
   response::{Html, IntoResponse, Redirect, Response},
-  routing::get,
+  routing::{get, post},
 };
 use serde::Deserialize;
 use yourdocs_store::{LoginState, save_login_state, take_login_state, upsert_user};
@@ -11,7 +11,10 @@ use yourdocs_store::{LoginState, save_login_state, take_login_state, upsert_user
 use crate::{Auth, AuthError, Mode};
 
 pub(crate) fn routes() -> Router<Auth> {
-  Router::new().route("/auth/login", get(login)).route("/auth/callback", get(callback))
+  Router::new()
+    .route("/auth/login", get(login))
+    .route("/auth/callback", get(callback))
+    .route("/auth/logout", post(logout))
 }
 
 #[derive(Deserialize)]
@@ -47,7 +50,7 @@ struct CallbackQuery {
 /// The provider sends the browser back here with a code. Failures are shown as a page, since a person is looking at it.
 async fn callback(State(auth): State<Auth>, Query(query): Query<CallbackQuery>) -> Response {
   match finish_login(&auth, query).await {
-    Ok(page) => page.into_response(),
+    Ok((cookie, next)) => ([(header::SET_COOKIE, cookie)], Redirect::to(&next)).into_response(),
     Err(error) => {
       let message = match &error {
         AuthError::Login(message) => message.clone(),
@@ -61,7 +64,8 @@ async fn callback(State(auth): State<Auth>, Query(query): Query<CallbackQuery>) 
   }
 }
 
-async fn finish_login(auth: &Auth, query: CallbackQuery) -> Result<Html<String>, AuthError> {
+/// Completes a login; returns the cookie that starts the session and where to send the browser.
+async fn finish_login(auth: &Auth, query: CallbackQuery) -> Result<(HeaderValue, String), AuthError> {
   let Mode::Oidc(oidc) = &*auth.0 else {
     return Err(AuthError::Login("this server has no login".into()));
   };
@@ -80,8 +84,16 @@ async fn finish_login(auth: &Auth, query: CallbackQuery) -> Result<Html<String>,
   let user = upsert_user(&oidc.db, &identity.issuer, &identity.subject, &identity.email, &identity.name).await?;
   tracing::info!(user_id = %user.id, "signed in");
 
-  // Sessions replace this page in M5.2.
-  Ok(Html(format!("<p>Signed in as {}</p>", escape(&user.email))))
+  let cookie = auth.start_session(user.id).await?;
+
+  Ok((HeaderValue::from_str(&cookie).map_err(|e| AuthError::Other(e.into()))?, login.next))
+}
+
+/// Ends the session and removes its cookie.
+async fn logout(State(auth): State<Auth>, headers: HeaderMap) -> Result<Response, AuthError> {
+  let cookie = auth.end_session(&headers).await?;
+
+  Ok((StatusCode::NO_CONTENT, [(header::SET_COOKIE, cookie)]).into_response())
 }
 
 /// Only an address on this server may follow a login, or the login page would redirect anywhere.

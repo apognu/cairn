@@ -101,6 +101,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The signed-in user. */
+        get: operations["getMe"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/pages": {
         parameters: {
             query?: never;
@@ -1118,6 +1135,12 @@ export interface components {
             page_id: components["schemas"]["PageId"];
             title: string;
         };
+        /** @description Someone who signed in through an identity provider. */
+        User: {
+            email: string;
+            id: components["schemas"]["UserId"];
+            name: string;
+        };
         /** @description A user, including the built-in local one. */
         UserId: string;
         VariableBody: {
@@ -1348,6 +1371,34 @@ export interface operations {
             };
             /** @description pages or snippets still use it */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    getMe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"];
+                };
+            };
+            /** @description not signed in */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

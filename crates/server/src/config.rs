@@ -3,6 +3,7 @@
 use std::{net::SocketAddr, path::PathBuf, str::FromStr};
 
 use anyhow::{Context, bail};
+use jiff::{SignedDuration, Span, SpanRelativeTo};
 
 /// Everything `serve` is told through environment variables.
 #[derive(Debug, Clone)]
@@ -24,6 +25,20 @@ pub(crate) struct OidcSettings {
   pub(crate) client_secret: String,
   pub(crate) scopes: Vec<String>,
   pub(crate) groups_claim: String,
+  /// A session unused for this long ends.
+  pub(crate) session_idle: SignedDuration,
+  /// A session ends this long after the login.
+  pub(crate) session_absolute: SignedDuration,
+}
+
+impl OidcSettings {
+  pub(crate) fn sessions(&self, secure: bool) -> yourdocs_auth::SessionSettings {
+    yourdocs_auth::SessionSettings {
+      idle: self.session_idle,
+      absolute: self.session_absolute,
+      secure,
+    }
+  }
 }
 
 impl From<OidcSettings> for yourdocs_auth::OidcConfig {
@@ -49,6 +64,12 @@ impl Config {
     let parsed =
       |name: &str, default: &str| -> anyhow::Result<_> { SocketAddr::from_str(&var(name).unwrap_or_else(|| default.into())).with_context(|| format!("{name} is not an address like 0.0.0.0:8080")) };
 
+    let duration = |name: &str, default: &str| -> anyhow::Result<SignedDuration> {
+      let span: Span = var(name).unwrap_or_else(|| default.into()).parse().with_context(|| format!("{name} is not a duration like 8h"))?;
+
+      span.to_duration(SpanRelativeTo::days_are_24_hours()).with_context(|| format!("{name} is not a duration like 8h"))
+    };
+
     let public_url = required("PUBLIC_URL")?.trim_end_matches('/').to_string();
     if !public_url.starts_with("http://") && !public_url.starts_with("https://") {
       bail!("PUBLIC_URL must start with https:// (or http:// on localhost), got {public_url}");
@@ -64,6 +85,8 @@ impl Config {
         client_secret: required("OIDC_CLIENT_SECRET")?,
         scopes: var("OIDC_SCOPES").map_or_else(|| vec!["groups".to_string()], |v| v.split([',', ' ']).filter(|s| !s.is_empty()).map(String::from).collect()),
         groups_claim: var("OIDC_GROUPS_CLAIM").unwrap_or_else(|| "groups".into()),
+        session_idle: duration("SESSION_IDLE", "8h")?,
+        session_absolute: duration("SESSION_ABSOLUTE", "168h")?,
       },
     })
   }
@@ -94,6 +117,7 @@ mod tests {
     assert_eq!(config.public_url, "https://docs.example.com");
     assert_eq!(config.bind.port(), 8080);
     assert_eq!(config.oidc.groups_claim, "groups");
+    assert_eq!((config.oidc.session_idle.as_secs(), config.oidc.session_absolute.as_secs()), (8 * 3600, 7 * 24 * 3600));
   }
 
   #[test]

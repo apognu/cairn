@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { DeleteDialog } from "./DeleteDialog";
 import { Icon } from "./icons";
 import { useCreatePage, useDeletePage, useMovePage, usePending, useRenamePage } from "./queries";
@@ -50,25 +50,6 @@ export function Sidebar({ pages, loading, selected, onSelect }: Props) {
       },
       (e: unknown) => setError(e instanceof Error ? e.message : String(e)),
     );
-
-  // An open row menu closes on a click anywhere else, on Escape, and when focus leaves it.
-  useEffect(() => {
-    const close = (except?: Element | null) => {
-      for (const menu of document.querySelectorAll<HTMLDetailsElement>("details.menu[open]")) {
-        if (menu !== except) menu.removeAttribute("open");
-      }
-    };
-    const onPointer = (e: PointerEvent) => close((e.target as Element | null)?.closest("details.menu"));
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && close();
-
-    document.addEventListener("pointerdown", onPointer);
-    document.addEventListener("keydown", onKey);
-
-    return () => {
-      document.removeEventListener("pointerdown", onPointer);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, []);
 
   const submit = (title: string, url?: string, keepOldUrl?: boolean) => {
     // The form that was submitted closes when its request is done, unless the user has since opened another one.
