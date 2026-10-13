@@ -8,12 +8,23 @@ export type DocNode = {
   text?: string;
 };
 
+export type SiteImage = { src: string; width?: number; height?: number };
+export type SiteLink = { label: string; url: string };
+
 /** `external` marks a link that leaves the site. */
 export type NavNode = { id: string; title: string; href: string; external?: boolean; children: NavNode[] };
 
 /** Everything outside the document that a page needs to render. Built by the server, never fetched during render. */
 export type RenderContext = {
-  site: { name: string; logo?: { src: string; width?: number; height?: number } | null };
+  site: {
+    name: string;
+    logo?: SiteImage | null;
+    /** Shown instead of `logo` in dark mode. */
+    logoDark?: SiteImage | null;
+    /** External links after the sections in the header. */
+    headerLinks?: SiteLink[];
+    footer?: { text: string; columns: { title: string; links: SiteLink[] }[] };
+  };
   /** The description is shown as the page's lead, under its title. */
   page: { id?: string; title: string; description?: string | null };
   nav: NavNode[];

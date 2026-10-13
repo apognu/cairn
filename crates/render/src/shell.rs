@@ -12,8 +12,8 @@ pub struct Shell<'a> {
   pub input: &'a str,
   pub stylesheets: &'a [String],
   pub script: &'a str,
-  /// `#rrggbb`, already validated; it is written into a stylesheet.
-  pub accent: &'a str,
+  /// The compiled theme (`Settings::theme_css`); every value in it was validated as a hex color.
+  pub theme_css: &'a str,
 }
 
 // Applies the saved theme before the first paint, so a reader who chose dark never sees a light flash.
@@ -51,8 +51,8 @@ pub fn document(shell: &Shell) -> String {
         @for href in shell.stylesheets {
           link rel="stylesheet" href=(href);
         }
-        // After the stylesheets so it wins over the default. Dark mode derives a lighter shade of it in `site.css`.
-        style { (PreEscaped(format!(":root{{--accent-base:{}}}", shell.accent))) }
+        // After the stylesheets so it wins over the defaults. Dark mode derives a lighter shade of the accent in `site.css`.
+        style { (PreEscaped(shell.theme_css)) }
         script type="speculationrules" { (PreEscaped(SPECULATION_RULES)) }
       }
       body {
@@ -82,7 +82,7 @@ mod tests {
       input: r#"{"text":"</script><script>alert(1)</script>"}"#,
       stylesheets: &stylesheets,
       script: "/assets/client.js",
-      accent: "#0b6e4f",
+      theme_css: ":root{--accent-base:#0b6e4f}",
     });
 
     assert!(page.contains("&lt;b&gt;Hi&lt;/b&gt; · Docs"), "{page}");

@@ -198,8 +198,11 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
     let site_name = settings.site_name.clone();
     let today = jiff::Zoned::now().date().to_string();
 
-    let (asset_files, asset_meta) = self.asset_files(sources, settings.logo_asset_id).await?;
+    let (asset_files, asset_meta) = self.asset_files(sources, [settings.logo_asset_id, settings.logo_dark_asset_id].into_iter().flatten()).await?;
     let logo = settings.logo_asset_id.and_then(|id| asset_meta.get(&id.to_string()).cloned());
+    let logo_dark = settings.logo_dark_asset_id.and_then(|id| asset_meta.get(&id.to_string()).cloned());
+    let site_ctx = json!({ "name": site_name, "logo": logo, "logoDark": logo_dark, "headerLinks": settings.header_links, "footer": settings.footer });
+    let theme_css = settings.theme_css();
 
     let bundle_files = bundle_files(&self.bundles);
     let stylesheets: Vec<String> = bundle_files.iter().filter(|(name, _)| name.ends_with(".css")).map(|(name, _)| format!("/{name}")).collect();
@@ -231,7 +234,7 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
           input: json!({
             "doc": source.doc,
             "context": {
-              "site": { "name": site_name, "logo": logo },
+              "site": site_ctx,
               "page": { "id": source.page.id, "title": source.page.title, "description": source.page.description },
               "nav": nav,
               "breadcrumbs": breadcrumbs(tree_pages, &urls, source.page.id),
@@ -253,7 +256,7 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
           site_name: site_name.clone(),
           stylesheets: stylesheets.clone(),
           script: script.clone(),
-          accent: settings.accent.clone(),
+          theme_css: theme_css.clone(),
           page_id: source.page.id,
           revision: source.revision,
           path: output_path(&urls[&source.page.id]),
@@ -316,14 +319,14 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
         input: json!({
           "doc": { "type": "doc", "content": blocks },
           // A fixed ID keeps the page searchable and its render cacheable.
-          "context": { "site": { "name": site_name, "logo": logo }, "page": { "id": "00000000-0000-7000-8000-00000000610c", "title": "Glossary" }, "nav": nav_tree(tree_pages, &urls, None), "header": header, "urls": {}, "assets": {}, "today": "" },
+          "context": { "site": site_ctx, "page": { "id": "00000000-0000-7000-8000-00000000610c", "title": "Glossary" }, "nav": nav_tree(tree_pages, &urls, None), "header": header, "urls": {}, "assets": {}, "today": "" },
         }),
         title: "Glossary".into(),
         description: None,
         site_name: site_name.clone(),
         stylesheets: stylesheets.clone(),
         script: script.clone(),
-        accent: settings.accent.clone(),
+        theme_css: theme_css.clone(),
         page_id: PageId::new(),
         revision: RevisionId::new(),
         path: output_path(glossary_url),
@@ -336,14 +339,14 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
       pool: self.pool.clone(),
       input: json!({
         "doc": { "type": "doc", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "There is no page at this address. Use the navigation or the search to find what you were looking for." }] }] },
-        "context": { "site": { "name": site_name, "logo": logo }, "page": { "title": "Page not found" }, "nav": nav_tree(tree_pages, &urls, None), "header": header, "urls": {}, "assets": {}, "today": "" },
+        "context": { "site": site_ctx, "page": { "title": "Page not found" }, "nav": nav_tree(tree_pages, &urls, None), "header": header, "urls": {}, "assets": {}, "today": "" },
       }),
       title: "Page not found".into(),
       description: None,
       site_name: site_name.clone(),
       stylesheets: stylesheets.clone(),
       script: script.clone(),
-      accent: settings.accent.clone(),
+      theme_css: theme_css.clone(),
       page_id: PageId::new(),
       revision: RevisionId::new(),
       path: "404.html".into(),
@@ -366,8 +369,8 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
   }
 
   /// The image files the pages use, and what the renderer needs to know about them.
-  async fn asset_files(&self, sources: &[PageSource], logo: Option<AssetId>) -> Result<(Vec<OutputFile>, HashMap<String, Value>), PublishError> {
-    let mut ids: Vec<_> = sources.iter().flat_map(|s| image_asset_ids(&s.doc)).chain(logo).collect();
+  async fn asset_files(&self, sources: &[PageSource], logos: impl Iterator<Item = AssetId>) -> Result<(Vec<OutputFile>, HashMap<String, Value>), PublishError> {
+    let mut ids: Vec<_> = sources.iter().flat_map(|s| image_asset_ids(&s.doc)).chain(logos).collect();
     ids.sort();
     ids.dedup();
 
@@ -410,14 +413,14 @@ struct RenderJob {
   site_name: String,
   stylesheets: Vec<String>,
   script: String,
-  accent: String,
+  theme_css: String,
   page_id: PageId,
   revision: RevisionId,
   path: String,
 }
 
 /// Renders one page, or reuses what an identical render produced before. The cache is content addressed: the key is a hash of everything the
-/// HTML depends on (the render input, the page's own title and description, the site name and accent, the stylesheets and script), so the same
+/// HTML depends on (the render input, the page's own title and description, the site name and theme, the stylesheets and script), so the same
 /// key always means the same file and nothing ever has to be invalidated.
 /// Part of every render cache key. The JS bundles are in the key by their hashed names, but the page shell and code highlighting are Rust:
 /// a release changes the version, and the number is bumped when either changes between releases. Otherwise unchanged pages would keep
@@ -435,7 +438,7 @@ async fn render_job<A: AssetStore>(job: RenderJob, cache: Arc<A>, renders: Arc<A
       &job.site_name,
       &job.stylesheets.join(","),
       &job.script,
-      &job.accent,
+      &job.theme_css,
     ] {
       digest.update(part.as_bytes());
       digest.update([0]);
@@ -456,7 +459,7 @@ async fn render_job<A: AssetStore>(job: RenderJob, cache: Arc<A>, renders: Arc<A
       input: &job.input.to_string(),
       stylesheets: &job.stylesheets,
       script: &job.script,
-      accent: &job.accent,
+      theme_css: &job.theme_css,
     });
     cache.put(&key, html.clone().into_bytes()).await?;
 

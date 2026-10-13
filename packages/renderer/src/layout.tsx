@@ -1,7 +1,7 @@
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 import type { Heading } from "./headings";
 import { ThemeToggle } from "./ThemeToggle";
-import type { NavNode, RenderContext } from "./types";
+import type { NavNode, RenderContext, SiteImage } from "./types";
 
 /** The arrow after a link that leaves the site. */
 function ExternalMark() {
@@ -20,6 +20,42 @@ function ExternalMark() {
     >
       <path d="M7 17L17 7M8 7h9v9" />
     </svg>
+  );
+}
+
+function SiteLogo({ image, mode }: { image: SiteImage; mode?: "light" | "dark" }) {
+  return (
+    <img className="site-logo" data-mode={mode} src={image.src} width={image.width} height={image.height} alt="" />
+  );
+}
+
+function isExternal(url: string): boolean {
+  return /^(https?:)?\/\//.test(url);
+}
+
+function SiteFooter({ footer }: { footer: NonNullable<RenderContext["site"]["footer"]> }) {
+  if (!footer.text && footer.columns.length === 0) return null;
+
+  return (
+    <footer className="site-footer" data-pagefind-ignore="">
+      {footer.columns.length > 0 && (
+        <div className="site-footer-columns">
+          {footer.columns.map((column) => (
+            <nav key={column.title} aria-label={column.title}>
+              <h2>{column.title}</h2>
+              <ul>
+                {column.links.map((link) => (
+                  <li key={link.url + link.label}>
+                    <a href={link.url}>{link.label}</a>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+          ))}
+        </div>
+      )}
+      {footer.text && <p>{footer.text}</p>}
+    </footer>
   );
 }
 
@@ -184,14 +220,9 @@ export function SiteLayout({
           </button>
           <a href="/" className="site-name">
             {context.site.logo && (
-              <img
-                className="site-logo"
-                src={context.site.logo.src}
-                width={context.site.logo.width}
-                height={context.site.logo.height}
-                alt=""
-              />
+              <SiteLogo image={context.site.logo} mode={context.site.logoDark ? "light" : undefined} />
             )}
+            {context.site.logoDark && <SiteLogo image={context.site.logoDark} mode="dark" />}
             {context.site.name}
           </a>
           {context.header.length > 0 && (
@@ -199,6 +230,16 @@ export function SiteLayout({
               {context.header.map((item) => (
                 <a key={item.id} href={item.href} aria-current={item.id === context.section ? "page" : undefined}>
                   {item.title}
+                </a>
+              ))}
+            </nav>
+          )}
+          {context.site.headerLinks && context.site.headerLinks.length > 0 && (
+            <nav className="site-links" aria-label="Links">
+              {context.site.headerLinks.map((link) => (
+                <a key={link.url + link.label} href={link.url}>
+                  {link.label}
+                  {isExternal(link.url) && <ExternalMark />}
                 </a>
               ))}
             </nav>
@@ -238,6 +279,19 @@ export function SiteLayout({
                   <li key={item.id}>
                     <a href={item.href} aria-current={item.id === context.section ? "page" : undefined}>
                       {item.title}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {context.site.headerLinks && context.site.headerLinks.length > 0 && (
+              // The header has no room for its links on narrow screens: the menu panel carries them instead.
+              <ul className="site-nav-sections site-nav-links">
+                {context.site.headerLinks.map((link) => (
+                  <li key={link.url + link.label}>
+                    <a href={link.url}>
+                      {link.label}
+                      {isExternal(link.url) && <ExternalMark />}
                     </a>
                   </li>
                 ))}
@@ -302,6 +356,7 @@ export function SiteLayout({
           )}
         </aside>
       </div>
+      {!embedded && context.site.footer && <SiteFooter footer={context.site.footer} />}
     </div>
   );
 }

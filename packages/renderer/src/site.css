@@ -23,7 +23,8 @@
   src: url("../node_modules/@fontsource/ibm-plex-mono/files/ibm-plex-mono-latin-500-normal.woff2") format("woff2");
 }
 
-:root {
+:root,
+[data-theme="light"] {
   --font-sans: "Hanken Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;
   --bg: #ffffff;
@@ -35,6 +36,7 @@
   --muted: #5b6168;
   --accent-base: #0b6e4f;
   --accent: var(--accent-base);
+  --link: var(--accent);
   --hover: #eef0ec;
   --code-bg: #f2f3f0;
   --danger: #b3261e;
@@ -51,6 +53,7 @@
     --text-body: #d6d9db;
     --muted: #9aa1a8;
     --accent: color-mix(in srgb, var(--accent-base) 55%, white);
+    --link: var(--accent);
     --hover: #23272b;
     --code-bg: #1d2024;
     --danger: #f2b8b5;
@@ -58,7 +61,7 @@
   }
 }
 
-:root[data-theme="dark"] {
+[data-theme="dark"] {
   --bg: #121416;
   --bg-side: #17191c;
   --border: #2a2e32;
@@ -67,6 +70,7 @@
   --text-body: #d6d9db;
   --muted: #9aa1a8;
   --accent: color-mix(in srgb, var(--accent-base) 55%, white);
+  --link: var(--accent);
   --hover: #23272b;
   --code-bg: #1d2024;
   --danger: #f2b8b5;
@@ -85,7 +89,7 @@ body {
 }
 
 a {
-  color: var(--accent);
+  color: var(--link);
 }
 
 .site-header {
@@ -688,6 +692,92 @@ a.feature-card:hover {
   width: auto;
 }
 
+/* With both logos, each shows only in its own mode. */
+.site-logo[data-mode="dark"] {
+  display: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .site-logo[data-mode="dark"] {
+    display: block;
+  }
+
+  :root:not([data-theme="light"]) .site-logo[data-mode="light"] {
+    display: none;
+  }
+}
+
+:root[data-theme="dark"] .site-logo[data-mode="dark"] {
+  display: block;
+}
+
+:root[data-theme="dark"] .site-logo[data-mode="light"] {
+  display: none;
+}
+
+.site-links {
+  display: flex;
+  gap: 4px;
+  margin-left: 16px;
+  padding-right: 8px;
+}
+
+.site-links a {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 14.5px;
+  text-decoration: none;
+}
+
+.site-links a:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.site-footer {
+  padding: 32px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-side);
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.site-footer-columns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 32px 64px;
+  margin-bottom: 20px;
+}
+
+.site-footer h2 {
+  margin: 0 0 8px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.site-footer ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.site-footer li {
+  margin: 4px 0;
+}
+
+.site-footer a {
+  color: var(--muted);
+}
+
+.site-footer p {
+  margin: 0;
+}
+
 .theme-toggle {
   display: flex;
   flex: none;
@@ -1059,7 +1149,8 @@ dfn.term:not(:has(a)) {
 /* Narrow screens, after the rules they override. */
 @media (max-width: 600px) {
   /* The header keeps the menu, the name, search and the theme; the sections move into the menu panel. */
-  .site-sections {
+  .site-sections,
+  .site-links {
     display: none;
   }
 
@@ -1071,7 +1162,13 @@ dfn.term:not(:has(a)) {
     font-weight: 600;
   }
 
-  .site-search {
+  .site-nav .site-nav-links {
+    font-weight: 400;
+  }
+
+  /* The hidden links still precede it, so their sibling rule has to be matched to be undone. */
+  .site-search,
+  .site-links + .site-search {
     flex: 1;
     width: auto;
     min-width: 0;
