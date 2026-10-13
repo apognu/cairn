@@ -21,6 +21,8 @@ jobs:
       - run: bun run lint
       - run: bun test
       - run: cargo build -p yourdocs-cli
+      # The sign-in tests (`serve.spec`) need a provider: a local Dex with one user.
+      - run: docker run -d --network host -v "$PWD/examples/dex/config.yaml:/etc/dex/config.yaml:ro" ghcr.io/dexidp/dex:v2.41.1 dex serve /etc/dex/config.yaml
       - run: node packages/e2e/node_modules/.bin/playwright install --with-deps chromium
       - run: bun run --filter @yourdocs/e2e test
 
