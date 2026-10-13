@@ -308,7 +308,7 @@ fn position_for(pages: &[Page], parent: Option<PageId>, moving: Option<PageId>, 
   Ok(index.to_string())
 }
 
-fn into_page(row: page::Model) -> Result<Page, StoreError> {
+pub(crate) fn into_page(row: page::Model) -> Result<Page, StoreError> {
   let parse = |s: &str| s.parse::<Timestamp>().map_err(|e| StoreError::Invalid(format!("bad timestamp: {e}")));
 
   let kind = match row.kind.as_str() {

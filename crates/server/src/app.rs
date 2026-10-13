@@ -21,7 +21,7 @@ use yourdocs_publish::{Bundles, FolderTarget, PublishConfig, PublishTarget, Publ
 use yourdocs_render::Pool;
 use yourdocs_store::SqlContentStore;
 
-use crate::{assets::Assets, drafts, error::AppError, library, links, pages, publish, redirects, settings, uploads, urls};
+use crate::{assets::Assets, drafts, error::AppError, history, library, links, pages, publish, redirects, settings, uploads, urls};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -77,6 +77,7 @@ pub fn api() -> (Router<AppState>, utoipa::openapi::OpenApi) {
     .merge(redirects::routes())
     .merge(links::routes())
     .merge(library::routes())
+    .merge(history::routes())
     .split_for_parts();
   // The router's default info describes utoipa-axum itself.
   spec.info = utoipa::openapi::InfoBuilder::new().title("yourdocs").version(env!("CARGO_PKG_VERSION")).build();
