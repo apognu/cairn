@@ -6,7 +6,7 @@ import { Canvas } from "./Canvas";
 import { readLocal } from "./localDrafts";
 import { usePages } from "./queries";
 import { type Page, pageUrls } from "./tree";
-import { type InitialDraft, type SaveStatus, useDraftSync } from "./useDraftSync";
+import { type InitialDraft, type SaveStatus, saveSettled, useDraftSync } from "./useDraftSync";
 
 interface Props {
   page: Page;
@@ -22,11 +22,14 @@ export function PageEditor({ page, onStatus, panelHost }: Props) {
     staleTime: Number.POSITIVE_INFINITY,
     gcTime: 0,
     queryFn: async (): Promise<InitialDraft> => {
+      // A save sent when this page was last left must land first, or its own revision would look like someone else's.
+      await saveSettled(page.id);
       const server = unwrap(await api.GET("/api/pages/{id}/draft", { params: { path: { id: page.id } } }));
+      const serverBase = server.base_revision_id ?? null;
       const local = await readLocal(page.id);
 
-      if (local?.dirty) return { doc: local.doc, base: local.base, dirty: true };
-      return { doc: server.doc as InitialDraft["doc"], base: server.base_revision_id ?? null, dirty: false };
+      if (local?.dirty) return { doc: local.doc, base: local.base, dirty: true, conflict: local.base !== serverBase };
+      return { doc: server.doc as InitialDraft["doc"], base: serverBase, dirty: false };
     },
   });
 
@@ -54,7 +57,7 @@ function Editing({
   onStatus: Props["onStatus"];
   panelHost: HTMLElement | null;
 }) {
-  const { status, onChange, baseline, flush, overwrite } = useDraftSync(page.id, initial);
+  const { status, onChange, baseline, flush, overwrite, discard } = useDraftSync(page.id, initial);
   const pages = usePages();
 
   useEffect(() => onStatus(status), [status, onStatus]);
@@ -67,7 +70,7 @@ function Editing({
           <button type="button" onClick={() => void overwrite()}>
             Keep my version
           </button>
-          <button type="button" onClick={() => window.location.reload()}>
+          <button type="button" onClick={() => void discard()}>
             Reload the saved version
           </button>
         </div>

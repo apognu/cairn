@@ -52,3 +52,11 @@ export async function writeLocal(draft: LocalDraft): Promise<void> {
     // see above
   }
 }
+
+export async function discardLocal(pageId: string): Promise<void> {
+  try {
+    await run("readwrite", (store) => store.delete(pageId));
+  } catch {
+    // see above
+  }
+}

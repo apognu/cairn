@@ -17,7 +17,8 @@ const statusText: Record<SaveStatus, string> = {
   dirty: "Unsaved changes",
   saving: "Saving…",
   conflict: "Not saved: conflict",
-  error: "Not saved: retrying",
+  // Retried on its own when the server or the network failed; the browser copy keeps the changes in every case.
+  error: "Not saved: kept in this browser",
 };
 
 export function App() {
