@@ -936,9 +936,9 @@ mod tests {
       .await
       .unwrap();
 
-    // Three pages use the snippet (one through a variable too), two do not.
+    // Twelve pages use the snippet (and a variable too), three do not.
     let mut titles = Vec::new();
-    for (i, uses) in [true, true, true, false, false].into_iter().enumerate() {
+    for (i, uses) in (0..15).map(|i| (i, i < 12)) {
       let title = format!("Page{i}");
       let page = create_page(&f.db, user, None, &title, Placement::Last).await.unwrap();
       let content = if uses {
@@ -956,7 +956,7 @@ mod tests {
     let read = |t: &str| std::fs::read_to_string(site.join(t.to_lowercase()).join("index.html")).unwrap();
     assert!(read("Page0").contains("Install the CLI first.") && read("Page0").contains("1.0"));
 
-    // Editing the snippet re-renders the three that use it and none of the others.
+    // Editing the snippet re-renders the twelve that use it and none of the others.
     save_snippet(
       &f.db,
       user,
@@ -966,7 +966,7 @@ mod tests {
     .await
     .unwrap();
     f.publisher.publish(user).await.unwrap();
-    assert_eq!(f.publisher.renders() - first, 3);
+    assert_eq!(f.publisher.renders() - first, 12);
     for (title, uses) in &titles {
       assert_eq!(read(title).contains("version 2"), *uses, "{title}");
     }
@@ -975,7 +975,7 @@ mod tests {
     let before = f.publisher.renders();
     save_variable(&f.db, user, "version", "2.0").await.unwrap();
     f.publisher.publish(user).await.unwrap();
-    assert_eq!(f.publisher.renders() - before, 3);
+    assert_eq!(f.publisher.renders() - before, 12);
     assert!(read("Page2").contains("2.0"));
 
     // An entry that does not exist blocks the publish and names the page.
