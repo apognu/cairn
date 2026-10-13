@@ -24,17 +24,29 @@ interface Props {
   /** Leave out the site header and navigation (the editor already has its own). */
   embedded?: boolean;
   onChange?: (doc: DocNode) => void;
+  /** The document as the editor holds it once loaded, before any edit. */
+  onReady?: (doc: DocNode) => void;
   onBlur?: () => void;
   /** Where the settings panel of the component under the cursor is drawn. */
   panelHost?: HTMLElement | null;
 }
 
 /** The page body as ProseMirror, mounted where the published page puts its content. */
-export function Canvas({ doc, context, editable = true, embedded = false, onChange, onBlur, panelHost }: Props) {
+export function Canvas({
+  doc,
+  context,
+  editable = true,
+  embedded = false,
+  onChange,
+  onReady,
+  onBlur,
+  panelHost,
+}: Props) {
   const editor = useEditor({
     extensions: buildExtensions(editable),
     content: doc,
     editable,
+    onCreate: ({ editor: e }) => onReady?.(e.getJSON() as DocNode),
     onUpdate: ({ editor: e }) => onChange?.(e.getJSON() as DocNode),
     onBlur: () => onBlur?.(),
     editorProps: {

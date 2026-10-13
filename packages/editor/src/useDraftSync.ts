@@ -90,6 +90,19 @@ export function useDraftSync(pageId: string, initial: InitialDraft) {
     [pageId, flush],
   );
 
+  /**
+   * The editor fills in what the stored document leaves implicit (an empty page gets a paragraph, attributes get their defaults):
+   * that form is the saved one, so opening a page does not save it and list it as edited.
+   */
+  const baseline = useCallback(
+    (doc: DocNode) => {
+      if (initial.dirty) return;
+      sync.current.doc = doc;
+      sync.current.savedSignature = contentSignature(doc);
+    },
+    [initial.dirty],
+  );
+
   /** After a conflict: keep this version, saving it over the one on the server. */
   const overwrite = useCallback(async () => {
     const { data } = await api.GET("/api/pages/{id}/draft", { params: { path: { id: pageId } } });
@@ -112,5 +125,5 @@ export function useDraftSync(pageId: string, initial: InitialDraft) {
     };
   }, [pageId, initial.dirty, flush]);
 
-  return { status, onChange, flush, overwrite };
+  return { status, onChange, baseline, flush, overwrite };
 }

@@ -54,7 +54,7 @@ function Editing({
   onStatus: Props["onStatus"];
   panelHost: HTMLElement | null;
 }) {
-  const { status, onChange, flush, overwrite } = useDraftSync(page.id, initial);
+  const { status, onChange, baseline, flush, overwrite } = useDraftSync(page.id, initial);
   const pages = usePages();
 
   useEffect(() => onStatus(status), [status, onStatus]);
@@ -85,6 +85,7 @@ function Editing({
         }}
         embedded
         onChange={onChange}
+        onReady={baseline}
         panelHost={panelHost}
         onBlur={() => void flush()}
       />
