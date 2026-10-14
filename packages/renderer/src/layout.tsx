@@ -225,6 +225,7 @@ export function SiteLayout({
   // On narrow screens the navigation is a panel opened from the header; wide screens always show it.
   const [navOpen, setNavOpen] = useState(false);
   const navId = useId();
+  const navToggle = useRef<HTMLButtonElement>(null);
   const active = useActiveHeading(embedded ? [] : toc.map((h) => h.anchor));
   const [tocOpen, setTocOpen] = useState(false);
   const [zoomed, setZoomed] = useState<{ src: string; alt: string } | null>(null);
@@ -232,7 +233,12 @@ export function SiteLayout({
   useEffect(() => {
     if (!navOpen) return;
 
-    const onKey = (event: KeyboardEvent) => event.key === "Escape" && setNavOpen(false);
+    // Escape hands the focus back to the button that opened the panel, which a keyboard user would otherwise lose.
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setNavOpen(false);
+      navToggle.current?.focus();
+    };
     // The toggle closes the panel with its own click.
     const onPointer = (event: PointerEvent) => {
       const target = event.target as Element | null;
@@ -275,6 +281,7 @@ export function SiteLayout({
         <Slot name="Header" slots={slots} context={context}>
           <header className="site-header">
             <button
+              ref={navToggle}
               type="button"
               className="nav-toggle"
               aria-label="Menu"
