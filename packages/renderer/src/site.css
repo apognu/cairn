@@ -132,13 +132,27 @@ a {
   text-decoration: none;
 }
 
+/* The page tree and the table of contents beside the reading column. */
+.site {
+  --nav-width: 280px;
+  --toc-width: 240px;
+}
+
+/* The side columns widen only where the reading column keeps its full width (808px, plus both of them). */
+@media (max-width: 1360px) {
+  .site {
+    --nav-width: 250px;
+    --toc-width: 200px;
+  }
+}
+
 .site-body {
   display: grid;
-  grid-template-columns: 250px minmax(0, 1fr) 200px;
+  grid-template-columns: var(--nav-width) minmax(0, 1fr) var(--toc-width);
 }
 
 .site[data-embedded] .site-body {
-  grid-template-columns: minmax(0, 1fr) 200px;
+  grid-template-columns: minmax(0, 1fr) var(--toc-width);
 }
 
 /* Stays in view and fills the height under the header, however long the page is. */
@@ -1308,7 +1322,7 @@ dfn.term:not(:has(a)) {
 
 /* An API reference uses the whole width beside the navigation: no table of contents, no reading column. */
 .site[data-api] .site-body {
-  grid-template-columns: 250px minmax(0, 1fr);
+  grid-template-columns: var(--nav-width) minmax(0, 1fr);
 }
 
 .site[data-api] .site-toc {
