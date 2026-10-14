@@ -132,6 +132,12 @@ pub struct Change {
   pub new_url: Option<String>,
   /// Whether the old URL keeps working through a redirect.
   pub redirected: bool,
+  /// The title in the live release, when it changed.
+  pub old_title: Option<String>,
+  /// The revision a publish would take, for pages with content.
+  pub revision_id: Option<crate::RevisionId>,
+  /// The revision the live site shows, to compare with.
+  pub live_revision_id: Option<crate::RevisionId>,
 }
 
 /// A URL that works on the live site and will not after publishing.
@@ -259,10 +265,13 @@ pub fn pending_changes(current: &Current, live: Option<&Live>) -> Pending {
     changes.push(Change {
       page_id: page.id,
       title: page.title.clone(),
+      old_title: before.filter(|old| old.title != page.title).map(|old| old.title.clone()),
       kinds,
       old_url,
       new_url,
       redirected,
+      revision_id: drafts.get(&page.id).copied(),
+      live_revision_id: live.revisions.get(&page.id).copied(),
     });
   }
 
@@ -274,6 +283,9 @@ pub fn pending_changes(current: &Current, live: Option<&Live>) -> Pending {
       old_url: live_urls.get(&old.id).cloned(),
       new_url: None,
       redirected: false,
+      old_title: None,
+      revision_id: None,
+      live_revision_id: live.revisions.get(&old.id).copied(),
     });
   }
 

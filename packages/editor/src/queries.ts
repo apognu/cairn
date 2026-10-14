@@ -101,7 +101,8 @@ export function usePublish() {
 
   return useMutation({
     mutationFn: async () => unwrap(await api.POST("/api/publish")),
-    onSuccess: () => client.invalidateQueries({ queryKey: PENDING }),
+    onSuccess: () =>
+      Promise.all([client.invalidateQueries({ queryKey: PENDING }), client.invalidateQueries({ queryKey: ["site"] })]),
   });
 }
 
@@ -117,7 +118,8 @@ export function usePromote() {
   return useMutation({
     mutationFn: async (id: string) =>
       unwrap(await api.POST("/api/releases/{id}/promote", { params: { path: { id } } })),
-    onSuccess: () => client.invalidateQueries({ queryKey: PENDING }),
+    onSuccess: () =>
+      Promise.all([client.invalidateQueries({ queryKey: PENDING }), client.invalidateQueries({ queryKey: ["site"] })]),
   });
 }
 

@@ -46,6 +46,17 @@ function releaseNow(pageId: string, token: string) {
   void fetch(url, { method: "DELETE", keepalive: true, credentials: "same-origin" }).catch(() => undefined);
 }
 
+/** Pages this tab just created: opening one is working on it, so its lock does not start out idle. */
+const created = new Set<string>();
+
+/** Marks a page the user just made in this tab. */
+export function markCreated(pageId: string) {
+  created.add(pageId);
+}
+
+/** Locks this tab is giving back. Coming straight back to a page must wait for its release, or the tab would find its own lock held. */
+const releasing = new Map<string, Promise<void>>();
+
 const message = (error: unknown, fallback: string) => (error as { message?: string } | undefined)?.message ?? fallback;
 
 /**
@@ -57,9 +68,12 @@ export function usePageLock(pageId: string, title: string) {
   const [state, setState] = useState<LockState>({ kind: "loading" });
   const [watching, setWatching] = useState(false);
   const token = useRef<string | null>(null);
-  /** The last keystroke or click, 0 before the first: a page only opened is not being worked on. */
-  const lastActive = useRef(0);
   const openedAt = useRef(Date.now());
+  /**
+   * The last activity on this page: in the canvas or its side panel, or (taken with the lock) just before it was opened. Work in the
+   * tree or the top bar is not work on the page the tab happens to show.
+   */
+  const pageActive = useRef(0);
   const kind = useRef(state.kind);
   kind.current = state.kind;
 
@@ -81,10 +95,17 @@ export function usePageLock(pageId: string, title: string) {
   );
 
   const acquire = useCallback(async () => {
+    await releasing.get(pageId);
     // The lock may lapse between the refusal and the look-up; one more try settles it.
     for (let attempt = 0; attempt < 2; attempt++) {
-      const { data, error, response } = await api.POST("/api/pages/{id}/lock", { params: { path: { id: pageId } } });
-      if (data) return holding(data.token);
+      const { data, error, response } = await api.POST("/api/pages/{id}/lock", {
+        params: { path: { id: pageId } },
+        body: { idle_ms: created.has(pageId) ? 0 : null },
+      });
+      if (data) {
+        if (created.delete(pageId)) pageActive.current = Date.now();
+        return holding(data.token);
+      }
 
       token.current = null;
       if (response.status !== 423) {
@@ -109,6 +130,8 @@ export function usePageLock(pageId: string, title: string) {
       });
       if (!data) return message(error, "Could not take over the page");
 
+      // As on the server: taking over is work on the page.
+      pageActive.current = Date.now();
       holding(data.token);
       return null;
     },
@@ -132,14 +155,24 @@ export function usePageLock(pageId: string, title: string) {
 
   const release = useCallback(() => {
     const held = token.current;
-    token.current = null;
     if (!held) return;
 
-    // The last save goes first: it needs the lock.
-    void saveSettled(pageId).then(async () => {
-      await api.DELETE("/api/pages/{id}/lock", { params: { path: { id: pageId }, query: { token: held } } });
-      void queryClient.invalidateQueries({ queryKey: LOCKS });
-    });
+    // Registered at once, so coming straight back waits for it. The editor's own cleanup runs in the same tick and starts its last save
+    // with the token, so the token is only dropped on the next one, and the lock only after that save.
+    const done = new Promise((resolve) => window.setTimeout(resolve, 0))
+      .then(() => {
+        if (token.current === held) token.current = null;
+        return saveSettled(pageId);
+      })
+      .then(async () => {
+        await api.DELETE("/api/pages/{id}/lock", { params: { path: { id: pageId }, query: { token: held } } });
+        void queryClient.invalidateQueries({ queryKey: LOCKS });
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (releasing.get(pageId) === done) releasing.delete(pageId);
+      });
+    releasing.set(pageId, done);
   }, [pageId, queryClient]);
 
   const renew = useCallback(async () => {
@@ -149,7 +182,7 @@ export function usePageLock(pageId: string, title: string) {
     const { response } = await api.PUT("/api/pages/{id}/lock", {
       params: { path: { id: pageId } },
       // Before any activity this is the whole epoch, which the server reads as idle.
-      body: { token: held, idle_ms: Math.max(0, Date.now() - lastActive.current) },
+      body: { token: held, idle_ms: Math.max(0, Date.now() - pageActive.current) },
     });
     if (!response.ok) await recheck(response.status);
   }, [pageId, recheck]);
@@ -165,8 +198,7 @@ export function usePageLock(pageId: string, title: string) {
 
     return () => {
       window.removeEventListener("pagehide", onHide);
-      // After the editor's own cleanup has started its last save.
-      window.setTimeout(release, 0);
+      release();
     };
   }, [pageId, acquire, release]);
 
@@ -174,10 +206,12 @@ export function usePageLock(pageId: string, title: string) {
   // over) could have it.
   useEffect(() => {
     let reported = 0;
-    const active = () => {
-      lastActive.current = Date.now();
-      if (token.current && lastActive.current - reported > REPORT_EVERY) {
-        reported = lastActive.current;
+    const active = (event: Event) => {
+      if (!(event.target instanceof Element && event.target.closest("main.canvas, .side-column"))) return;
+      const now = Date.now();
+      pageActive.current = now;
+      if (token.current && now - reported > REPORT_EVERY) {
+        reported = now;
         void renew();
       }
     };
@@ -212,7 +246,7 @@ export function usePageLock(pageId: string, title: string) {
     if (state.kind !== "mine") return;
 
     const timer = window.setInterval(() => {
-      if (Date.now() - Math.max(lastActive.current, openedAt.current) > IDLE_AFTER) {
+      if (Date.now() - Math.max(pageActive.current, openedAt.current) > IDLE_AFTER) {
         release();
         setState({ kind: "idle" });
         return;

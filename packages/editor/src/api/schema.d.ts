@@ -691,7 +691,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Where the published site lives, for the editor's "View as reader". */
+        /** Where the published site lives, for the editor's "View as reader", and what the publish dialog says of its target. */
         get: operations["siteInfo"];
         put?: never;
         post?: never;
@@ -791,6 +791,13 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AcquireLock: {
+            /**
+             * Format: int64
+             * @description How long ago, in milliseconds, the user last typed or clicked in the tab asking; absent when they have not yet.
+             */
+            idle_ms?: number | null;
+        };
         AcquiredLock: {
             lock: components["schemas"]["LockView"];
             /** @description Sent with every save and renewal. */
@@ -936,13 +943,17 @@ export interface components {
         /** @description One page with something to publish. */
         Change: {
             kinds: components["schemas"]["ChangeKind"][];
+            live_revision_id?: components["schemas"]["RevisionId"] | null;
             /** @description The URL after publishing, for pages that still exist. */
             new_url?: string | null;
+            /** @description The title in the live release, when it changed. */
+            old_title?: string | null;
             /** @description The URL in the live release, for pages that were already published. */
             old_url?: string | null;
             page_id: components["schemas"]["PageId"];
             /** @description Whether the old URL keeps working through a redirect. */
             redirected: boolean;
+            revision_id?: components["schemas"]["RevisionId"] | null;
             title: string;
         };
         /**
@@ -1058,6 +1069,10 @@ export interface components {
          * @enum {string}
          */
         LinkKind: "inline" | "card" | "prop";
+        LiveInfo: {
+            published_by: string;
+            release: components["schemas"]["Release"];
+        };
         /** @description What a page's lock holder sends with each save and renewal; a new one is made whenever the lock changes hands. */
         LockToken: string;
         /** @description A lock as the editor shows it. */
@@ -1081,6 +1096,8 @@ export interface components {
             /** @description Held by the user asking. */
             mine: boolean;
             page_id: components["schemas"]["PageId"];
+            /** @description The page's title now; empty when the page is gone. */
+            page_title: string;
             /**
              * Format: date-time
              * @description When the holder's editor last renewed the lock: it was open and in use then.
@@ -1248,9 +1265,16 @@ export interface components {
         /** @description An immutable published state of the whole site. */
         Release: {
             base_release_id?: components["schemas"]["ReleaseId"] | null;
+            /** Format: int64 */
+            bytes?: number | null;
             /** Format: date-time */
             created_at: string;
             created_by: components["schemas"]["UserId"];
+            /**
+             * Format: int64
+             * @description How many files the release sent to its target, and their total size; unknown for releases made before they were recorded.
+             */
+            file_count?: number | null;
             id: components["schemas"]["ReleaseId"];
             /**
              * Format: int32
@@ -1371,6 +1395,11 @@ export interface components {
             site_name: string;
         };
         SiteCapabilities: {
+            /**
+             * Format: int64
+             * @description The most files a release may hold on this target.
+             */
+            max_files?: number | null;
             /** @description Whether a build can be viewed before it goes live. */
             preview: boolean;
             /** @description Whether that build can then be made live exactly as it is. */
@@ -1379,6 +1408,9 @@ export interface components {
         SiteInfo: {
             /** @description What the configured publish target can do; the editor hides what it cannot. */
             capabilities: components["schemas"]["SiteCapabilities"];
+            live?: components["schemas"]["LiveInfo"] | null;
+            /** @description What the editor calls the publish target ("Cloudflare Pages"). */
+            target: string;
             /** @description Where readers find the published site, without a trailing slash. */
             url: string;
         };
@@ -1453,6 +1485,9 @@ export interface components {
             title: string;
         };
         VersionContent: {
+            author_name: string;
+            /** Format: date-time */
+            created_at: string;
             /** @description The page's description when this version was saved. */
             description?: string | null;
             /** @description False for versions saved before descriptions were recorded, which cannot restore one. */
@@ -2479,7 +2514,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["AcquireLock"] | null;
+            };
+        };
         responses: {
             200: {
                 headers: {

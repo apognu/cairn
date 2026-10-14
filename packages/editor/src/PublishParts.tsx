@@ -1,0 +1,187 @@
+import type { DocNode } from "@cairn/renderer";
+import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { api } from "./api/client";
+import type { components } from "./api/schema";
+import { unwrap } from "./api/unwrap";
+import { blockLines, diffLines } from "./diff";
+import { Icon } from "./icons";
+import { ago } from "./LockBanner";
+import type { LockView } from "./useLock";
+
+type Change = components["schemas"]["Change"];
+type Problem = components["schemas"]["Problem"];
+
+export const badge: Record<Change["kinds"][number], string> = {
+  new: "New",
+  edited: "Edited",
+  renamed: "Renamed",
+  moved: "Moved",
+  header: "Header",
+  deleted: "Deleted",
+};
+
+/** A saved version never changes, so it is read once. */
+function useRevision(id: string | null | undefined) {
+  return useQuery({
+    queryKey: ["revision", id],
+    enabled: Boolean(id),
+    staleTime: Number.POSITIVE_INFINITY,
+    queryFn: async () => unwrap(await api.GET("/api/revisions/{id}", { params: { path: { id: id ?? "" } } })),
+  });
+}
+
+/** Who else is in the middle of editing: their last saved version is what goes out. */
+export function LockWarning({ locks }: { locks: LockView[] }) {
+  if (locks.length === 0) return null;
+
+  return (
+    <div className="publish-warning publish-locks" role="alert">
+      <Icon name="lock" size={18} />
+      <div>
+        <strong>
+          {locks.length === 1 ? "1 page is being edited right now" : `${locks.length} pages are being edited right now`}
+        </strong>
+        <ul aria-label="Pages being edited">
+          {locks.map((l) => (
+            <li key={l.page_id}>
+              <span className="lock-page">{l.page_title}</span>{" "}
+              <span className="muted">
+                {l.user_name} · {l.last_saved_at ? `last saved ${ago(l.last_saved_at)}` : "nothing saved yet"}
+              </span>
+            </li>
+          ))}
+        </ul>
+        <p className="muted">
+          Publishing now uses their last saved versions. Anything they haven't saved stays in their editor.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/** One pending change: what it is, who made it, how big it is, and its diff on request. */
+export function ChangeRow({
+  change,
+  note,
+  lockedBy,
+  select,
+}: {
+  change: Change;
+  note: React.ReactNode;
+  lockedBy: string | undefined;
+  /** In a hotfix, the checkbox that picks the page. */
+  select?: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const current = useRevision(change.revision_id);
+  const live = useRevision(change.live_revision_id);
+  const content = change.kinds.includes("edited") || change.kinds.includes("new");
+  const now = current.data ? blockLines(current.data.doc as DocNode) : [];
+  const before = live.data ? blockLines(live.data.doc as DocNode) : [];
+  const lines = content && current.data && (live.data || !change.live_revision_id) ? diffLines(before, now) : null;
+  const added = lines?.filter((l) => l.kind === "added").length ?? 0;
+  const removed = lines?.filter((l) => l.kind === "removed").length ?? 0;
+  const words = now.join(" ").split(/\s+/).filter(Boolean).length;
+
+  return (
+    <>
+      <tr>
+        {select && <td className="select">{select}</td>}
+        <td>
+          {change.kinds.map((k) => (
+            <span key={k} className="badge" data-kind={k}>
+              {badge[k]}
+            </span>
+          ))}
+        </td>
+        <td>
+          <strong>{change.title}</strong>
+          {change.old_title && <span className="muted"> · was “{change.old_title}”</span>}
+          {lockedBy && (
+            <span className="being-edited" title={`${lockedBy} is editing`}>
+              <Icon name="lock" size={12} /> being edited
+            </span>
+          )}
+          {note}
+        </td>
+        <td className="muted">
+          {current.data ? `${current.data.author_name} · ${ago(current.data.created_at)}` : "—"}
+        </td>
+        <td className="size">
+          {!lines ? (
+            "—"
+          ) : change.live_revision_id ? (
+            <>
+              <span className="added">+{added}</span> <span className="removed">−{removed}</span>
+            </>
+          ) : (
+            `${words.toLocaleString("en")} w`
+          )}
+        </td>
+        <td>
+          {lines && (
+            <button type="button" className="small" aria-expanded={open} onClick={() => setOpen(!open)}>
+              {open ? "Hide diff" : "View diff"}
+            </button>
+          )}
+        </td>
+      </tr>
+      {open && lines && (
+        <tr className="diff-row">
+          <td colSpan={select ? 6 : 5}>
+            <ul className="diff" aria-label={`Changes to ${change.title}`}>
+              {lines
+                .filter((l) => l.kind !== "same")
+                .map((l, i) => (
+                  // biome-ignore lint/suspicious/noArrayIndexKey: diff lines can repeat
+                  <li key={i} data-kind={l.kind}>
+                    {l.kind === "added" ? "+ " : "− "}
+                    {l.text || "(empty line)"}
+                  </li>
+                ))}
+            </ul>
+          </td>
+        </tr>
+      )}
+    </>
+  );
+}
+
+const mb = (bytes: number) => `${(bytes / 1_000_000).toLocaleString("en", { maximumFractionDigits: 1 })} MB`;
+
+/** The checks that passed, and the size of the site against the target's limit. */
+export function ChecksStrip({
+  problems,
+  files,
+  bytes,
+  maxFiles,
+}: {
+  problems: Problem[];
+  files: number | null | undefined;
+  bytes: number | null | undefined;
+  maxFiles: number | null | undefined;
+}) {
+  const passed = [
+    { kinds: ["broken_link", "broken_operation_link"], text: "No broken links" },
+    { kinds: ["invalid_props"], text: "All component props valid" },
+    { kinds: ["missing_alt"], text: "Every image has alt text" },
+  ].filter((check) => !problems.some((p) => check.kinds.includes(p.kind)));
+
+  return (
+    <div className="checks-strip">
+      {passed.map((check) => (
+        <span key={check.text} className="passed">
+          <Icon name="check" size={14} />
+          {check.text}
+        </span>
+      ))}
+      {files != null && (
+        <span className="muted stats">
+          Last build {files.toLocaleString("en")} files{bytes != null && ` · ${mb(bytes)}`}
+          {maxFiles != null && ` · limit ${maxFiles.toLocaleString("en")} files`}
+        </span>
+      )}
+    </div>
+  );
+}

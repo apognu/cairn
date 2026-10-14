@@ -27,6 +27,8 @@ pub async fn create_release(db: &DatabaseConnection, user: UserId, tree_snapshot
     settings_snapshot: Set(Some(settings)),
     preview_url: Set(None),
     render_keys: Set(None),
+    file_count: Set(None),
+    bytes: Set(None),
   }
   .insert(db)
   .await?;
@@ -113,6 +115,18 @@ pub async fn add_release_pages(db: &DatabaseConnection, id: ReleaseId, pages: Ve
 pub async fn set_release_render_keys(db: &DatabaseConnection, id: ReleaseId, keys: &[String]) -> Result<(), StoreError> {
   release::Entity::update_many()
     .col_expr(release::Column::RenderKeys, serde_json::to_string(keys).map_err(|e| StoreError::Other(e.into()))?.into())
+    .filter(release::Column::Id.eq(id.as_uuid()))
+    .exec(db)
+    .await?;
+
+  Ok(())
+}
+
+/// Records how many files a release sent and their total size.
+pub async fn set_release_stats(db: &DatabaseConnection, id: ReleaseId, files: u64, bytes: u64) -> Result<(), StoreError> {
+  release::Entity::update_many()
+    .col_expr(release::Column::FileCount, i64::try_from(files).unwrap_or(i64::MAX).into())
+    .col_expr(release::Column::Bytes, i64::try_from(bytes).unwrap_or(i64::MAX).into())
     .filter(release::Column::Id.eq(id.as_uuid()))
     .exec(db)
     .await?;
@@ -216,6 +230,8 @@ async fn into_release(db: &impl ConnectionTrait, row: release::Model) -> Result<
     status: ReleaseStatus::parse(&row.status).ok_or_else(|| StoreError::Invalid(format!("unknown release status {}", row.status)))?,
     page_count: page_count as u32,
     preview_url: row.preview_url,
+    file_count: row.file_count.and_then(|n| u64::try_from(n).ok()),
+    bytes: row.bytes.and_then(|n| u64::try_from(n).ok()),
   })
 }
 

@@ -57,6 +57,8 @@ pub struct Capabilities {
   pub preview: bool,
   /// Whether a build that was looked at can be made live exactly as it is. Without it, publishing builds the site again.
   pub promote: bool,
+  /// The most files a release may hold, when the target has a limit.
+  pub max_files: Option<usize>,
 }
 
 /// What a target answers for a build it took: the version it made of it, and where it can be looked at before it is live.
@@ -84,10 +86,38 @@ pub enum PublishTarget {
 impl PublishTarget {
   pub fn capabilities(&self) -> Capabilities {
     match self {
-      PublishTarget::Folder(_) | PublishTarget::S3(_) => Capabilities { preview: false, promote: false },
-      PublishTarget::SelfHosted(_) | PublishTarget::Cloudflare(_) => Capabilities { preview: true, promote: true },
+      PublishTarget::Folder(_) | PublishTarget::S3(_) => Capabilities {
+        preview: false,
+        promote: false,
+        max_files: None,
+      },
+      PublishTarget::SelfHosted(_) => Capabilities {
+        preview: true,
+        promote: true,
+        max_files: None,
+      },
+      PublishTarget::Cloudflare(_) => Capabilities {
+        preview: true,
+        promote: true,
+        max_files: Some(crate::cloudflare::MAX_FILES),
+      },
       // A Pages preview is a deployment of another branch, which cannot become the production one.
-      PublishTarget::Pages(_) => Capabilities { preview: true, promote: false },
+      PublishTarget::Pages(_) => Capabilities {
+        preview: true,
+        promote: false,
+        max_files: Some(crate::pages::MAX_FILES),
+      },
+    }
+  }
+
+  /// What the editor calls the target.
+  pub fn label(&self) -> &'static str {
+    match self {
+      PublishTarget::Folder(_) => "Local folder",
+      PublishTarget::SelfHosted(_) => "This server",
+      PublishTarget::Cloudflare(_) => "Cloudflare Workers",
+      PublishTarget::Pages(_) => "Cloudflare Pages",
+      PublishTarget::S3(_) => "S3 bucket",
     }
   }
 

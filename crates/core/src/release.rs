@@ -49,4 +49,9 @@ pub struct Release {
   /// Where a preview can be looked at, when its target gives it an address of its own.
   #[serde(default)]
   pub preview_url: Option<String>,
+  /// How many files the release sent to its target, and their total size; unknown for releases made before they were recorded.
+  #[serde(default)]
+  pub file_count: Option<u64>,
+  #[serde(default)]
+  pub bytes: Option<u64>,
 }

@@ -90,3 +90,35 @@ test("taking over stops the holder's editor at once, and their unsaved work can 
   await expect(alice.locator(".ProseMirror")).toContainText("Saved part. Unsaved part.");
   await expect(alice.locator(".ProseMirror")).toHaveAttribute("contenteditable", "true");
 });
+
+test("publishing while someone edits a page names them first", async ({ browser }) => {
+  const title = `editing-${Math.random().toString(36).slice(2, 8)}`;
+  const alice = await signedIn(browser, "alice");
+  const bob = await signedIn(browser, "bob");
+
+  await alice.getByRole("button", { name: "New page" }).click();
+  await nameNewPage(alice, title);
+  await alice.locator(".ProseMirror").click();
+  await alice.keyboard.type("Half of a sentence");
+  await expect(alice.getByRole("status").first()).toHaveText("Saved");
+
+  await bob.reload();
+  await bob
+    .getByRole("button", { name: /^Publish/ })
+    .first()
+    .click();
+  const dialog = bob.getByRole("dialog");
+  const first = dialog.getByRole("alert").first();
+  await expect(first).toContainText(/being edited right now/);
+  await expect(first.getByRole("list", { name: "Pages being edited" })).toContainText(`${title} alice · last saved`);
+
+  // The row says it too, with who wrote it and how much.
+  const row = dialog.getByRole("row", { name: new RegExp(title) });
+  await expect(row).toContainText("being edited");
+  await expect(row).toContainText("alice ·");
+  await row.getByRole("button", { name: "View diff" }).click();
+  await expect(dialog.getByRole("list", { name: `Changes to ${title}` })).toContainText("+ Half of a sentence");
+  await dialog.screenshot({ path: "test-results/publish-light.png" });
+  await bob.emulateMedia({ colorScheme: "dark" });
+  await dialog.screenshot({ path: "test-results/publish-dark.png" });
+});

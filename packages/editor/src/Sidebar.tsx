@@ -13,7 +13,7 @@ import {
   pageUrls,
   type TreeNode,
 } from "./tree";
-import { useLocks } from "./useLock";
+import { markCreated, useLocks } from "./useLock";
 
 interface Props {
   pages: Page[];
@@ -65,6 +65,7 @@ export function Sidebar({ pages, loading, selected, onSelect }: Props) {
         (page) => {
           setError(null);
           closeIfSame();
+          markCreated(page.id);
           onSelect(page.id);
         },
         (e: unknown) => setError(e instanceof Error ? e.message : String(e)),

@@ -10,7 +10,7 @@ import { discardLocal, readLocal } from "./localDrafts";
 import { usePages } from "./queries";
 import { type Page, pageUrls } from "./tree";
 import { type DraftLock, type InitialDraft, type SaveStatus, saveSettled, useDraftSync } from "./useDraftSync";
-import { usePageLock } from "./useLock";
+import { markCreated, usePageLock } from "./useLock";
 
 /** What the top bar says of the open page: how its saving goes, or that it can only be read. */
 export type PageStatus = SaveStatus | "read-only";
@@ -105,6 +105,7 @@ function useKeptWork(page: Page, taken: boolean, onOpen?: (id: string) => void) 
     await discardLocal(page.id);
     setDoc(null);
     await queryClient.invalidateQueries({ queryKey: ["pages"] });
+    markCreated(created.id);
     onOpen?.(created.id);
   };
 

@@ -16,7 +16,7 @@ use crate::{
 };
 
 /// What Pages accepts of a project's files on the free plan, the stricter of its plans.
-const MAX_FILES: usize = 20_000;
+pub(crate) const MAX_FILES: usize = 20_000;
 /// A bucket of uploads is sent when it holds this much (as Base64 text) or this many files.
 const BUCKET_BYTES: usize = 20 * 1024 * 1024;
 const BUCKET_FILES: usize = 500;

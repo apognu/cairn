@@ -624,6 +624,7 @@ button[aria-selected="true"] .slash-icon {
   height: 1px;
   overflow: hidden;
   clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 fieldset.bubble {
@@ -1223,7 +1224,7 @@ button.primary:disabled {
 }
 
 .settings.publish {
-  width: 760px;
+  width: 860px;
   max-width: calc(100vw - 32px);
   max-height: calc(100vh - 64px);
 }
@@ -2826,4 +2827,80 @@ button.secondary:disabled {
   .lock-actions {
     margin-left: 0;
   }
+}
+
+/* The publish dialog: who is editing, each change's author and size, and the checks that passed. */
+.publish-locks ul {
+  margin: 6px 0;
+}
+
+.lock-page {
+  font-weight: 600;
+}
+
+.being-edited {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+  color: var(--warn-icon);
+  font-size: 12px;
+}
+
+.changes td.size {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.changes .added {
+  color: var(--badge-new);
+}
+
+.changes .removed {
+  color: var(--badge-del);
+}
+
+.changes td.muted {
+  font-size: 13px;
+}
+
+.changes button.small {
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--border-input);
+  border-radius: 6px;
+  background: var(--bg);
+  font-size: 12.5px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.changes .diff-row td {
+  padding-top: 0;
+}
+
+.changes .diff-row .diff {
+  max-height: 280px;
+  overflow: auto;
+}
+
+.checks-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 18px;
+  margin: 0 0 16px;
+  font-size: 13px;
+}
+
+.checks-strip .passed {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--badge-new);
+}
+
+.checks-strip .stats {
+  margin-left: auto;
 }

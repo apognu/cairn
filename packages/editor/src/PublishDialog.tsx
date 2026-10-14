@@ -2,20 +2,14 @@ import { useEffect, useId, useRef, useState } from "react";
 import { serverUrl } from "./api/base";
 import type { components } from "./api/schema";
 import { Icon } from "./icons";
+import { ago } from "./LockBanner";
+import { badge, ChangeRow, ChecksStrip, LockWarning } from "./PublishParts";
 import { pendingCount, useChecks, usePending, usePreview, usePromote, usePublish, useSiteInfo } from "./queries";
 import { useModal } from "./sidePanel";
+import { useLocks } from "./useLock";
 
 type Change = components["schemas"]["Change"];
 type Progress = components["schemas"]["PublishProgress"];
-
-const badge: Record<Change["kinds"][number], string> = {
-  new: "New",
-  edited: "Edited",
-  renamed: "Renamed",
-  moved: "Moved",
-  header: "Header",
-  deleted: "Deleted",
-};
 
 /** What publishing will change on the live site, with every URL that is about to stop working called out. */
 export function PublishDialog({ onClose, onPublished }: { onClose: () => void; onPublished: (pages: number) => void }) {
@@ -48,13 +42,26 @@ export function PublishDialog({ onClose, onPublished }: { onClose: () => void; o
   const lost = pending.data?.lost_urls ?? [];
   const broken = pending.data?.broken_links ?? [];
   const lostPaths = new Set(lost.map((l) => l.path));
+  // Someone else's open editor on a page that goes out: what they saved goes out, what they did not stays with them. The warning
+  // comes first.
+  const others = (useLocks().data ?? []).filter((l) => !l.mine && l.page_title !== "");
+  const lockedBy = new Map(others.map((l) => [l.page_id, l.user_name]));
+  const live = site.data?.live;
 
   return (
     <dialog ref={dialog} className="settings publish" aria-labelledby={`${id}-title`} onClose={onClose}>
       <h2 id={`${id}-title`}>Publish changes</h2>
       <p className="muted">
+        {site.data && (
+          <>
+            To <strong>{site.data.target}</strong> · {site.data.url.replace(/^https?:\/\//, "")}
+            {live ? ` · last published ${ago(live.release.created_at)} by ${live.published_by}` : " · never published"}.{" "}
+          </>
+        )}
         {count === 0 ? "Nothing has changed since the live site." : "Compared with the live site."}
       </p>
+
+      <LockWarning locks={others.filter((l) => changes.some((c) => c.page_id === l.page_id))} />
 
       {problems.length > 0 && (
         <div className="publish-problems" role="alert">
@@ -112,6 +119,11 @@ export function PublishDialog({ onClose, onPublished }: { onClose: () => void; o
             <tr>
               <th scope="col">Change</th>
               <th scope="col">Page</th>
+              <th scope="col">Last change</th>
+              <th scope="col">Size</th>
+              <th scope="col">
+                <span className="sr-only">Actions</span>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -122,33 +134,35 @@ export function PublishDialog({ onClose, onPublished }: { onClose: () => void; o
                     {badge.edited}
                   </span>
                 </td>
-                <td>
+                <td colSpan={4}>
                   <strong>Site and theme</strong>
                   <div className="url-note">every page is rendered again</div>
                 </td>
               </tr>
             )}
             {changes.map((c) => (
-              <tr key={c.page_id}>
-                <td>
-                  {c.kinds.map((k) => (
-                    <span key={k} className="badge" data-kind={k}>
-                      {badge[k]}
-                    </span>
-                  ))}
-                </td>
-                <td>
-                  <strong>{c.title}</strong>
+              <ChangeRow
+                key={c.page_id}
+                change={c}
+                lockedBy={lockedBy.get(c.page_id)}
+                note={
                   <UrlNote
                     change={c}
                     lost={c.old_url !== null && c.old_url !== undefined && lostPaths.has(c.old_url)}
                   />
-                </td>
-              </tr>
+                }
+              />
             ))}
           </tbody>
         </table>
       )}
+
+      <ChecksStrip
+        problems={problems}
+        files={live?.release.file_count}
+        bytes={live?.release.bytes}
+        maxFiles={site.data?.capabilities.max_files}
+      />
 
       {(publish.isError || preview.isError || promote.isError) && (
         <p role="alert" className="error-text">

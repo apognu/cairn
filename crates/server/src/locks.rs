@@ -39,6 +39,8 @@ pub(crate) fn routes() -> OpenApiRouter<AppState> {
 #[derive(Serialize, ToSchema)]
 pub(crate) struct LockView {
   page_id: PageId,
+  /// The page's title now; empty when the page is gone.
+  page_title: String,
   user_id: UserId,
   user_name: String,
   /// Held by the user asking.
@@ -76,6 +78,12 @@ struct RenewLock {
 }
 
 #[derive(Deserialize, ToSchema)]
+struct AcquireLock {
+  /// How long ago, in milliseconds, the user last typed or clicked in the tab asking; absent when they have not yet.
+  idle_ms: Option<u64>,
+}
+
+#[derive(Deserialize, ToSchema)]
 struct TakeOver {
   /// Take the page even though its holder is still active.
   #[serde(default)]
@@ -90,9 +98,16 @@ struct ReleaseQuery {
 
 pub(crate) async fn view(state: &AppState, lock: PageLock, me: UserId) -> Result<LockView, AppError> {
   let last_saved_at = state.content.draft(lock.page_id).await?.map(|d| d.updated_at);
+  let page_title = cairn_store::list_pages(&state.db)
+    .await?
+    .into_iter()
+    .find(|p| p.id == lock.page_id)
+    .map(|p| p.title)
+    .unwrap_or_default();
 
   Ok(LockView {
     page_id: lock.page_id,
+    page_title,
     user_name: display_name(state, lock.user_id).await?,
     mine: lock.user_id == me,
     user_id: lock.user_id,
@@ -103,6 +118,10 @@ pub(crate) async fn view(state: &AppState, lock: PageLock, me: UserId) -> Result
     idle: lock.active_at < Timestamp::now() - LOCK_IDLE,
     last_saved_at,
   })
+}
+
+fn millis(ms: u64) -> SignedDuration {
+  SignedDuration::from_millis(i64::try_from(ms).unwrap_or(i64::MAX))
 }
 
 /// A held lock as an error that names the holder.
@@ -144,18 +163,20 @@ async fn get_lock(State(state): State<AppState>, CurrentUser(user): CurrentUser,
 }
 
 /// Starts editing: takes the page's lock with a new token. Refused with 423 while someone else holds it.
-#[utoipa::path(post, path = "/api/pages/{id}/lock", operation_id = "acquireLock", params(("id" = PageId, Path)), responses(
+#[utoipa::path(post, path = "/api/pages/{id}/lock", operation_id = "acquireLock", params(("id" = PageId, Path)), request_body = Option<AcquireLock>, responses(
   (status = 200, body = AcquiredLock),
   (status = 404, body = ErrorBody),
   (status = 423, body = ErrorBody, description = "someone else is editing the page"),
 ))]
 #[instrument(skip_all, fields(page_id = %id))]
-async fn acquire(State(state): State<AppState>, CurrentUser(user): CurrentUser, Path(id): Path<PageId>) -> Result<Json<AcquiredLock>, AppError> {
+async fn acquire(State(state): State<AppState>, CurrentUser(user): CurrentUser, Path(id): Path<PageId>, body: Option<Json<AcquireLock>>) -> Result<Json<AcquiredLock>, AppError> {
   if !cairn_store::list_pages(&state.db).await?.iter().any(|p| p.id == id && p.kind == PageKind::Page) {
     return Err(AppError::NotFound);
   }
 
-  match cairn_store::acquire_lock(&state.db, id, user, Timestamp::now()).await {
+  let now = Timestamp::now();
+  let active_at = body.and_then(|Json(b)| b.idle_ms).map(|idle| now.checked_sub(millis(idle)).unwrap_or(Timestamp::MIN));
+  match cairn_store::acquire_lock(&state.db, id, user, now, active_at).await {
     Ok((lock, token)) => {
       tracing::info!(page_id = %id, user_id = %user, "page locked");
       state.publisher.notify(Event::LockChanged { page: id });
@@ -177,8 +198,7 @@ async fn acquire(State(state): State<AppState>, CurrentUser(user): CurrentUser, 
 ))]
 #[instrument(skip_all, fields(page_id = %id))]
 async fn renew(State(state): State<AppState>, CurrentUser(user): CurrentUser, Path(id): Path<PageId>, Json(body): Json<RenewLock>) -> Result<Json<LockView>, AppError> {
-  let idle = SignedDuration::from_millis(i64::try_from(body.idle_ms).unwrap_or(i64::MAX));
-  let lock = keep(&state, id, body.token, user, Timestamp::now().checked_sub(idle).unwrap_or(Timestamp::MIN)).await?;
+  let lock = keep(&state, id, body.token, user, Timestamp::now().checked_sub(millis(body.idle_ms)).unwrap_or(Timestamp::MIN)).await?;
 
   Ok(Json(view(&state, lock, user).await?))
 }

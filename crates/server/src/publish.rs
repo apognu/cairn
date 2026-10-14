@@ -60,6 +60,10 @@ async fn progress(State(state): State<AppState>) -> Sse<impl Stream<Item = Resul
 struct SiteInfo {
   /// Where readers find the published site, without a trailing slash.
   url: String,
+  /// What the editor calls the publish target ("Cloudflare Pages").
+  target: String,
+  /// The release live now, and who published it.
+  live: Option<LiveInfo>,
   /// What the configured publish target can do; the editor hides what it cannot.
   capabilities: SiteCapabilities,
 }
@@ -68,21 +72,41 @@ struct SiteInfo {
 struct SiteCapabilities {
   /// Whether a build can be viewed before it goes live.
   preview: bool,
+  /// The most files a release may hold on this target.
+  max_files: Option<u64>,
   /// Whether that build can then be made live exactly as it is.
   promote: bool,
 }
 
-/// Where the published site lives, for the editor's "View as reader".
+#[derive(Serialize, ToSchema)]
+struct LiveInfo {
+  release: Release,
+  published_by: String,
+}
+
+/// Where the published site lives, for the editor's "View as reader", and what the publish dialog says of its target.
 #[utoipa::path(get, path = "/api/site", operation_id = "siteInfo", responses((status = 200, body = SiteInfo)))]
 #[instrument(skip_all)]
-async fn site(State(state): State<AppState>) -> Json<SiteInfo> {
-  Json(SiteInfo {
+async fn site(State(state): State<AppState>) -> Result<Json<SiteInfo>, AppError> {
+  let target = state.publisher.target();
+  let live = match cairn_store::latest_live_release(&state.db).await? {
+    Some(release) => Some(LiveInfo {
+      published_by: crate::me::display_name(&state, release.created_by).await?,
+      release,
+    }),
+    None => None,
+  };
+
+  Ok(Json(SiteInfo {
     url: state.publisher.site_url().to_string(),
+    target: target.label().into(),
+    live,
     capabilities: SiteCapabilities {
-      preview: state.publisher.target().capabilities().preview,
-      promote: state.publisher.target().capabilities().promote,
+      preview: target.capabilities().preview,
+      promote: target.capabilities().promote,
+      max_files: target.capabilities().max_files.map(|n| n as u64),
     },
-  })
+  }))
 }
 
 /// Publishes the latest saved draft of every page as a new release.

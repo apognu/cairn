@@ -20,6 +20,7 @@ mod m0016_render_keys;
 mod m0017_unique_slugs;
 mod m0018_page_locks;
 mod m0019_lock_activity;
+mod m0020_release_stats;
 
 struct Migrator;
 
@@ -45,6 +46,7 @@ impl MigratorTrait for Migrator {
       Box::new(m0017_unique_slugs::Migration),
       Box::new(m0018_page_locks::Migration),
       Box::new(m0019_lock_activity::Migration),
+      Box::new(m0020_release_stats::Migration),
     ]
   }
 }

@@ -1263,6 +1263,22 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/AcquireLock"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "content": {
@@ -2058,7 +2074,7 @@
     },
     "/api/site": {
       "get": {
-        "summary": "Where the published site lives, for the editor's \"View as reader\".",
+        "summary": "Where the published site lives, for the editor's \"View as reader\", and what the publish dialog says of its target.",
         "operationId": "siteInfo",
         "responses": {
           "200": {
@@ -2254,6 +2270,20 @@
   },
   "components": {
     "schemas": {
+      "AcquireLock": {
+        "type": "object",
+        "properties": {
+          "idle_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "How long ago, in milliseconds, the user last typed or clicked in the tab asking; absent when they have not yet.",
+            "minimum": 0
+          }
+        }
+      },
       "AcquiredLock": {
         "type": "object",
         "required": [
@@ -2656,12 +2686,30 @@
               "$ref": "#/components/schemas/ChangeKind"
             }
           },
+          "live_revision_id": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/RevisionId",
+                "description": "The revision the live site shows, to compare with."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "new_url": {
             "type": [
               "string",
               "null"
             ],
             "description": "The URL after publishing, for pages that still exist."
+          },
+          "old_title": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The title in the live release, when it changed."
           },
           "old_url": {
             "type": [
@@ -2676,6 +2724,17 @@
           "redirected": {
             "type": "boolean",
             "description": "Whether the old URL keeps working through a redirect."
+          },
+          "revision_id": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/RevisionId",
+                "description": "The revision a publish would take, for pages with content."
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "title": {
             "type": "string"
@@ -3096,6 +3155,21 @@
           "prop"
         ]
       },
+      "LiveInfo": {
+        "type": "object",
+        "required": [
+          "release",
+          "published_by"
+        ],
+        "properties": {
+          "published_by": {
+            "type": "string"
+          },
+          "release": {
+            "$ref": "#/components/schemas/Release"
+          }
+        }
+      },
       "LockToken": {
         "type": "string",
         "description": "What a page's lock holder sends with each save and renewal; a new one is made whenever the lock changes hands."
@@ -3105,6 +3179,7 @@
         "description": "A lock as the editor shows it.",
         "required": [
           "page_id",
+          "page_title",
           "user_id",
           "user_name",
           "mine",
@@ -3146,6 +3221,10 @@
           },
           "page_id": {
             "$ref": "#/components/schemas/PageId"
+          },
+          "page_title": {
+            "type": "string",
+            "description": "The page's title now; empty when the page is gone."
           },
           "renewed_at": {
             "type": "string",
@@ -3696,12 +3775,29 @@
               }
             ]
           },
+          "bytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
           "created_at": {
             "type": "string",
             "format": "date-time"
           },
           "created_by": {
             "$ref": "#/components/schemas/UserId"
+          },
+          "file_count": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "How many files the release sent to its target, and their total size; unknown for releases made before they were recorded.",
+            "minimum": 0
           },
           "id": {
             "$ref": "#/components/schemas/ReleaseId"
@@ -3998,6 +4094,15 @@
           "promote"
         ],
         "properties": {
+          "max_files": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The most files a release may hold on this target.",
+            "minimum": 0
+          },
           "preview": {
             "type": "boolean",
             "description": "Whether a build can be viewed before it goes live."
@@ -4012,12 +4117,28 @@
         "type": "object",
         "required": [
           "url",
+          "target",
           "capabilities"
         ],
         "properties": {
           "capabilities": {
             "$ref": "#/components/schemas/SiteCapabilities",
             "description": "What the configured publish target can do; the editor hides what it cannot."
+          },
+          "live": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/LiveInfo",
+                "description": "The release live now, and who published it."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "target": {
+            "type": "string",
+            "description": "What the editor calls the publish target (\"Cloudflare Pages\")."
           },
           "url": {
             "type": "string",
@@ -4250,9 +4371,18 @@
         "required": [
           "doc",
           "title",
-          "description_recorded"
+          "description_recorded",
+          "author_name",
+          "created_at"
         ],
         "properties": {
+          "author_name": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
           "description": {
             "type": [
               "string",

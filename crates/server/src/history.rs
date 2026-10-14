@@ -67,6 +67,9 @@ struct VersionContent {
   description: Option<String>,
   /// False for versions saved before descriptions were recorded, which cannot restore one.
   description_recorded: bool,
+  author_name: String,
+  #[schema(value_type = String, format = DateTime)]
+  created_at: jiff::Timestamp,
 }
 
 /// The content of one saved version.
@@ -80,6 +83,8 @@ async fn revision(State(state): State<AppState>, Path(id): Path<RevisionId>) -> 
     title: revision.title,
     description: revision.description,
     description_recorded: revision.description_recorded,
+    author_name: crate::me::display_name(&state, revision.author_id).await?,
+    created_at: revision.created_at,
   }))
 }
 

@@ -13,7 +13,8 @@ use cairn_core::{
 use cairn_render::{Pool, Shell, highlight_css};
 use cairn_store::{
   DatabaseConnection, ReleasePage, ReleaseSpec, Staging, add_release_pages, assets_by_ids, create_release, get_release, get_setting, kept_render_keys, latest_live_release, list_api_configs,
-  live_release, load_library, load_settings, make_release_live, record_release_specs, release_specs, set_release_deployment, set_release_render_keys, set_release_status, set_setting, staging,
+  live_release, load_library, load_settings, make_release_live, record_release_specs, release_specs, set_release_deployment, set_release_render_keys, set_release_stats, set_release_status,
+  set_setting, staging,
 };
 use futures_util::{StreamExt, TryStreamExt, stream};
 use serde_json::{Value, json};
@@ -746,6 +747,7 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
       .collect();
     add_release_pages(&self.db, release.id, release_pages).await?;
     set_release_render_keys(&self.db, release.id, &render_keys).await?;
+    set_release_stats(&self.db, release.id, files.len() as u64, files.iter().map(|f| f.bytes.len() as u64).sum()).await?;
     let specs: Vec<ReleaseSpec> = apis
       .iter()
       .map(|api| ReleaseSpec {

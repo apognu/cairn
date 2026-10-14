@@ -15,6 +15,8 @@ pub struct Model {
   pub settings_snapshot: Option<String>,
   pub preview_url: Option<String>,
   pub render_keys: Option<String>,
+  pub file_count: Option<i64>,
+  pub bytes: Option<i64>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

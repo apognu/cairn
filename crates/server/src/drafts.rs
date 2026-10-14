@@ -97,7 +97,7 @@ mod tests {
   async fn a_stale_save_is_a_conflict() {
     let state = test_state().await;
     let page = cairn_store::create_page(&state.db, local_user_id(), None, "A", Placement::Last).await.unwrap().id;
-    let (_, token) = cairn_store::acquire_lock(&state.db, page, local_user_id(), jiff::Timestamp::now()).await.unwrap();
+    let (_, token) = cairn_store::acquire_lock(&state.db, page, local_user_id(), jiff::Timestamp::now(), None).await.unwrap();
     let save = |base| SaveDraft {
       doc: Document::empty(),
       base_revision_id: base,
@@ -118,7 +118,7 @@ mod tests {
     let state = test_state().await;
     let (alice, bob) = (local_user_id(), cairn_core::UserId::new());
     let page = cairn_store::create_page(&state.db, alice, None, "A", Placement::Last).await.unwrap().id;
-    let (_, token) = cairn_store::acquire_lock(&state.db, page, alice, jiff::Timestamp::now()).await.unwrap();
+    let (_, token) = cairn_store::acquire_lock(&state.db, page, alice, jiff::Timestamp::now(), None).await.unwrap();
     let save = |lock_token| SaveDraft {
       doc: Document::empty(),
       base_revision_id: None,
