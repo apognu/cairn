@@ -320,10 +320,11 @@ export function useRestoreVersion(pageId: string) {
   const client = useQueryClient();
 
   return useMutation({
-    mutationFn: async (revision_id: string) =>
-      unwrap(await api.POST("/api/pages/{id}/restore", { params: { path: { id: pageId } }, body: { revision_id } })),
+    mutationFn: async (body: components["schemas"]["Restore"]) =>
+      unwrap(await api.POST("/api/pages/{id}/restore", { params: { path: { id: pageId } }, body })),
+    // The title and description, when restored, show in the tree and the page.
     onSuccess: () =>
-      Promise.all(["draft", "history", "pending"].map((key) => client.invalidateQueries({ queryKey: [key] }))),
+      Promise.all(["draft", "history", "pending", "pages"].map((key) => client.invalidateQueries({ queryKey: [key] }))),
   });
 }
 

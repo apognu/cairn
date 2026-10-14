@@ -63,6 +63,10 @@ async fn history(State(state): State<AppState>, Path(id): Path<PageId>) -> Resul
 struct VersionContent {
   doc: Document,
   title: String,
+  /// The page's description when this version was saved.
+  description: Option<String>,
+  /// False for versions saved before descriptions were recorded, which cannot restore one.
+  description_recorded: bool,
 }
 
 /// The content of one saved version.
@@ -74,6 +78,8 @@ async fn revision(State(state): State<AppState>, Path(id): Path<RevisionId>) -> 
   Ok(Json(VersionContent {
     doc: revision.doc,
     title: revision.title,
+    description: revision.description,
+    description_recorded: revision.description_recorded,
   }))
 }
 
@@ -86,12 +92,20 @@ struct RestoredDraft {
 #[derive(Deserialize, ToSchema)]
 struct Restore {
   revision_id: RevisionId,
+  /// Also bring back the title the page had then. Its URL stays.
+  #[serde(default)]
+  title: bool,
+  /// Also bring back the description the page had then.
+  #[serde(default)]
+  description: bool,
 }
 
-/// Makes an older version the page's draft. The draft it replaces stays in the history, so the restore can be undone.
+/// Makes an older version the page's draft, and optionally its title and description the page's. The draft it replaces stays in the
+/// history, so the restore can be undone.
 #[utoipa::path(post, path = "/api/pages/{id}/restore", operation_id = "restoreRevision", params(("id" = PageId, Path)), request_body = Restore, responses(
   (status = 200, body = RestoredDraft),
   (status = 404, body = ErrorBody),
+  (status = 422, body = ErrorBody, description = "the description was asked for, and the version was saved before descriptions were recorded"),
 ))]
 #[instrument(skip_all, fields(page_id = %id))]
 async fn restore_revision(State(state): State<AppState>, CurrentUser(user): CurrentUser, Path(id): Path<PageId>, Json(body): Json<Restore>) -> Result<Json<RestoredDraft>, AppError> {
@@ -100,9 +114,19 @@ async fn restore_revision(State(state): State<AppState>, CurrentUser(user): Curr
     return Err(AppError::NotFound);
   }
 
-  let base = state.content.draft(id).await?.and_then(|d| d.base_revision_id);
+  if body.description && !revision.description_recorded {
+    return Err(AppError::Invalid(vec!["this version was saved before descriptions were recorded".into()]));
+  }
 
+  let base = state.content.draft(id).await?.and_then(|d| d.base_revision_id);
   let draft = state.content.save_draft(id, revision.doc, base, user).await?;
+
+  if body.title {
+    cairn_store::restore_title(&state.db, id, &revision.title).await?;
+  }
+  if body.description {
+    cairn_store::set_description(&state.db, id, revision.description.as_deref().unwrap_or_default()).await?;
+  }
 
   Ok(Json(RestoredDraft {
     base_revision_id: draft.base_revision_id,
@@ -179,9 +203,18 @@ mod tests {
 
     // Restore the oldest version: a third version appears, with the old content; the replaced draft is still listed.
     let oldest = before.last().unwrap().id;
-    let _ = restore_revision(State(state.clone()), CurrentUser(user), Path(page.id), Json(Restore { revision_id: oldest }))
-      .await
-      .unwrap();
+    let _ = restore_revision(
+      State(state.clone()),
+      CurrentUser(user),
+      Path(page.id),
+      Json(Restore {
+        revision_id: oldest,
+        title: false,
+        description: false,
+      }),
+    )
+    .await
+    .unwrap();
 
     let after = history(State(state.clone()), Path(page.id)).await.unwrap().0;
     assert_eq!(after.len(), 3);
@@ -190,5 +223,34 @@ mod tests {
     for version in &before {
       assert!(after.iter().any(|v| v.id == version.id), "a version went missing");
     }
+  }
+
+  #[tokio::test]
+  async fn the_title_and_description_come_back_only_when_ticked_and_the_url_stays() {
+    let state = test_state().await;
+    let user = local_user_id();
+    let page = cairn_store::create_page(&state.db, user, None, "Install", Placement::Last).await.unwrap();
+    cairn_store::set_description(&state.db, page.id, "How to install.").await.unwrap();
+    let old = state.content.save_draft(page.id, Document::paragraph("one"), None, user).await.unwrap();
+
+    cairn_store::rename_page(&state.db, page.id, "Setup", cairn_core::OldUrls::Redirect).await.unwrap();
+    cairn_store::set_description(&state.db, page.id, "").await.unwrap();
+    state.content.save_draft(page.id, Document::paragraph("two"), old.base_revision_id, user).await.unwrap();
+    let old = old.base_revision_id.unwrap();
+    let current = |state: AppState| async move { cairn_store::list_pages(&state.db).await.unwrap().into_iter().find(|p| p.id == page.id).unwrap() };
+    let restore = |title: bool, description: bool| restore_revision(State(state.clone()), CurrentUser(user), Path(page.id), Json(Restore { revision_id: old, title, description }));
+
+    // Content only: title and description stay as they are.
+    let _ = restore(false, false).await.unwrap();
+    let page_now = current(state.clone()).await;
+    assert_eq!((page_now.title.as_str(), page_now.description.as_deref()), ("Setup", None));
+
+    // Both ticked: they come back, and the URL is the current one.
+    let _ = restore(true, true).await.unwrap();
+    let page_now = current(state.clone()).await;
+    assert_eq!(
+      (page_now.title.as_str(), page_now.description.as_deref(), page_now.slug.as_str()),
+      ("Install", Some("How to install."), "setup")
+    );
   }
 }

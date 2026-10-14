@@ -17,6 +17,12 @@ test("restoring a version creates a new draft and keeps the replaced one, and th
 
   // Publishing ends the editing session, so the first version stays listed on its own.
   await publishAll(page);
+  // Renamed since: restoring with the title ticked brings the old title back, at the page's current URL.
+  const renamed = `${title} renamed`;
+  await request.post(`/api/pages/${id}`, { data: { title: renamed } });
+  await page.reload();
+  await expect(page.getByRole("button", { name: renamed, exact: true })).toBeVisible();
+  const renamedUrl = (await (await request.get(`/api/pages/${id}/url`)).json()).url;
   await page.locator(".ProseMirror").click();
   await page.keyboard.type(" and then a second");
   await expect(page.getByRole("status")).toHaveText("Saved");
@@ -43,10 +49,13 @@ test("restoring a version creates a new draft and keeps the replaced one, and th
   }
   expect(found).toBe(true);
   await expect(changes).toContainText("first version and then a second");
+  await drawer.getByRole("checkbox", { name: /Title/ }).check();
   await drawer.getByRole("button", { name: "Restore as draft" }).click();
 
   // The editor now holds the old text, and nothing was lost: one more version, the replaced draft among them.
   await expect(page.locator(".ProseMirror")).toHaveText("first version");
+  await expect(page.getByRole("button", { name: title, exact: true })).toBeVisible();
+  expect((await (await request.get(`/api/pages/${id}/url`)).json()).url).toBe(renamedUrl);
   const history = await (await request.get(`/api/pages/${id}/history`)).json();
   expect(history.length).toBe(versionsBefore + 1);
 

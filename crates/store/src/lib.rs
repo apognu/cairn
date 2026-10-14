@@ -11,6 +11,7 @@ mod history;
 mod library;
 mod links;
 mod migration;
+mod purge;
 mod redirects;
 mod releases;
 mod sessions;
@@ -24,10 +25,11 @@ pub use assets::{NewAsset, asset_by_hash, asset_by_id, assets_by_ids, get_or_cre
 pub use connect::connect_for_tests;
 pub use connect::{StoreError, connect, connect_url};
 pub use content::SqlContentStore;
-pub use history::{HistoryEntry, Trashed, list_trash, page_history, restore_page};
+pub use history::{HistoryEntry, Trashed, list_trash, page_history, restore_page, restore_title};
 pub use library::{Entry, TermInput, delete_entry, list_entries, load_library, save_snippet, save_term, save_variable};
 pub use links::{StoredLink, all_links};
 pub use migration::migrate;
+pub use purge::purge_trash;
 pub use redirects::{draft_docs, draft_revisions, list_redirects};
 pub use releases::{
   LiveRelease, ReleasePage, add_release_pages, create_release, get_release, get_setting, latest_live_release, live_release, load_settings, make_release_live, save_settings, set_release_deployment,

@@ -1202,7 +1202,7 @@
     },
     "/api/pages/{id}/restore": {
       "post": {
-        "summary": "Makes an older version the page's draft. The draft it replaces stays in the history, so the restore can be undone.",
+        "summary": "Makes an older version the page's draft, and optionally its title and description the page's. The draft it replaces stays in the\nhistory, so the restore can be undone.",
         "operationId": "restoreRevision",
         "parameters": [
           {
@@ -1235,6 +1235,16 @@
             }
           },
           "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "the description was asked for, and the version was saved before descriptions were recorded",
             "content": {
               "application/json": {
                 "schema": {
@@ -3353,8 +3363,16 @@
           "revision_id"
         ],
         "properties": {
+          "description": {
+            "type": "boolean",
+            "description": "Also bring back the description the page had then."
+          },
           "revision_id": {
             "$ref": "#/components/schemas/RevisionId"
+          },
+          "title": {
+            "type": "boolean",
+            "description": "Also bring back the title the page had then. Its URL stays."
           }
         }
       },
@@ -3763,9 +3781,21 @@
         "type": "object",
         "required": [
           "doc",
-          "title"
+          "title",
+          "description_recorded"
         ],
         "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The page's description when this version was saved."
+          },
+          "description_recorded": {
+            "type": "boolean",
+            "description": "False for versions saved before descriptions were recorded, which cannot restore one."
+          },
           "doc": {
             "$ref": "#/components/schemas/Document"
           },

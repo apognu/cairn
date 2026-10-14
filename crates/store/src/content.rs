@@ -67,6 +67,7 @@ impl ContentStore for SqlContentStore {
       doc: Set(json.clone()),
       title: Set(page_row.title),
       slug: Set(page_row.slug),
+      description: Set(Some(page_row.description.unwrap_or_default())),
       author_id: Set(user.as_uuid()),
       created_at: Set(now.clone()),
     }
@@ -159,6 +160,7 @@ impl ContentStore for SqlContentStore {
       doc: Set(serde_json::to_string(&Document::empty()).map_err(other)?),
       title: Set(page_row.title),
       slug: Set(page_row.slug),
+      description: Set(Some(page_row.description.unwrap_or_default())),
       author_id: Set(user.as_uuid()),
       created_at: Set(Timestamp::now().to_string()),
     }
@@ -186,6 +188,8 @@ fn into_revision(row: revision::Model) -> Result<Revision, CoreError> {
     page_id: row.page_id.into(),
     doc: serde_json::from_str(&row.doc).map_err(other)?,
     title: row.title,
+    description: row.description.as_ref().filter(|d| !d.is_empty()).cloned(),
+    description_recorded: row.description.is_some(),
     author_id: row.author_id.into(),
     created_at: row.created_at.parse().map_err(other)?,
   })

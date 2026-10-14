@@ -29,6 +29,9 @@ export function HistoryDrawer({
   const history = useHistory(page.id);
   const restore = useRestoreVersion(page.id);
   const [chosen, setChosen] = useState<string | null>(null);
+  // Title and description come back only when ticked; another version starts unticked.
+  const [withTitle, setWithTitle] = useState(false);
+  const [withDescription, setWithDescription] = useState(false);
   const [current, setCurrent] = useState<DocNode | null>(null);
   const revision = useRevision(chosen);
 
@@ -84,7 +87,15 @@ export function HistoryDrawer({
         {history.isPending && <li className="muted">Loading…</li>}
         {sessions.map((s) => (
           <li key={s.newest.id}>
-            <button type="button" aria-pressed={chosen === s.newest.id} onClick={() => setChosen(s.newest.id)}>
+            <button
+              type="button"
+              aria-pressed={chosen === s.newest.id}
+              onClick={() => {
+                setChosen(s.newest.id);
+                setWithTitle(false);
+                setWithDescription(false);
+              }}
+            >
               <strong>{when(s.newest.created_at)}</strong>
               {s.published && (
                 <span className="badge" data-kind="new">
@@ -111,6 +122,38 @@ export function HistoryDrawer({
                 </li>
               ))}
           </ul>
+          <fieldset className="form-field restore-options">
+            <legend>Also restore</legend>
+            <label className="form-check">
+              <input
+                type="checkbox"
+                checked={withTitle}
+                disabled={revision.data.title === page.title}
+                onChange={(e) => setWithTitle(e.target.checked)}
+              />
+              <span>
+                Title <span className="muted">{versionValue(revision.data.title, page.title)}</span>
+              </span>
+            </label>
+            <label className="form-check">
+              <input
+                type="checkbox"
+                checked={withDescription}
+                disabled={
+                  !revision.data.description_recorded || (revision.data.description ?? "") === (page.description ?? "")
+                }
+                onChange={(e) => setWithDescription(e.target.checked)}
+              />
+              <span>
+                Description{" "}
+                <span className="muted">
+                  {revision.data.description_recorded
+                    ? versionValue(revision.data.description ?? "", page.description ?? "", "no description")
+                    : "not recorded for this version"}
+                </span>
+              </span>
+            </label>
+          </fieldset>
           {restore.isError && (
             <p role="alert" className="error-text">
               {restore.error.message}
@@ -122,12 +165,15 @@ export function HistoryDrawer({
               className="primary"
               disabled={restore.isPending}
               onClick={() =>
-                restore.mutate(chosen, {
-                  onSuccess: () => {
-                    onRestored();
-                    dialog.current?.close();
+                restore.mutate(
+                  { revision_id: chosen, title: withTitle, description: withDescription },
+                  {
+                    onSuccess: () => {
+                      onRestored();
+                      dialog.current?.close();
+                    },
                   },
-                })
+                )
               }
             >
               Restore as draft
@@ -137,4 +183,10 @@ export function HistoryDrawer({
       )}
     </dialog>
   );
+}
+
+/** What a version's title or description was, or that it is the same as now. The page keeps its URL either way. */
+function versionValue(then: string, now: string, empty = "none") {
+  if (then === now) return "unchanged";
+  return then ? `“${then}”` : empty;
 }

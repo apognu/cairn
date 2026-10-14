@@ -141,7 +141,27 @@ async fn prepare(data_dir: &std::path::Path, database_url: Option<&str>, site_ur
     }
   });
 
+  tokio::spawn(purge_trash_daily(state.db.clone()));
+
   Ok(Runtime { state, events })
+}
+
+/// How long a deleted page waits in the trash before it is deleted for good.
+const TRASH_DAYS: i64 = 90;
+
+/// Empties the trash of pages older than `TRASH_DAYS`, at startup and then once a day.
+async fn purge_trash_daily(db: cairn_store::DatabaseConnection) {
+  let mut daily = tokio::time::interval(Duration::from_secs(24 * 60 * 60));
+
+  loop {
+    daily.tick().await;
+    let before = jiff::Timestamp::now() - jiff::SignedDuration::from_hours(24 * TRASH_DAYS);
+    match cairn_store::purge_trash(&db, before).await {
+      Ok(0) => {}
+      Ok(purged) => tracing::info!(purged, "pages deleted for good after {TRASH_DAYS} days in the trash"),
+      Err(error) => tracing::error!(%error, "cannot empty the trash; it is tried again tomorrow"),
+    }
+  }
 }
 
 /// Runs the editor for local use: no login, every request is the local user, so it only ever listens on a loopback address.

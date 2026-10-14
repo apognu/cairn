@@ -379,7 +379,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Makes an older version the page's draft. The draft it replaces stays in the history, so the restore can be undone. */
+        /**
+         * Makes an older version the page's draft, and optionally its title and description the page's. The draft it replaces stays in the
+         *     history, so the restore can be undone.
+         */
         post: operations["restoreRevision"];
         delete?: never;
         options?: never;
@@ -1149,7 +1152,11 @@ export interface components {
             url: string;
         };
         Restore: {
+            /** @description Also bring back the description the page had then. */
+            description?: boolean;
             revision_id: components["schemas"]["RevisionId"];
+            /** @description Also bring back the title the page had then. Its URL stays. */
+            title?: boolean;
         };
         Restored: {
             /** @description False when the old parent was gone or the old URL segment taken, so the page came back somewhere else or under another URL. */
@@ -1301,6 +1308,10 @@ export interface components {
             title: string;
         };
         VersionContent: {
+            /** @description The page's description when this version was saved. */
+            description?: string | null;
+            /** @description False for versions saved before descriptions were recorded, which cannot restore one. */
+            description_recorded: boolean;
             doc: components["schemas"]["Document"];
             title: string;
         };
@@ -2289,6 +2300,15 @@ export interface operations {
                 };
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description the description was asked for, and the version was saved before descriptions were recorded */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

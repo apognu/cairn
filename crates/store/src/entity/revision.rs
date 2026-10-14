@@ -9,6 +9,7 @@ pub struct Model {
   pub doc: String,
   pub title: String,
   pub slug: String,
+  pub description: Option<String>,
   pub author_id: Uuid,
   pub created_at: String,
 }

@@ -64,6 +64,27 @@ pub async fn page_history(db: &DatabaseConnection, page: PageId) -> Result<Vec<H
     .collect()
 }
 
+/// Gives a page back the title one of its versions had. Its URL stays: a restore brings back content, not a move.
+pub async fn restore_title(db: &DatabaseConnection, id: PageId, title: &str) -> Result<Page, StoreError> {
+  if !list_pages(db).await?.iter().any(|p| p.id == id) {
+    return Err(StoreError::NotFound);
+  }
+  if title.trim().is_empty() {
+    return Err(StoreError::Invalid("a title cannot be empty".into()));
+  }
+
+  let row = page::ActiveModel {
+    id: Set(id.as_uuid()),
+    title: Set(title.to_string()),
+    updated_at: Set(Timestamp::now().to_string()),
+    ..Default::default()
+  }
+  .update(db)
+  .await?;
+
+  into_page(row)
+}
+
 /// A page waiting in the trash.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Trashed {

@@ -2728,3 +2728,18 @@ button.secondary:disabled {
   background: var(--accent-soft);
   color: var(--accent);
 }
+
+/* A version's old title or description can be long: it wraps beside its checkbox instead of running out of the drawer. */
+.restore-options label.form-check {
+  align-items: flex-start;
+}
+
+.restore-options .form-check > span {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.restore-options .form-check input {
+  margin-top: 2px;
+}

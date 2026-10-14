@@ -22,6 +22,10 @@ pub struct Revision {
   pub page_id: PageId,
   pub doc: Document,
   pub title: String,
+  /// The page's description when this version was saved.
+  pub description: Option<String>,
+  /// False for versions saved before descriptions were recorded: `description` says nothing then.
+  pub description_recorded: bool,
   pub author_id: UserId,
   pub created_at: Timestamp,
 }
