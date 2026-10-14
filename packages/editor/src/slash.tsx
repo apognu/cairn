@@ -5,6 +5,7 @@ import { ReactRenderer } from "@tiptap/react";
 import Suggestion, { type SuggestionKeyDownProps, type SuggestionProps } from "@tiptap/suggestion";
 import { Fragment, forwardRef, useEffect, useImperativeHandle, useState } from "react";
 import { Icon, type IconName } from "./icons";
+import { inHost, popoverHost } from "./popover";
 import { pickAndInsertImages } from "./upload";
 
 export interface SlashItem {
@@ -313,23 +314,34 @@ const MENU_HEIGHT = 476;
 const MENU_WIDTH = 393;
 const MARGIN = 8;
 
-/** Below the cursor, or above it when there is more room there; never past the edges of the window. */
+/**
+ * Below the cursor, or above it when there is more room there; never past the edges of the pane that scrolls the text (`host`), or of
+ * the window without one. In a pane the menu is positioned in its scrolled content, so it moves with the text.
+ */
 export function place(
   element: HTMLElement,
   rect: DOMRect | null | undefined,
   height = MENU_HEIGHT,
   width = MENU_WIDTH,
+  host: HTMLElement | null = null,
 ) {
   if (!rect) return;
 
-  const below = window.innerHeight - rect.bottom - MARGIN;
-  const above = rect.top - MARGIN;
+  // The room around the text is what the pane shows, or the window outside one.
+  const view = host?.getBoundingClientRect() ?? new DOMRect(0, 0, window.innerWidth, window.innerHeight);
+  const below = view.bottom - rect.bottom - MARGIN;
+  const above = rect.top - view.top - MARGIN;
   const up = below < Math.min(height, 280) && above > below;
   const menu = element.firstElementChild;
+  const x = Math.max(view.left + MARGIN, Math.min(rect.left, view.right - width - MARGIN));
+  const y = up ? rect.top - 4 : rect.bottom + 4;
+  const at = host ? inHost(host, x, y) : { left: x, top: y };
 
-  element.style.left = `${Math.max(MARGIN, Math.min(rect.left, window.innerWidth - width - MARGIN))}px`;
-  element.style.top = up ? "" : `${rect.bottom + 4}px`;
-  element.style.bottom = up ? `${window.innerHeight - rect.top + 4}px` : "";
+  element.style.position = host ? "absolute" : "fixed";
+  element.style.left = `${at.left}px`;
+  element.style.top = `${at.top}px`;
+  // Opening upwards, the menu ends where the text starts, whatever its height.
+  element.style.transform = up ? "translateY(-100%)" : "";
   if (menu instanceof HTMLElement) menu.style.maxHeight = `${Math.min(height, up ? above : below)}px`;
 }
 
@@ -348,17 +360,20 @@ export const SlashCommand = Extension.create({
         command: ({ editor, range, props }) => props.run(editor, range),
         render: () => {
           let renderer: ReactRenderer<ListHandle, SuggestionProps<SlashItem, SlashItem>> | null = null;
+          // Inside the pane that scrolls the canvas, so the menu moves with the typed text.
+          let host: HTMLElement | null = null;
 
           return {
             onStart(props) {
               renderer = new ReactRenderer(SlashList, { props, editor: props.editor });
               renderer.element.classList.add("slash-popup");
-              document.body.append(renderer.element);
-              place(renderer.element, props.clientRect?.());
+              host = popoverHost(props.editor.view.dom);
+              (host ?? document.body).append(renderer.element);
+              place(renderer.element, props.clientRect?.(), MENU_HEIGHT, MENU_WIDTH, host);
             },
             onUpdate(props) {
               renderer?.updateProps(props);
-              if (renderer) place(renderer.element, props.clientRect?.());
+              if (renderer) place(renderer.element, props.clientRect?.(), MENU_HEIGHT, MENU_WIDTH, host);
             },
             onKeyDown({ event }: SuggestionKeyDownProps) {
               if (event.key === "Escape") {

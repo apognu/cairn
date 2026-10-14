@@ -444,7 +444,9 @@ small,
   color: var(--danger);
 }
 
+/* Popovers anchored to text (menus, the link picker) are placed inside the pane, so they scroll with the text. */
 .canvas {
+  position: relative;
   overflow-y: auto;
 }
 

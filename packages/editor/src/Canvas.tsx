@@ -10,11 +10,13 @@ import {
 } from "@cairn/renderer";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { BubbleMenus } from "./BubbleMenus";
 import { buildExtensions } from "./extensions";
 import { PagePicker } from "./PagePicker";
 import { PropsPanel } from "./PropsPanel";
 import { PICKER_EVENT, type PickerRequest, pageUrlRegistry } from "./pageLink";
+import { inHost, popoverHost } from "./popover";
 import { useLibrary } from "./queries";
 import { insertImages, useUploads } from "./upload";
 
@@ -87,7 +89,13 @@ export function Canvas({
 
   const editorRef = useRef(editor);
   editorRef.current = editor;
-  const [picker, setPicker] = useState<{ request: PickerRequest; x: number; y: number } | null>(null);
+  // `host` is the pane that scrolls the canvas: the picker is placed in it, so it moves with the words it links.
+  const [picker, setPicker] = useState<{
+    request: PickerRequest;
+    x: number;
+    y: number;
+    host: HTMLElement | null;
+  } | null>(null);
   const library = useLibrary();
   const uploads = useUploads();
   const [headings, setHeadings] = useState(() => collectHeadings(doc).list);
@@ -110,7 +118,9 @@ export function Canvas({
     const onRequest = (event: Event) => {
       const request = (event as CustomEvent<PickerRequest>).detail;
       const at = editor.view.coordsAtPos(request.from);
-      setPicker({ request, x: at.left, y: at.bottom + 6 });
+      const host = popoverHost(dom);
+      const { left, top } = host ? inHost(host, at.left, at.bottom + 6) : { left: at.left, top: at.bottom + 6 };
+      setPicker({ request, x: left, y: top, host });
     };
     dom.addEventListener(PICKER_EVENT, onRequest);
 
@@ -196,27 +206,29 @@ export function Canvas({
           </output>
         )}
         {editor && editable && panelHost && <PropsPanel editor={editor} host={panelHost} />}
-        {picker && (
-          <PagePicker
-            nearPage={full.page.id}
-            style={{ left: picker.x, top: picker.y }}
-            initialUrl={String(editor?.getAttributes("link").href ?? "")}
-            onClose={() => {
-              setPicker(null);
-              editor?.commands.focus();
-            }}
-            operations
-            onPage={(page, operation) =>
-              linkTo({
-                href: full.urls[page.id] ?? "",
-                pageId: page.id,
-                text: operation?.label ?? page.title,
-                anchor: operation?.anchor,
-              })
-            }
-            onUrl={(url) => linkTo({ href: url, pageId: null, text: url })}
-          />
-        )}
+        {picker &&
+          createPortal(
+            <PagePicker
+              nearPage={full.page.id}
+              style={{ position: picker.host ? "absolute" : undefined, left: picker.x, top: picker.y }}
+              initialUrl={String(editor?.getAttributes("link").href ?? "")}
+              onClose={() => {
+                setPicker(null);
+                editor?.commands.focus();
+              }}
+              operations
+              onPage={(page, operation) =>
+                linkTo({
+                  href: full.urls[page.id] ?? "",
+                  pageId: page.id,
+                  text: operation?.label ?? page.title,
+                  anchor: operation?.anchor,
+                })
+              }
+              onUrl={(url) => linkTo({ href: url, pageId: null, text: url })}
+            />,
+            picker.host ?? document.body,
+          )}
       </SiteLayout>
     </RenderEnvContext.Provider>
   );

@@ -3,6 +3,7 @@ import { PluginKey } from "@tiptap/pm/state";
 import { ReactRenderer } from "@tiptap/react";
 import Suggestion, { type SuggestionKeyDownProps, type SuggestionProps } from "@tiptap/suggestion";
 import { forwardRef, useEffect, useImperativeHandle, useState } from "react";
+import { popoverHost } from "./popover";
 import { place } from "./slash";
 
 interface Emoji {
@@ -169,17 +170,20 @@ export const EmojiSuggestion = Extension.create({
         command: ({ editor, range, props }) => editor.chain().focus().insertContentAt(range, props.emoji).run(),
         render: () => {
           let renderer: ReactRenderer<ListHandle, SuggestionProps<EmojiItem, EmojiItem>> | null = null;
+          // Inside the pane that scrolls the canvas, so the menu moves with the typed text.
+          let host: HTMLElement | null = null;
 
           return {
             onStart(props) {
               renderer = new ReactRenderer(EmojiList, { props, editor: props.editor });
               renderer.element.classList.add("slash-popup");
-              document.body.append(renderer.element);
-              place(renderer.element, props.clientRect?.(), MENU_HEIGHT, MENU_WIDTH);
+              host = popoverHost(props.editor.view.dom);
+              (host ?? document.body).append(renderer.element);
+              place(renderer.element, props.clientRect?.(), MENU_HEIGHT, MENU_WIDTH, host);
             },
             onUpdate(props) {
               renderer?.updateProps(props);
-              if (renderer) place(renderer.element, props.clientRect?.(), MENU_HEIGHT, MENU_WIDTH);
+              if (renderer) place(renderer.element, props.clientRect?.(), MENU_HEIGHT, MENU_WIDTH, host);
             },
             onKeyDown({ event }: SuggestionKeyDownProps) {
               if (event.key === "Escape" && renderer?.element.firstElementChild) {
