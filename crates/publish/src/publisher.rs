@@ -12,8 +12,8 @@ use cairn_core::{
 };
 use cairn_render::{Pool, Shell, highlight_css};
 use cairn_store::{
-  DatabaseConnection, ReleaseSpec, add_release_pages, assets_by_ids, create_release, get_release, get_setting, latest_live_release, list_api_configs, list_pages, list_redirects, live_release,
-  load_library, load_settings, make_release_live, record_release_specs, release_specs, set_release_deployment, set_release_status, set_setting,
+  DatabaseConnection, ReleasePage, ReleaseSpec, add_release_pages, assets_by_ids, create_release, get_release, get_setting, latest_live_release, list_api_configs, list_pages, list_redirects,
+  live_release, load_library, load_settings, make_release_live, record_release_specs, release_specs, set_release_deployment, set_release_status, set_setting,
 };
 use futures_util::{StreamExt, TryStreamExt, stream};
 use serde_json::{Value, json};
@@ -22,6 +22,7 @@ use sha2::{Digest, Sha256};
 use crate::{
   ApiProblem, PublishError,
   api::{ApiHosts, ResolvedApi, ResolvedSpec, SourceFetcher, resolve},
+  content::content_hash,
   generated,
   markdown::{Site, page_markdown},
   search,
@@ -630,7 +631,19 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
     }
 
     // Recorded before the switch: once the site is live, what it holds must already be known.
-    add_release_pages(&self.db, release.id, hashes).await?;
+    let release_pages = hashes
+      .into_iter()
+      .filter_map(|(page_id, revision_id, output_hash)| {
+        let source = sources.iter().find(|s| s.page.id == page_id)?;
+        Some(ReleasePage {
+          page_id,
+          revision_id,
+          output_hash,
+          content_hash: content_hash(&source.doc, tree_pages, &urls, &library),
+        })
+      })
+      .collect();
+    add_release_pages(&self.db, release.id, release_pages).await?;
     let specs: Vec<ReleaseSpec> = apis
       .iter()
       .map(|api| ReleaseSpec {
@@ -1179,6 +1192,16 @@ mod tests {
 
     // The cards have no title of their own: renaming the page is enough.
     rename_page(&f.db, target.id, "Undo a release", cairn_core::OldUrls::Redirect).await.unwrap();
+    // The pages showing it are pending as edited, besides the renamed page itself.
+    let pending: Vec<_> = crate::pending(&f.db).await.unwrap().changes.into_iter().map(|c| (c.title, c.kinds)).collect();
+    assert_eq!(
+      pending,
+      [
+        ("Undo a release".to_string(), vec![cairn_core::ChangeKind::Renamed]),
+        ("First".to_string(), vec![cairn_core::ChangeKind::Edited]),
+        ("Second".to_string(), vec![cairn_core::ChangeKind::Edited]),
+      ]
+    );
     f.publisher.publish(user).await.unwrap();
     for slug in ["first", "second"] {
       let html = read(slug);
@@ -1510,6 +1533,14 @@ mod tests {
     )
     .await
     .unwrap();
+    // Before publishing, the twelve show as edited, and only they.
+    let pending = crate::pending(&f.db).await.unwrap();
+    let mut edited: Vec<_> = pending.changes.iter().filter(|c| c.kinds == [cairn_core::ChangeKind::Edited]).map(|c| c.title.clone()).collect();
+    edited.sort();
+    let mut expected: Vec<_> = titles.iter().filter(|(_, uses)| *uses).map(|(t, _)| t.clone()).collect();
+    expected.sort();
+    assert_eq!((edited, pending.changes.len()), (expected, 12));
+
     f.publisher.publish(user).await.unwrap();
     assert_eq!(f.publisher.renders() - first, 12);
     for (title, uses) in &titles {

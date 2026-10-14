@@ -30,7 +30,7 @@ pub use links::{StoredLink, all_links};
 pub use migration::migrate;
 pub use redirects::{draft_docs, draft_revisions, list_redirects};
 pub use releases::{
-  LiveRelease, add_release_pages, create_release, get_release, get_setting, latest_live_release, live_release, load_settings, make_release_live, save_settings, set_release_deployment,
+  LiveRelease, ReleasePage, add_release_pages, create_release, get_release, get_setting, latest_live_release, live_release, load_settings, make_release_live, save_settings, set_release_deployment,
   set_release_status, set_setting,
 };
 pub use sea_orm::DatabaseConnection;

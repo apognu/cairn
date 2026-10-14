@@ -9,6 +9,7 @@ pub struct Model {
   pub page_id: Uuid,
   pub revision_id: Uuid,
   pub output_hash: Option<String>,
+  pub content_hash: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

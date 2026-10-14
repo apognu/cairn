@@ -1,12 +1,12 @@
 use std::collections::{HashMap, HashSet};
 
-use cairn_core::{Document, Live, Operation, PageId, PageKind, Pending, Problem, ProblemKind, doc_problems, expand, pending_changes, term_refs, url_problems};
+use cairn_core::{Current, Document, Live, Operation, PageId, PageKind, Pending, Problem, ProblemKind, doc_problems, expand, page_urls, pending_changes, term_refs, url_problems};
 use cairn_render::Pool;
 use cairn_store::{
   DatabaseConnection, all_links, draft_docs, draft_revisions, latest_live_release, list_api_configs, list_pages, list_redirects, live_release, load_library, load_settings, release_specs,
 };
 
-use crate::PublishError;
+use crate::{PublishError, content::content_hash};
 
 /// What publishing now would change on the live site, the site settings included, and which live URLs it would break.
 pub async fn pending(db: &DatabaseConnection) -> Result<Pending, PublishError> {
@@ -18,15 +18,36 @@ pub async fn pending(db: &DatabaseConnection) -> Result<Pending, PublishError> {
   let api_configs = list_api_configs(db).await?;
   let settings = load_settings(db).await?;
 
+  // What each page would be published with, hashed as the publisher records it.
+  let docs = draft_docs(db).await?;
+  let library = load_library(db).await?;
+  let urls = page_urls(&pages);
+  let empty = Document::empty();
+  let content: HashMap<PageId, String> = pages
+    .iter()
+    .filter(|p| p.kind == PageKind::Page)
+    .map(|p| (p.id, content_hash(&expand(docs.get(&p.id).unwrap_or(&empty), &library).0, &pages, &urls, &library)))
+    .collect();
+
   let state = live.as_ref().map(|l| Live {
     pages: &l.pages,
     redirects: &l.redirects,
     revisions: &l.revisions,
+    content: &l.content,
     settings: l.settings.as_ref(),
     api_configs: &l.api_configs,
   });
+  let current = Current {
+    pages: &pages,
+    redirects: &redirects,
+    drafts: &drafts,
+    content: &content,
+    links: &links,
+    api_configs: &api_configs,
+    settings: &settings,
+  };
 
-  Ok(pending_changes(&pages, &redirects, &drafts, &links, &api_configs, &settings, state.as_ref()))
+  Ok(pending_changes(&current, state.as_ref()))
 }
 
 /// Everything that would stop a publish now: links to deleted pages, images without alt text, pages sharing a URL, and blocks or component

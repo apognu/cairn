@@ -83,17 +83,25 @@ pub async fn get_release(db: &DatabaseConnection, id: ReleaseId) -> Result<(Rele
   Ok((into_release(db, row).await?, version))
 }
 
-/// Which revision of each page went into a release, and the hash of the HTML built from it.
-pub async fn add_release_pages(db: &DatabaseConnection, id: ReleaseId, pages: Vec<(PageId, RevisionId, String)>) -> Result<(), StoreError> {
+/// One page of a release: the revision it was built from, the hash of its HTML, and the hash of its content (see `LiveRelease::content`).
+pub struct ReleasePage {
+  pub page_id: PageId,
+  pub revision_id: RevisionId,
+  pub output_hash: String,
+  pub content_hash: String,
+}
+
+pub async fn add_release_pages(db: &DatabaseConnection, id: ReleaseId, pages: Vec<ReleasePage>) -> Result<(), StoreError> {
   if pages.is_empty() {
     return Ok(());
   }
 
-  let rows = pages.into_iter().map(|(page, revision, hash)| release_page::ActiveModel {
+  let rows = pages.into_iter().map(|page| release_page::ActiveModel {
     release_id: Set(id.as_uuid()),
-    page_id: Set(page.as_uuid()),
-    revision_id: Set(revision.as_uuid()),
-    output_hash: Set(Some(hash)),
+    page_id: Set(page.page_id.as_uuid()),
+    revision_id: Set(page.revision_id.as_uuid()),
+    output_hash: Set(Some(page.output_hash)),
+    content_hash: Set(Some(page.content_hash)),
   });
   release_page::Entity::insert_many(rows).exec(db).await?;
 
@@ -120,6 +128,9 @@ pub struct LiveRelease {
   pub pages: Vec<Page>,
   pub redirects: Vec<(String, String)>,
   pub revisions: HashMap<PageId, RevisionId>,
+  /// What each page's content was made of (expanded document, linked pages, terms), hashed; pages of releases made before it was recorded
+  /// have none.
+  pub content: HashMap<PageId, String>,
   pub settings: Option<Settings>,
   pub api_configs: HashMap<PageId, ApiConfig>,
 }
@@ -147,6 +158,7 @@ pub async fn live_release(db: &DatabaseConnection) -> Result<Option<LiveRelease>
     id: row.id.into(),
     pages: serde_json::from_str(&row.tree_snapshot).unwrap_or_default(),
     redirects: serde_json::from_str(&row.redirects_snapshot).unwrap_or_default(),
+    content: revisions.iter().filter_map(|r| Some((r.page_id.into(), r.content_hash.clone()?))).collect(),
     revisions: revisions.into_iter().map(|r| (r.page_id.into(), r.revision_id.into())).collect(),
     settings: row.settings_snapshot.as_deref().and_then(|json| serde_json::from_str(json).ok()),
     api_configs,

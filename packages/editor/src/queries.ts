@@ -264,7 +264,14 @@ export function useLibrary() {
 function useLibraryMutation<V>(run: (vars: V) => Promise<components["schemas"]["LibraryEntry"][]>) {
   const client = useQueryClient();
 
-  return useMutation({ mutationFn: run, onSuccess: (entries) => client.setQueryData(LIBRARY, entries) });
+  return useMutation({
+    mutationFn: run,
+    onSuccess: (entries) => {
+      client.setQueryData(LIBRARY, entries);
+      // Pages using a changed entry become pending.
+      return client.invalidateQueries({ queryKey: PENDING });
+    },
+  });
 }
 
 export function useSaveVariable() {

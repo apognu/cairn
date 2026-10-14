@@ -162,34 +162,51 @@ pub struct Pending {
   pub settings: bool,
 }
 
-/// The published state to compare against: the tree, the redirects, the revision of each page and the settings it was built with. A release
-/// made before settings were recorded has none, and is taken to have the current ones.
+/// The published state to compare against: the tree, the redirects, the revision and content hash of each page and the settings it was
+/// built with. A release made before settings were recorded has none, and is taken to have the current ones; one made before content
+/// hashes has none either, and only revisions are compared.
 pub struct Live<'a> {
   pub pages: &'a [Page],
   pub redirects: &'a [(String, String)],
   pub revisions: &'a HashMap<PageId, crate::RevisionId>,
+  pub content: &'a HashMap<PageId, String>,
   pub settings: Option<&'a Settings>,
   pub api_configs: &'a HashMap<PageId, ApiConfig>,
 }
 
-/// Compares the current tree, drafts and settings with the live release. `drafts` holds each page's latest saved revision, `api_configs` the
-/// saved settings of each API page that has any.
-pub fn pending_changes(
-  pages: &[Page],
-  redirects: &[Redirect],
-  drafts: &HashMap<PageId, crate::RevisionId>,
-  links: &[(PageId, PageId)],
-  api_configs: &HashMap<PageId, ApiConfig>,
-  settings: &Settings,
-  live: Option<&Live>,
-) -> Pending {
+/// The state a publish would take. `drafts` holds each page's latest saved revision; `content` a hash of what each page's content is made
+/// of now (its expanded document and what it shows of the pages and terms it uses), as the publisher records it; `links` the page links;
+/// `api_configs` the saved settings of each API page that has any.
+pub struct Current<'a> {
+  pub pages: &'a [Page],
+  pub redirects: &'a [Redirect],
+  pub drafts: &'a HashMap<PageId, crate::RevisionId>,
+  pub content: &'a HashMap<PageId, String>,
+  pub links: &'a [(PageId, PageId)],
+  pub api_configs: &'a HashMap<PageId, ApiConfig>,
+  pub settings: &'a Settings,
+}
+
+/// Compares the current tree, drafts, content and settings with the live release.
+pub fn pending_changes(current: &Current, live: Option<&Live>) -> Pending {
+  let Current {
+    pages,
+    redirects,
+    drafts,
+    content,
+    links,
+    api_configs,
+    settings,
+  } = *current;
   let urls = page_urls(pages);
   let rules = effective_redirects(redirects, pages);
   let no_configs = HashMap::new();
+  let no_content = HashMap::new();
   let empty = Live {
     pages: &[],
     redirects: &[],
     revisions: &HashMap::new(),
+    content: &no_content,
     settings: None,
     api_configs: &no_configs,
   };
@@ -215,7 +232,12 @@ pub fn pending_changes(
           kinds.push(ChangeKind::Header);
         }
         let edited = match page.kind {
-          PageKind::Page => drafts.get(&page.id).is_some_and(|draft| live.revisions.get(&page.id) != Some(draft)) || old.description != page.description,
+          // The content hash also changes when a variable, snippet or term the page uses changes, or a page it links to is renamed.
+          PageKind::Page => {
+            drafts.get(&page.id).is_some_and(|draft| live.revisions.get(&page.id) != Some(draft))
+              || old.description != page.description
+              || live.content.get(&page.id).is_some_and(|old| content.get(&page.id).is_some_and(|new| new != old))
+          }
           PageKind::Link => old.external_url != page.external_url,
           // Spec updates are never edits: they arrive with every build. Its own settings are, compared with what the live release recorded.
           PageKind::Api => live.api_configs.get(&page.id).is_some_and(|old| old != api_configs.get(&page.id).unwrap_or(&ApiConfig::default())),
@@ -295,6 +317,21 @@ pub fn pending_changes(
 mod tests {
   use super::*;
   use crate::{RevisionId, UserId};
+
+  /// `Current` with only a tree, redirects, drafts and links: no content hashes, API pages or settings to compare.
+  fn pending_for(pages: &[Page], redirects: &[Redirect], drafts: &HashMap<PageId, crate::RevisionId>, links: &[(PageId, PageId)], live: &Live) -> Pending {
+    let current = Current {
+      pages,
+      redirects,
+      drafts,
+      content: &HashMap::new(),
+      links,
+      api_configs: &HashMap::new(),
+      settings: &Settings::default(),
+    };
+
+    pending_changes(&current, Some(live))
+  }
 
   fn page(slug: &str, parent: Option<PageId>) -> Page {
     Page {
@@ -380,10 +417,22 @@ mod tests {
       pages: std::slice::from_ref(&api),
       redirects: &[],
       revisions: &revisions,
+      content: &HashMap::new(),
       settings: Some(&site),
       api_configs: &recorded,
     };
-    let pending = |configs: &HashMap<PageId, ApiConfig>, settings: &Settings, live: &Live| pending_changes(std::slice::from_ref(&api), &[], &HashMap::new(), &[], configs, settings, Some(live));
+    let pending = |configs: &HashMap<PageId, ApiConfig>, settings: &Settings, live: &Live| {
+      let current = Current {
+        pages: std::slice::from_ref(&api),
+        redirects: &[],
+        drafts: &HashMap::new(),
+        content: &HashMap::new(),
+        links: &[],
+        api_configs: configs,
+        settings,
+      };
+      pending_changes(&current, Some(live))
+    };
 
     // As published: nothing to do.
     let same = pending(&HashMap::from([(api.id, published)]), &site, &live);
@@ -416,13 +465,14 @@ mod tests {
       pages: &[guide.clone(), live_install.clone()],
       redirects: &[],
       revisions: &revisions,
+      content: &HashMap::new(),
       settings: None,
       api_configs: &HashMap::new(),
     };
     let now = [guide.clone(), moved.clone()];
 
     // Moved without a redirect: the old URL is lost and the change says so.
-    let without = pending_changes(&now, &[], &HashMap::new(), &[], &HashMap::new(), &Settings::default(), Some(&live));
+    let without = pending_for(&now, &[], &HashMap::new(), &[], &live);
     assert_eq!(
       without.lost_urls,
       [LostUrl {
@@ -435,7 +485,7 @@ mod tests {
     assert!(!without.changes[0].redirected);
 
     // With a redirect it keeps working.
-    let with = pending_changes(&now, &[redirect("/guide/install/", &moved)], &HashMap::new(), &[], &HashMap::new(), &Settings::default(), Some(&live));
+    let with = pending_for(&now, &[redirect("/guide/install/", &moved)], &HashMap::new(), &[], &live);
     assert!(with.lost_urls.is_empty());
     assert!(with.changes[0].redirected);
   }
@@ -452,29 +502,53 @@ mod tests {
       pages: &[kept.clone(), gone.clone()],
       redirects: &[],
       revisions: &revisions,
+      content: &HashMap::new(),
       settings: None,
       api_configs: &HashMap::new(),
     };
 
     // The same revision as live: only the missing page shows.
-    let unchanged = pending_changes(
-      std::slice::from_ref(&kept),
-      &[],
-      &HashMap::from([(kept.id, r1)]),
-      &[],
-      &HashMap::new(),
-      &Settings::default(),
-      Some(&live),
-    );
+    let unchanged = pending_for(std::slice::from_ref(&kept), &[], &HashMap::from([(kept.id, r1)]), &[], &live);
     assert_eq!(unchanged.changes.iter().map(|c| c.title.as_str()).collect::<Vec<_>>(), ["gone"]);
 
     let drafts = HashMap::from([(kept.id, r2)]);
-    let result = pending_changes(&[kept.clone(), fresh.clone()], &[], &drafts, &[], &HashMap::new(), &Settings::default(), Some(&live));
+    let result = pending_for(&[kept.clone(), fresh.clone()], &[], &drafts, &[], &live);
     // A link from a page that stays to the deleted one is reported by title.
-    let broken = pending_changes(std::slice::from_ref(&kept), &[], &drafts, &[(kept.id, gone.id)], &HashMap::new(), &Settings::default(), Some(&live)).broken_links;
+    let broken = pending_for(std::slice::from_ref(&kept), &[], &drafts, &[(kept.id, gone.id)], &live).broken_links;
     assert_eq!((broken[0].source_title.as_str(), broken[0].target_title.as_str()), ("kept", "gone"));
 
     let kinds: Vec<_> = result.changes.iter().map(|c| (c.title.as_str(), c.kinds.clone())).collect();
     assert_eq!(kinds, [("kept", vec![ChangeKind::Edited]), ("fresh", vec![ChangeKind::New]), ("gone", vec![ChangeKind::Deleted])]);
+  }
+
+  #[test]
+  fn a_changed_content_hash_is_an_edit_unless_the_release_has_none() {
+    let pages: Vec<Page> = ["a", "b", "c"].into_iter().map(|slug| page(slug, None)).collect();
+    let revisions: HashMap<_, _> = pages.iter().map(|p| (p.id, RevisionId::new())).collect();
+    // `c` was published before content hashes were recorded.
+    let recorded = HashMap::from([(pages[0].id, "one".to_string()), (pages[1].id, "two".to_string())]);
+    let live = Live {
+      pages: &pages,
+      redirects: &[],
+      revisions: &revisions,
+      content: &recorded,
+      settings: None,
+      api_configs: &HashMap::new(),
+    };
+
+    // Same revisions; `a` and `c` now have other content (a snippet they use changed), `b` the same.
+    let now = HashMap::from([(pages[0].id, "one, edited".to_string()), (pages[1].id, "two".to_string()), (pages[2].id, "three".to_string())]);
+    let current = Current {
+      pages: &pages,
+      redirects: &[],
+      drafts: &revisions,
+      content: &now,
+      links: &[],
+      api_configs: &HashMap::new(),
+      settings: &Settings::default(),
+    };
+
+    let edited: Vec<_> = pending_changes(&current, Some(&live)).changes.into_iter().map(|c| (c.title, c.kinds)).collect();
+    assert_eq!(edited, [("a".to_string(), vec![ChangeKind::Edited])]);
   }
 }

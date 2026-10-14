@@ -5,6 +5,7 @@
 mod api;
 mod changes;
 mod cloudflare;
+mod content;
 mod error;
 mod generated;
 mod markdown;
