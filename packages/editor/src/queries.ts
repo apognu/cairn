@@ -268,8 +268,8 @@ function useLibraryMutation<V>(run: (vars: V) => Promise<components["schemas"]["
     mutationFn: run,
     onSuccess: (entries) => {
       client.setQueryData(LIBRARY, entries);
-      // Pages using a changed entry become pending.
-      return client.invalidateQueries({ queryKey: PENDING });
+      // Pages using a changed entry become pending. Not awaited: the form that saved the entry closes with the saved list, not later.
+      void client.invalidateQueries({ queryKey: PENDING });
     },
   });
 }
