@@ -39,7 +39,7 @@ fn check_key(key: &str) -> Result<(), StoreError> {
   }
 }
 
-pub async fn list_entries(db: &DatabaseConnection) -> Result<Vec<Entry>, StoreError> {
+pub async fn list_entries(db: &impl ConnectionTrait) -> Result<Vec<Entry>, StoreError> {
   let rows = library_entry::Entity::find().all(db).await?;
   let usages = entry_usage::Entity::find().all(db).await?;
 
@@ -71,7 +71,7 @@ pub async fn list_entries(db: &DatabaseConnection) -> Result<Vec<Entry>, StoreEr
 }
 
 /// The variables and snippets, ready for `expand`.
-pub async fn load_library(db: &DatabaseConnection) -> Result<Library, StoreError> {
+pub async fn load_library(db: &impl ConnectionTrait) -> Result<Library, StoreError> {
   let mut library = Library::default();
 
   for entry in list_entries(db).await? {

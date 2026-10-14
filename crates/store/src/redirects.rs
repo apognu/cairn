@@ -2,14 +2,14 @@ use std::collections::HashMap;
 
 use cairn_core::{Document, PageId, Redirect, RedirectOrigin, RevisionId};
 use jiff::Timestamp;
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set, sea_query::OnConflict};
+use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, Set, sea_query::OnConflict};
 
 use crate::{
   StoreError,
   entity::{draft, redirect},
 };
 
-pub async fn list_redirects(db: &DatabaseConnection) -> Result<Vec<Redirect>, StoreError> {
+pub async fn list_redirects(db: &impl ConnectionTrait) -> Result<Vec<Redirect>, StoreError> {
   let rows = redirect::Entity::find().order_by_asc(redirect::Column::FromPath).all(db).await?;
 
   rows
@@ -27,7 +27,7 @@ pub async fn list_redirects(db: &DatabaseConnection) -> Result<Vec<Redirect>, St
 }
 
 /// Records that `from` now leads to a page. An older redirect from the same path is replaced.
-pub(crate) async fn redirect_to_page(db: &DatabaseConnection, from: &str, page: PageId, origin: RedirectOrigin) -> Result<(), StoreError> {
+pub(crate) async fn redirect_to_page(db: &impl ConnectionTrait, from: &str, page: PageId, origin: RedirectOrigin) -> Result<(), StoreError> {
   redirect::Entity::insert(redirect::ActiveModel {
     from_path: Set(from.to_string()),
     to_page_id: Set(Some(page.as_uuid())),
@@ -47,7 +47,7 @@ pub(crate) async fn redirect_to_page(db: &DatabaseConnection, from: &str, page: 
 }
 
 /// Records a redirect to a fixed URL; one from the same path is replaced.
-pub(crate) async fn redirect_to_url(db: &DatabaseConnection, from: &str, url: &str) -> Result<(), StoreError> {
+pub(crate) async fn redirect_to_url(db: &impl ConnectionTrait, from: &str, url: &str) -> Result<(), StoreError> {
   redirect::Entity::insert(redirect::ActiveModel {
     from_path: Set(from.to_string()),
     to_page_id: Set(None),
@@ -67,7 +67,7 @@ pub(crate) async fn redirect_to_url(db: &DatabaseConnection, from: &str, url: &s
 }
 
 /// Drops the redirects that start at paths a page now occupies, so a page moved back never redirects to itself.
-pub(crate) async fn forget_redirects_from(db: &DatabaseConnection, paths: Vec<String>) -> Result<(), StoreError> {
+pub(crate) async fn forget_redirects_from(db: &impl ConnectionTrait, paths: Vec<String>) -> Result<(), StoreError> {
   if !paths.is_empty() {
     redirect::Entity::delete_many().filter(redirect::Column::FromPath.is_in(paths)).exec(db).await?;
   }
@@ -76,14 +76,14 @@ pub(crate) async fn forget_redirects_from(db: &DatabaseConnection, paths: Vec<St
 }
 
 /// The latest saved revision of every page that has a draft.
-pub async fn draft_revisions(db: &DatabaseConnection) -> Result<HashMap<PageId, RevisionId>, StoreError> {
+pub async fn draft_revisions(db: &impl ConnectionTrait) -> Result<HashMap<PageId, RevisionId>, StoreError> {
   let rows = draft::Entity::find().all(db).await?;
 
   Ok(rows.into_iter().filter_map(|row| Some((row.page_id.into(), row.base_revision_id?.into()))).collect())
 }
 
 /// The saved document of every page that has a draft. A page nobody has edited has none, which publishes as an empty page.
-pub async fn draft_docs(db: &DatabaseConnection) -> Result<HashMap<PageId, Document>, StoreError> {
+pub async fn draft_docs(db: &impl ConnectionTrait) -> Result<HashMap<PageId, Document>, StoreError> {
   let rows = draft::Entity::find().all(db).await?;
 
   rows

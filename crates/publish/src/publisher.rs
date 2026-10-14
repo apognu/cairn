@@ -7,13 +7,13 @@ use std::{
 };
 
 use cairn_core::{
-  ApiConfig, AssetId, AssetStore, Broadcast, ContentStore, Document, Event, Page, PageId, PageKind, Release, ReleaseId, ReleaseStatus, RevisionId, Settings, UserId, effective_redirects, expand,
-  extract_links, header_section, original_key, page_urls, term_anchors, term_refs, variant_key,
+  ApiConfig, AssetId, AssetStore, Broadcast, ContentStore, Document, Event, Library, Page, PageId, PageKind, Release, ReleaseId, ReleaseStatus, RevisionId, Settings, UserId, effective_redirects,
+  expand, extract_links, header_section, original_key, page_urls, term_anchors, term_refs, variant_key,
 };
 use cairn_render::{Pool, Shell, highlight_css};
 use cairn_store::{
-  DatabaseConnection, ReleasePage, ReleaseSpec, add_release_pages, assets_by_ids, create_release, get_release, get_setting, kept_render_keys, latest_live_release, list_api_configs, list_pages,
-  list_redirects, live_release, load_library, load_settings, make_release_live, record_release_specs, release_specs, set_release_deployment, set_release_render_keys, set_release_status, set_setting,
+  DatabaseConnection, ReleasePage, ReleaseSpec, Staging, add_release_pages, assets_by_ids, create_release, get_release, get_setting, kept_render_keys, latest_live_release, list_api_configs,
+  live_release, load_library, load_settings, make_release_live, record_release_specs, release_specs, set_release_deployment, set_release_render_keys, set_release_status, set_setting, staging,
 };
 use futures_util::{StreamExt, TryStreamExt, stream};
 use serde_json::{Value, json};
@@ -105,6 +105,15 @@ pub struct Publisher<C: ContentStore, A: AssetStore, B: Broadcast> {
   fetcher: SourceFetcher,
   /// How many pages went through V8 since startup; pages whose output could be reused are not counted.
   renders: Arc<AtomicUsize>,
+}
+
+/// What a release is built from: the tree, its redirects, the pages to render, and the settings and library they are rendered with.
+struct Contents<'a> {
+  tree_pages: &'a [Page],
+  rules: &'a [(String, String)],
+  sources: &'a [PageSource],
+  settings: &'a Settings,
+  library: &'a Library,
 }
 
 struct PageSource {
@@ -241,35 +250,45 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
   async fn build(&self, user: UserId, live: bool) -> Result<Release, PublishError> {
     let _turn = self.running.lock().await;
 
-    let tree_pages = list_pages(&self.db).await?;
+    // One snapshot for the checks and the build: a save or a tree change made meanwhile waits for the next publish instead of going out
+    // unchecked.
+    let staging = staging(&self.db).await?;
+    let tree_pages = &staging.pages;
     // Every build reads the specs again; one that cannot be read stops the publish before anything is created.
-    let apis = self.resolve_apis(&tree_pages).await?;
+    let apis = self.resolve_apis(tree_pages, &staging.api_configs).await?;
 
     // Nothing is created, rendered or written until the site passes its checks, links to operations included: those are compared with
     // the specs of this very build.
     let anchors: crate::OperationAnchors = apis.iter().map(|api| (api.page_id, api.operations.iter().map(cairn_core::Operation::anchor).collect())).collect();
-    let problems = crate::changes::check_with(&self.db, &self.pool, &anchors).await?;
+    let problems = crate::changes::check_with(&staging, &self.pool, &anchors).await?;
     if !problems.is_empty() {
       return Err(PublishError::Blocked(problems));
     }
 
     // Links are navigation only: nothing to render, nothing in the sitemap.
-    let mut sources = self.sources(tree_pages.iter().filter(|p| p.kind == PageKind::Page).cloned().collect(), user).await?;
-    sources.extend(api_sources(&tree_pages, apis));
+    let mut sources = self.sources(&staging, user).await?;
+    sources.extend(api_sources(tree_pages, apis));
 
-    let rules = effective_redirects(&list_redirects(&self.db).await?, &tree_pages);
-    let settings = load_settings(&self.db).await?;
+    let rules = effective_redirects(&staging.redirects, tree_pages);
+    let settings = &staging.settings;
     // Frozen with the release: the next "what changed" comparison reads them back, and a re-render uses them.
     let release = create_release(
       &self.db,
       user,
-      serde_json::to_string(&tree_pages).map_err(anyhow::Error::from)?,
+      serde_json::to_string(tree_pages).map_err(anyhow::Error::from)?,
       serde_json::to_string(&rules).map_err(anyhow::Error::from)?,
-      &settings,
+      settings,
     )
     .await?;
 
-    self.deploy(release, &tree_pages, &rules, &sources, &settings, live).await
+    let contents = Contents {
+      tree_pages,
+      rules: &rules,
+      sources: &sources,
+      settings,
+      library: &staging.library,
+    };
+    self.deploy(release, &contents, live).await
   }
 
   /// Renders the live release again when the bundles changed since it was last rendered: the same pages at the same revisions, the same
@@ -332,15 +351,23 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
       &settings,
     )
     .await?;
-    let release = self.deploy(release, &live.pages, &live.redirects, &sources, &settings, true).await?;
+    let contents = Contents {
+      tree_pages: &live.pages,
+      rules: &live.redirects,
+      sources: &sources,
+      settings: &settings,
+      library: &library,
+    };
+    let release = self.deploy(release, &contents, true).await?;
     tracing::info!(release_id = %release.id, pages = release.page_count, "republished for new bundles");
 
     Ok(Some(release))
   }
 
   /// Renders and hands over a release that was just created, then marks it live, as a preview, or failed.
-  async fn deploy(&self, release: Release, tree_pages: &[Page], rules: &[(String, String)], sources: &[PageSource], settings: &Settings, live: bool) -> Result<Release, PublishError> {
-    match self.build_and_deploy(&release, tree_pages, rules, sources, settings, live).await {
+  async fn deploy(&self, release: Release, contents: &Contents<'_>, live: bool) -> Result<Release, PublishError> {
+    let sources = contents.sources;
+    match self.build_and_deploy(&release, contents, live).await {
       Ok(deployed) => {
         let status = if live { ReleaseStatus::Live } else { ReleaseStatus::Preview };
         // A live release stays `building` until `make_live` swaps it for the previous live one in one step.
@@ -368,18 +395,21 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
     }
   }
 
-  /// Each page's latest revision, which is always what its draft holds. A page nobody has edited gets an empty one.
-  async fn sources(&self, pages: Vec<Page>, user: UserId) -> Result<Vec<PageSource>, PublishError> {
-    let mut sources = Vec::with_capacity(pages.len());
-    let library = load_library(&self.db).await?;
+  /// The pages of the snapshot at the revisions it saw. A page nobody has edited gets an empty revision.
+  async fn sources(&self, staging: &Staging, user: UserId) -> Result<Vec<PageSource>, PublishError> {
+    let pages = staging.pages.iter().filter(|p| p.kind == PageKind::Page);
+    let mut sources = Vec::with_capacity(staging.pages.len());
 
     for page in pages {
-      let revision = self.content.ensure_revision(page.id, user).await?;
+      let revision = match staging.revisions.get(&page.id) {
+        Some(id) => self.content.revision(*id).await?,
+        None => self.content.ensure_revision(page.id, user).await?,
+      };
       sources.push(PageSource {
-        page,
+        page: page.clone(),
         // Variables and snippets are written into the page here, so everything after (the render, the Markdown, the cache key)
         // sees the page as readers do, and a changed entry changes exactly the pages that use it.
-        doc: expand(&revision.doc, &library).0,
+        doc: expand(&revision.doc, &staging.library).0,
         revision: revision.id,
         updated: revision.created_at,
         api: None,
@@ -396,8 +426,7 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
 
   /// Fetches and merges the specs of every API page, keeping the merged documents in the asset store for rollbacks and republishes.
   /// Every page that fails is named.
-  async fn resolve_apis(&self, tree_pages: &[Page]) -> Result<Vec<ResolvedApi>, PublishError> {
-    let configs = list_api_configs(&self.db).await?;
+  async fn resolve_apis(&self, tree_pages: &[Page], configs: &HashMap<PageId, ApiConfig>) -> Result<Vec<ResolvedApi>, PublishError> {
     let jobs: Vec<(Page, ApiConfig)> = tree_pages
       .iter()
       .filter(|p| p.kind == PageKind::Api)
@@ -441,7 +470,14 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
   }
 
   /// Renders everything, then deploys. Nothing reaches the target unless every page rendered.
-  async fn build_and_deploy(&self, release: &Release, tree_pages: &[Page], rules: &[(String, String)], sources: &[PageSource], settings: &Settings, live: bool) -> Result<Deployed, PublishError> {
+  async fn build_and_deploy(&self, release: &Release, contents: &Contents<'_>, live: bool) -> Result<Deployed, PublishError> {
+    let &Contents {
+      tree_pages,
+      rules,
+      sources,
+      settings,
+      library,
+    } = contents;
     let pages: Vec<Page> = sources.iter().map(|s| s.page.clone()).collect();
     let urls = page_urls(tree_pages);
     let header = header_items(tree_pages, &urls);
@@ -453,7 +489,6 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
       .map(|p| (p.id.to_string(), json!({ "title": p.title, "description": p.description })))
       .collect::<serde_json::Map<String, Value>>();
     // The glossary: every term in order, where its entry is, and where the Glossary page itself lives (never on top of a real page).
-    let library = load_library(&self.db).await?;
     let mut glossary_terms: Vec<String> = library.terms.keys().cloned().collect();
     glossary_terms.sort_by_key(|t| t.to_lowercase());
     let anchors = term_anchors(&glossary_terms);
@@ -566,7 +601,7 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
       bytes: api.bytes.clone(),
     }));
 
-    let glossary = (!glossary_terms.is_empty()).then(|| glossary_doc(&glossary_terms, &library, &urls));
+    let glossary = (!glossary_terms.is_empty()).then(|| glossary_doc(&glossary_terms, library, &urls));
     let mut listed: Vec<Listed> = pages
       .iter()
       .map(|p| Listed {
@@ -700,7 +735,7 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
           page_id,
           revision_id,
           output_hash,
-          content_hash: content_hash(&source.doc, tree_pages, &urls, &library),
+          content_hash: content_hash(&source.doc, tree_pages, &urls, library),
         })
       })
       .collect();
@@ -1858,7 +1893,7 @@ mod tests {
     #[tokio::test]
     async fn a_link_to_an_operation_the_build_no_longer_has_blocks_the_publish() {
       let (f, github_stand_in, api, user) = site().await;
-      let guide = list_pages(&f.db).await.unwrap().into_iter().find(|p| p.kind == PageKind::Page).unwrap();
+      let guide = cairn_store::list_pages(&f.db).await.unwrap().into_iter().find(|p| p.kind == PageKind::Page).unwrap();
       let linking = |anchor: &str| {
         doc(serde_json::json!({ "type": "doc", "content": [{ "type": "paragraph", "content": [
           { "type": "text", "text": "orders", "marks": [{ "type": "link", "attrs": { "pageId": api.id.to_string(), "anchor": anchor } }] }

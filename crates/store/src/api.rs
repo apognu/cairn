@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use cairn_core::{ApiConfig, Operation, PageId, PageKind, ReleaseId, ResolvedSource, UserId};
 use jiff::Timestamp;
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set, sea_query::OnConflict};
+use sea_orm::{ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter, Set, sea_query::OnConflict};
 
 use crate::{
   StoreError,
@@ -42,7 +42,7 @@ fn into_config(row: &api_config::Model) -> Result<ApiConfig, StoreError> {
 }
 
 /// The sources of every API page that was ever configured; pages without a row have the empty default.
-pub async fn list_api_configs(db: &DatabaseConnection) -> Result<HashMap<PageId, ApiConfig>, StoreError> {
+pub async fn list_api_configs(db: &impl ConnectionTrait) -> Result<HashMap<PageId, ApiConfig>, StoreError> {
   let mut configs = HashMap::new();
 
   for row in api_config::Entity::find().all(db).await? {
@@ -77,7 +77,7 @@ pub async fn record_release_specs(db: &DatabaseConnection, release: ReleaseId, s
   Ok(())
 }
 
-pub async fn release_specs(db: &DatabaseConnection, release: ReleaseId) -> Result<Vec<ReleaseSpec>, StoreError> {
+pub async fn release_specs(db: &impl ConnectionTrait, release: ReleaseId) -> Result<Vec<ReleaseSpec>, StoreError> {
   let bad = |e: serde_json::Error| StoreError::Invalid(format!("bad recorded spec: {e}"));
   let rows = release_api_spec::Entity::find().filter(release_api_spec::Column::ReleaseId.eq(release.as_uuid())).all(db).await?;
   let mut specs = Vec::with_capacity(rows.len());

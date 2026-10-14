@@ -1,8 +1,8 @@
 use std::{path::Path, time::Duration};
 
-use sea_orm::{ConnectOptions, Database, DatabaseConnection, DbErr};
+use sea_orm::{AccessMode, ConnectOptions, Database, DatabaseConnection, DatabaseTransaction, DbBackend, DbErr, IsolationLevel, SqliteTransactionMode, TransactionOptions, TransactionTrait};
 #[cfg(any(test, feature = "testing"))]
-use sea_orm::{ConnectionTrait, DbBackend, Statement};
+use sea_orm::{ConnectionTrait, Statement};
 
 use crate::migration;
 
@@ -18,6 +18,36 @@ pub enum StoreError {
   Db(#[from] DbErr),
   #[error(transparent)]
   Other(#[from] anyhow::Error),
+}
+
+/// A transaction for a change that reads before it writes. On SQLite it takes the write lock at `BEGIN`, so two such changes run one
+/// after the other (waiting up to the busy timeout); a deferred one would fail when it tries to write after another committed. On
+/// Postgres, unique indexes catch what two concurrent changes could both miss.
+pub(crate) async fn write_tx(db: &DatabaseConnection) -> Result<DatabaseTransaction, StoreError> {
+  let options = match db.get_database_backend() {
+    DbBackend::Sqlite => TransactionOptions {
+      sqlite_transaction_mode: Some(SqliteTransactionMode::Immediate),
+      ..Default::default()
+    },
+    _ => TransactionOptions::default(),
+  };
+
+  Ok(db.begin_with_options(options).await?)
+}
+
+/// A read-only transaction whose reads all see the database at one moment. SQLite in WAL mode gives that to any transaction from its
+/// first read; Postgres needs `REPEATABLE READ` (its default isolation sees each statement's own moment).
+pub(crate) async fn snapshot_tx(db: &DatabaseConnection) -> Result<DatabaseTransaction, StoreError> {
+  let options = match db.get_database_backend() {
+    DbBackend::Postgres => TransactionOptions {
+      isolation_level: Some(IsolationLevel::RepeatableRead),
+      access_mode: Some(AccessMode::ReadOnly),
+      ..Default::default()
+    },
+    _ => TransactionOptions::default(),
+  };
+
+  Ok(db.begin_with_options(options).await?)
 }
 
 /// Opens (creating if needed) the SQLite file at `path` and applies pending migrations.

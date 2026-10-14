@@ -6,6 +6,7 @@ use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Qu
 
 use crate::{
   StoreError,
+  connect::write_tx,
   entity::{page, redirect},
   redirects::{list_redirects, redirect_to_page, redirect_to_url},
   tree::{check_url, list_pages, settle_urls},
@@ -99,7 +100,8 @@ fn check_free(pages: &[Page], redirects: &[Redirect], path: &str, target: &[Page
 /// Gives the page a fixed URL, or takes it back to the one derived from the tree (`None`). The pages below follow it. The old URLs
 /// are kept as redirects unless `old` says to forget them.
 pub async fn set_custom_url(db: &DatabaseConnection, id: PageId, path: Option<&str>, old: OldUrls) -> Result<Page, StoreError> {
-  let before = list_pages(db).await?;
+  let tx = write_tx(db).await?;
+  let before = list_pages(&tx).await?;
   page_for_update(&before, id)?;
   let path = path.map(normalize_path).transpose()?;
   // A page's address is a folder in the published site: `/sitemap.xml/` or `/guide.md/` would collide with the files the site generates
@@ -115,7 +117,7 @@ pub async fn set_custom_url(db: &DatabaseConnection, id: PageId, path: Option<&s
   if let Some(page) = after.iter_mut().find(|p| p.id == id) {
     page.path_override = path.clone();
   }
-  let redirects = list_redirects(db).await?;
+  let redirects = list_redirects(&tx).await?;
   let (urls_before, urls_after) = (page_urls(&before), page_urls(&after));
 
   for (page_id, url) in &urls_after {
@@ -130,12 +132,14 @@ pub async fn set_custom_url(db: &DatabaseConnection, id: PageId, path: Option<&s
     updated_at: Set(Timestamp::now().to_string()),
     ..Default::default()
   }
-  .update(db)
+  .update(&tx)
   .await?;
 
-  settle_urls(db, &before, old, RedirectOrigin::Rename).await?;
+  settle_urls(&tx, &before, old, RedirectOrigin::Rename).await?;
+  let page = list_pages(&tx).await?.into_iter().find(|p| p.id == Into::<PageId>::into(row.id)).ok_or(StoreError::NotFound)?;
+  tx.commit().await?;
 
-  list_pages(db).await?.into_iter().find(|p| p.id == Into::<PageId>::into(row.id)).ok_or(StoreError::NotFound)
+  Ok(page)
 }
 
 /// Every old URL that redirects to the page.
@@ -145,16 +149,20 @@ pub async fn list_aliases(db: &DatabaseConnection, id: PageId) -> Result<Vec<Red
 
 /// Adds a redirect from `path` to the page by hand.
 pub async fn add_alias(db: &DatabaseConnection, id: PageId, path: &str) -> Result<(), StoreError> {
-  let pages = list_pages(db).await?;
+  let tx = write_tx(db).await?;
+  let pages = list_pages(&tx).await?;
   page_for_update(&pages, id)?;
   let path = normalize_path(path)?;
 
   if page_urls(&pages).get(&id) == Some(&path) {
     return Err(StoreError::Invalid(format!("{path} is already this page's URL")));
   }
-  check_free(&pages, &list_redirects(db).await?, &path, &[id])?;
+  check_free(&pages, &list_redirects(&tx).await?, &path, &[id])?;
 
-  redirect_to_page(db, &path, id, RedirectOrigin::Manual).await
+  redirect_to_page(&tx, &path, id, RedirectOrigin::Manual).await?;
+  tx.commit().await?;
+
+  Ok(())
 }
 
 /// Where a hand-made redirect leads.
@@ -166,8 +174,9 @@ pub enum RedirectTarget {
 
 /// Adds a redirect from `from` that is not tied to a page's own URL changes: to a page or to a URL.
 pub async fn add_redirect(db: &DatabaseConnection, from: &str, to: RedirectTarget) -> Result<(), StoreError> {
-  let pages = list_pages(db).await?;
-  let redirects = list_redirects(db).await?;
+  let tx = write_tx(db).await?;
+  let pages = list_pages(&tx).await?;
+  let redirects = list_redirects(&tx).await?;
   let from = normalize_path(from)?;
 
   let (to_page_id, to_url) = match to {
@@ -192,10 +201,13 @@ pub async fn add_redirect(db: &DatabaseConnection, from: &str, to: RedirectTarge
   }
 
   match (to_page_id, to_url) {
-    (Some(id), _) => redirect_to_page(db, &from, id, RedirectOrigin::Manual).await,
-    (None, Some(url)) => redirect_to_url(db, &from, &url).await,
-    (None, None) => Ok(()),
+    (Some(id), _) => redirect_to_page(&tx, &from, id, RedirectOrigin::Manual).await?,
+    (None, Some(url)) => redirect_to_url(&tx, &from, &url).await?,
+    (None, None) => {}
   }
+  tx.commit().await?;
+
+  Ok(())
 }
 
 /// Deletes a redirect, whoever it points to.

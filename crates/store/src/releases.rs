@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use cairn_core::{ApiConfig, AssetId, Page, PageId, Release, ReleaseId, ReleaseStatus, RevisionId, Settings, UserId};
 use jiff::Timestamp;
-use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set, TransactionTrait, sea_query::OnConflict};
+use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set, TransactionTrait, sea_query::OnConflict};
 
 use crate::{
   StoreError,
@@ -148,7 +148,7 @@ pub async fn kept_render_keys(db: &DatabaseConnection) -> Result<Option<HashSet<
   Ok(Some(kept))
 }
 
-pub async fn latest_live_release(db: &DatabaseConnection) -> Result<Option<Release>, StoreError> {
+pub async fn latest_live_release(db: &impl ConnectionTrait) -> Result<Option<Release>, StoreError> {
   let row = release::Entity::find()
     .filter(release::Column::Status.eq(ReleaseStatus::Live.as_str()))
     .order_by_desc(release::Column::Id)
@@ -177,7 +177,7 @@ pub struct LiveRelease {
 
 /// The state of the latest live release, or `None` before the first publish. A snapshot this version cannot read counts as empty,
 /// so everything shows as new rather than hiding changes.
-pub async fn live_release(db: &DatabaseConnection) -> Result<Option<LiveRelease>, StoreError> {
+pub async fn live_release(db: &impl ConnectionTrait) -> Result<Option<LiveRelease>, StoreError> {
   let Some(row) = release::Entity::find()
     .filter(release::Column::Status.eq(ReleaseStatus::Live.as_str()))
     .order_by_desc(release::Column::Id)
@@ -205,7 +205,7 @@ pub async fn live_release(db: &DatabaseConnection) -> Result<Option<LiveRelease>
   }))
 }
 
-async fn into_release(db: &DatabaseConnection, row: release::Model) -> Result<Release, StoreError> {
+async fn into_release(db: &impl ConnectionTrait, row: release::Model) -> Result<Release, StoreError> {
   let page_count = release_page::Entity::find().filter(release_page::Column::ReleaseId.eq(row.id)).count(db).await?;
 
   Ok(Release {
@@ -219,7 +219,7 @@ async fn into_release(db: &DatabaseConnection, row: release::Model) -> Result<Re
   })
 }
 
-pub async fn get_setting(db: &DatabaseConnection, key: &str) -> Result<Option<String>, StoreError> {
+pub async fn get_setting(db: &impl ConnectionTrait, key: &str) -> Result<Option<String>, StoreError> {
   Ok(setting::Entity::find_by_id(key).one(db).await?.map(|s| s.value))
 }
 
@@ -237,7 +237,7 @@ pub async fn set_setting(db: &DatabaseConnection, key: &str, value: &str) -> Res
 
 /// The theme settings, with defaults for anything not saved yet. They are one JSON document; settings saved by the first version of the
 /// theme (separate name, logo and accent rows) are read when there is no document yet.
-pub async fn load_settings(db: &DatabaseConnection) -> Result<Settings, StoreError> {
+pub async fn load_settings(db: &impl ConnectionTrait) -> Result<Settings, StoreError> {
   if let Some(json) = get_setting(db, "site.settings").await? {
     return serde_json::from_str(&json).map_err(|e| StoreError::Invalid(format!("bad settings: {e}")));
   }

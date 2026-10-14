@@ -17,6 +17,7 @@ mod m0013_release_preview;
 mod m0014_content_hash;
 mod m0015_revision_description;
 mod m0016_render_keys;
+mod m0017_unique_slugs;
 
 struct Migrator;
 
@@ -39,6 +40,7 @@ impl MigratorTrait for Migrator {
       Box::new(m0014_content_hash::Migration),
       Box::new(m0015_revision_description::Migration),
       Box::new(m0016_render_keys::Migration),
+      Box::new(m0017_unique_slugs::Migration),
     ]
   }
 }

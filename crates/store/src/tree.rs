@@ -1,17 +1,18 @@
 use cairn_core::{OldUrls, Page, PageId, PageKind, Placement, RedirectOrigin, UserId, page_urls, slugify};
 use fractional_index::FractionalIndex;
 use jiff::Timestamp;
-use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set};
+use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter, QueryOrder, Set, SqlErr};
 
 use crate::{
   StoreError,
+  connect::write_tx,
   entity::page::{self, Column},
   redirects::{forget_redirects_from, redirect_to_page},
   urls::check_page_urls,
 };
 
 /// All live pages, ordered by parent then position.
-pub async fn list_pages(db: &DatabaseConnection) -> Result<Vec<Page>, StoreError> {
+pub async fn list_pages(db: &impl ConnectionTrait) -> Result<Vec<Page>, StoreError> {
   let rows = page::Entity::find().filter(Column::DeletedAt.is_null()).order_by_asc(Column::Position).all(db).await?;
 
   rows.into_iter().map(into_page).collect()
@@ -34,7 +35,8 @@ pub async fn create_link(db: &DatabaseConnection, user: UserId, parent: Option<P
 }
 
 async fn insert(db: &DatabaseConnection, user: UserId, parent: Option<PageId>, title: &str, kind: PageKind, url: Option<String>, placement: Placement) -> Result<Page, StoreError> {
-  let pages = list_pages(db).await?;
+  let tx = write_tx(db).await?;
+  let pages = list_pages(&tx).await?;
   check_parent(&pages, parent)?;
 
   let slug = unique_slug(&pages, parent, title, None)?;
@@ -78,15 +80,19 @@ async fn insert(db: &DatabaseConnection, user: UserId, parent: Option<PageId>, t
     updated_at: Set(now),
     deleted_at: Set(None),
   }
-  .insert(db)
-  .await?;
+  .insert(&tx)
+  .await
+  .map_err(slug_taken)?;
+
+  tx.commit().await?;
 
   into_page(row)
 }
 
 /// Changes the title and re-derives the slug from it. The URLs of the page and its subtree change with it.
 pub async fn rename_page(db: &DatabaseConnection, id: PageId, title: &str, old: OldUrls) -> Result<Page, StoreError> {
-  let pages = list_pages(db).await?;
+  let tx = write_tx(db).await?;
+  let pages = list_pages(&tx).await?;
   let current = find(&pages, id)?;
   let slug = unique_slug(&pages, current.parent_id, title, Some(id))?;
   check_page_urls(&pages, &with_place(&pages, id, current.parent_id, &slug))?;
@@ -98,17 +104,21 @@ pub async fn rename_page(db: &DatabaseConnection, id: PageId, title: &str, old: 
     updated_at: Set(Timestamp::now().to_string()),
     ..Default::default()
   }
-  .update(db)
-  .await?;
+  .update(&tx)
+  .await
+  .map_err(slug_taken)?;
 
-  settle_urls(db, &pages, old, RedirectOrigin::Rename).await?;
+  settle_urls(&tx, &pages, old, RedirectOrigin::Rename).await?;
+
+  tx.commit().await?;
 
   into_page(row)
 }
 
 /// Promotes a page to the site header (at the end of it) or takes it out. Pages only: a link has no page to open.
 pub async fn set_in_header(db: &DatabaseConnection, id: PageId, in_header: bool) -> Result<Page, StoreError> {
-  let pages = list_pages(db).await?;
+  let tx = write_tx(db).await?;
+  let pages = list_pages(&tx).await?;
   let current = find(&pages, id)?;
 
   if !current.kind.has_url() {
@@ -128,15 +138,18 @@ pub async fn set_in_header(db: &DatabaseConnection, id: PageId, in_header: bool)
     updated_at: Set(Timestamp::now().to_string()),
     ..Default::default()
   }
-  .update(db)
+  .update(&tx)
   .await?;
+
+  tx.commit().await?;
 
   into_page(row)
 }
 
 /// Sets the page's summary; an empty one clears it.
 pub async fn set_description(db: &DatabaseConnection, id: PageId, description: &str) -> Result<Page, StoreError> {
-  find(&list_pages(db).await?, id)?;
+  let tx = write_tx(db).await?;
+  find(&list_pages(&tx).await?, id)?;
   let description = description.trim();
 
   if description.chars().count() > 300 {
@@ -149,15 +162,18 @@ pub async fn set_description(db: &DatabaseConnection, id: PageId, description: &
     updated_at: Set(Timestamp::now().to_string()),
     ..Default::default()
   }
-  .update(db)
+  .update(&tx)
   .await?;
+
+  tx.commit().await?;
 
   into_page(row)
 }
 
 /// Changes where a link points, and its title.
 pub async fn edit_link(db: &DatabaseConnection, id: PageId, title: &str, url: &str) -> Result<Page, StoreError> {
-  let pages = list_pages(db).await?;
+  let tx = write_tx(db).await?;
+  let pages = list_pages(&tx).await?;
   let current = find(&pages, id)?;
 
   if current.kind != PageKind::Link {
@@ -175,15 +191,19 @@ pub async fn edit_link(db: &DatabaseConnection, id: PageId, title: &str, url: &s
     updated_at: Set(Timestamp::now().to_string()),
     ..Default::default()
   }
-  .update(db)
-  .await?;
+  .update(&tx)
+  .await
+  .map_err(slug_taken)?;
+
+  tx.commit().await?;
 
   into_page(row)
 }
 
 /// Moves a page, with its subtree, under `parent` (`None` for the root level).
 pub async fn move_page(db: &DatabaseConnection, id: PageId, parent: Option<PageId>, placement: Placement, old: OldUrls) -> Result<Page, StoreError> {
-  let pages = list_pages(db).await?;
+  let tx = write_tx(db).await?;
+  let pages = list_pages(&tx).await?;
   let current = find(&pages, id)?;
   check_parent(&pages, parent)?;
 
@@ -205,17 +225,21 @@ pub async fn move_page(db: &DatabaseConnection, id: PageId, parent: Option<PageI
     updated_at: Set(Timestamp::now().to_string()),
     ..Default::default()
   }
-  .update(db)
-  .await?;
+  .update(&tx)
+  .await
+  .map_err(slug_taken)?;
 
-  settle_urls(db, &pages, old, RedirectOrigin::Move).await?;
+  settle_urls(&tx, &pages, old, RedirectOrigin::Move).await?;
+
+  tx.commit().await?;
 
   into_page(row)
 }
 
 /// Soft-deletes a page and all its descendants; returns the IDs removed.
 pub async fn delete_page(db: &DatabaseConnection, id: PageId) -> Result<Vec<PageId>, StoreError> {
-  let pages = list_pages(db).await?;
+  let tx = write_tx(db).await?;
+  let pages = list_pages(&tx).await?;
   find(&pages, id)?;
 
   let doomed: Vec<PageId> = pages.iter().filter(|p| p.id == id || ancestors(&pages, p.id).contains(&id)).map(|p| p.id).collect();
@@ -224,15 +248,17 @@ pub async fn delete_page(db: &DatabaseConnection, id: PageId) -> Result<Vec<Page
   page::Entity::update_many()
     .col_expr(Column::DeletedAt, now.into())
     .filter(Column::Id.is_in(doomed.iter().map(|p| p.as_uuid())))
-    .exec(db)
+    .exec(&tx)
     .await?;
+
+  tx.commit().await?;
 
   Ok(doomed)
 }
 
 /// After a move or rename: pages whose URL changed get a redirect from the old one (unless `old` says to forget it),
 /// and redirects that start at a path a page now occupies are dropped. `before` is the tree as it was.
-pub(crate) async fn settle_urls(db: &DatabaseConnection, before: &[Page], old: OldUrls, origin: RedirectOrigin) -> Result<(), StoreError> {
+pub(crate) async fn settle_urls(db: &impl ConnectionTrait, before: &[Page], old: OldUrls, origin: RedirectOrigin) -> Result<(), StoreError> {
   let after = list_pages(db).await?;
   let (urls_before, urls_after) = (page_urls(before), page_urls(&after));
 
@@ -247,6 +273,14 @@ pub(crate) async fn settle_urls(db: &DatabaseConnection, before: &[Page], old: O
   }
 
   forget_redirects_from(db, urls_after.into_values().collect()).await
+}
+
+/// The unique index on live sibling slugs catches what the check in `unique_slug` cannot see: another editor's change made meanwhile.
+fn slug_taken(err: DbErr) -> StoreError {
+  match err.sql_err() {
+    Some(SqlErr::UniqueConstraintViolation(_)) => StoreError::Conflict("a sibling already uses this URL segment".into()),
+    _ => err.into(),
+  }
 }
 
 fn find(pages: &[Page], id: PageId) -> Result<&Page, StoreError> {
@@ -408,6 +442,44 @@ mod tests {
 
     move_page(&db, c.id, None, Placement::Before(a.id), OldUrls::Redirect).await.unwrap();
     assert_eq!(titles(&db, None).await, ["Z", "C", "A", "B"]);
+  }
+
+  #[tokio::test]
+  async fn simultaneous_creates_of_one_title_give_one_page_and_one_conflict() {
+    let db = test_db().await;
+    let user = UserId::new();
+    let parent = create_page(&db, user, None, "Guide", Placement::Last).await.unwrap();
+
+    let (a, b) = tokio::join!(
+      create_page(&db, user, Some(parent.id), "Install", Placement::Last),
+      create_page(&db, user, Some(parent.id), "Install", Placement::Last)
+    );
+
+    let conflicts = [&a, &b].iter().filter(|r| matches!(r, Err(StoreError::Conflict(_)))).count();
+    assert_eq!((a.is_ok() as usize + b.is_ok() as usize, conflicts), (1, 1), "{a:?} {b:?}");
+    assert_eq!(titles(&db, Some(parent.id)).await, ["Install"]);
+  }
+
+  #[tokio::test]
+  async fn the_database_refuses_a_second_live_sibling_with_the_same_slug() {
+    let db = test_db().await;
+    let user = UserId::new();
+    let first = create_page(&db, user, None, "Install", Placement::Last).await.unwrap();
+    let other = create_page(&db, user, None, "Other", Placement::Last).await.unwrap();
+
+    // What a concurrent change that missed the first page would write; a trashed page frees its slug.
+    let write = |id: PageId| {
+      page::ActiveModel {
+        id: Set(id.as_uuid()),
+        slug: Set("install".into()),
+        ..Default::default()
+      }
+      .update(&db)
+    };
+    assert!(matches!(write(other.id).await.map_err(slug_taken), Err(StoreError::Conflict(_))));
+
+    delete_page(&db, first.id).await.unwrap();
+    write(other.id).await.unwrap();
   }
 
   #[tokio::test]

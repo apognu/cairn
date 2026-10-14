@@ -1,5 +1,5 @@
 use cairn_core::{LinkKind, PageId, PageLink};
-use sea_orm::{ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
+use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set};
 
 use crate::{
   StoreError,
@@ -49,7 +49,7 @@ pub struct StoredLink {
 }
 
 /// Every recorded link. Filtering by live pages is left to the caller, which has the page list.
-pub async fn all_links(db: &DatabaseConnection) -> Result<Vec<StoredLink>, StoreError> {
+pub async fn all_links(db: &impl ConnectionTrait) -> Result<Vec<StoredLink>, StoreError> {
   let rows = page_link::Entity::find().all(db).await?;
 
   Ok(
