@@ -1,4 +1,17 @@
-import { useState } from "react";
+import { type SyntheticEvent, useState } from "react";
+
+/** Opens a row menu upwards when the scrolling sidebar would cut it off below the row and there is more room above. */
+export function placeMenu(event: SyntheticEvent<HTMLDetailsElement>): void {
+  const menu = event.currentTarget;
+  const pop = menu.querySelector<HTMLElement>(".menu-pop");
+  if (!menu.open || !pop) return;
+
+  const row = menu.getBoundingClientRect();
+  const bounds = menu.closest(".sidebar")?.getBoundingClientRect() ?? { top: 0, bottom: window.innerHeight };
+  const below = bounds.bottom - row.bottom;
+  const above = row.top - bounds.top;
+  menu.toggleAttribute("data-up", below < pop.offsetHeight + 8 && above > below);
+}
 
 export function IconButton({ label, glyph, onClick }: { label: string; glyph: string; onClick: () => void }) {
   return (

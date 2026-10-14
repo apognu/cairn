@@ -2,7 +2,7 @@ import { useState } from "react";
 import { DeleteDialog } from "./DeleteDialog";
 import { Icon } from "./icons";
 import { useCreatePage, useDeletePage, useMovePage, usePending, useRenamePage } from "./queries";
-import { IconButton, MenuItem, TitleForm } from "./TreeParts";
+import { IconButton, MenuItem, placeMenu, TitleForm } from "./TreeParts";
 import {
   buildTree,
   type DropZone,
@@ -208,7 +208,7 @@ export function Sidebar({ pages, loading, selected, onSelect }: Props) {
                 onClick={() => setEditing({ kind: "create", parent: page.id })}
               />
             )}
-            <details className="menu">
+            <details className="menu" onToggle={placeMenu}>
               <summary aria-label={`More actions for ${page.title}`} title="More actions">
                 ⋯
               </summary>

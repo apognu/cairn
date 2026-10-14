@@ -363,6 +363,12 @@ small,
   min-width: 200px;
 }
 
+/* Set by `placeMenu` when there is no room below the row. */
+.menu[data-up] .menu-pop {
+  top: auto;
+  bottom: 28px;
+}
+
 .menu-pop hr {
   width: 100%;
   margin: 4px 0;
