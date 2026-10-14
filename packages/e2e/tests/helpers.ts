@@ -43,6 +43,22 @@ export async function quiet(page: Page) {
 export const SITE = "http://127.0.0.1:3001";
 
 /**
+ * Saves a page's draft through the API the way the editor does: holding the page's lock, which is taken for the save and given back.
+ * The same user's editor tab, if one has the page open, loses its lock.
+ */
+export async function saveDraft(request: APIRequestContext, pageId: string, doc: unknown, base: string | null) {
+  const lock = await request.post(`/api/pages/${pageId}/lock`);
+  expect(lock.ok(), await lock.text()).toBe(true);
+  const { token } = await lock.json();
+
+  const saved = await request.put(`/api/pages/${pageId}/draft`, {
+    data: { doc, base_revision_id: base, lock_token: token },
+  });
+  expect(saved.ok(), await saved.text()).toBe(true);
+  await request.delete(`/api/pages/${pageId}/lock?token=${token}`);
+}
+
+/**
  * Publishes a fixture document (`fixtures/<name>.json`) as a real page and returns its address on the site. The page is made through
  * the API, so the document goes through the same save, check, render and publish as anything an author writes. A publish that is
  * refused because another test has an unfinished page is tried again.
@@ -52,8 +68,7 @@ export async function publishFixture(request: APIRequestContext, name: string): 
   const doc = JSON.parse(readFileSync(new URL(`../../../fixtures/${name}.json`, import.meta.url), "utf8"));
 
   const page = await (await request.post("/api/pages", { data: { parent_id: null, title } })).json();
-  const saved = await request.put(`/api/pages/${page.id}/draft`, { data: { doc, base_revision_id: null } });
-  expect(saved.ok(), await saved.text()).toBe(true);
+  await saveDraft(request, page.id, doc, null);
 
   await expect(async () => {
     const response = await request.post("/api/publish");

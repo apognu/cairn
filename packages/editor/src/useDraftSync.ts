@@ -36,11 +36,18 @@ function worthRetrying(response: Response | undefined): boolean {
   return response === undefined || response.status >= 500 || response.status === 429;
 }
 
+/** The page's lock, which every save must name. Must keep its identity across renders: the sync is rebuilt when it changes. */
+export interface DraftLock {
+  token: () => string | null;
+  /** A save was refused for the lock (410 or 423). */
+  refused: (status: number) => void;
+}
+
 /**
  * Keeps one page's document safe: every change goes to IndexedDB almost at once, and to the server after a pause (or on blur).
  * Saves carry the revision they are based on; a refused save (409) stops the sync until the user chooses what to keep.
  */
-export function useDraftSync(pageId: string, initial: InitialDraft) {
+export function useDraftSync(pageId: string, initial: InitialDraft, lock: DraftLock) {
   const queryClient = useQueryClient();
   const [status, setStatus] = useState<SaveStatus>(initial.conflict ? "conflict" : initial.dirty ? "dirty" : "saved");
   const sync = useRef({
@@ -66,6 +73,8 @@ export function useDraftSync(pageId: string, initial: InitialDraft) {
     }
 
     const sent = s.doc;
+    const token = lock.token();
+    if (!token) return saveSettled(pageId);
     s.inFlight = true;
     if (!s.disposed) setStatus("saving");
 
@@ -73,7 +82,7 @@ export function useDraftSync(pageId: string, initial: InitialDraft) {
       const { data, response } = await api
         .PUT("/api/pages/{id}/draft", {
           params: { path: { id: pageId } },
-          body: { doc: sent, base_revision_id: s.base },
+          body: { doc: sent, base_revision_id: s.base, lock_token: token },
         })
         .catch(() => ({ data: undefined, response: undefined }));
       s.inFlight = false;
@@ -97,6 +106,11 @@ export function useDraftSync(pageId: string, initial: InitialDraft) {
       } else if (response?.status === 409) {
         s.conflict = true;
         if (!s.disposed) setStatus("conflict");
+      } else if (response?.status === 410 || response?.status === 423) {
+        // Someone took the page or the lock lapsed: the browser copy keeps the changes, and the lock decides what comes next.
+        lock.refused(response.status);
+        if (!s.disposed) setStatus("error");
+        if (response.status === 410 && !s.disposed) s.serverTimer = window.setTimeout(() => void flush(), RETRY_DELAY);
       } else if (!s.disposed) {
         // The browser copy keeps the changes either way; a page left with a failed save is sent again when it is next opened.
         setStatus("error");
@@ -109,7 +123,7 @@ export function useDraftSync(pageId: string, initial: InitialDraft) {
     });
     running.set(pageId, tracked);
     return tracked;
-  }, [pageId, queryClient]);
+  }, [pageId, queryClient, lock]);
 
   const onChange = useCallback(
     (doc: DocNode) => {

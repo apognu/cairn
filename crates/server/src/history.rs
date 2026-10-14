@@ -106,6 +106,7 @@ struct Restore {
   (status = 200, body = RestoredDraft),
   (status = 404, body = ErrorBody),
   (status = 422, body = ErrorBody, description = "the description was asked for, and the version was saved before descriptions were recorded"),
+  (status = 423, body = ErrorBody, description = "someone else is editing the page"),
 ))]
 #[instrument(skip_all, fields(page_id = %id))]
 async fn restore_revision(State(state): State<AppState>, CurrentUser(user): CurrentUser, Path(id): Path<PageId>, Json(body): Json<Restore>) -> Result<Json<RestoredDraft>, AppError> {
@@ -116,6 +117,13 @@ async fn restore_revision(State(state): State<AppState>, CurrentUser(user): Curr
 
   if body.description && !revision.description_recorded {
     return Err(AppError::Invalid(vec!["this version was saved before descriptions were recorded".into()]));
+  }
+
+  // The restored draft would replace what the holder is writing under them.
+  match cairn_store::ensure_unlocked(&state.db, id, user).await {
+    Ok(()) => {}
+    Err(cairn_store::StoreError::LockHeld(lock)) => return Err(crate::locks::held(&state, lock, user).await),
+    Err(error) => return Err(error.into()),
   }
 
   let base = state.content.draft(id).await?.and_then(|d| d.base_revision_id);

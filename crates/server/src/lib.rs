@@ -13,6 +13,7 @@ mod error;
 mod history;
 mod library;
 mod links;
+mod locks;
 mod me;
 mod pages;
 mod proxy;

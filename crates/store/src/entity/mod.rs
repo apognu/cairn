@@ -7,6 +7,7 @@ pub(crate) mod library_entry;
 pub(crate) mod login_state;
 pub(crate) mod page;
 pub(crate) mod page_link;
+pub(crate) mod page_lock;
 pub(crate) mod redirect;
 pub(crate) mod release;
 pub(crate) mod release_api_spec;

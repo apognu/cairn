@@ -104,6 +104,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/locks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every page someone is editing now. */
+        get: operations["listLocks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/me": {
         parameters: {
             query?: never;
@@ -150,7 +167,7 @@ export interface paths {
         put?: never;
         /** Changes the title (the URL segment follows it) and, for a link, its target. */
         post: operations["renamePage"];
-        /** Deletes a page and its descendants. */
+        /** Deletes a page and its descendants. Refused with 423 while someone else edits one of them. */
         delete: operations["deletePage"];
         options?: never;
         head?: never;
@@ -273,7 +290,10 @@ export interface paths {
         };
         /** The latest saved edits of a page (an empty document if it has none yet). */
         get: operations["getDraft"];
-        /** Saves a draft. Refused with 409 when `base_revision_id` is not the page's latest revision. */
+        /**
+         * Saves a draft, which also renews the lock. Refused with 409 when `base_revision_id` is not the page's latest revision, and with 423 or
+         *     410 when the saver does not hold the page's lock.
+         */
         put: operations["saveDraft"];
         post?: never;
         delete?: never;
@@ -328,6 +348,26 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pages/{id}/lock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Who is editing the page, if anyone. */
+        get: operations["getLock"];
+        /** Keeps the lock while its holder works. Refused with 423 when someone else took the page, and 410 when the lock was given up. */
+        put: operations["renewLock"];
+        /** Starts editing: takes the page's lock with a new token. Refused with 423 while someone else holds it. */
+        post: operations["acquireLock"];
+        /** Stops editing. The editor calls it when the page is left or after a long idle time; a token that lost the lock changes nothing. */
+        delete: operations["releaseLock"];
         options?: never;
         head?: never;
         patch?: never;
@@ -711,6 +751,11 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AcquiredLock: {
+            lock: components["schemas"]["LockView"];
+            /** @description Sent with every save and renewal. */
+            token: components["schemas"]["LockToken"];
+        };
         Alias: {
             /** Format: date-time */
             created_at: string;
@@ -958,6 +1003,30 @@ export interface components {
          * @enum {string}
          */
         LinkKind: "inline" | "card" | "prop";
+        /** @description What a page's lock holder sends with each save and renewal; a new one is made whenever the lock changes hands. */
+        LockToken: string;
+        /** @description A lock as the editor shows it. */
+        LockView: {
+            /** Format: date-time */
+            acquired_at: string;
+            /** Format: date-time */
+            expires_at: string;
+            /**
+             * Format: date-time
+             * @description When the page's draft was last saved, by anyone.
+             */
+            last_saved_at?: string | null;
+            /** @description Held by the user asking. */
+            mine: boolean;
+            page_id: components["schemas"]["PageId"];
+            /**
+             * Format: date-time
+             * @description When the holder's editor last renewed the lock: it was open and in use then.
+             */
+            renewed_at: string;
+            user_id: components["schemas"]["UserId"];
+            user_name: string;
+        };
         /** @description A URL that works on the live site and will not after publishing. */
         LostUrl: {
             path: string;
@@ -1141,6 +1210,9 @@ export interface components {
             redirect?: boolean | null;
             title: string;
         };
+        RenewLock: {
+            token: components["schemas"]["LockToken"];
+        };
         /** @description Where one spec was read from at a build, as recorded in the release. */
         ResolvedSource: {
             etag?: string | null;
@@ -1171,6 +1243,8 @@ export interface components {
         SaveDraft: {
             base_revision_id?: components["schemas"]["RevisionId"] | null;
             doc: components["schemas"]["Document"];
+            /** @description The token of the page's lock, which the saver must hold. */
+            lock_token: components["schemas"]["LockToken"];
         };
         SetUrl: {
             /** @description The fixed URL, or null to use the one derived from the tree. */
@@ -1532,6 +1606,25 @@ export interface operations {
             };
         };
     };
+    listLocks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LockView"][];
+                };
+            };
+        };
+    };
     getMe: {
         parameters: {
             query?: never;
@@ -1696,6 +1789,15 @@ export interface operations {
                 content?: never;
             };
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description someone else is editing the page or a page below it */
+            423: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2086,7 +2188,25 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
+            /** @description the lock was released */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description someone else is editing the page */
+            423: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2193,6 +2313,129 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
+            };
+        };
+    };
+    getLock: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["PageId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LockView"] | null;
+                };
+            };
+        };
+    };
+    renewLock: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["PageId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RenewLock"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LockView"];
+                };
+            };
+            /** @description the lock was released */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description someone else is editing the page */
+            423: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    acquireLock: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["PageId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AcquiredLock"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description someone else is editing the page */
+            423: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    releaseLock: {
+        parameters: {
+            query: {
+                token: components["schemas"]["LockToken"];
+            };
+            header?: never;
+            path: {
+                id: components["schemas"]["PageId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -2309,6 +2552,15 @@ export interface operations {
             };
             /** @description the description was asked for, and the version was saved before descriptions were recorded */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description someone else is editing the page */
+            423: {
                 headers: {
                     [name: string]: unknown;
                 };

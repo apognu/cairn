@@ -7,7 +7,7 @@ import { FixtureView } from "./FixtureView";
 import { HistoryDrawer } from "./HistoryDrawer";
 import { Icon } from "./icons";
 import { useCloseMenus } from "./menus";
-import { PageEditor } from "./PageEditor";
+import { PageEditor, type PageStatus } from "./PageEditor";
 import { PageSettings } from "./PageSettings";
 import { PublishDialog } from "./PublishDialog";
 import { pendingCount, usePages, usePending, useSettings, useSiteInfo } from "./queries";
@@ -15,16 +15,16 @@ import { type SettingsSection, SettingsView, sectionTitle } from "./SettingsView
 import { Sidebar } from "./Sidebar";
 import { firstPage, type Page, pageUrls } from "./tree";
 import { UserMenu } from "./UserMenu";
-import type { SaveStatus } from "./useDraftSync";
 import { useNarrow } from "./useNarrow";
 
-const statusText: Record<SaveStatus, string> = {
+const statusText: Record<PageStatus, string> = {
   saved: "Saved",
   dirty: "Unsaved changes",
   saving: "Saving…",
   conflict: "Not saved: conflict",
   // Retried on its own when the server or the network failed; the browser copy keeps the changes in every case.
   error: "Not saved: kept in this browser",
+  "read-only": "Read-only",
 };
 
 export function App() {
@@ -53,7 +53,7 @@ function Editor() {
   const pages = usePages();
   // The selected page lives in the URL, so a reload comes back to it.
   const [selected, setSelected] = useState(() => new URLSearchParams(window.location.hash.slice(1)).get("page"));
-  const [status, setStatus] = useState<SaveStatus | null>(null);
+  const [status, setStatus] = useState<PageStatus | null>(null);
   const pending = usePending();
   const [published, setPublished] = useState<number | null>(null);
   const [showPublish, setShowPublish] = useState(false);
@@ -161,6 +161,7 @@ function Editor() {
         {status && (
           <output className="save-status" data-status={status}>
             {status === "saved" && <Icon name="check" size={13} />}
+            {status === "read-only" && <Icon name="lock" size={13} />}
             {statusText[status]}
           </output>
         )}

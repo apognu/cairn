@@ -232,7 +232,7 @@ mod tests {
     let user = UserId::new();
 
     let hooks = create_page(&db, user, None, "Hooks", Placement::Last).await.unwrap();
-    delete_page(&db, hooks.id).await.unwrap();
+    delete_page(&db, hooks.id, cairn_core::UserId::new()).await.unwrap();
     let other = create_page(&db, user, None, "Webhooks", Placement::Last).await.unwrap();
     crate::set_custom_url(&db, other.id, Some("/hooks/"), cairn_core::OldUrls::Redirect).await.unwrap();
 
@@ -256,7 +256,7 @@ mod tests {
     };
     let before = url(&list_pages(&db).await.unwrap(), linux.id);
 
-    delete_page(&db, install.id).await.unwrap();
+    delete_page(&db, install.id, cairn_core::UserId::new()).await.unwrap();
     let trash = list_trash(&db).await.unwrap();
     assert_eq!(trash.len(), 1, "the subpage is not listed on its own");
     assert_eq!((trash[0].page.title.as_str(), trash[0].subpages, trash[0].old_url.as_str()), ("Install", 1, "/guide/install/"));
@@ -267,15 +267,15 @@ mod tests {
     assert!(list_trash(&db).await.unwrap().is_empty());
 
     // When a new page took the URL meanwhile, the restored one gets a numbered segment instead of clashing.
-    delete_page(&db, install.id).await.unwrap();
+    delete_page(&db, install.id, cairn_core::UserId::new()).await.unwrap();
     create_page(&db, user, Some(guide.id), "Install", Placement::Last).await.unwrap();
     let (again, kept) = restore_page(&db, install.id).await.unwrap();
     assert!(!kept && again.slug == "install-2");
     assert!(distinct_positions(list_pages(&db).await.unwrap()), "the new Install took the old position");
 
     // And when its parent is gone it returns to the top level.
-    delete_page(&db, again.id).await.unwrap();
-    delete_page(&db, guide.id).await.unwrap();
+    delete_page(&db, again.id, cairn_core::UserId::new()).await.unwrap();
+    delete_page(&db, guide.id, cairn_core::UserId::new()).await.unwrap();
     create_page(&db, user, None, "About", Placement::Last).await.unwrap();
     let (top, kept) = restore_page(&db, again.id).await.unwrap();
     assert!(!kept && top.parent_id.is_none());

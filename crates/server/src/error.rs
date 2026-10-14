@@ -33,6 +33,11 @@ pub enum AppError {
   Publish(#[from] PublishError),
   #[error(transparent)]
   Auth(#[from] cairn_auth::AuthError),
+  /// Someone holds the page's lock; the sentence names them.
+  #[error("{0}")]
+  Locked(String),
+  #[error("you no longer hold this page's lock")]
+  LockLost,
 }
 
 impl IntoResponse for AppError {
@@ -44,6 +49,8 @@ impl IntoResponse for AppError {
       AppError::Render(RenderError::Busy) => (StatusCode::SERVICE_UNAVAILABLE, None, vec![]),
       AppError::Render(RenderError::Timeout) => (StatusCode::GATEWAY_TIMEOUT, None, vec![]),
       AppError::Store(StoreError::NotFound) => (StatusCode::NOT_FOUND, None, vec![]),
+      AppError::Locked(_) | AppError::Store(StoreError::LockHeld(_)) => (StatusCode::LOCKED, None, vec![]),
+      AppError::LockLost => (StatusCode::GONE, None, vec![]),
       AppError::Store(StoreError::Conflict(reason)) => (StatusCode::CONFLICT, Some(reason.clone()), vec![]),
       AppError::Store(StoreError::Invalid(reason)) => (StatusCode::UNPROCESSABLE_ENTITY, Some(reason.clone()), vec![reason.clone()]),
       AppError::Core(CoreError::NotFound) => (StatusCode::NOT_FOUND, None, vec![]),

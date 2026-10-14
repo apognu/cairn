@@ -150,11 +150,19 @@ async fn describe(State(state): State<AppState>, Path(id): Path<PageId>, Json(bo
   Ok(Json(cairn_store::set_description(&state.db, id, &body.description).await?))
 }
 
-/// Deletes a page and its descendants.
-#[utoipa::path(delete, path = "/api/pages/{id}", operation_id = "deletePage", params(("id" = PageId, Path)), responses((status = 204), (status = 404, body = ErrorBody)))]
+/// Deletes a page and its descendants. Refused with 423 while someone else edits one of them.
+#[utoipa::path(delete, path = "/api/pages/{id}", operation_id = "deletePage", params(("id" = PageId, Path)), responses(
+  (status = 204),
+  (status = 404, body = ErrorBody),
+  (status = 423, body = ErrorBody, description = "someone else is editing the page or a page below it"),
+))]
 #[instrument(skip_all, fields(page_id = %id))]
-async fn remove(State(state): State<AppState>, Path(id): Path<PageId>) -> Result<StatusCode, AppError> {
-  cairn_store::delete_page(&state.db, id).await?;
+async fn remove(State(state): State<AppState>, CurrentUser(user): CurrentUser, Path(id): Path<PageId>) -> Result<StatusCode, AppError> {
+  match cairn_store::delete_page(&state.db, id, user).await {
+    Ok(_) => {}
+    Err(cairn_store::StoreError::LockHeld(lock)) => return Err(crate::locks::held(&state, lock, user).await),
+    Err(error) => return Err(error.into()),
+  }
 
   Ok(StatusCode::NO_CONTENT)
 }

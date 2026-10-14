@@ -13,6 +13,7 @@ import {
   pageUrls,
   type TreeNode,
 } from "./tree";
+import { useLocks } from "./useLock";
 
 interface Props {
   pages: Page[];
@@ -37,6 +38,8 @@ export function Sidebar({ pages, loading, selected, onSelect }: Props) {
   );
   const pending = usePending();
   const changed = new Set(pending.data?.changes.filter((c) => !c.kinds.includes("deleted")).map((c) => c.page_id));
+  const locks = useLocks();
+  const lockedBy = new Map((locks.data ?? []).filter((l) => !l.mine).map((l) => [l.page_id, l.user_name]));
   const create = useCreatePage();
   const rename = useRenamePage();
   const move = useMovePage();
@@ -198,6 +201,16 @@ export function Sidebar({ pages, loading, selected, onSelect }: Props) {
               {page.title}
               {page.kind === "link" && <Icon name="external" size={12} />}
             </button>
+          )}
+          {lockedBy.has(page.id) && (
+            <span
+              className="tree-lock"
+              role="img"
+              aria-label={`Locked by ${lockedBy.get(page.id)}`}
+              title={`${lockedBy.get(page.id)} is editing`}
+            >
+              <Icon name="lock" size={13} />
+            </span>
           )}
           {changed.has(page.id) && <span className="dot" role="img" aria-label="Unpublished changes" />}
           <span className="actions">

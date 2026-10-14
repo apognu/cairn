@@ -71,6 +71,10 @@ id_type!(
   /// An uploaded file.
   AssetId
 );
+id_type!(
+  /// What a page's lock holder sends with each save and renewal; a new one is made whenever the lock changes hands.
+  LockToken
+);
 
 #[cfg(test)]
 mod tests {

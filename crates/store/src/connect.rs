@@ -14,6 +14,9 @@ pub enum StoreError {
   Conflict(String),
   #[error("invalid: {0}")]
   Invalid(String),
+  /// Someone else is editing the page.
+  #[error("the page is being edited by someone else")]
+  LockHeld(cairn_core::PageLock),
   #[error(transparent)]
   Db(#[from] DbErr),
   #[error(transparent)]

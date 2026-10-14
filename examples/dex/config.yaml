@@ -28,3 +28,8 @@ staticPasswords:
     hash: "$2a$10$2b2cU8CPhOTaGrs1HRQuAueS7JTT5ZHsHSzYiFPm1leZck7Mc8T4W"
     username: alice
     userID: "08a8684b-db88-4b73-90a9-3cd1661f5466"
+  # A second editor, for the page lock and hotfix tests.
+  - email: bob@example.com
+    hash: "$2a$10$2b2cU8CPhOTaGrs1HRQuAueS7JTT5ZHsHSzYiFPm1leZck7Mc8T4W"
+    username: bob
+    userID: "5f0c1d9e-8a4b-4f0e-9b7a-2d6c3e1f4a80"

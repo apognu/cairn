@@ -7,6 +7,7 @@ use crate::{
   StoreError,
   connect::write_tx,
   entity::page::{self, Column},
+  locks::{check_unlocked, drop_locks},
   redirects::{forget_redirects_from, redirect_to_page},
   urls::check_page_urls,
 };
@@ -236,13 +237,16 @@ pub async fn move_page(db: &DatabaseConnection, id: PageId, parent: Option<PageI
   into_page(row)
 }
 
-/// Soft-deletes a page and all its descendants; returns the IDs removed.
-pub async fn delete_page(db: &DatabaseConnection, id: PageId) -> Result<Vec<PageId>, StoreError> {
+/// Soft-deletes a page and all its descendants; returns the IDs removed. Refused while someone other than `user` edits one of them.
+pub async fn delete_page(db: &DatabaseConnection, id: PageId, user: UserId) -> Result<Vec<PageId>, StoreError> {
   let tx = write_tx(db).await?;
   let pages = list_pages(&tx).await?;
   find(&pages, id)?;
 
   let doomed: Vec<PageId> = pages.iter().filter(|p| p.id == id || ancestors(&pages, p.id).contains(&id)).map(|p| p.id).collect();
+  for page in &doomed {
+    check_unlocked(&tx, *page, user, Timestamp::now()).await?;
+  }
   let now = Timestamp::now().to_string();
 
   page::Entity::update_many()
@@ -250,6 +254,7 @@ pub async fn delete_page(db: &DatabaseConnection, id: PageId) -> Result<Vec<Page
     .filter(Column::Id.is_in(doomed.iter().map(|p| p.as_uuid())))
     .exec(&tx)
     .await?;
+  drop_locks(&tx, &doomed).await?;
 
   tx.commit().await?;
 
@@ -478,7 +483,7 @@ mod tests {
     };
     assert!(matches!(write(other.id).await.map_err(slug_taken), Err(StoreError::Conflict(_))));
 
-    delete_page(&db, first.id).await.unwrap();
+    delete_page(&db, first.id, user).await.unwrap();
     write(other.id).await.unwrap();
   }
 
@@ -528,7 +533,7 @@ mod tests {
     assert!(matches!(rename_page(&db, b.id, "guide", OldUrls::Redirect).await, Err(StoreError::Conflict(_))));
     assert_eq!(rename_page(&db, a.id, "The Guide", OldUrls::Redirect).await.unwrap().slug, "the-guide");
 
-    assert_eq!(delete_page(&db, b.id).await.unwrap().len(), 2);
+    assert_eq!(delete_page(&db, b.id, user).await.unwrap().len(), 2);
     assert_eq!(titles(&db, None).await, ["The Guide"]);
   }
 

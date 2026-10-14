@@ -272,6 +272,26 @@
         }
       }
     },
+    "/api/locks": {
+      "get": {
+        "summary": "Every page someone is editing now.",
+        "operationId": "listLocks",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LockView"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/me": {
       "get": {
         "summary": "The signed-in user.",
@@ -438,7 +458,7 @@
         }
       },
       "delete": {
-        "summary": "Deletes a page and its descendants.",
+        "summary": "Deletes a page and its descendants. Refused with 423 while someone else edits one of them.",
         "operationId": "deletePage",
         "parameters": [
           {
@@ -453,6 +473,16 @@
         "responses": {
           "204": {},
           "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "423": {
+            "description": "someone else is editing the page or a page below it",
             "content": {
               "application/json": {
                 "schema": {
@@ -901,7 +931,7 @@
         }
       },
       "put": {
-        "summary": "Saves a draft. Refused with 409 when `base_revision_id` is not the page's latest revision.",
+        "summary": "Saves a draft, which also renews the lock. Refused with 409 when `base_revision_id` is not the page's latest revision, and with 423 or\n410 when the saver does not hold the page's lock.",
         "operationId": "saveDraft",
         "parameters": [
           {
@@ -952,7 +982,27 @@
               }
             }
           },
+          "410": {
+            "description": "the lock was released",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
           "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "423": {
+            "description": "someone else is editing the page",
             "content": {
               "application/json": {
                 "schema": {
@@ -1092,6 +1142,164 @@
               }
             }
           }
+        }
+      }
+    },
+    "/api/pages/{id}/lock": {
+      "get": {
+        "summary": "Who is editing the page, if anyone.",
+        "operationId": "getLock",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/PageId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/LockView"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Keeps the lock while its holder works. Refused with 423 when someone else took the page, and 410 when the lock was given up.",
+        "operationId": "renewLock",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/PageId"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenewLock"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LockView"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "the lock was released",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "423": {
+            "description": "someone else is editing the page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Starts editing: takes the page's lock with a new token. Refused with 423 while someone else holds it.",
+        "operationId": "acquireLock",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/PageId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcquiredLock"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "423": {
+            "description": "someone else is editing the page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Stops editing. The editor calls it when the page is left or after a long idle time; a token that lost the lock changes nothing.",
+        "operationId": "releaseLock",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/PageId"
+            }
+          },
+          {
+            "name": "token",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/LockToken"
+            }
+          }
+        ],
+        "responses": {
+          "204": {}
         }
       }
     },
@@ -1245,6 +1453,16 @@
           },
           "422": {
             "description": "the description was asked for, and the version was saved before descriptions were recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "423": {
+            "description": "someone else is editing the page",
             "content": {
               "application/json": {
                 "schema": {
@@ -1963,6 +2181,22 @@
   },
   "components": {
     "schemas": {
+      "AcquiredLock": {
+        "type": "object",
+        "required": [
+          "token",
+          "lock"
+        ],
+        "properties": {
+          "lock": {
+            "$ref": "#/components/schemas/LockView"
+          },
+          "token": {
+            "$ref": "#/components/schemas/LockToken",
+            "description": "Sent with every save and renewal."
+          }
+        }
+      },
       "Alias": {
         "type": "object",
         "required": [
@@ -2723,6 +2957,59 @@
           "prop"
         ]
       },
+      "LockToken": {
+        "type": "string",
+        "description": "What a page's lock holder sends with each save and renewal; a new one is made whenever the lock changes hands."
+      },
+      "LockView": {
+        "type": "object",
+        "description": "A lock as the editor shows it.",
+        "required": [
+          "page_id",
+          "user_id",
+          "user_name",
+          "mine",
+          "acquired_at",
+          "renewed_at",
+          "expires_at"
+        ],
+        "properties": {
+          "acquired_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "last_saved_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "When the page's draft was last saved, by anyone."
+          },
+          "mine": {
+            "type": "boolean",
+            "description": "Held by the user asking."
+          },
+          "page_id": {
+            "$ref": "#/components/schemas/PageId"
+          },
+          "renewed_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the holder's editor last renewed the lock: it was open and in use then."
+          },
+          "user_id": {
+            "$ref": "#/components/schemas/UserId"
+          },
+          "user_name": {
+            "type": "string"
+          }
+        }
+      },
       "LostUrl": {
         "type": "object",
         "description": "A URL that works on the live site and will not after publishing.",
@@ -3326,6 +3613,17 @@
           }
         }
       },
+      "RenewLock": {
+        "type": "object",
+        "required": [
+          "token"
+        ],
+        "properties": {
+          "token": {
+            "$ref": "#/components/schemas/LockToken"
+          }
+        }
+      },
       "ResolvedSource": {
         "type": "object",
         "description": "Where one spec was read from at a build, as recorded in the release.",
@@ -3415,7 +3713,8 @@
       "SaveDraft": {
         "type": "object",
         "required": [
-          "doc"
+          "doc",
+          "lock_token"
         ],
         "properties": {
           "base_revision_id": {
@@ -3431,6 +3730,10 @@
           },
           "doc": {
             "$ref": "#/components/schemas/Document"
+          },
+          "lock_token": {
+            "$ref": "#/components/schemas/LockToken",
+            "description": "The token of the page's lock, which the saver must hold."
           }
         }
       },

@@ -1590,7 +1590,7 @@ mod tests {
     save(alt.id, serde_json::json!([{ "type": "image", "attrs": { "assetId": "x", "alt": "" } }])).await;
     // `columns` must be "2" or "3".
     save(props.id, serde_json::json!([{ "type": "cards", "attrs": { "columns": "9", "cards": [] } }])).await;
-    cairn_store::delete_page(&f.db, doomed.id).await.unwrap();
+    cairn_store::delete_page(&f.db, doomed.id, cairn_core::UserId::new()).await.unwrap();
 
     let blocked = f.publisher.publish(user).await;
     let Err(PublishError::Blocked(problems)) = blocked else {

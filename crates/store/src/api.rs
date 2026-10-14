@@ -168,7 +168,7 @@ mod tests {
     assert!(set_in_header(&db, api.id, true).await.unwrap().in_header);
     create_page(&db, user, Some(api.id), "Changelog", Placement::Last).await.unwrap();
 
-    let removed = delete_page(&db, api.id).await.unwrap();
+    let removed = delete_page(&db, api.id, cairn_core::UserId::new()).await.unwrap();
     assert_eq!(removed.len(), 2);
     restore_page(&db, api.id).await.unwrap();
     assert_eq!(list_pages(&db).await.unwrap().len(), 3);

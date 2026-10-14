@@ -45,8 +45,9 @@ test("saved text survives a reload", async ({ page }) => {
 test("a save based on an old revision is refused with a conflict", async ({ request }) => {
   const page = await (await request.post("/api/pages", { data: { title: `Conflict ${suffix()}` } })).json();
   const doc = { type: "doc", content: [{ type: "paragraph" }] };
+  const { token } = await (await request.post(`/api/pages/${page.id}/lock`)).json();
   const save = (base: string | null) =>
-    request.put(`/api/pages/${page.id}/draft`, { data: { doc, base_revision_id: base } });
+    request.put(`/api/pages/${page.id}/draft`, { data: { doc, base_revision_id: base, lock_token: token } });
 
   const first = await (await save(null)).json();
   expect((await save(first.base_revision_id)).status()).toBe(200);
