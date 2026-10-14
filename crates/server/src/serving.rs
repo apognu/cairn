@@ -24,10 +24,10 @@ pub(crate) fn serve_router(state: AppState) -> Router {
     .route("/_preview/{release}/", get(preview_root))
     .route("/_preview/{release}/{*path}", get(preview));
 
-  // Only a self-hosted site is served here; a folder target is served by whatever the deployer put in front of it.
+  // Only a self-hosted site is served here; the others are served elsewhere, so the root leads to the editor instead.
   match state.publisher.target() {
     PublishTarget::SelfHosted(_) => router.fallback_service(site::public_router(state.publisher.target().site_dir().expect("a self-hosted target has a site folder"))),
-    PublishTarget::Folder(_) | PublishTarget::Cloudflare(_) | PublishTarget::S3(_) | PublishTarget::Pages(_) => router,
+    PublishTarget::Folder(_) | PublishTarget::Cloudflare(_) | PublishTarget::S3(_) | PublishTarget::Pages(_) => router.route("/", get(|| async { Redirect::to("/_editor/") })),
   }
   .with_state(state)
 }
