@@ -1,0 +1,22 @@
+name: main
+on:
+  push:
+    branches: [main]
+
+# Runs queue rather than cancel each other: each one may publish `latest`, and the last push must be the one that does.
+concurrency:
+  group: main
+  cancel-in-progress: false
+
+jobs:
+  checks:
+    uses: ./.github/workflows/_checks.yml
+  # Built alongside the checks; the image only waits for both.
+  binary:
+    uses: ./.github/workflows/_binary.yml
+  image:
+    needs: [checks, binary]
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/_image.yml

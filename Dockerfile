@@ -1,8 +1,11 @@
 # syntax=docker/dockerfile:1
 #
 # Two images come out of this file:
-#   docker build --target builder -t cairn/builder:1 .   the toolchain that bundles custom components
-#   docker build --target runtime -t cairn/runtime:1 .   the server (COPY a /app/bundles from the builder to add custom components)
+#   docker build --target builder -t cairn-builder .   the toolchain that bundles custom components
+#   docker build --target runtime -t cairn .           the server (COPY a /app/bundles from the builder to add custom components)
+#
+# CI publishes the server as ghcr.io/apognu/cairn. It builds the binary in its own job and passes it with
+# `--build-context server=<folder holding cairn>`, which replaces the `server` stage, so nothing is compiled twice.
 
 # The JavaScript workspace, installed. The base of the builder image.
 FROM oven/bun:1 AS js

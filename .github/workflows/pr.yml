@@ -1,0 +1,12 @@
+name: pr
+on:
+  pull_request:
+
+# A new push to the pull request replaces its running checks.
+concurrency:
+  group: pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    uses: ./.github/workflows/_checks.yml

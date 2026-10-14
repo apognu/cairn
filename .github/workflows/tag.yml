@@ -1,0 +1,17 @@
+name: tag
+# Publishes the server image of a version: `git tag v0.1.0 && git push --tags`.
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  checks:
+    uses: ./.github/workflows/_checks.yml
+  binary:
+    uses: ./.github/workflows/_binary.yml
+  image:
+    needs: [checks, binary]
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/_image.yml

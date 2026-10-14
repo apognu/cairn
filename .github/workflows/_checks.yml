@@ -1,0 +1,93 @@
+# Reusable: lint, the Rust tests on SQLite and Postgres, and the end-to-end tests, side by side. Called by pr.yml, main.yml and tag.yml.
+name: checks
+on:
+  workflow_call:
+
+env:
+  CARGO_TERM_COLOR: always
+  # Debug info is of no use here and makes compiling, linking and the caches several times larger.
+  CARGO_PROFILE_DEV_DEBUG: 0
+  CARGO_PROFILE_TEST_DEBUG: 0
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with: { components: "rustfmt, clippy" }
+      # Pull requests read the caches of main but do not write their own, which would push main's out of the 10 GB budget.
+      - uses: Swatinem/rust-cache@v2
+        with: { save-if: "${{ github.ref == 'refs/heads/main' }}" }
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run lint
+      - run: cargo fmt --check
+      # The server embeds the editor and renderer builds (`rust-embed`), so they must exist before it compiles.
+      - run: bun run build
+      - run: cargo clippy --all-targets -- -D warnings
+
+  # The Rust tests on SQLite, and again with every test database on Postgres (see `connect_for_tests`), which also runs the migrations
+  # there. The end-to-end tests stay on SQLite: the server code is the same.
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        db: [sqlite, postgres]
+    services:
+      postgres:
+        # An empty image skips the service on the SQLite leg.
+        image: ${{ matrix.db == 'postgres' && 'postgres:17' || '' }}
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with: { shared-key: test, save-if: "${{ github.ref == 'refs/heads/main' && matrix.db == 'sqlite' }}" }
+      - uses: oven-sh/setup-bun@v2
+      # Pagefind's launcher, used by the publish tests, runs on Node.
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: bun install --frozen-lockfile
+      - run: bun run build
+      # Any value, even empty, means Postgres to the tests, so SQLite must not have the variable at all.
+      - if: matrix.db == 'postgres'
+        run: echo "TEST_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/postgres" >> "$GITHUB_ENV"
+      - run: cargo test
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with: { save-if: "${{ github.ref == 'refs/heads/main' }}" }
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: bun install --frozen-lockfile
+      - run: bun run build
+      - run: cargo build -p cairn-cli
+      # Checks the API client against the server's routes with `cargo run`, which reuses the binary built above.
+      - run: bun run typecheck
+      - run: bun test
+      # The sign-in tests (`serve.spec`) need a provider: a local Dex with one user.
+      - run: docker run -d --network host -v "$PWD/examples/dex/config.yaml:/etc/dex/config.yaml:ro" ghcr.io/dexidp/dex:v2.41.1 dex serve /etc/dex/config.yaml
+      - id: playwright
+        run: echo "version=$(jq -r '.devDependencies["@playwright/test"]' packages/e2e/package.json)" >> "$GITHUB_OUTPUT"
+      - id: browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+      - if: steps.browsers.outputs.cache-hit != 'true'
+        run: node packages/e2e/node_modules/.bin/playwright install --with-deps chromium
+      - if: steps.browsers.outputs.cache-hit == 'true'
+        run: node packages/e2e/node_modules/.bin/playwright install-deps chromium
+      - run: bun run --filter @cairn/e2e test
+

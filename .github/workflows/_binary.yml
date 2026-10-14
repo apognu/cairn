@@ -1,0 +1,27 @@
+# Reusable: the release binary for the server image, uploaded as the `cairn-linux-amd64` artifact of the run. Built on Debian bookworm
+# like the runtime image, so it links against the glibc that image has (the Ubuntu runner's is newer).
+name: binary
+on:
+  workflow_call:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  binary:
+    runs-on: ubuntu-latest
+    container: rust:1-bookworm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+        with: { save-if: "${{ github.ref == 'refs/heads/main' }}" }
+      - run: apt-get update && apt-get install -y --no-install-recommends unzip
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run build
+      - run: cargo build --release -p cairn-cli
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cairn-linux-amd64
+          path: target/release/cairn
+          retention-days: 1

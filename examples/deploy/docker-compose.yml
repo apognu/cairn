@@ -2,7 +2,7 @@
 # Copy this folder, copy `.env.example` to `.env`, fill it in, then `docker compose up -d`.
 services:
   cairn:
-    image: cairn/runtime:latest
+    image: ghcr.io/apognu/cairn:latest
     restart: unless-stopped
     command: ["serve"]
     environment:
