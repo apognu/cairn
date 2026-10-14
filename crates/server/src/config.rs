@@ -36,7 +36,7 @@ pub(crate) struct GithubSettings {
   pub(crate) client_id: String,
   pub(crate) client_secret: String,
   /// Organizations (`acme`) and teams (`acme/docs`) whose members may sign in, and email domains.
-  pub(crate) access: yourdocs_auth::AccessRules,
+  pub(crate) access: cairn_auth::AccessRules,
   /// Overridable for tests and GitHub Enterprise.
   pub(crate) web_url: String,
   pub(crate) api_url: String,
@@ -50,11 +50,11 @@ pub(crate) enum TargetChoice {
   /// Written to a folder that something else serves.
   Folder(PathBuf),
   /// Uploaded to a Cloudflare Worker with static assets.
-  Cloudflare(yourdocs_publish::CloudflareConfig),
+  Cloudflare(cairn_publish::CloudflareConfig),
   /// Deployed to a Cloudflare Pages project.
-  Pages(yourdocs_publish::PagesConfig),
+  Pages(cairn_publish::PagesConfig),
   /// Uploaded to an S3 bucket (or compatible storage) that serves it as a website.
-  S3(yourdocs_publish::S3Config),
+  S3(cairn_publish::S3Config),
 }
 
 #[derive(Debug, Clone)]
@@ -68,12 +68,12 @@ pub(crate) struct OidcSettings {
   pub(crate) session_idle: SignedDuration,
   /// A session ends this long after the login.
   pub(crate) session_absolute: SignedDuration,
-  pub(crate) access: yourdocs_auth::AccessRules,
+  pub(crate) access: cairn_auth::AccessRules,
 }
 
 impl OidcSettings {
-  pub(crate) fn sessions(&self, secure: bool) -> yourdocs_auth::SessionSettings {
-    yourdocs_auth::SessionSettings {
+  pub(crate) fn sessions(&self, secure: bool) -> cairn_auth::SessionSettings {
+    cairn_auth::SessionSettings {
       idle: self.session_idle,
       absolute: self.session_absolute,
       secure,
@@ -81,7 +81,7 @@ impl OidcSettings {
   }
 }
 
-impl From<OidcSettings> for yourdocs_auth::OidcConfig {
+impl From<OidcSettings> for cairn_auth::OidcConfig {
   fn from(settings: OidcSettings) -> Self {
     Self {
       issuer: settings.issuer,
@@ -109,14 +109,14 @@ pub(crate) fn origin_of(url: &str) -> String {
 }
 
 /// The allow-list read from `<prefix>_ALLOWED_GROUPS`, `<prefix>_ALLOWED_EMAIL_DOMAINS` and, where it makes sense, `<prefix>_ALLOW_ANY_USER`.
-fn rules(var: &dyn Fn(&str) -> Option<String>, prefix: &str, any: bool) -> yourdocs_auth::AccessRules {
+fn rules(var: &dyn Fn(&str) -> Option<String>, prefix: &str, any: bool) -> cairn_auth::AccessRules {
   let list = |name: &str| {
     var(&format!("{prefix}_{name}"))
       .map(|v| v.split([',', ' ']).filter(|s| !s.is_empty()).map(String::from).collect::<Vec<_>>())
       .unwrap_or_default()
   };
 
-  yourdocs_auth::AccessRules {
+  cairn_auth::AccessRules {
     groups: list("ALLOWED_GROUPS"),
     email_domains: list("ALLOWED_EMAIL_DOMAINS").into_iter().map(|d| d.trim_start_matches('@').to_lowercase()).collect(),
     allow_any: any && var(&format!("{prefix}_ALLOW_ANY_USER")).is_some_and(|v| v.eq_ignore_ascii_case("true")),
@@ -142,13 +142,13 @@ fn github(var: &dyn Fn(&str) -> Option<String>) -> anyhow::Result<Option<GithubS
 }
 
 /// The sign-in allow-list. One of the three must be set, so that opening the editor to a whole provider is a decision.
-fn access(var: &dyn Fn(&str) -> Option<String>) -> anyhow::Result<yourdocs_auth::AccessRules> {
+fn access(var: &dyn Fn(&str) -> Option<String>) -> anyhow::Result<cairn_auth::AccessRules> {
   let list = |name: &str| {
     var(name)
       .map(|v| v.split([',', ' ']).filter(|s| !s.is_empty()).map(String::from).collect::<Vec<_>>())
       .unwrap_or_default()
   };
-  let rules = yourdocs_auth::AccessRules {
+  let rules = cairn_auth::AccessRules {
     groups: list("OIDC_ALLOWED_GROUPS"),
     email_domains: list("OIDC_ALLOWED_EMAIL_DOMAINS").into_iter().map(|d| d.trim_start_matches('@').to_lowercase()).collect(),
     allow_any: var("OIDC_ALLOW_ANY_USER").is_some_and(|v| v.eq_ignore_ascii_case("true")),
@@ -208,7 +208,7 @@ impl Config {
             .map(PathBuf::from)
             .context("PUBLISH_TARGET=folder needs PUBLISH_DIR, the folder to write the site to")?,
         ),
-        "cloudflare" => TargetChoice::Cloudflare(yourdocs_publish::CloudflareConfig {
+        "cloudflare" => TargetChoice::Cloudflare(cairn_publish::CloudflareConfig {
           account_id: required("CLOUDFLARE_ACCOUNT_ID").context("PUBLISH_TARGET=cloudflare needs CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN and CLOUDFLARE_WORKER")?,
           api_token: required("CLOUDFLARE_API_TOKEN")?,
           worker: required("CLOUDFLARE_WORKER")?,
@@ -217,7 +217,7 @@ impl Config {
             .trim_end_matches('/')
             .to_string(),
         }),
-        "cloudflare-pages" => TargetChoice::Pages(yourdocs_publish::PagesConfig {
+        "cloudflare-pages" => TargetChoice::Pages(cairn_publish::PagesConfig {
           account_id: required("CLOUDFLARE_ACCOUNT_ID").context("PUBLISH_TARGET=cloudflare-pages needs CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN and CLOUDFLARE_PAGES_PROJECT")?,
           api_token: required("CLOUDFLARE_API_TOKEN")?,
           project: required("CLOUDFLARE_PAGES_PROJECT")?,
@@ -230,7 +230,7 @@ impl Config {
         }),
         "s3" => {
           let endpoint = var("S3_ENDPOINT");
-          TargetChoice::S3(yourdocs_publish::S3Config {
+          TargetChoice::S3(cairn_publish::S3Config {
             bucket: required("S3_BUCKET").context("PUBLISH_TARGET=s3 needs S3_BUCKET, S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY")?,
             region: var("S3_REGION").unwrap_or_else(|| "us-east-1".into()),
             prefix: var("S3_PREFIX").unwrap_or_default(),
@@ -272,7 +272,7 @@ mod tests {
   const FULL: &[(&str, &str)] = &[
     ("PUBLIC_URL", "https://docs.example.com/"),
     ("OIDC_ISSUER", "https://idp.example"),
-    ("OIDC_CLIENT_ID", "yourdocs"),
+    ("OIDC_CLIENT_ID", "cairn"),
     ("OIDC_CLIENT_SECRET", "secret"),
     ("OIDC_ALLOWED_EMAIL_DOMAINS", "@Example.com"),
   ];

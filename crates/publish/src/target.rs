@@ -6,7 +6,7 @@ use std::{
   },
 };
 
-use yourdocs_core::ReleaseId;
+use cairn_core::ReleaseId;
 
 use crate::{CloudflareTarget, PagesTarget, PublishError, S3Target};
 

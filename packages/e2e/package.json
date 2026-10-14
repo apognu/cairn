@@ -1,5 +1,5 @@
 {
-  "name": "@yourdocs/e2e",
+  "name": "@cairn/e2e",
   "private": true,
   "type": "module",
   "scripts": {

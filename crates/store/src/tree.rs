@@ -1,7 +1,7 @@
+use cairn_core::{OldUrls, Page, PageId, PageKind, Placement, RedirectOrigin, UserId, page_urls, slugify};
 use fractional_index::FractionalIndex;
 use jiff::Timestamp;
 use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set};
-use yourdocs_core::{OldUrls, Page, PageId, PageKind, Placement, RedirectOrigin, UserId, page_urls, slugify};
 
 use crate::{
   StoreError,
@@ -493,7 +493,7 @@ mod tests {
     let guide = create_page(&db, user, None, "Guide", Placement::Last).await.unwrap();
     let install = create_page(&db, user, Some(guide.id), "Install", Placement::Last).await.unwrap();
     let other = create_page(&db, user, None, "Other", Placement::Last).await.unwrap();
-    let froms = |redirects: Vec<yourdocs_core::Redirect>| redirects.into_iter().map(|r| r.from_path).collect::<Vec<_>>();
+    let froms = |redirects: Vec<cairn_core::Redirect>| redirects.into_iter().map(|r| r.from_path).collect::<Vec<_>>();
 
     // A move redirects the page and everything under it.
     move_page(&db, guide.id, Some(other.id), Placement::Last, OldUrls::Redirect).await.unwrap();

@@ -1,4 +1,4 @@
-import type { DocNode } from "@yourdocs/renderer";
+import type { DocNode } from "@cairn/renderer";
 
 /** A string that is equal for two documents with the same content, ignoring block IDs the editor adds on its own. */
 export function contentSignature(doc: DocNode): string {

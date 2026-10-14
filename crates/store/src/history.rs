@@ -2,9 +2,9 @@
 
 use std::collections::HashMap;
 
+use cairn_core::{Page, PageId, Placement, ReleaseId, RevisionId, UserId, page_urls};
 use jiff::Timestamp;
 use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set, TransactionTrait};
-use yourdocs_core::{Page, PageId, Placement, ReleaseId, RevisionId, UserId, page_urls};
 
 use crate::{
   StoreError,
@@ -197,7 +197,7 @@ pub async fn restore_page(db: &DatabaseConnection, id: PageId) -> Result<(Page, 
 
 #[cfg(test)]
 mod tests {
-  use yourdocs_core::{Placement, page_urls};
+  use cairn_core::{Placement, page_urls};
 
   use super::*;
   use crate::{
@@ -213,7 +213,7 @@ mod tests {
     let hooks = create_page(&db, user, None, "Hooks", Placement::Last).await.unwrap();
     delete_page(&db, hooks.id).await.unwrap();
     let other = create_page(&db, user, None, "Webhooks", Placement::Last).await.unwrap();
-    crate::set_custom_url(&db, other.id, Some("/hooks/"), yourdocs_core::OldUrls::Redirect).await.unwrap();
+    crate::set_custom_url(&db, other.id, Some("/hooks/"), cairn_core::OldUrls::Redirect).await.unwrap();
 
     let (restored, kept) = restore_page(&db, hooks.id).await.unwrap();
     assert_eq!(restored.slug, "hooks-2");

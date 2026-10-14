@@ -1,5 +1,5 @@
-import { componentsByName, Tabs } from "@yourdocs/components";
-import { EditableScopeContext, upgradeProps } from "@yourdocs/sdk";
+import { componentsByName, Tabs } from "@cairn/components";
+import { EditableScopeContext, upgradeProps } from "@cairn/sdk";
 import { Fragment, type ReactNode } from "react";
 import { migrateDoc } from "./migrate";
 import type { DocMark, DocNode, RenderContext } from "./types";

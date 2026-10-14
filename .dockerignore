@@ -4,7 +4,7 @@ node_modules
 **/dist
 .git
 .jj
-.yourdocs
+.cairn
 **/.e2e-data
 **/.work
 **/test-results

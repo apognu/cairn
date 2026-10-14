@@ -1,4 +1,4 @@
-import type { DocNode } from "@yourdocs/renderer";
+import type { DocNode } from "@cairn/renderer";
 
 /** A copy of a page's document kept in the browser, so unsaved typing survives a reload or a dropped connection. */
 export interface LocalDraft {
@@ -14,7 +14,7 @@ const STORE = "drafts";
 
 function open(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open("yourdocs", 1);
+    const request = indexedDB.open("cairn", 1);
     request.onupgradeneeded = () => request.result.createObjectStore(STORE, { keyPath: "pageId" });
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);

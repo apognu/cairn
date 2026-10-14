@@ -1,7 +1,7 @@
 use std::path::Path;
 
+use cairn_core::ReleaseId;
 use tokio::process::Command;
-use yourdocs_core::ReleaseId;
 
 use crate::{PublishError, target::OutputFile};
 
@@ -9,7 +9,7 @@ use crate::{PublishError, target::OutputFile};
 ///
 /// Returns `None`, with a warning, when the Pagefind binary is not installed: the site is still published, just without search.
 pub(crate) async fn build_index(binary: &str, release: ReleaseId, html: &[&OutputFile]) -> Result<Option<Vec<OutputFile>>, PublishError> {
-  let dir = std::env::temp_dir().join(format!("yourdocs-search-{release}"));
+  let dir = std::env::temp_dir().join(format!("cairn-search-{release}"));
   let result = run(binary, &dir, html).await;
   let _ = tokio::fs::remove_dir_all(&dir).await;
 

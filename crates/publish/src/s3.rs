@@ -20,7 +20,7 @@ use crate::{OutputFile, Progress, PublishError};
 const CONCURRENCY: usize = 8;
 const SIGNATURE_VALIDITY: Duration = Duration::from_secs(600);
 /// What the last publish wrote, so the next one deletes only what it wrote and never other things in the bucket.
-const MANIFEST: &str = ".yourdocs/manifest.json";
+const MANIFEST: &str = ".cairn/manifest.json";
 const IMMUTABLE: &str = "public, max-age=31536000, immutable";
 const SHORT: &str = "public, max-age=300";
 
@@ -485,7 +485,7 @@ mod tests {
       let state = s3.lock().unwrap();
       let order: Vec<&str> = state.puts.iter().map(String::as_str).collect();
       assert_eq!(order[0], "site/assets/app-1.js", "assets go before the pages that use them: {order:?}");
-      assert_eq!(order.last(), Some(&"site/.yourdocs/manifest.json"), "the manifest is last");
+      assert_eq!(order.last(), Some(&"site/.cairn/manifest.json"), "the manifest is last");
       assert_eq!(state.objects["site/old/index.html"].redirect.as_deref(), Some("/guide/"));
       assert!(state.objects["site/old/index.html"].bytes.is_empty());
       assert_eq!(state.objects["site/assets/app-1.js"].cache_control, IMMUTABLE);
@@ -498,7 +498,7 @@ mod tests {
 
     let state = s3.lock().unwrap();
     let sent: Vec<&str> = state.puts[before..].iter().map(String::as_str).collect();
-    assert_eq!(sent, ["site/guide/index.html", "site/old/index.html", "site/.yourdocs/manifest.json"]);
+    assert_eq!(sent, ["site/guide/index.html", "site/old/index.html", "site/.cairn/manifest.json"]);
     assert_eq!(state.deletes, ["site/gone/index.html"]);
     assert!(!state.objects.contains_key("site/gone/index.html"));
     assert!(state.objects.contains_key("site/index.html"));

@@ -1,4 +1,4 @@
-import { defineComponent, link, z } from "@yourdocs/sdk";
+import { defineComponent, link, z } from "@cairn/sdk";
 import { useRenderEnv } from "./env";
 
 /** Fields named `page` and `pages` are how the server finds a component's links to other pages. */

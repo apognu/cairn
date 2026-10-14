@@ -1,8 +1,8 @@
 import { cpSync, mkdirSync, readdirSync, rmSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { pathToFileURL } from "node:url";
-import { componentsByName } from "@yourdocs/components";
-import { type AnyComponent, propsSchema, SLOT_NAMES, type SlotDefinition } from "@yourdocs/sdk";
+import { componentsByName } from "@cairn/components";
+import { type AnyComponent, propsSchema, SLOT_NAMES, type SlotDefinition } from "@cairn/sdk";
 
 /** A problem with the deployer's folder, worded for them: the file and what to change. */
 export class BuildError extends Error {}

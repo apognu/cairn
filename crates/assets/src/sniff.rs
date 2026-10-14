@@ -1,5 +1,5 @@
+use cairn_core::CoreError;
 use sha2::{Digest, Sha256};
-use yourdocs_core::CoreError;
 
 /// What an uploaded file turned out to be.
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -1,4 +1,4 @@
-import { defineComponent, z } from "@yourdocs/sdk";
+import { defineComponent, z } from "@cairn/sdk";
 import type { ReactNode } from "react";
 
 export const callout = defineComponent({

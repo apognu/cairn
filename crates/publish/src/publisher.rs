@@ -6,18 +6,18 @@ use std::{
   },
 };
 
-use futures_util::{StreamExt, TryStreamExt, stream};
-use serde_json::{Value, json};
-use sha2::{Digest, Sha256};
-use yourdocs_core::{
+use cairn_core::{
   ApiConfig, AssetId, AssetStore, Broadcast, ContentStore, Document, Event, Page, PageId, PageKind, Release, ReleaseId, ReleaseStatus, RevisionId, Settings, UserId, effective_redirects, expand,
   extract_links, header_section, original_key, page_urls, term_anchors, term_refs, variant_key,
 };
-use yourdocs_render::{Pool, Shell, highlight_css};
-use yourdocs_store::{
+use cairn_render::{Pool, Shell, highlight_css};
+use cairn_store::{
   DatabaseConnection, ReleaseSpec, add_release_pages, assets_by_ids, create_release, get_release, get_setting, latest_live_release, list_api_configs, list_pages, list_redirects, live_release,
   load_library, load_settings, make_release_live, record_release_specs, release_specs, set_release_deployment, set_release_status, set_setting,
 };
+use futures_util::{StreamExt, TryStreamExt, stream};
+use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
 
 use crate::{
   ApiProblem, PublishError,
@@ -159,7 +159,7 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
   /// then promoted.
   pub async fn preview(&self, user: UserId) -> Result<Release, PublishError> {
     if !self.target.capabilities().preview {
-      return Err(PublishError::Core(yourdocs_core::CoreError::Invalid("this publish target has no previews".into())));
+      return Err(PublishError::Core(cairn_core::CoreError::Invalid("this publish target has no previews".into())));
     }
 
     self.build(user, false).await
@@ -169,7 +169,7 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
   /// was published since, and a new preview takes a moment.
   pub async fn promote(&self, id: ReleaseId) -> Result<Release, PublishError> {
     if !self.target.capabilities().promote {
-      return Err(PublishError::Core(yourdocs_core::CoreError::Invalid(
+      return Err(PublishError::Core(cairn_core::CoreError::Invalid(
         "this publish target cannot make a preview the live site; publish to deploy it".into(),
       )));
     }
@@ -177,7 +177,7 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
 
     let (release, version) = get_release(&self.db, id).await?;
     if release.status != ReleaseStatus::Preview {
-      return Err(PublishError::Core(yourdocs_core::CoreError::Invalid("only a preview can be promoted".into())));
+      return Err(PublishError::Core(cairn_core::CoreError::Invalid("only a preview can be promoted".into())));
     }
     if latest_live_release(&self.db).await?.is_some_and(|live| live.id > release.id) {
       return Err(PublishError::Stale("the site was published after this preview was made; make a new preview".into()));
@@ -219,7 +219,7 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
 
     // Nothing is created, rendered or written until the site passes its checks, links to operations included: those are compared with
     // the specs of this very build.
-    let anchors: crate::OperationAnchors = apis.iter().map(|api| (api.page_id, api.operations.iter().map(yourdocs_core::Operation::anchor).collect())).collect();
+    let anchors: crate::OperationAnchors = apis.iter().map(|api| (api.page_id, api.operations.iter().map(cairn_core::Operation::anchor).collect())).collect();
     let problems = crate::changes::check_with(&self.db, &self.pool, &anchors).await?;
     if !problems.is_empty() {
       return Err(PublishError::Blocked(problems));
@@ -748,7 +748,7 @@ async fn render_job<A: AssetStore>(job: RenderJob, cache: Arc<A>, renders: Arc<A
   } else {
     let body = job.pool.render(job.input.clone()).await.map_err(|source| PublishError::Render { page: job.title.clone(), source })?;
     renders.fetch_add(1, Ordering::Relaxed);
-    let html = yourdocs_render::document(&Shell {
+    let html = cairn_render::document(&Shell {
       title: &job.title,
       site_name: &job.site_name,
       description: job.description.as_deref(),
@@ -839,9 +839,9 @@ fn bundle_files(bundles: &Bundles) -> Vec<(String, Vec<u8>)> {
 mod tests {
   use std::{path::Path, time::Duration};
 
-  use yourdocs_assets::LocalAssetStore;
-  use yourdocs_core::{LocalBroadcast, Placement, UserId};
-  use yourdocs_store::{SqlContentStore, create_page};
+  use cairn_assets::LocalAssetStore;
+  use cairn_core::{LocalBroadcast, Placement, UserId};
+  use cairn_store::{SqlContentStore, create_page};
 
   use super::*;
   use crate::FolderTarget;
@@ -867,9 +867,9 @@ mod tests {
   }
 
   async fn fixture_for(api_hosts: ApiHosts, self_hosted: bool) -> Fixture {
-    let dir = std::env::temp_dir().join(format!("yourdocs-publish-{}", uuid::Uuid::now_v7()));
+    let dir = std::env::temp_dir().join(format!("cairn-publish-{}", uuid::Uuid::now_v7()));
     std::fs::create_dir_all(&dir).unwrap();
-    let db = yourdocs_store::connect_for_tests(&dir).await;
+    let db = cairn_store::connect_for_tests(&dir).await;
 
     let script = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../packages/renderer/dist/ssr.js")).expect("run `bun run build` first");
     let pool = Arc::new(Pool::new(&script, 1, 32, Duration::from_secs(5)).unwrap());
@@ -954,8 +954,8 @@ mod tests {
 
     assert!(matches!(error, PublishError::Stale(_)), "{error}");
     // The newer release is the only live one.
-    let (first, _) = yourdocs_store::get_release(&f.db, old.id).await.unwrap();
-    let (second, _) = yourdocs_store::get_release(&f.db, published.id).await.unwrap();
+    let (first, _) = cairn_store::get_release(&f.db, old.id).await.unwrap();
+    let (second, _) = cairn_store::get_release(&f.db, published.id).await.unwrap();
     assert_eq!((first.status, second.status), (ReleaseStatus::Preview, ReleaseStatus::Live));
   }
 
@@ -1055,8 +1055,8 @@ mod tests {
 
   #[tokio::test]
   async fn the_site_root_goes_to_the_first_top_level_page() {
-    use yourdocs_core::OldUrls;
-    use yourdocs_store::move_page;
+    use cairn_core::OldUrls;
+    use cairn_store::move_page;
 
     let f = fixture().await;
     let user = UserId::new();
@@ -1073,8 +1073,8 @@ mod tests {
 
   #[tokio::test]
   async fn a_move_redirects_the_old_url_unless_it_is_dropped() {
-    use yourdocs_core::OldUrls;
-    use yourdocs_store::move_page;
+    use cairn_core::OldUrls;
+    use cairn_store::move_page;
 
     let f = fixture().await;
     let user = UserId::new();
@@ -1103,7 +1103,7 @@ mod tests {
 
   #[tokio::test]
   async fn promoting_a_page_with_children_scopes_its_sidebar() {
-    use yourdocs_store::set_in_header;
+    use cairn_store::set_in_header;
 
     let f = fixture().await;
     let user = UserId::new();
@@ -1138,7 +1138,7 @@ mod tests {
 
   #[tokio::test]
   async fn renaming_a_page_updates_every_card_that_points_to_it() {
-    use yourdocs_store::{rename_page, set_description};
+    use cairn_store::{rename_page, set_description};
 
     let f = fixture().await;
     let user = UserId::new();
@@ -1178,7 +1178,7 @@ mod tests {
     }
 
     // The cards have no title of their own: renaming the page is enough.
-    rename_page(&f.db, target.id, "Undo a release", yourdocs_core::OldUrls::Redirect).await.unwrap();
+    rename_page(&f.db, target.id, "Undo a release", cairn_core::OldUrls::Redirect).await.unwrap();
     f.publisher.publish(user).await.unwrap();
     for slug in ["first", "second"] {
       let html = read(slug);
@@ -1224,9 +1224,9 @@ mod tests {
   async fn images_are_published_with_webp_variants_and_a_srcset() {
     use std::io::Cursor;
 
-    use yourdocs_assets::{inspect, process, sha256_hex};
-    use yourdocs_core::{AssetStore, AssetVariant, original_key, variant_key};
-    use yourdocs_store::{NewAsset, get_or_create_asset};
+    use cairn_assets::{inspect, process, sha256_hex};
+    use cairn_core::{AssetStore, AssetVariant, original_key, variant_key};
+    use cairn_store::{NewAsset, get_or_create_asset};
 
     let f = fixture().await;
     let user = UserId::new();
@@ -1296,7 +1296,7 @@ mod tests {
 
   #[tokio::test]
   async fn publishing_after_editing_one_page_renders_only_that_page() {
-    use yourdocs_store::rename_page;
+    use cairn_store::rename_page;
 
     let f = fixture().await;
     let user = UserId::new();
@@ -1329,7 +1329,7 @@ mod tests {
     assert!(std::fs::read_to_string(site.join("three/index.html")).unwrap().contains("first version"));
 
     // A rename changes the navigation of the pages around it, so they render again; the page itself too.
-    rename_page(&f.db, drafts[0].0.id, "Uno", yourdocs_core::OldUrls::Redirect).await.unwrap();
+    rename_page(&f.db, drafts[0].0.id, "Uno", cairn_core::OldUrls::Redirect).await.unwrap();
     f.publisher.publish(user).await.unwrap();
     assert_eq!(f.publisher.renders(), 5 + 4);
     assert!(std::fs::read_to_string(site.join("three/index.html")).unwrap().contains(">Uno<"));
@@ -1381,8 +1381,8 @@ mod tests {
 
   #[tokio::test]
   async fn changing_the_accent_color_renders_every_page_again() {
-    use yourdocs_core::Settings;
-    use yourdocs_store::save_settings;
+    use cairn_core::Settings;
+    use cairn_store::save_settings;
 
     let f = fixture().await;
     let user = UserId::new();
@@ -1419,7 +1419,7 @@ mod tests {
 
   #[tokio::test]
   async fn each_kind_of_problem_blocks_the_publish_and_names_its_page() {
-    use yourdocs_core::ProblemKind;
+    use cairn_core::ProblemKind;
 
     let f = fixture().await;
     let user = UserId::new();
@@ -1444,7 +1444,7 @@ mod tests {
     save(alt.id, serde_json::json!([{ "type": "image", "attrs": { "assetId": "x", "alt": "" } }])).await;
     // `columns` must be "2" or "3".
     save(props.id, serde_json::json!([{ "type": "cards", "attrs": { "columns": "9", "cards": [] } }])).await;
-    yourdocs_store::delete_page(&f.db, doomed.id).await.unwrap();
+    cairn_store::delete_page(&f.db, doomed.id).await.unwrap();
 
     let blocked = f.publisher.publish(user).await;
     let Err(PublishError::Blocked(problems)) = blocked else {
@@ -1471,7 +1471,7 @@ mod tests {
 
   #[tokio::test]
   async fn editing_a_snippet_renders_exactly_the_pages_that_use_it() {
-    use yourdocs_store::{save_snippet, save_variable};
+    use cairn_store::{save_snippet, save_variable};
 
     let f = fixture().await;
     let user = UserId::new();
@@ -1543,7 +1543,7 @@ mod tests {
 
   #[tokio::test]
   async fn a_marked_term_is_a_dfn_linking_to_the_generated_glossary_page() {
-    use yourdocs_store::save_term;
+    use cairn_store::save_term;
 
     let f = fixture().await;
     let user = UserId::new();
@@ -1581,9 +1581,9 @@ mod tests {
   }
 
   mod apis {
-    use yourdocs_core::PageKind;
-    use yourdocs_core::{ApiConfig, ApiSource, GitRef};
-    use yourdocs_store::{create_api_page, release_specs, save_api_config};
+    use cairn_core::PageKind;
+    use cairn_core::{ApiConfig, ApiSource, GitRef};
+    use cairn_store::{create_api_page, release_specs, save_api_config};
 
     use super::*;
     use crate::api::testing::{StandIn, spec};
@@ -1650,8 +1650,8 @@ mod tests {
 
     #[tokio::test]
     async fn new_bundles_render_the_published_settings_and_what_was_saved_since_stays_pending() {
-      use yourdocs_core::Settings;
-      use yourdocs_store::{get_api_config, save_settings};
+      use cairn_core::Settings;
+      use cairn_store::{get_api_config, save_settings};
 
       let (f, _github, api, user) = site().await;
       f.publisher.publish(user).await.unwrap();
@@ -1666,7 +1666,7 @@ mod tests {
         ..Settings::default()
       };
       save_settings(&f.db, &renamed).await.unwrap();
-      let is_pending = |pending: &yourdocs_core::Pending| pending.settings && pending.changes.iter().any(|c| c.page_id == api.id && c.kinds == [yourdocs_core::ChangeKind::Edited]);
+      let is_pending = |pending: &cairn_core::Pending| pending.settings && pending.changes.iter().any(|c| c.page_id == api.id && c.kinds == [cairn_core::ChangeKind::Edited]);
       assert!(is_pending(&crate::pending(&f.db).await.unwrap()));
 
       // Other bundles at the next start: the live site is rendered again as it was published.

@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
+use cairn_core::{ApiConfig, Operation, PageId, PageKind, ReleaseId, ResolvedSource, UserId};
 use jiff::Timestamp;
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set, sea_query::OnConflict};
-use yourdocs_core::{ApiConfig, Operation, PageId, PageKind, ReleaseId, ResolvedSource, UserId};
 
 use crate::{
   StoreError,
@@ -137,7 +137,7 @@ async fn check_api_page(db: &DatabaseConnection, page: PageId) -> Result<(), Sto
 
 #[cfg(test)]
 mod tests {
-  use yourdocs_core::{ApiSource, OldUrls, Placement};
+  use cairn_core::{ApiSource, OldUrls, Placement};
 
   use super::*;
   use crate::{connect::test_db, create_api_page, create_page, delete_page, list_pages, move_page, restore_page, set_in_header};

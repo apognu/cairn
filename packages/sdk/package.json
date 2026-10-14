@@ -1,5 +1,5 @@
 {
-  "name": "@yourdocs/sdk",
+  "name": "@cairn/sdk",
   "private": true,
   "type": "module",
   "scripts": {

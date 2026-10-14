@@ -1,5 +1,5 @@
+import { ThemeToggle } from "@cairn/renderer";
 import { useQuery } from "@tanstack/react-query";
-import { ThemeToggle } from "@yourdocs/renderer";
 import { useCallback, useEffect, useState } from "react";
 import { ApiSettings } from "./ApiSettings";
 import { serverUrl } from "./api/base";

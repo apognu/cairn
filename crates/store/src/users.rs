@@ -1,6 +1,6 @@
+use cairn_core::{User, UserId};
 use jiff::{Span, Timestamp};
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set, sea_query::OnConflict};
-use yourdocs_core::{User, UserId};
 
 use crate::{
   StoreError,

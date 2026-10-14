@@ -1,6 +1,6 @@
 //! Files generated from the page list rather than rendered: sitemap, robots, llms.txt and the redirect rules.
 
-use yourdocs_core::Page;
+use cairn_core::Page;
 
 fn xml_escape(text: &str) -> String {
   text.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
@@ -53,15 +53,15 @@ pub(crate) fn redirects(first_page_url: Option<&str>, rules: &[(String, String)]
 
 #[cfg(test)]
 mod tests {
+  use cairn_core::{PageId, UserId};
   use jiff::Timestamp;
-  use yourdocs_core::{PageId, UserId};
 
   use super::*;
 
   fn page(title: &str) -> Page {
     Page {
       id: PageId::new(),
-      kind: yourdocs_core::PageKind::Page,
+      kind: cairn_core::PageKind::Page,
       parent_id: None,
       position: "80".into(),
       slug: "a".into(),

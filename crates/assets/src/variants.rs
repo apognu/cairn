@@ -1,7 +1,7 @@
 use std::io::Cursor;
 
+use cairn_core::CoreError;
 use image::{DynamicImage, ImageDecoder, ImageReader, Limits, imageops::FilterType};
-use yourdocs_core::CoreError;
 
 use crate::ImageInfo;
 

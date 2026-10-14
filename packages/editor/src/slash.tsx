@@ -1,8 +1,8 @@
+import { customComponents } from "@cairn/components/custom";
+import { sampleProps } from "@cairn/sdk";
 import { type Editor, Extension, type Range } from "@tiptap/core";
 import { ReactRenderer } from "@tiptap/react";
 import Suggestion, { type SuggestionKeyDownProps, type SuggestionProps } from "@tiptap/suggestion";
-import { customComponents } from "@yourdocs/components/custom";
-import { sampleProps } from "@yourdocs/sdk";
 import { Fragment, forwardRef, useEffect, useImperativeHandle, useState } from "react";
 import { Icon, type IconName } from "./icons";
 import { pickAndInsertImages } from "./upload";

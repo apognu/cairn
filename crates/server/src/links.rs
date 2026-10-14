@@ -4,11 +4,11 @@ use axum::{
   Json,
   extract::{Path, State},
 };
+use cairn_core::{LinkKind, Page, PageId};
 use serde::Serialize;
 use tracing::instrument;
 use utoipa::ToSchema;
 use utoipa_axum::{router::OpenApiRouter, routes};
-use yourdocs_core::{LinkKind, Page, PageId};
 
 use crate::{
   app::AppState,
@@ -61,7 +61,7 @@ async fn links_to(state: &AppState, targets: &HashSet<PageId>, pages: &[Page]) -
   let title = |id: PageId| pages.iter().find(|p| p.id == id).map(|p| p.title.clone());
 
   Ok(
-    yourdocs_store::all_links(&state.db)
+    cairn_store::all_links(&state.db)
       .await?
       .into_iter()
       .filter(|l| targets.contains(&l.target) && !targets.contains(&l.source))
@@ -84,7 +84,7 @@ async fn links_to(state: &AppState, targets: &HashSet<PageId>, pages: &[Page]) -
 ))]
 #[instrument(skip_all, fields(page_id = %id))]
 async fn backlinks(State(state): State<AppState>, Path(id): Path<PageId>) -> Result<Json<Backlinks>, AppError> {
-  let pages = yourdocs_store::list_pages(&state.db).await?;
+  let pages = cairn_store::list_pages(&state.db).await?;
   if !pages.iter().any(|p| p.id == id) {
     return Err(AppError::NotFound);
   }
@@ -101,7 +101,7 @@ async fn backlinks(State(state): State<AppState>, Path(id): Path<PageId>) -> Res
 ))]
 #[instrument(skip_all, fields(page_id = %id))]
 async fn impact(State(state): State<AppState>, Path(id): Path<PageId>) -> Result<Json<Impact>, AppError> {
-  let pages = yourdocs_store::list_pages(&state.db).await?;
+  let pages = cairn_store::list_pages(&state.db).await?;
   if !pages.iter().any(|p| p.id == id) {
     return Err(AppError::NotFound);
   }

@@ -1,5 +1,5 @@
+import { ApiReference } from "@cairn/renderer";
 import { useQuery } from "@tanstack/react-query";
-import { ApiReference } from "@yourdocs/renderer";
 import { useEffect, useId, useState } from "react";
 import { serverUrl } from "./api/base";
 import type { components } from "./api/schema";

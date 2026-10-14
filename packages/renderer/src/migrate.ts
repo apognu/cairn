@@ -1,5 +1,5 @@
-import { componentsByName } from "@yourdocs/components";
-import { type AnyComponent, upgradeProps } from "@yourdocs/sdk";
+import { componentsByName } from "@cairn/components";
+import { type AnyComponent, upgradeProps } from "@cairn/sdk";
 import type { DocNode } from "./types";
 
 /** The document with every component node upgraded to its component's current version. Returns the same object when nothing changes. */

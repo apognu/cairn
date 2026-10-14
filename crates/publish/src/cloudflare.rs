@@ -83,7 +83,7 @@ impl CloudflareTarget {
   pub fn new(config: CloudflareConfig) -> Result<Self, PublishError> {
     let http = Client::builder()
       .timeout(std::time::Duration::from_secs(120))
-      .user_agent("yourdocs")
+      .user_agent("cairn")
       .build()
       .map_err(|e| PublishError::Other(e.into()))?;
 
@@ -646,7 +646,7 @@ mod tests {
     assert!(error.to_string().contains("does not exist"), "{error}");
   }
 
-  /// Against a real account: `cargo test -p yourdocs-publish live_cloudflare -- --ignored --nocapture` with the `CLOUDFLARE_*` variables set.
+  /// Against a real account: `cargo test -p cairn-publish live_cloudflare -- --ignored --nocapture` with the `CLOUDFLARE_*` variables set.
   /// Uploads a one-page site as a version and does not deploy it.
   #[tokio::test]
   #[ignore = "needs a Cloudflare account"]
@@ -663,7 +663,7 @@ mod tests {
     // `LIVE_SITE_DIR`: a built release folder, to see a whole site go up (many files, several buckets).
     let files = match std::env::var("LIVE_SITE_DIR") {
       Ok(dir) => super::walk(std::path::Path::new(&dir), std::path::Path::new(&dir)),
-      Err(_) => vec![file("index.html", "<h1>yourdocs smoke test</h1>"), file("404.html", "not found"), file("_redirects", "/old/ /new/ 301")],
+      Err(_) => vec![file("index.html", "<h1>cairn smoke test</h1>"), file("404.html", "not found"), file("_redirects", "/old/ /new/ 301")],
     };
     let version = target.upload(&files, &Progress::none()).await;
 

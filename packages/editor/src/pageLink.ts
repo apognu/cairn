@@ -47,7 +47,7 @@ export type PickerRequest =
   /** Insert a link with the page's title at the cursor, replacing the `[[` just before it if there is one. */
   | { mode: "insert"; from: number; to: number };
 
-export const PICKER_EVENT = "yourdocs:page-picker";
+export const PICKER_EVENT = "cairn:page-picker";
 
 function open(view: { dom: HTMLElement }, request: PickerRequest) {
   view.dom.dispatchEvent(new CustomEvent<PickerRequest>(PICKER_EVENT, { detail: request }));

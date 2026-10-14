@@ -1,4 +1,4 @@
-import { defineComponent, z } from "@yourdocs/sdk";
+import { defineComponent, z } from "@cairn/sdk";
 import { useRenderEnv } from "./env";
 
 /** A library variable written inline. Published pages get its value written into the text before rendering; the editor shows it here. */

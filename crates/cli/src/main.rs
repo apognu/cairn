@@ -1,4 +1,4 @@
-//! The yourdocs binary.
+//! The cairn binary.
 
 #![forbid(unsafe_code)]
 
@@ -8,7 +8,7 @@ use clap::{Parser, Subcommand};
 use tracing_subscriber::EnvFilter;
 
 #[derive(Parser)]
-#[command(name = "yourdocs", version)]
+#[command(name = "cairn", version)]
 struct Cli {
   #[command(subcommand)]
   command: Command,
@@ -24,7 +24,7 @@ enum Command {
     #[arg(long, default_value = "127.0.0.1:3001")]
     site_bind: SocketAddr,
     /// Where the database and uploads live.
-    #[arg(long, default_value = ".yourdocs")]
+    #[arg(long, default_value = ".cairn")]
     data_dir: PathBuf,
   },
   /// Run the server for a deployment. Sign-in is mandatory; everything is configured with environment variables.
@@ -38,8 +38,8 @@ async fn main() -> anyhow::Result<()> {
   tracing_subscriber::fmt().with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into())).init();
 
   match Cli::parse().command {
-    Command::Dev { bind, site_bind, data_dir } => yourdocs_server::run_dev(bind, site_bind, data_dir).await,
-    Command::Serve => yourdocs_server::run_serve().await,
-    Command::Openapi => writeln!(std::io::stdout(), "{}", yourdocs_server::openapi_json()?).map_err(Into::into),
+    Command::Dev { bind, site_bind, data_dir } => cairn_server::run_dev(bind, site_bind, data_dir).await,
+    Command::Serve => cairn_server::run_serve().await,
+    Command::Openapi => writeln!(std::io::stdout(), "{}", cairn_server::openapi_json()?).map_err(Into::into),
   }
 }

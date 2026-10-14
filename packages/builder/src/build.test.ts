@@ -5,7 +5,7 @@ import { join, resolve } from "node:path";
 import { buildComponents } from "./build";
 
 const fixture = (name: string) => resolve(import.meta.dir, "../fixtures", name);
-const outDir = () => mkdtempSync(join(tmpdir(), "yourdocs-bundles-"));
+const outDir = () => mkdtempSync(join(tmpdir(), "cairn-bundles-"));
 
 test("a folder of components becomes bundles and a manifest with schemas and the SDK version", async () => {
   const out = outDir();

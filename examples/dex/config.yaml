@@ -1,4 +1,4 @@
-# A local OIDC provider for trying `yourdocs serve`: one user, alice@example.com, password "password".
+# A local OIDC provider for trying `cairn serve`: one user, alice@example.com, password "password".
 issuer: http://127.0.0.1:5556/dex
 
 storage:
@@ -11,8 +11,8 @@ oauth2:
   skipApprovalScreen: true
 
 staticClients:
-  - id: yourdocs
-    name: yourdocs
+  - id: cairn
+    name: cairn
     secret: dev-secret
     redirectURIs:
       - http://127.0.0.1:8080/_editor/auth/callback

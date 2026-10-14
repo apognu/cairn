@@ -628,6 +628,177 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc652a48c352aef3ea3aed32080501cf3ef6ed5da78602a020c991775b0aff04"
 
 [[package]]
+name = "cairn-apispec"
+version = "0.0.0"
+dependencies = [
+ "cairn-core",
+ "serde_json",
+ "serde_norway",
+ "thiserror 2.0.21",
+ "tokio",
+ "url",
+]
+
+[[package]]
+name = "cairn-assets"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "cairn-core",
+ "image",
+ "imagesize",
+ "object_store",
+ "sha2 0.11.1",
+ "thiserror 2.0.21",
+ "tokio",
+ "uuid",
+ "webp",
+]
+
+[[package]]
+name = "cairn-auth"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "base64 0.22.1",
+ "cairn-core",
+ "cairn-store",
+ "chrono",
+ "jiff",
+ "openidconnect",
+ "percent-encoding",
+ "rand 0.9.5",
+ "serde",
+ "serde_json",
+ "sha2 0.11.1",
+ "thiserror 2.0.21",
+ "tokio",
+ "tower",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "cairn-cli"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "cairn-server",
+ "clap",
+ "tokio",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "cairn-core"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "jiff",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "tokio",
+ "utoipa",
+ "uuid",
+]
+
+[[package]]
+name = "cairn-publish"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "base64 0.22.1",
+ "blake3",
+ "cairn-apispec",
+ "cairn-assets",
+ "cairn-core",
+ "cairn-render",
+ "cairn-store",
+ "futures-util",
+ "image",
+ "jiff",
+ "md-5",
+ "mime_guess",
+ "percent-encoding",
+ "reqwest",
+ "rusty-s3",
+ "serde",
+ "serde_json",
+ "sha2 0.11.1",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "cairn-render"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "maud",
+ "serde_json",
+ "ssr_rs",
+ "syntect",
+ "thiserror 2.0.21",
+ "tokio",
+ "v8",
+]
+
+[[package]]
+name = "cairn-server"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "bytes",
+ "cairn-assets",
+ "cairn-auth",
+ "cairn-core",
+ "cairn-publish",
+ "cairn-render",
+ "cairn-store",
+ "futures-util",
+ "ipnet",
+ "jiff",
+ "mime_guess",
+ "percent-encoding",
+ "rust-embed",
+ "sea-orm",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "tokio",
+ "tokio-stream",
+ "tower",
+ "tracing",
+ "utoipa",
+ "utoipa-axum",
+ "uuid",
+]
+
+[[package]]
+name = "cairn-store"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "cairn-core",
+ "fractional_index",
+ "jiff",
+ "sea-orm",
+ "sea-orm-migration",
+ "serde_json",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "cc"
 version = "1.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5089,177 +5260,6 @@ dependencies = [
  "quote",
  "syn 3.0.9",
  "synstructure",
-]
-
-[[package]]
-name = "yourdocs-apispec"
-version = "0.0.0"
-dependencies = [
- "serde_json",
- "serde_norway",
- "thiserror 2.0.21",
- "tokio",
- "url",
- "yourdocs-core",
-]
-
-[[package]]
-name = "yourdocs-assets"
-version = "0.0.0"
-dependencies = [
- "anyhow",
- "image",
- "imagesize",
- "object_store",
- "sha2 0.11.1",
- "thiserror 2.0.21",
- "tokio",
- "uuid",
- "webp",
- "yourdocs-core",
-]
-
-[[package]]
-name = "yourdocs-auth"
-version = "0.0.0"
-dependencies = [
- "anyhow",
- "axum",
- "base64 0.22.1",
- "chrono",
- "jiff",
- "openidconnect",
- "percent-encoding",
- "rand 0.9.5",
- "serde",
- "serde_json",
- "sha2 0.11.1",
- "thiserror 2.0.21",
- "tokio",
- "tower",
- "tracing",
- "uuid",
- "yourdocs-core",
- "yourdocs-store",
-]
-
-[[package]]
-name = "yourdocs-cli"
-version = "0.0.0"
-dependencies = [
- "anyhow",
- "clap",
- "tokio",
- "tracing-subscriber",
- "yourdocs-server",
-]
-
-[[package]]
-name = "yourdocs-core"
-version = "0.0.0"
-dependencies = [
- "anyhow",
- "jiff",
- "serde",
- "serde_json",
- "thiserror 2.0.21",
- "tokio",
- "utoipa",
- "uuid",
-]
-
-[[package]]
-name = "yourdocs-publish"
-version = "0.0.0"
-dependencies = [
- "anyhow",
- "axum",
- "base64 0.22.1",
- "blake3",
- "futures-util",
- "image",
- "jiff",
- "md-5",
- "mime_guess",
- "percent-encoding",
- "reqwest",
- "rusty-s3",
- "serde",
- "serde_json",
- "sha2 0.11.1",
- "thiserror 2.0.21",
- "tokio",
- "tracing",
- "uuid",
- "yourdocs-apispec",
- "yourdocs-assets",
- "yourdocs-core",
- "yourdocs-render",
- "yourdocs-store",
-]
-
-[[package]]
-name = "yourdocs-render"
-version = "0.0.0"
-dependencies = [
- "anyhow",
- "maud",
- "serde_json",
- "ssr_rs",
- "syntect",
- "thiserror 2.0.21",
- "tokio",
- "v8",
-]
-
-[[package]]
-name = "yourdocs-server"
-version = "0.0.0"
-dependencies = [
- "anyhow",
- "axum",
- "bytes",
- "futures-util",
- "ipnet",
- "jiff",
- "mime_guess",
- "percent-encoding",
- "rust-embed",
- "sea-orm",
- "serde",
- "serde_json",
- "thiserror 2.0.21",
- "tokio",
- "tokio-stream",
- "tower",
- "tracing",
- "utoipa",
- "utoipa-axum",
- "uuid",
- "yourdocs-assets",
- "yourdocs-auth",
- "yourdocs-core",
- "yourdocs-publish",
- "yourdocs-render",
- "yourdocs-store",
-]
-
-[[package]]
-name = "yourdocs-store"
-version = "0.0.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "fractional_index",
- "jiff",
- "sea-orm",
- "sea-orm-migration",
- "serde_json",
- "thiserror 2.0.21",
- "tokio",
- "tracing",
- "uuid",
- "yourdocs-core",
 ]
 
 [[package]]

@@ -1,8 +1,8 @@
+use cairn_apispec::{Fetch, MergeInput, MergeOptions, load, merge, validate_refs};
+use cairn_core::{ApiConfig, Operation, ResolvedSource};
 use futures_util::future::join_all;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
-use yourdocs_apispec::{Fetch, MergeInput, MergeOptions, load, merge, validate_refs};
-use yourdocs_core::{ApiConfig, Operation, ResolvedSource};
 
 use super::fetch::SourceFetcher;
 use crate::PublishError;

@@ -9,7 +9,7 @@ const root = resolve(import.meta.dir, "../../..");
 const specPath = resolve(import.meta.dir, "../src/api/openapi.json");
 const typesPath = resolve(import.meta.dir, "../src/api/schema.d.ts");
 
-const cargo = spawnSync("cargo", ["run", "--quiet", "-p", "yourdocs-cli", "--", "openapi"], {
+const cargo = spawnSync("cargo", ["run", "--quiet", "-p", "cairn-cli", "--", "openapi"], {
   cwd: root,
   encoding: "utf8",
 });

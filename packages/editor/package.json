@@ -1,5 +1,5 @@
 {
-  "name": "@yourdocs/editor",
+  "name": "@cairn/editor",
   "private": true,
   "type": "module",
   "scripts": {
@@ -22,9 +22,9 @@
     "@tiptap/react": "3.31.4",
     "@tiptap/starter-kit": "3.31.4",
     "@tiptap/suggestion": "3.31.4",
-    "@yourdocs/components": "workspace:*",
-    "@yourdocs/renderer": "workspace:*",
-    "@yourdocs/sdk": "workspace:*",
+    "@cairn/components": "workspace:*",
+    "@cairn/renderer": "workspace:*",
+    "@cairn/sdk": "workspace:*",
     "emojibase-data": "17.0.0",
     "lucide-static": "1.48.0",
     "openapi-fetch": "0.17.0",

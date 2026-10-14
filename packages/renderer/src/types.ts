@@ -8,14 +8,14 @@ export type DocNode = {
   text?: string;
 };
 
-export type { NavNode, RenderContext, SiteImage, SiteLink } from "@yourdocs/sdk";
+export type { NavNode, RenderContext, SiteImage, SiteLink } from "@cairn/sdk";
 
-import type { RenderContext } from "@yourdocs/sdk";
+import type { RenderContext } from "@cairn/sdk";
 
 export type RenderInput = { doc: DocNode; context?: Partial<RenderContext> };
 
 export const defaultContext: RenderContext = {
-  site: { name: "yourdocs" },
+  site: { name: "cairn" },
   page: { title: "" },
   nav: [],
   breadcrumbs: [],

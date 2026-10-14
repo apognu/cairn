@@ -5,8 +5,8 @@ use axum::{
   response::{AppendHeaders, Html, IntoResponse, Redirect, Response},
   routing::{get, post},
 };
+use cairn_store::{LoginState, save_login_state, take_login_state, upsert_user};
 use serde::Deserialize;
-use yourdocs_store::{LoginState, save_login_state, take_login_state, upsert_user};
 
 use crate::{Auth, AuthError};
 
@@ -218,9 +218,9 @@ mod tests {
 
   #[tokio::test]
   async fn a_callback_is_accepted_only_from_the_browser_that_started_the_login() {
-    let dir = std::env::temp_dir().join(format!("yourdocs-routes-{}", uuid::Uuid::now_v7()));
+    let dir = std::env::temp_dir().join(format!("cairn-routes-{}", uuid::Uuid::now_v7()));
     std::fs::create_dir_all(&dir).unwrap();
-    let db = yourdocs_store::connect_for_tests(&dir).await;
+    let db = cairn_store::connect_for_tests(&dir).await;
     let settings = AuthSettings {
       sessions: SessionSettings {
         idle: SignedDuration::from_hours(1),

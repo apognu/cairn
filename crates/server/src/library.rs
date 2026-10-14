@@ -2,12 +2,12 @@ use axum::{
   Json,
   extract::{Path, State},
 };
+use cairn_auth::CurrentUser;
+use cairn_core::{Document, EntryKind, PageId};
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
 use utoipa::ToSchema;
 use utoipa_axum::{router::OpenApiRouter, routes};
-use yourdocs_auth::CurrentUser;
-use yourdocs_core::{Document, EntryKind, PageId};
 
 use crate::{
   app::AppState,
@@ -60,10 +60,10 @@ struct SnippetBody {
 }
 
 async fn entries(state: &AppState) -> Result<Vec<LibraryEntry>, AppError> {
-  let pages = yourdocs_store::list_pages(&state.db).await?;
+  let pages = cairn_store::list_pages(&state.db).await?;
 
   Ok(
-    yourdocs_store::list_entries(&state.db)
+    cairn_store::list_entries(&state.db)
       .await?
       .into_iter()
       .map(|e| LibraryEntry {
@@ -101,7 +101,7 @@ async fn list(State(state): State<AppState>) -> Result<Json<Vec<LibraryEntry>>, 
 ))]
 #[instrument(skip_all, fields(key = %key))]
 async fn put_variable(State(state): State<AppState>, CurrentUser(user): CurrentUser, Path(key): Path<String>, Json(body): Json<VariableBody>) -> Result<Json<Vec<LibraryEntry>>, AppError> {
-  yourdocs_store::save_variable(&state.db, user, &key, &body.value).await?;
+  cairn_store::save_variable(&state.db, user, &key, &body.value).await?;
 
   Ok(Json(entries(&state).await?))
 }
@@ -113,7 +113,7 @@ async fn put_variable(State(state): State<AppState>, CurrentUser(user): CurrentU
 ))]
 #[instrument(skip_all, fields(key = %key))]
 async fn put_snippet(State(state): State<AppState>, CurrentUser(user): CurrentUser, Path(key): Path<String>, Json(body): Json<SnippetBody>) -> Result<Json<Vec<LibraryEntry>>, AppError> {
-  yourdocs_store::save_snippet(&state.db, user, &key, &body.doc).await?;
+  cairn_store::save_snippet(&state.db, user, &key, &body.doc).await?;
 
   Ok(Json(entries(&state).await?))
 }
@@ -125,7 +125,7 @@ async fn put_snippet(State(state): State<AppState>, CurrentUser(user): CurrentUs
 ))]
 #[instrument(skip_all)]
 async fn put_term(State(state): State<AppState>, CurrentUser(user): CurrentUser, Json(body): Json<TermBody>) -> Result<Json<Vec<LibraryEntry>>, AppError> {
-  yourdocs_store::save_term(&state.db, user, &body.term, &body.definition).await?;
+  cairn_store::save_term(&state.db, user, &body.term, &body.definition).await?;
 
   Ok(Json(entries(&state).await?))
 }
@@ -138,7 +138,7 @@ async fn put_term(State(state): State<AppState>, CurrentUser(user): CurrentUser,
 ))]
 #[instrument(skip_all, fields(id = %id))]
 async fn remove(State(state): State<AppState>, Path(id): Path<uuid::Uuid>) -> Result<Json<Vec<LibraryEntry>>, AppError> {
-  yourdocs_store::delete_entry(&state.db, id).await?;
+  cairn_store::delete_entry(&state.db, id).await?;
 
   Ok(Json(entries(&state).await?))
 }

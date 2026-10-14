@@ -1,6 +1,6 @@
 export type ThemeChoice = "system" | "light" | "dark";
 
-const KEY = "yourdocs-theme";
+const KEY = "cairn-theme";
 
 // Storage can be blocked (private windows, blocked site data): the theme then simply follows the system.
 export function readTheme(): ThemeChoice {

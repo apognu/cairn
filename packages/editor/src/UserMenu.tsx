@@ -2,7 +2,7 @@ import { useState } from "react";
 import { serverUrl } from "./api/base";
 import { useMe, useSignedIn } from "./queries";
 
-/** Who is signed in, and the way out. Absent in `yourdocs dev`, where nobody signs in. */
+/** Who is signed in, and the way out. Absent in `cairn dev`, where nobody signs in. */
 export function UserMenu() {
   const me = useMe();
   const signedIn = useSignedIn();

@@ -1,6 +1,6 @@
+use cairn_core::{ApiToken, UserId};
 use jiff::{SignedDuration, Timestamp};
 use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set};
-use yourdocs_core::{ApiToken, UserId};
 
 use crate::{
   StoreError,

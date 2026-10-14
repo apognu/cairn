@@ -9,14 +9,14 @@ use axum::{
   http::header,
   response::IntoResponse,
 };
+use cairn_auth::CurrentUser;
+use cairn_core::{ApiConfig, AssetStore, CoreError, Operation, PageId, ResolvedSource};
+use cairn_publish::ResolvedApi;
+use cairn_store::{StoreError, get_api_config, latest_live_release, release_specs, save_api_config};
 use serde::Serialize;
 use tracing::instrument;
 use utoipa::ToSchema;
 use utoipa_axum::{router::OpenApiRouter, routes};
-use yourdocs_auth::CurrentUser;
-use yourdocs_core::{ApiConfig, AssetStore, CoreError, Operation, PageId, ResolvedSource};
-use yourdocs_publish::ResolvedApi;
-use yourdocs_store::{StoreError, get_api_config, latest_live_release, release_specs, save_api_config};
 
 use crate::{
   app::AppState,
@@ -239,8 +239,8 @@ async fn check_config(State(state): State<AppState>, Path(id): Path<PageId>, Jso
 
 #[cfg(test)]
 mod tests {
-  use yourdocs_core::{ApiSource, Placement};
-  use yourdocs_store::create_api_page;
+  use cairn_core::{ApiSource, Placement};
+  use cairn_store::create_api_page;
 
   use super::*;
   use crate::app::test_state;
@@ -248,7 +248,7 @@ mod tests {
   #[tokio::test]
   async fn a_check_reports_a_source_that_cannot_be_read_without_failing_the_request() {
     let state = test_state().await;
-    let page = create_api_page(&state.db, yourdocs_auth::local_user_id(), None, "Orders", Placement::Last).await.unwrap();
+    let page = create_api_page(&state.db, cairn_auth::local_user_id(), None, "Orders", Placement::Last).await.unwrap();
     let config = ApiConfig {
       sources: vec![ApiSource::Url {
         url: "https://10.0.0.1/openapi.yaml".into(),
@@ -272,7 +272,7 @@ mod tests {
   #[tokio::test]
   async fn only_one_check_of_a_page_runs_at_a_time() {
     let state = test_state().await;
-    let page = create_api_page(&state.db, yourdocs_auth::local_user_id(), None, "Orders", Placement::Last).await.unwrap();
+    let page = create_api_page(&state.db, cairn_auth::local_user_id(), None, "Orders", Placement::Last).await.unwrap();
     let _held = Running::start(&state.api_checks, page.id).unwrap();
 
     let busy = check_config(State(state.clone()), Path(page.id), Json(ApiConfig::default())).await;

@@ -5,12 +5,12 @@ use axum::{
   http::{HeaderValue, StatusCode, header},
   response::{IntoResponse, Response},
 };
+use cairn_assets::{check_size, inspect, process, sha256_hex};
+use cairn_auth::CurrentUser;
+use cairn_core::{Asset, AssetId, AssetStore, AssetVariant, CoreError, original_key, variant_key};
+use cairn_store::{NewAsset, asset_by_hash, asset_by_id, get_or_create_asset};
 use tracing::instrument;
 use utoipa_axum::{router::OpenApiRouter, routes};
-use yourdocs_assets::{check_size, inspect, process, sha256_hex};
-use yourdocs_auth::CurrentUser;
-use yourdocs_core::{Asset, AssetId, AssetStore, AssetVariant, CoreError, original_key, variant_key};
-use yourdocs_store::{NewAsset, asset_by_hash, asset_by_id, get_or_create_asset};
 
 use crate::{
   app::AppState,
@@ -111,7 +111,7 @@ pub(crate) async fn serve(State(state): State<AppState>, Path(name): Path<String
 mod tests {
   use std::fs;
 
-  use yourdocs_auth::local_user_id;
+  use cairn_auth::local_user_id;
 
   use super::*;
   use crate::app::test_state;

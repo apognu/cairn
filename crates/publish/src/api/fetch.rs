@@ -4,13 +4,13 @@ use std::{
   time::Duration,
 };
 
+use cairn_core::{ApiSource, GitRef};
 use percent_encoding::{AsciiSet, NON_ALPHANUMERIC, percent_decode_str, utf8_percent_encode};
 use reqwest::{
   Client, StatusCode, Url,
   dns::{Addrs, Name, Resolve, Resolving},
   header, redirect,
 };
-use yourdocs_core::{ApiSource, GitRef};
 
 use crate::PublishError;
 
@@ -65,7 +65,7 @@ impl SourceFetcher {
       Client::builder()
         .connect_timeout(Duration::from_secs(10))
         .timeout(Duration::from_secs(30))
-        .user_agent(concat!("yourdocs/", env!("CARGO_PKG_VERSION")))
+        .user_agent(concat!("cairn/", env!("CARGO_PKG_VERSION")))
         .redirect(policy)
         .dns_resolver(Arc::new(PublicOnly { local }))
         .build()
@@ -377,7 +377,7 @@ mod tests {
     let fetcher = stand_in().await;
     let agent = fetcher.get(&format!("{}/echo-agent", fetcher.hosts.github)).await.unwrap();
 
-    assert!(text(&agent).starts_with("yourdocs/"));
+    assert!(text(&agent).starts_with("cairn/"));
   }
 
   #[test]

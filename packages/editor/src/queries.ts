@@ -393,7 +393,7 @@ export function useApiOperations(id: string | null) {
   });
 }
 
-/** The signed-in user. In `yourdocs dev` there is nobody to sign in, and the email is empty. */
+/** The signed-in user. In `cairn dev` there is nobody to sign in, and the email is empty. */
 export function useMe() {
   return useQuery({
     queryKey: ["me"],
@@ -402,10 +402,10 @@ export function useMe() {
   });
 }
 
-/** The user `yourdocs dev` runs every request as (the server's `local_user_id`). */
+/** The user `cairn dev` runs every request as (the server's `local_user_id`). */
 const LOCAL_USER = "00000000-0000-0000-0000-000000000001";
 
-/** Whether a person signed in, rather than `yourdocs dev`'s built-in user. Not judged by the email, which a provider may not give. */
+/** Whether a person signed in, rather than `cairn dev`'s built-in user. Not judged by the email, which a provider may not give. */
 export function useSignedIn(): boolean {
   const me = useMe().data;
 

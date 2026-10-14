@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { defineSlot } from "@yourdocs/sdk";
+import { defineSlot } from "@cairn/sdk";
 import { renderToString } from "react-dom/server";
 import { SiteLayout } from "./layout";
 import { defaultContext, type RenderContext } from "./types";

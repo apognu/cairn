@@ -1,5 +1,5 @@
-import { customSlots } from "@yourdocs/components";
-import type { SlotDefinition, SlotName } from "@yourdocs/sdk";
+import { customSlots } from "@cairn/components";
+import type { SlotDefinition, SlotName } from "@cairn/sdk";
 import { createElement, type ReactNode, useEffect, useId, useRef, useState } from "react";
 import type { Heading } from "./headings";
 import { ThemeToggle } from "./ThemeToggle";

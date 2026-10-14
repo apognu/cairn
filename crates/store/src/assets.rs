@@ -1,6 +1,6 @@
+use cairn_core::{Asset, AssetId, AssetVariant, UserId};
 use jiff::Timestamp;
 use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
-use yourdocs_core::{Asset, AssetId, AssetVariant, UserId};
 
 use crate::{StoreError, entity::asset};
 

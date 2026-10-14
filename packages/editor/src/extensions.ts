@@ -1,9 +1,3 @@
-import { Mark, mergeAttributes, Node } from "@tiptap/core";
-import CodeBlock from "@tiptap/extension-code-block";
-import { Table, TableCell, TableHeader, TableRow } from "@tiptap/extension-table";
-import UniqueID from "@tiptap/extension-unique-id";
-import { ReactNodeViewRenderer } from "@tiptap/react";
-import StarterKit from "@tiptap/starter-kit";
 import {
   cards,
   featureTabs,
@@ -14,15 +8,21 @@ import {
   snippet,
   variable,
   whatsNew,
-} from "@yourdocs/components";
-import { customComponents } from "@yourdocs/components/custom";
-import { type AnyComponent, propsSchema, VERSION_ATTR } from "@yourdocs/sdk";
+} from "@cairn/components";
+import { customComponents } from "@cairn/components/custom";
+import { type AnyComponent, propsSchema, VERSION_ATTR } from "@cairn/sdk";
+import { Mark, mergeAttributes, Node } from "@tiptap/core";
+import CodeBlock from "@tiptap/extension-code-block";
+import { Table, TableCell, TableHeader, TableRow } from "@tiptap/extension-table";
+import UniqueID from "@tiptap/extension-unique-id";
+import { ReactNodeViewRenderer } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
 import { ComponentView } from "./ComponentView";
 import { EmojiSuggestion } from "./emoji";
 import { PageLink, PagePickerTriggers } from "./pageLink";
 import { SlashCommand } from "./slash";
 
-// Built-in nodes must produce the same tags and classes as `renderNode` in @yourdocs/renderer.
+// Built-in nodes must produce the same tags and classes as `renderNode` in @cairn/renderer.
 
 const Callout = Node.create({
   name: "callout",

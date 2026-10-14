@@ -1,8 +1,8 @@
-# yourdocs behind Caddy, which gets the HTTPS certificate and forwards requests to the app.
+# cairn behind Caddy, which gets the HTTPS certificate and forwards requests to the app.
 # Copy this folder, copy `.env.example` to `.env`, fill it in, then `docker compose up -d`.
 services:
-  yourdocs:
-    image: yourdocs/runtime:latest
+  cairn:
+    image: cairn/runtime:latest
     restart: unless-stopped
     command: ["serve"]
     environment:
@@ -16,7 +16,7 @@ services:
       # Forwarded headers are believed only from Caddy, which has an address in this network.
       TRUSTED_PROXIES: 172.28.0.0/24
     volumes:
-      - yourdocs:/data
+      - cairn:/data
     networks:
       - web
 
@@ -32,12 +32,12 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
     depends_on:
-      - yourdocs
+      - cairn
     networks:
       - web
 
 volumes:
-  yourdocs:
+  cairn:
   caddy-data:
 
 networks:

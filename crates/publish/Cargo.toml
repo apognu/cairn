@@ -1,5 +1,5 @@
 [package]
-name = "yourdocs-publish"
+name = "cairn-publish"
 version = "0.0.0"
 edition.workspace = true
 license.workspace = true
@@ -25,14 +25,14 @@ sha2 = "0.11.1"
 thiserror = "2.0.21"
 tokio = { version = "1.53.2", features = ["rt", "sync", "fs", "macros", "process", "net"] }
 tracing = "0.1.44"
-yourdocs-apispec = { version = "0.0.0", path = "../apispec" }
-yourdocs-core = { version = "0.0.0", path = "../core" }
-yourdocs-render = { version = "0.0.0", path = "../render" }
-yourdocs-store = { version = "0.0.0", path = "../store" }
+cairn-apispec = { version = "0.0.0", path = "../apispec" }
+cairn-core = { version = "0.0.0", path = "../core" }
+cairn-render = { version = "0.0.0", path = "../render" }
+cairn-store = { version = "0.0.0", path = "../store" }
 
 [dev-dependencies]
-yourdocs-store = { version = "0.0.0", path = "../store", features = ["testing"] }
+cairn-store = { version = "0.0.0", path = "../store", features = ["testing"] }
 axum = { version = "0.8", features = ["multipart"] }
 image = { version = "0.25.10", default-features = false, features = ["png"] }
 uuid = { version = "1.28.0", features = ["v7"] }
-yourdocs-assets = { path = "../assets" }
+cairn-assets = { path = "../assets" }

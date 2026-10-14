@@ -1,4 +1,4 @@
-import type { ApiContext, ApiOperation } from "@yourdocs/sdk";
+import type { ApiContext, ApiOperation } from "@cairn/sdk";
 import { useEffect, useRef, useState } from "react";
 
 type ScalarInstance = { destroy: () => void };

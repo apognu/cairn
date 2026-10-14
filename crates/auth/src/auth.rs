@@ -9,8 +9,8 @@ use axum::{
   middleware::Next,
   response::{IntoResponse, Response},
 };
-use yourdocs_core::{ApiToken, UserId};
-use yourdocs_store::{DatabaseConnection, api_token_user, create_api_token, create_session, delete_session, session_user};
+use cairn_core::{ApiToken, UserId};
+use cairn_store::{DatabaseConnection, api_token_user, create_api_token, create_session, delete_session, session_user};
 
 use crate::{AccessRules, AuthError, Github, Oidc, SessionSettings, local_user_id, routes, session};
 
@@ -235,17 +235,17 @@ pub async fn require_login(State(auth): State<Auth>, mut request: Request, next:
 #[cfg(test)]
 mod tests {
   use axum::http::HeaderValue;
+  use cairn_store::{delete_api_token, list_api_tokens, upsert_user};
   use jiff::SignedDuration;
-  use yourdocs_store::{delete_api_token, list_api_tokens, upsert_user};
 
   use super::*;
 
   const ORIGIN: &str = "https://docs.example.com";
 
   async fn signed_in(idle: SignedDuration) -> (Auth, UserId, HeaderMap) {
-    let dir = std::env::temp_dir().join(format!("yourdocs-auth-{}", uuid::Uuid::now_v7()));
+    let dir = std::env::temp_dir().join(format!("cairn-auth-{}", uuid::Uuid::now_v7()));
     std::fs::create_dir_all(&dir).unwrap();
-    let db = yourdocs_store::connect_for_tests(&dir).await;
+    let db = cairn_store::connect_for_tests(&dir).await;
     let user = upsert_user(&db, "https://idp.example", "alice", "alice@example.com", "Alice").await.unwrap();
 
     let auth = Auth::oidc(

@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "yourdocs",
+      "name": "cairn",
       "devDependencies": {
         "@biomejs/biome": "2.2.4",
         "pagefind": "1.4.0",
@@ -11,13 +11,13 @@
       },
     },
     "packages/builder": {
-      "name": "@yourdocs/builder",
+      "name": "@cairn/builder",
       "bin": {
-        "yourdocs-build-components": "src/cli.ts",
+        "cairn-build-components": "src/cli.ts",
       },
       "dependencies": {
-        "@yourdocs/components": "workspace:*",
-        "@yourdocs/sdk": "workspace:*",
+        "@cairn/components": "workspace:*",
+        "@cairn/sdk": "workspace:*",
         "react": "19.1.1",
         "react-dom": "19.1.1",
       },
@@ -27,9 +27,9 @@
       },
     },
     "packages/components": {
-      "name": "@yourdocs/components",
+      "name": "@cairn/components",
       "dependencies": {
-        "@yourdocs/sdk": "workspace:*",
+        "@cairn/sdk": "workspace:*",
         "react": "19.1.1",
       },
       "devDependencies": {
@@ -37,7 +37,7 @@
       },
     },
     "packages/e2e": {
-      "name": "@yourdocs/e2e",
+      "name": "@cairn/e2e",
       "devDependencies": {
         "@playwright/test": "1.55.0",
         "@types/node": "22.18.0",
@@ -47,8 +47,11 @@
       },
     },
     "packages/editor": {
-      "name": "@yourdocs/editor",
+      "name": "@cairn/editor",
       "dependencies": {
+        "@cairn/components": "workspace:*",
+        "@cairn/renderer": "workspace:*",
+        "@cairn/sdk": "workspace:*",
         "@floating-ui/dom": "1.8.0",
         "@tanstack/react-query": "5.87.1",
         "@tiptap/core": "3.31.4",
@@ -61,9 +64,6 @@
         "@tiptap/react": "3.31.4",
         "@tiptap/starter-kit": "3.31.4",
         "@tiptap/suggestion": "3.31.4",
-        "@yourdocs/components": "workspace:*",
-        "@yourdocs/renderer": "workspace:*",
-        "@yourdocs/sdk": "workspace:*",
         "emojibase-data": "17.0.0",
         "lucide-static": "1.48.0",
         "openapi-fetch": "0.17.0",
@@ -80,12 +80,12 @@
       },
     },
     "packages/renderer": {
-      "name": "@yourdocs/renderer",
+      "name": "@cairn/renderer",
       "dependencies": {
+        "@cairn/components": "workspace:*",
+        "@cairn/sdk": "workspace:*",
         "@fontsource-variable/hanken-grotesk": "5.2.8",
         "@fontsource/ibm-plex-mono": "5.2.7",
-        "@yourdocs/components": "workspace:*",
-        "@yourdocs/sdk": "workspace:*",
         "lucide-static": "1.48.0",
         "react": "19.1.1",
         "react-dom": "19.1.1",
@@ -99,7 +99,7 @@
       },
     },
     "packages/sdk": {
-      "name": "@yourdocs/sdk",
+      "name": "@cairn/sdk",
       "dependencies": {
         "zod": "4.1.5",
       },
@@ -175,6 +175,18 @@
     "@biomejs/cli-win32-arm64": ["@biomejs/cli-win32-arm64@2.2.4", "", { "os": "win32", "cpu": "arm64" }, "sha512-NXnfTeKHDFUWfxAefa57DiGmu9VyKi0cDqFpdI+1hJWQjGJhJutHPX0b5m+eXvTKOaf+brU+P0JrQAZMb5yYaQ=="],
 
     "@biomejs/cli-win32-x64": ["@biomejs/cli-win32-x64@2.2.4", "", { "os": "win32", "cpu": "x64" }, "sha512-3Y4V4zVRarVh/B/eSHczR4LYoSVyv3Dfuvm3cWs5w/HScccS0+Wt/lHOcDTRYeHjQmMYVC3rIRWqyN2EI52+zg=="],
+
+    "@cairn/builder": ["@cairn/builder@workspace:packages/builder"],
+
+    "@cairn/components": ["@cairn/components@workspace:packages/components"],
+
+    "@cairn/e2e": ["@cairn/e2e@workspace:packages/e2e"],
+
+    "@cairn/editor": ["@cairn/editor@workspace:packages/editor"],
+
+    "@cairn/renderer": ["@cairn/renderer@workspace:packages/renderer"],
+
+    "@cairn/sdk": ["@cairn/sdk@workspace:packages/sdk"],
 
     "@codemirror/autocomplete": ["@codemirror/autocomplete@6.20.3", "", { "dependencies": { "@codemirror/language": "^6.0.0", "@codemirror/state": "^6.0.0", "@codemirror/view": "^6.17.0", "@lezer/common": "^1.0.0" } }, "sha512-tlosUqb+3BbxCxZdu4tKeRghPFC+QM7q4X5YhKV2eCmPG+1r2F3f4AaSz5sCrFqUtX4Jh20VFTKecl16MgiV9g=="],
 
@@ -579,18 +591,6 @@
     "@vueuse/metadata": ["@vueuse/metadata@13.9.0", "", {}, "sha512-1AFRvuiGphfF7yWixZa0KwjYH8ulyjDCC0aFgrGRz8+P4kvDFSdXLVfTk5xAN9wEuD1J6z4/myMoYbnHoX07zg=="],
 
     "@vueuse/shared": ["@vueuse/shared@13.9.0", "", { "peerDependencies": { "vue": "^3.5.0" } }, "sha512-e89uuTLMh0U5cZ9iDpEI2senqPGfbPRTHM/0AaQkcxnpqjkZqDYP8rpfm7edOz8s+pOCOROEy1PIveSW8+fL5g=="],
-
-    "@yourdocs/builder": ["@yourdocs/builder@workspace:packages/builder"],
-
-    "@yourdocs/components": ["@yourdocs/components@workspace:packages/components"],
-
-    "@yourdocs/e2e": ["@yourdocs/e2e@workspace:packages/e2e"],
-
-    "@yourdocs/editor": ["@yourdocs/editor@workspace:packages/editor"],
-
-    "@yourdocs/renderer": ["@yourdocs/renderer@workspace:packages/renderer"],
-
-    "@yourdocs/sdk": ["@yourdocs/sdk@workspace:packages/sdk"],
 
     "agent-base": ["agent-base@7.1.4", "", {}, "sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ=="],
 

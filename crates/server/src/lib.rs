@@ -28,7 +28,7 @@ mod urls;
 use std::{env, net::SocketAddr, path::PathBuf, sync::Arc, time::Duration};
 
 use anyhow::{Context, bail};
-use yourdocs_render::Pool;
+use cairn_render::Pool;
 
 use crate::{
   app::{AppState, dev_router},
@@ -51,14 +51,14 @@ enum AuthSetup {
 /// What both commands run: the stores, the render pool and the publisher, over one data directory.
 struct Runtime {
   state: AppState,
-  events: yourdocs_core::LocalBroadcast,
+  events: cairn_core::LocalBroadcast,
 }
 
-async fn prepare(data_dir: &std::path::Path, database_url: Option<&str>, site_url: String, auth: AuthSetup, target: yourdocs_publish::PublishTarget) -> anyhow::Result<Runtime> {
+async fn prepare(data_dir: &std::path::Path, database_url: Option<&str>, site_url: String, auth: AuthSetup, target: cairn_publish::PublishTarget) -> anyhow::Result<Runtime> {
   std::fs::create_dir_all(data_dir).with_context(|| format!("cannot create {}", data_dir.display()))?;
   let db = match database_url {
-    Some(url) => yourdocs_store::connect_url(url).await,
-    None => yourdocs_store::connect(&data_dir.join("yourdocs.db")).await,
+    Some(url) => cairn_store::connect_url(url).await,
+    None => cairn_store::connect(&data_dir.join("cairn.db")).await,
   }
   .context("cannot open the database")?;
 
@@ -70,16 +70,16 @@ async fn prepare(data_dir: &std::path::Path, database_url: Option<&str>, site_ur
   let pool = Pool::new(&bundles.ssr_js, 2, 64, Duration::from_secs(5)).context("failed to start the render pool")?;
 
   let pool = Arc::new(pool);
-  let content = yourdocs_store::SqlContentStore::new(db.clone());
-  let assets = Arc::new(yourdocs_assets::LocalAssetStore::new(&data_dir.join("assets")).context("cannot open the asset store")?);
+  let content = cairn_store::SqlContentStore::new(db.clone());
+  let assets = Arc::new(cairn_assets::LocalAssetStore::new(&data_dir.join("assets")).context("cannot open the asset store")?);
 
-  let events = yourdocs_core::LocalBroadcast::new();
+  let events = cairn_core::LocalBroadcast::new();
 
   let auth = match auth {
-    AuthSetup::Local => yourdocs_auth::Auth::local(),
+    AuthSetup::Local => cairn_auth::Auth::local(),
     AuthSetup::Oidc(settings, github, redirect) => {
       let settings = *settings;
-      let auth_settings = yourdocs_auth::AuthSettings {
+      let auth_settings = cairn_auth::AuthSettings {
         sessions: settings.sessions(redirect.starts_with("https://")),
         access: settings.access.clone(),
         public_origin: config::origin_of(&redirect),
@@ -87,8 +87,8 @@ async fn prepare(data_dir: &std::path::Path, database_url: Option<&str>, site_ur
       };
       let github = github
         .map(|g| {
-          yourdocs_auth::Github::new(
-            yourdocs_auth::GithubConfig {
+          cairn_auth::Github::new(
+            cairn_auth::GithubConfig {
               client_id: g.client_id,
               client_secret: g.client_secret,
               web_url: g.web_url,
@@ -99,8 +99,8 @@ async fn prepare(data_dir: &std::path::Path, database_url: Option<&str>, site_ur
           )
         })
         .transpose()?;
-      let oidc = yourdocs_auth::Oidc::discover(settings.into(), &redirect).await?;
-      yourdocs_auth::Auth::oidc(oidc, github, db.clone(), auth_settings)
+      let oidc = cairn_auth::Oidc::discover(settings.into(), &redirect).await?;
+      cairn_auth::Auth::oidc(oidc, github, db.clone(), auth_settings)
     }
   };
 
@@ -114,8 +114,8 @@ async fn prepare(data_dir: &std::path::Path, database_url: Option<&str>, site_ur
       assets.clone(),
       pool.clone(),
       app::PublishSetup {
-        bundles: yourdocs_publish::Bundles::new(&bundles.ssr_js, bundles.client_js, bundles.site_css, bundles.scalar_js),
-        config: yourdocs_publish::PublishConfig {
+        bundles: cairn_publish::Bundles::new(&bundles.ssr_js, bundles.client_js, bundles.site_css, bundles.scalar_js),
+        config: cairn_publish::PublishConfig {
           site_url,
           pagefind: env::var("PAGEFIND_BIN").unwrap_or_else(|_| "pagefind".into()),
           api_hosts: api_hosts(),
@@ -154,7 +154,7 @@ pub async fn run_dev(bind: SocketAddr, site_bind: SocketAddr, data_dir: PathBuf)
 
   // Without PUBLIC_URL, the address `dev` serves the site on, whichever port it was given.
   let site_url = env::var("PUBLIC_URL").unwrap_or_else(|_| format!("http://{site_bind}")).trim_end_matches('/').to_string();
-  let target = yourdocs_publish::PublishTarget::Folder(yourdocs_publish::FolderTarget::new(data_dir.clone()));
+  let target = cairn_publish::PublishTarget::Folder(cairn_publish::FolderTarget::new(data_dir.clone()));
   let Runtime { state, events } = prepare(&data_dir, None, site_url, AuthSetup::Local, target).await?;
 
   let editor = tokio::net::TcpListener::bind(bind).await.with_context(|| format!("cannot bind {bind}"))?;
@@ -176,11 +176,11 @@ pub async fn run_serve() -> anyhow::Result<()> {
   let config = config::Config::from_env()?;
   let redirect = format!("{}{EDITOR_PATH}/auth/callback", config.public_url);
   let target = match &config.target {
-    config::TargetChoice::SelfHosted => yourdocs_publish::PublishTarget::SelfHosted(yourdocs_publish::FolderTarget::new(config.data_dir.clone())),
-    config::TargetChoice::Folder(dir) => yourdocs_publish::PublishTarget::Folder(yourdocs_publish::FolderTarget::new(dir.clone())),
-    config::TargetChoice::Pages(pages) => yourdocs_publish::PublishTarget::Pages(yourdocs_publish::PagesTarget::new(pages.clone())?),
-    config::TargetChoice::S3(s3) => yourdocs_publish::PublishTarget::S3(yourdocs_publish::S3Target::new(s3.clone())?),
-    config::TargetChoice::Cloudflare(cloudflare) => yourdocs_publish::PublishTarget::Cloudflare(yourdocs_publish::CloudflareTarget::new(cloudflare.clone())?),
+    config::TargetChoice::SelfHosted => cairn_publish::PublishTarget::SelfHosted(cairn_publish::FolderTarget::new(config.data_dir.clone())),
+    config::TargetChoice::Folder(dir) => cairn_publish::PublishTarget::Folder(cairn_publish::FolderTarget::new(dir.clone())),
+    config::TargetChoice::Pages(pages) => cairn_publish::PublishTarget::Pages(cairn_publish::PagesTarget::new(pages.clone())?),
+    config::TargetChoice::S3(s3) => cairn_publish::PublishTarget::S3(cairn_publish::S3Target::new(s3.clone())?),
+    config::TargetChoice::Cloudflare(cloudflare) => cairn_publish::PublishTarget::Cloudflare(cairn_publish::CloudflareTarget::new(cloudflare.clone())?),
   };
   let setup = AuthSetup::Oidc(Box::new(config.oidc.clone()), config.github.clone(), redirect);
   let Runtime { state, .. } = prepare(&config.data_dir, config.database_url.as_deref(), config.site_url.clone(), setup, target).await?;
@@ -217,11 +217,11 @@ async fn shutdown_signal() {
 }
 
 /// GitHub's hosts for API sources. The variables exist for tests and mirrors; a deployment normally sets neither.
-fn api_hosts() -> yourdocs_publish::ApiHosts {
-  let defaults = yourdocs_publish::ApiHosts::default();
+fn api_hosts() -> cairn_publish::ApiHosts {
+  let defaults = cairn_publish::ApiHosts::default();
   let host = |name: &str, default: String| env::var(name).map(|v| v.trim_end_matches('/').to_string()).unwrap_or(default);
 
-  yourdocs_publish::ApiHosts {
+  cairn_publish::ApiHosts {
     github: host("GITHUB_BASE_URL", defaults.github),
     raw: host("RAW_BASE_URL", defaults.raw),
   }
@@ -235,7 +235,7 @@ mod tests {
   #[tokio::test]
   async fn dev_refuses_addresses_other_than_loopback() {
     for (editor, site) in [("0.0.0.0:0", "127.0.0.1:0"), ("127.0.0.1:0", "192.168.1.5:0"), ("[::]:0", "127.0.0.1:0")] {
-      let result = run_dev(editor.parse().unwrap(), site.parse().unwrap(), std::env::temp_dir().join("yourdocs-refused")).await;
+      let result = run_dev(editor.parse().unwrap(), site.parse().unwrap(), std::env::temp_dir().join("cairn-refused")).await;
       let error = result.expect_err("must refuse").to_string();
 
       assert!(error.contains("loopback"), "{error}");

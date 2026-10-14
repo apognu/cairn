@@ -2,7 +2,7 @@
 import { buildComponents } from "./build";
 import { BuildError } from "./collect";
 
-const USAGE = "usage: yourdocs build-components <components-folder> --out <bundles-folder>";
+const USAGE = "usage: cairn build-components <components-folder> --out <bundles-folder>";
 
 const [command, dir, flag, out] = process.argv.slice(2);
 

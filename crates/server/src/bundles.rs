@@ -25,7 +25,7 @@ impl BundleSet {
   pub(crate) fn load(dir: Option<&Path>, required: bool) -> anyhow::Result<Self> {
     let Some(dir) = dir.filter(|dir| dir.join("manifest.json").is_file()) else {
       if let (Some(dir), true) = (dir, required) {
-        bail!("{} has no manifest.json; build it with `yourdocs build-components`", dir.display());
+        bail!("{} has no manifest.json; build it with `cairn build-components`", dir.display());
       }
 
       return Self::embedded();
@@ -74,7 +74,7 @@ mod tests {
   use super::*;
 
   fn bundle_dir(sdk_version: u64) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("yourdocs-bundles-{}", uuid::Uuid::now_v7()));
+    let dir = std::env::temp_dir().join(format!("cairn-bundles-{}", uuid::Uuid::now_v7()));
     std::fs::create_dir_all(dir.join("editor")).unwrap();
     std::fs::write(dir.join("manifest.json"), format!(r#"{{ "sdk_version": {sdk_version}, "components": [], "slots": [] }}"#)).unwrap();
     for (name, body) in [
@@ -103,7 +103,7 @@ mod tests {
 
   #[test]
   fn falls_back_to_the_embedded_bundles_unless_the_directory_was_asked_for() {
-    let missing = std::env::temp_dir().join("yourdocs-no-such-bundles");
+    let missing = std::env::temp_dir().join("cairn-no-such-bundles");
 
     assert!(BundleSet::load(Some(&missing), false).unwrap().editor_dir.is_none());
     assert!(BundleSet::load(None, false).is_ok());

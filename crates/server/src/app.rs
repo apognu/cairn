@@ -8,18 +8,18 @@ use axum::{
   response::{IntoResponse, Response},
   routing::get,
 };
+use cairn_assets::LocalAssetStore;
+use cairn_core::LocalBroadcast;
+use cairn_publish::{Bundles, PublishConfig, PublishTarget, Publisher, PublisherParts};
+use cairn_render::Pool;
+use cairn_store::SqlContentStore;
 use sea_orm::DatabaseConnection;
-use yourdocs_assets::LocalAssetStore;
-use yourdocs_core::LocalBroadcast;
-use yourdocs_publish::{Bundles, PublishConfig, PublishTarget, Publisher, PublisherParts};
-use yourdocs_render::Pool;
-use yourdocs_store::SqlContentStore;
 
 use crate::{api_pages, drafts, history, library, links, me, pages, publish, redirects, settings, tokens, uploads, urls};
 
 #[derive(Clone)]
 pub struct AppState {
-  pub auth: yourdocs_auth::Auth,
+  pub auth: cairn_auth::Auth,
   pub pool: Arc<Pool>,
   pub db: DatabaseConnection,
   pub content: SqlContentStore,
@@ -33,7 +33,7 @@ pub struct AppState {
   pub scalar_js: Arc<Vec<u8>>,
 }
 
-impl axum::extract::FromRef<AppState> for yourdocs_auth::Auth {
+impl axum::extract::FromRef<AppState> for cairn_auth::Auth {
   fn from_ref(state: &AppState) -> Self {
     state.auth.clone()
   }
@@ -84,17 +84,17 @@ pub fn api() -> (Router<AppState>, utoipa::openapi::OpenApi) {
     .merge(tokens::routes())
     .split_for_parts();
   // The router's default info describes utoipa-axum itself.
-  spec.info = utoipa::openapi::InfoBuilder::new().title("yourdocs").version(env!("CARGO_PKG_VERSION")).build();
+  spec.info = utoipa::openapi::InfoBuilder::new().title("cairn").version(env!("CARGO_PKG_VERSION")).build();
 
   (router, spec)
 }
 
 /// The editor's routes: the API, the sign-in, and the editor itself as the fallback. They are not tied to a path prefix; `serve` nests
 /// them under `/_editor`, `dev` serves them at the root.
-pub(crate) fn editor_app(auth: yourdocs_auth::Auth) -> Router<AppState> {
-  let auth_routes = yourdocs_auth::Auth::routes().with_state(auth.clone());
+pub(crate) fn editor_app(auth: cairn_auth::Auth) -> Router<AppState> {
+  let auth_routes = cairn_auth::Auth::routes().with_state(auth.clone());
   // Everything that reads or changes the site's content needs a login; only the sign-in routes and the editor's own files are open.
-  let guard = middleware::from_fn_with_state(auth, yourdocs_auth::require_login);
+  let guard = middleware::from_fn_with_state(auth, cairn_auth::require_login);
   let content = Router::new().route("/_a/{name}", get(uploads::serve)).merge(api().0).layer(guard);
 
   Router::new()
@@ -140,7 +140,7 @@ pub(crate) async fn test_state() -> AppState {
 
 #[cfg(test)]
 pub(crate) async fn test_state_with_dir() -> (AppState, std::path::PathBuf) {
-  test_state_serving(|dir| PublishTarget::Folder(yourdocs_publish::FolderTarget::new(dir.join("out")))).await
+  test_state_serving(|dir| PublishTarget::Folder(cairn_publish::FolderTarget::new(dir.join("out")))).await
 }
 
 /// A state whose publisher writes where `target` says, which is given the test's directory.
@@ -148,9 +148,9 @@ pub(crate) async fn test_state_with_dir() -> (AppState, std::path::PathBuf) {
 pub(crate) async fn test_state_serving(target: impl FnOnce(&std::path::Path) -> PublishTarget) -> (AppState, std::path::PathBuf) {
   let bundles = crate::bundles::BundleSet::load(None, false).expect("the bundles are missing, run `bun run build` first");
   let pool = Pool::new(&bundles.ssr_js, 1, 8, std::time::Duration::from_secs(5)).unwrap();
-  let dir = std::env::temp_dir().join(format!("yourdocs-server-{}", uuid::Uuid::now_v7()));
+  let dir = std::env::temp_dir().join(format!("cairn-server-{}", uuid::Uuid::now_v7()));
   std::fs::create_dir_all(&dir).unwrap();
-  let db = yourdocs_store::connect_for_tests(&dir).await;
+  let db = cairn_store::connect_for_tests(&dir).await;
 
   let pool = Arc::new(pool);
   let content = SqlContentStore::new(db.clone());
@@ -178,7 +178,7 @@ pub(crate) async fn test_state_serving(target: impl FnOnce(&std::path::Path) -> 
     content,
     assets,
     db,
-    auth: yourdocs_auth::Auth::local(),
+    auth: cairn_auth::Auth::local(),
     editor_dir: None,
     api_checks: Default::default(),
     scalar_js: Arc::new(Vec::new()),

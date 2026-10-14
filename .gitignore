@@ -1,7 +1,7 @@
 target/
 node_modules/
 dist/
-.yourdocs/
+.cairn/
 test-results/
 playwright-report/
 .e2e-data/

@@ -26,7 +26,7 @@ export default defineConfig({
     },
     {
       command:
-        "rm -rf .e2e-api-data && ../../target/debug/yourdocs dev --data-dir .e2e-api-data --bind 127.0.0.1:3300 --site-bind 127.0.0.1:3301",
+        "rm -rf .e2e-api-data && ../../target/debug/cairn dev --data-dir .e2e-api-data --bind 127.0.0.1:3300 --site-bind 127.0.0.1:3301",
       env: {
         PAGEFIND_BIN: "../../node_modules/.bin/pagefind",
         GITHUB_BASE_URL: "http://127.0.0.1:3390",
@@ -36,14 +36,14 @@ export default defineConfig({
       reuseExistingServer: !process.env.CI,
     },
     {
-      command: "rm -rf .e2e-serve-data && ../../target/debug/yourdocs serve",
+      command: "rm -rf .e2e-serve-data && ../../target/debug/cairn serve",
       env: {
         PAGEFIND_BIN: "../../node_modules/.bin/pagefind",
         PUBLIC_URL: "http://127.0.0.1:3400",
         BIND: "127.0.0.1:3400",
         DATA_DIR: ".e2e-serve-data",
         OIDC_ISSUER: "http://127.0.0.1:5556/dex",
-        OIDC_CLIENT_ID: "yourdocs",
+        OIDC_CLIENT_ID: "cairn",
         OIDC_CLIENT_SECRET: "dev-secret",
         OIDC_ALLOW_ANY_USER: "true",
       },
@@ -51,14 +51,14 @@ export default defineConfig({
       reuseExistingServer: !process.env.CI,
     },
     {
-      command: "rm -rf .e2e-data && ../../target/debug/yourdocs dev --data-dir .e2e-data",
+      command: "rm -rf .e2e-data && ../../target/debug/cairn dev --data-dir .e2e-data",
       env: { PAGEFIND_BIN: "../../node_modules/.bin/pagefind" },
       url: "http://127.0.0.1:3000/api/pages",
       reuseExistingServer: !process.env.CI,
     },
     {
       command:
-        "rm -rf .e2e-bundles .e2e-custom-data && bun ../builder/src/cli.ts build-components ../../examples/components --out .e2e-bundles && ../../target/debug/yourdocs dev --data-dir .e2e-custom-data --bind 127.0.0.1:3200 --site-bind 127.0.0.1:3201",
+        "rm -rf .e2e-bundles .e2e-custom-data && bun ../builder/src/cli.ts build-components ../../examples/components --out .e2e-bundles && ../../target/debug/cairn dev --data-dir .e2e-custom-data --bind 127.0.0.1:3200 --site-bind 127.0.0.1:3201",
       env: { PAGEFIND_BIN: "../../node_modules/.bin/pagefind", BUNDLES_DIR: ".e2e-bundles" },
       url: "http://127.0.0.1:3200/api/pages",
       timeout: 180_000,

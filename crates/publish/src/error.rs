@@ -1,6 +1,6 @@
-use yourdocs_core::{CoreError, Problem};
-use yourdocs_render::RenderError;
-use yourdocs_store::StoreError;
+use cairn_core::{CoreError, Problem};
+use cairn_render::RenderError;
+use cairn_store::StoreError;
 
 #[derive(Debug, thiserror::Error)]
 pub enum PublishError {

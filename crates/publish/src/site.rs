@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
+use cairn_core::{AssetId, Document, Page, PageId, header_pages, in_sidebar, sidebar_root};
 use serde_json::{Value, json};
-use yourdocs_core::{AssetId, Document, Page, PageId, header_pages, in_sidebar, sidebar_root};
 
 /// Where the file for a page URL goes: `/a/b/` is `a/b/index.html`.
 pub(crate) fn output_path(url: &str) -> String {
@@ -104,8 +104,8 @@ pub(crate) fn image_asset_ids(doc: &Document) -> Vec<AssetId> {
 
 #[cfg(test)]
 mod tests {
+  use cairn_core::{PageKind, UserId, page_urls};
   use jiff::Timestamp;
-  use yourdocs_core::{PageKind, UserId, page_urls};
 
   use super::*;
 

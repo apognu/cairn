@@ -70,7 +70,7 @@ pub async fn connect_for_tests(dir: &Path) -> DatabaseConnection {
 /// A fresh migrated database in a throwaway directory.
 #[cfg(test)]
 pub(crate) async fn test_db() -> DatabaseConnection {
-  let dir = std::env::temp_dir().join(format!("yourdocs-store-{}", uuid::Uuid::now_v7()));
+  let dir = std::env::temp_dir().join(format!("cairn-store-{}", uuid::Uuid::now_v7()));
   std::fs::create_dir_all(&dir).unwrap();
 
   connect_for_tests(&dir).await
@@ -84,7 +84,7 @@ mod tests {
 
   #[tokio::test]
   async fn migrates_a_fresh_file_and_a_second_run_changes_nothing() {
-    let dir = std::env::temp_dir().join(format!("yourdocs-store-{}", uuid::Uuid::now_v7()));
+    let dir = std::env::temp_dir().join(format!("cairn-store-{}", uuid::Uuid::now_v7()));
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join("test.db");
 

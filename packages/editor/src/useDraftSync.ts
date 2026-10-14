@@ -1,5 +1,5 @@
+import type { DocNode } from "@cairn/renderer";
 import { useQueryClient } from "@tanstack/react-query";
-import type { DocNode } from "@yourdocs/renderer";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "./api/client";
 import { discardLocal, type LocalDraft, writeLocal } from "./localDrafts";

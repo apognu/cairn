@@ -37,7 +37,7 @@ test("saved text survives a reload", async ({ page }) => {
   await page.keyboard.type("Kept on the server");
   await expect(page.getByRole("status")).toHaveText("Saved");
 
-  await page.evaluate(() => indexedDB.deleteDatabase("yourdocs"));
+  await page.evaluate(() => indexedDB.deleteDatabase("cairn"));
   await page.reload();
   await expect(page.locator(".ProseMirror")).toContainText("Kept on the server");
 });

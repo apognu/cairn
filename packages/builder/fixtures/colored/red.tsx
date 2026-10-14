@@ -1,4 +1,4 @@
-import { defineComponent, z } from "@yourdocs/sdk";
+import { defineComponent, z } from "@cairn/sdk";
 
 export default defineComponent({
   name: "acme/red",

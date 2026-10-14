@@ -17,13 +17,13 @@ pub struct Shell<'a> {
 }
 
 // Applies the saved theme before the first paint, so a reader who chose dark never sees a light flash.
-const THEME_INIT: &str = "try{var t=localStorage.getItem('yourdocs-theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}";
+const THEME_INIT: &str = "try{var t=localStorage.getItem('cairn-theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}";
 
 // Loads a page into the cache when the pointer rests on a link (and on keyboard focus), for browsers without speculation rules.
 const PREFETCH: &str = "(function(){var seen={};function go(e){var a=e.target.closest&&e.target.closest('a[href]');if(!a||a.origin!==location.origin||a.pathname===location.pathname||seen[a.href])return;seen[a.href]=1;var l=document.createElement('link');l.rel='prefetch';l.href=a.href;document.head.append(l)}document.addEventListener('pointerover',go,{passive:true});document.addEventListener('focusin',go)})()";
 
 // The sidebar keeps its scroll position across pages.
-const NAV_SCROLL: &str = "(function(){var n=document.querySelector('.site-nav');if(!n)return;try{var y=sessionStorage.getItem('yourdocs-nav-scroll');if(y)n.scrollTop=+y;addEventListener('pagehide',function(){sessionStorage.setItem('yourdocs-nav-scroll',n.scrollTop)})}catch(e){}})()";
+const NAV_SCROLL: &str = "(function(){var n=document.querySelector('.site-nav');if(!n)return;try{var y=sessionStorage.getItem('cairn-nav-scroll');if(y)n.scrollTop=+y;addEventListener('pagehide',function(){sessionStorage.setItem('cairn-nav-scroll',n.scrollTop)})}catch(e){}})()";
 
 const SPECULATION_RULES: &str = r#"{"prefetch":[{"where":{"href_matches":"/*"},"eagerness":"moderate"}]}"#;
 

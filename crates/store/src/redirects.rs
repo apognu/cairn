@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
+use cairn_core::{Document, PageId, Redirect, RedirectOrigin, RevisionId};
 use jiff::Timestamp;
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set, sea_query::OnConflict};
-use yourdocs_core::{Document, PageId, Redirect, RedirectOrigin, RevisionId};
 
 use crate::{
   StoreError,

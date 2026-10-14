@@ -1,17 +1,17 @@
 {
-  "name": "@yourdocs/builder",
+  "name": "@cairn/builder",
   "private": true,
   "type": "module",
   "bin": {
-    "yourdocs-build-components": "src/cli.ts"
+    "cairn-build-components": "src/cli.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "bun test"
   },
   "dependencies": {
-    "@yourdocs/components": "workspace:*",
-    "@yourdocs/sdk": "workspace:*",
+    "@cairn/components": "workspace:*",
+    "@cairn/sdk": "workspace:*",
     "react": "19.1.1",
     "react-dom": "19.1.1"
   },

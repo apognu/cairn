@@ -1,5 +1,5 @@
 {
-  "name": "@yourdocs/renderer",
+  "name": "@cairn/renderer",
   "private": true,
   "type": "module",
   "scripts": {
@@ -10,8 +10,8 @@
   "dependencies": {
     "@fontsource-variable/hanken-grotesk": "5.2.8",
     "@fontsource/ibm-plex-mono": "5.2.7",
-    "@yourdocs/components": "workspace:*",
-    "@yourdocs/sdk": "workspace:*",
+    "@cairn/components": "workspace:*",
+    "@cairn/sdk": "workspace:*",
     "lucide-static": "1.48.0",
     "react": "19.1.1",
     "react-dom": "19.1.1"

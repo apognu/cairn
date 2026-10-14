@@ -1,4 +1,4 @@
-import type { DocNode } from "@yourdocs/renderer";
+import type { DocNode } from "@cairn/renderer";
 
 const textOf = (node: DocNode): string => node.text ?? (node.content ?? []).map(textOf).join("");
 

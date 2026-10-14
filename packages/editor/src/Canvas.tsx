@@ -1,5 +1,4 @@
-import { EditorContent, useEditor } from "@tiptap/react";
-import { RenderEnvContext } from "@yourdocs/components";
+import { RenderEnvContext } from "@cairn/components";
 import {
   collectHeadings,
   type DocNode,
@@ -8,7 +7,8 @@ import {
   type RenderContext,
   renderNodes,
   SiteLayout,
-} from "@yourdocs/renderer";
+} from "@cairn/renderer";
+import { EditorContent, useEditor } from "@tiptap/react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { BubbleMenus } from "./BubbleMenus";
 import { buildExtensions } from "./extensions";

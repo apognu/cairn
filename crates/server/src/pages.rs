@@ -3,12 +3,12 @@ use axum::{
   extract::{Path, State},
   http::StatusCode,
 };
+use cairn_auth::CurrentUser;
+use cairn_core::{CoreError, OldUrls, Page, PageId, PageKind, Placement};
 use serde::Deserialize;
 use tracing::instrument;
 use utoipa::ToSchema;
 use utoipa_axum::{router::OpenApiRouter, routes};
-use yourdocs_auth::CurrentUser;
-use yourdocs_core::{CoreError, OldUrls, Page, PageId, PageKind, Placement};
 
 use crate::{
   app::AppState,
@@ -65,7 +65,7 @@ fn placement(before: Option<PageId>) -> Placement {
 #[utoipa::path(get, path = "/api/pages", operation_id = "listPages", responses((status = 200, body = Vec<Page>)))]
 #[instrument(skip_all)]
 async fn list(State(state): State<AppState>) -> Result<Json<Vec<Page>>, AppError> {
-  Ok(Json(yourdocs_store::list_pages(&state.db).await?))
+  Ok(Json(cairn_store::list_pages(&state.db).await?))
 }
 
 /// Creates a page, or an external link when `external_url` is set, under `parent_id` (or at the root).
@@ -79,10 +79,10 @@ async fn list(State(state): State<AppState>) -> Result<Json<Vec<Page>>, AppError
 async fn create(State(state): State<AppState>, CurrentUser(user): CurrentUser, Json(body): Json<CreatePage>) -> Result<(StatusCode, Json<Page>), AppError> {
   let place = placement(body.before);
   let page = match (&body.external_url, body.kind) {
-    (Some(url), _) => yourdocs_store::create_link(&state.db, user, body.parent_id, &body.title, url, place).await?,
-    (None, Some(PageKind::Api)) => yourdocs_store::create_api_page(&state.db, user, body.parent_id, &body.title, place).await?,
+    (Some(url), _) => cairn_store::create_link(&state.db, user, body.parent_id, &body.title, url, place).await?,
+    (None, Some(PageKind::Api)) => cairn_store::create_api_page(&state.db, user, body.parent_id, &body.title, place).await?,
     (None, Some(PageKind::Link)) => return Err(CoreError::Invalid("a link needs a URL".into()).into()),
-    (None, _) => yourdocs_store::create_page(&state.db, user, body.parent_id, &body.title, place).await?,
+    (None, _) => cairn_store::create_page(&state.db, user, body.parent_id, &body.title, place).await?,
   };
 
   Ok((StatusCode::CREATED, Json(page)))
@@ -98,8 +98,8 @@ async fn create(State(state): State<AppState>, CurrentUser(user): CurrentUser, J
 #[instrument(skip_all, fields(page_id = %id))]
 async fn rename(State(state): State<AppState>, Path(id): Path<PageId>, Json(body): Json<RenamePage>) -> Result<Json<Page>, AppError> {
   let page = match &body.external_url {
-    Some(url) => yourdocs_store::edit_link(&state.db, id, &body.title, url).await?,
-    None => yourdocs_store::rename_page(&state.db, id, &body.title, old_urls(body.redirect)).await?,
+    Some(url) => cairn_store::edit_link(&state.db, id, &body.title, url).await?,
+    None => cairn_store::rename_page(&state.db, id, &body.title, old_urls(body.redirect)).await?,
   };
 
   Ok(Json(page))
@@ -114,7 +114,7 @@ async fn rename(State(state): State<AppState>, Path(id): Path<PageId>, Json(body
 ))]
 #[instrument(skip_all, fields(page_id = %id))]
 async fn move_to(State(state): State<AppState>, Path(id): Path<PageId>, Json(body): Json<MovePage>) -> Result<Json<Page>, AppError> {
-  Ok(Json(yourdocs_store::move_page(&state.db, id, body.parent_id, placement(body.before), old_urls(body.redirect)).await?))
+  Ok(Json(cairn_store::move_page(&state.db, id, body.parent_id, placement(body.before), old_urls(body.redirect)).await?))
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -130,7 +130,7 @@ struct HeaderBody {
 ))]
 #[instrument(skip_all, fields(page_id = %id))]
 async fn header(State(state): State<AppState>, Path(id): Path<PageId>, Json(body): Json<HeaderBody>) -> Result<Json<Page>, AppError> {
-  Ok(Json(yourdocs_store::set_in_header(&state.db, id, body.in_header).await?))
+  Ok(Json(cairn_store::set_in_header(&state.db, id, body.in_header).await?))
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -147,21 +147,21 @@ struct DescriptionBody {
 ))]
 #[instrument(skip_all, fields(page_id = %id))]
 async fn describe(State(state): State<AppState>, Path(id): Path<PageId>, Json(body): Json<DescriptionBody>) -> Result<Json<Page>, AppError> {
-  Ok(Json(yourdocs_store::set_description(&state.db, id, &body.description).await?))
+  Ok(Json(cairn_store::set_description(&state.db, id, &body.description).await?))
 }
 
 /// Deletes a page and its descendants.
 #[utoipa::path(delete, path = "/api/pages/{id}", operation_id = "deletePage", params(("id" = PageId, Path)), responses((status = 204), (status = 404, body = ErrorBody)))]
 #[instrument(skip_all, fields(page_id = %id))]
 async fn remove(State(state): State<AppState>, Path(id): Path<PageId>) -> Result<StatusCode, AppError> {
-  yourdocs_store::delete_page(&state.db, id).await?;
+  cairn_store::delete_page(&state.db, id).await?;
 
   Ok(StatusCode::NO_CONTENT)
 }
 
 #[cfg(test)]
 mod tests {
-  use yourdocs_auth::local_user_id;
+  use cairn_auth::local_user_id;
 
   use super::*;
   use crate::app::test_state;

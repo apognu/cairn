@@ -1,4 +1,4 @@
-//! The router of `yourdocs serve`: the editor under `/_editor`, previews under `/_preview/<release>/`, and the public site at `/`.
+//! The router of `cairn serve`: the editor under `/_editor`, previews under `/_preview/<release>/`, and the public site at `/`.
 
 use axum::{
   Router,
@@ -7,8 +7,8 @@ use axum::{
   response::{IntoResponse, Redirect, Response},
   routing::get,
 };
-use yourdocs_core::ReleaseId;
-use yourdocs_publish::PublishTarget;
+use cairn_core::ReleaseId;
+use cairn_publish::PublishTarget;
 
 use crate::{
   app::{AppState, editor_app},
@@ -38,7 +38,7 @@ async fn asset_or_site(State(state): State<AppState>, headers: HeaderMap, Path(n
   if state.auth.authenticate(&headers).await.is_ok() {
     match uploads::serve(State(state.clone()), Path(name)).await {
       Ok(response) => return response,
-      Err(AppError::Core(yourdocs_core::CoreError::NotFound) | AppError::Store(yourdocs_store::StoreError::NotFound)) => {}
+      Err(AppError::Core(cairn_core::CoreError::NotFound) | AppError::Store(cairn_store::StoreError::NotFound)) => {}
       Err(error) => return error.into_response(),
     }
   }
@@ -118,10 +118,10 @@ async fn stay_inside(response: Response, prefix: &str) -> Response {
 #[cfg(test)]
 mod tests {
   use axum::{body::Body, http::Request};
+  use cairn_auth::{AccessRules, Auth, AuthSettings, Oidc, SessionSettings};
+  use cairn_publish::FolderTarget;
   use jiff::SignedDuration;
   use tower::ServiceExt;
-  use yourdocs_auth::{AccessRules, Auth, AuthSettings, Oidc, SessionSettings};
-  use yourdocs_publish::FolderTarget;
 
   use super::*;
   use crate::app::test_state_serving;
@@ -158,7 +158,7 @@ mod tests {
     std::fs::write(release.join("linked/index.html"), "<link href=\"/assets/a.css\"><a href=\"//other.example/\">").unwrap();
     std::os::unix::fs::symlink(std::path::Path::new("releases").join(RELEASE), dir.join("out/site")).unwrap();
 
-    let user = yourdocs_store::upsert_user(&state.db, "https://idp.example", "alice", "alice@example.com", "Alice").await.unwrap();
+    let user = cairn_store::upsert_user(&state.db, "https://idp.example", "alice", "alice@example.com", "Alice").await.unwrap();
     let cookie = state.auth.start_session_for_tests(user.id).await;
 
     (serve_router(state), cookie)

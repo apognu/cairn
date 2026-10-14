@@ -54,7 +54,7 @@ impl PagesTarget {
   pub fn new(config: PagesConfig) -> Result<Self, PublishError> {
     let http = Client::builder()
       .timeout(std::time::Duration::from_secs(120))
-      .user_agent("yourdocs")
+      .user_agent("cairn")
       .build()
       .map_err(|e| PublishError::Other(e.into()))?;
 
@@ -380,7 +380,7 @@ mod tests {
     assert!(PagesTarget::check(&files[..20_000]).is_empty());
   }
 
-  /// Against a real account: `cargo test -p yourdocs-publish live_pages -- --ignored` with the `CLOUDFLARE_*` variables and
+  /// Against a real account: `cargo test -p cairn-publish live_pages -- --ignored` with the `CLOUDFLARE_*` variables and
   /// `CLOUDFLARE_PAGES_PROJECT` set. Deploys a one-page site to the preview branch, never to production.
   #[tokio::test]
   #[ignore = "needs a Cloudflare account"]
@@ -399,7 +399,7 @@ mod tests {
     // `LIVE_SITE_DIR`: a built release folder, to see a whole site go up.
     let files = match std::env::var("LIVE_SITE_DIR") {
       Ok(dir) => crate::cloudflare::walk(std::path::Path::new(&dir), std::path::Path::new(&dir)),
-      Err(_) => vec![file("index.html", "<h1>yourdocs smoke test</h1>"), file("404.html", "not found"), file("_redirects", "/old/ /new/ 301")],
+      Err(_) => vec![file("index.html", "<h1>cairn smoke test</h1>"), file("404.html", "not found"), file("_redirects", "/old/ /new/ 301")],
     };
     let result = target.upload(&files, &Progress::none()).await;
 

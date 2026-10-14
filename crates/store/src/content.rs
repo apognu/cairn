@@ -1,6 +1,6 @@
+use cairn_core::{ContentStore, CoreError, Document, Draft, PageId, PageKind, Revision, RevisionId, UserId, extract_links};
 use jiff::Timestamp;
 use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set, TransactionTrait};
-use yourdocs_core::{ContentStore, CoreError, Document, Draft, PageId, PageKind, Revision, RevisionId, UserId, extract_links};
 
 use crate::{
   StoreError,
@@ -193,7 +193,7 @@ fn into_revision(row: revision::Model) -> Result<Revision, CoreError> {
 
 #[cfg(test)]
 mod tests {
-  use yourdocs_core::{Node, Placement};
+  use cairn_core::{Node, Placement};
 
   use super::*;
   use crate::{connect::test_db, create_page};
@@ -255,7 +255,7 @@ mod tests {
   #[tokio::test]
   async fn saving_a_draft_records_what_it_links_to() {
     use crate::{all_links, tree::create_page};
-    use yourdocs_core::{LinkKind, Placement};
+    use cairn_core::{LinkKind, Placement};
 
     let db = test_db().await;
     let store = SqlContentStore::new(db.clone());

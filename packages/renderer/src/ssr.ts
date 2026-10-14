@@ -1,6 +1,6 @@
 // V8 has no TextEncoder, which React's server build needs at load time.
 import "./polyfills";
-import { type IconNode, registerIcons } from "@yourdocs/components";
+import { type IconNode, registerIcons } from "@cairn/components";
 import icons from "lucide-static/icon-nodes.json";
 import { createElement } from "react";
 import { renderToString } from "react-dom/server.browser";

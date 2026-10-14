@@ -1,4 +1,4 @@
-import { registeredIcons, Icon as SiteIcon } from "@yourdocs/components";
+import { registeredIcons, Icon as SiteIcon } from "@cairn/components";
 import tags from "lucide-static/tags.json";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "./icons";

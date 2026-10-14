@@ -67,7 +67,7 @@ impl Github {
     let http = reqwest::ClientBuilder::new()
       .redirect(reqwest::redirect::Policy::none())
       .timeout(std::time::Duration::from_secs(10))
-      .user_agent("yourdocs")
+      .user_agent("cairn")
       .build()
       .map_err(|e| AuthError::Other(e.into()))?;
 

@@ -25,7 +25,7 @@ jobs:
           push: true
           # Matching tags for the two images: the builder's output only fits the runtime of the same version.
           tags: |
-            yourdocs/${{ matrix.target }}:${{ steps.version.outputs.tag }}
-            yourdocs/${{ matrix.target }}:latest
+            cairn/${{ matrix.target }}:${{ steps.version.outputs.tag }}
+            cairn/${{ matrix.target }}:latest
           cache-from: type=gha,scope=${{ matrix.target }}
           cache-to: type=gha,mode=max,scope=${{ matrix.target }}

@@ -1,7 +1,7 @@
 use std::path::Path;
 
+use cairn_core::{AssetStore, CoreError};
 use object_store::{ObjectStoreExt, PutPayload, local::LocalFileSystem, path::Path as StorePath};
-use yourdocs_core::{AssetStore, CoreError};
 
 /// Assets on the local disk, behind the same `object_store` API an S3 bucket will use.
 pub struct LocalAssetStore {
@@ -61,7 +61,7 @@ mod tests {
 
   #[tokio::test]
   async fn stores_reads_and_deletes_by_key() {
-    let dir = std::env::temp_dir().join(format!("yourdocs-assets-{}", uuid::Uuid::now_v7()));
+    let dir = std::env::temp_dir().join(format!("cairn-assets-{}", uuid::Uuid::now_v7()));
     let store = LocalAssetStore::new(&dir).unwrap();
 
     assert!(!store.exists("originals/abc").await.unwrap());

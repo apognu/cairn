@@ -14,7 +14,7 @@
       "!**/src/api",
       "!**/test-results",
       "!**/.e2e-data",
-      "!**/.yourdocs",
+      "!**/.cairn",
       "!**/.e2e-bundles",
       "!**/.e2e-custom-data",
       "!**/.e2e-api-data",

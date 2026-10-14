@@ -7,7 +7,7 @@ const scalar: Plugin = {
   name: "copy-scalar",
   closeBundle() {
     const from = new URL("./node_modules/@scalar/api-reference/dist/browser/standalone.js", import.meta.url);
-    copyFileSync(from, join(process.env.YOURDOCS_OUT ?? "dist", "scalar.js"));
+    copyFileSync(from, join(process.env.CAIRN_OUT ?? "dist", "scalar.js"));
   },
 };
 
@@ -15,10 +15,10 @@ const scalar: Plugin = {
 export default defineConfig({
   plugins: [scalar],
   // `build-components` points the custom components module at the deployer's folder and builds elsewhere than `dist`.
-  resolve: { alias: process.env.YOURDOCS_CUSTOM ? { "@yourdocs/components/custom": process.env.YOURDOCS_CUSTOM } : {} },
+  resolve: { alias: process.env.CAIRN_CUSTOM ? { "@cairn/components/custom": process.env.CAIRN_CUSTOM } : {} },
   define: { "process.env.NODE_ENV": JSON.stringify("production") },
   build: {
-    outDir: process.env.YOURDOCS_OUT ?? "dist",
+    outDir: process.env.CAIRN_OUT ?? "dist",
     emptyOutDir: false,
     // Fonts become data URLs in site.css: the publish pipeline writes that one file.
     assetsInlineLimit: 100_000,

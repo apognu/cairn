@@ -1,8 +1,8 @@
 //! Custom URLs and aliases: the URL decisions an author can override per page.
 
+use cairn_core::{Inactive, OldUrls, Page, PageId, PageKind, Redirect, RedirectOrigin, page_urls, resolve_redirect};
 use jiff::Timestamp;
 use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
-use yourdocs_core::{Inactive, OldUrls, Page, PageId, PageKind, Redirect, RedirectOrigin, page_urls, resolve_redirect};
 
 use crate::{
   StoreError,
@@ -217,7 +217,7 @@ pub async fn remove_alias(db: &DatabaseConnection, id: PageId, path: &str) -> Re
 
 #[cfg(test)]
 mod tests {
-  use yourdocs_core::{Placement, UserId};
+  use cairn_core::{Placement, UserId};
 
   use super::*;
   use crate::{connect::test_db, tree::create_page};

@@ -1,16 +1,16 @@
-# Runs the bare binary under systemd. Put the binary at /usr/local/bin/yourdocs, Pagefind next to it, and the settings in
-# /etc/yourdocs/env (see docs/DEPLOY.md), then: systemctl enable --now yourdocs
+# Runs the bare binary under systemd. Put the binary at /usr/local/bin/cairn, Pagefind next to it, and the settings in
+# /etc/cairn/env (see docs/DEPLOY.md), then: systemctl enable --now cairn
 [Unit]
-Description=yourdocs documentation server
+Description=cairn documentation server
 After=network-online.target
 Wants=network-online.target
 
 [Service]
-ExecStart=/usr/local/bin/yourdocs serve
-EnvironmentFile=/etc/yourdocs/env
-Environment=DATA_DIR=/var/lib/yourdocs BIND=127.0.0.1:8080 PAGEFIND_BIN=/usr/local/bin/pagefind
+ExecStart=/usr/local/bin/cairn serve
+EnvironmentFile=/etc/cairn/env
+Environment=DATA_DIR=/var/lib/cairn BIND=127.0.0.1:8080 PAGEFIND_BIN=/usr/local/bin/pagefind
 DynamicUser=yes
-StateDirectory=yourdocs
+StateDirectory=cairn
 Restart=on-failure
 RestartSec=3
 

@@ -2,12 +2,12 @@ use axum::{
   Json,
   extract::{Path, State},
 };
+use cairn_auth::CurrentUser;
+use cairn_core::{ContentStore, Document, PageId, RevisionId};
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
 use utoipa::ToSchema;
 use utoipa_axum::{router::OpenApiRouter, routes};
-use yourdocs_auth::CurrentUser;
-use yourdocs_core::{ContentStore, Document, PageId, RevisionId};
 
 use crate::{
   app::AppState,
@@ -40,8 +40,8 @@ struct SaveDraft {
 #[instrument(skip_all, fields(page_id = %id))]
 async fn get_draft(State(state): State<AppState>, Path(id): Path<PageId>) -> Result<Json<DraftResponse>, AppError> {
   // The page must exist even when it has no draft yet.
-  if !yourdocs_store::list_pages(&state.db).await?.iter().any(|p| p.id == id) {
-    return Err(AppError::Core(yourdocs_core::CoreError::NotFound));
+  if !cairn_store::list_pages(&state.db).await?.iter().any(|p| p.id == id) {
+    return Err(AppError::Core(cairn_core::CoreError::NotFound));
   }
 
   let response = match state.content.draft(id).await? {
@@ -81,8 +81,8 @@ async fn save_draft(State(state): State<AppState>, CurrentUser(user): CurrentUse
 
 #[cfg(test)]
 mod tests {
-  use yourdocs_auth::local_user_id;
-  use yourdocs_core::Placement;
+  use cairn_auth::local_user_id;
+  use cairn_core::Placement;
 
   use super::*;
   use crate::app::test_state;
@@ -90,7 +90,7 @@ mod tests {
   #[tokio::test]
   async fn a_stale_save_is_a_conflict() {
     let state = test_state().await;
-    let page = yourdocs_store::create_page(&state.db, local_user_id(), None, "A", Placement::Last).await.unwrap().id;
+    let page = cairn_store::create_page(&state.db, local_user_id(), None, "A", Placement::Last).await.unwrap().id;
     let save = |base| SaveDraft {
       doc: Document::empty(),
       base_revision_id: base,
@@ -102,6 +102,6 @@ mod tests {
       .unwrap();
 
     let stale = save_draft(State(state), CurrentUser(local_user_id()), Path(page), Json(save(first.base_revision_id))).await;
-    assert!(matches!(stale, Err(AppError::Core(yourdocs_core::CoreError::Conflict { .. }))));
+    assert!(matches!(stale, Err(AppError::Core(cairn_core::CoreError::Conflict { .. }))));
   }
 }

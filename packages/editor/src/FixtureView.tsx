@@ -1,4 +1,4 @@
-import type { DocNode } from "@yourdocs/renderer";
+import type { DocNode } from "@cairn/renderer";
 import { Canvas } from "./Canvas";
 
 /**

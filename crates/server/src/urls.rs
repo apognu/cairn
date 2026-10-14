@@ -2,11 +2,11 @@ use axum::{
   Json,
   extract::{Path, Query, State},
 };
+use cairn_core::{OldUrls, PageId, RedirectOrigin, page_urls};
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
 use utoipa::ToSchema;
 use utoipa_axum::{router::OpenApiRouter, routes};
-use yourdocs_core::{OldUrls, PageId, RedirectOrigin, page_urls};
 
 use crate::{
   app::AppState,
@@ -56,7 +56,7 @@ struct AliasPath {
 }
 
 async fn describe(state: &AppState, id: PageId) -> Result<PageUrl, AppError> {
-  let mut pages = yourdocs_store::list_pages(&state.db).await?;
+  let mut pages = cairn_store::list_pages(&state.db).await?;
   let page = pages.iter().find(|p| p.id == id).ok_or(AppError::NotFound)?;
   let custom_url = page.path_override.clone();
   let url = page_urls(&pages).get(&id).cloned().ok_or(AppError::NotFound)?;
@@ -66,7 +66,7 @@ async fn describe(state: &AppState, id: PageId) -> Result<PageUrl, AppError> {
   }
   let derived_url = page_urls(&pages).get(&id).cloned().unwrap_or_else(|| url.clone());
 
-  let aliases = yourdocs_store::list_aliases(&state.db, id)
+  let aliases = cairn_store::list_aliases(&state.db, id)
     .await?
     .into_iter()
     .map(|r| Alias {
@@ -104,7 +104,7 @@ async fn get_url(State(state): State<AppState>, Path(id): Path<PageId>) -> Resul
 #[instrument(skip_all, fields(page_id = %id))]
 async fn set_url(State(state): State<AppState>, Path(id): Path<PageId>, Json(body): Json<SetUrl>) -> Result<Json<PageUrl>, AppError> {
   let old = if body.redirect.unwrap_or(true) { OldUrls::Redirect } else { OldUrls::Forget };
-  yourdocs_store::set_custom_url(&state.db, id, body.custom_url.as_deref(), old).await?;
+  cairn_store::set_custom_url(&state.db, id, body.custom_url.as_deref(), old).await?;
 
   Ok(Json(describe(&state, id).await?))
 }
@@ -118,7 +118,7 @@ async fn set_url(State(state): State<AppState>, Path(id): Path<PageId>, Json(bod
 ))]
 #[instrument(skip_all, fields(page_id = %id))]
 async fn add_alias(State(state): State<AppState>, Path(id): Path<PageId>, Json(body): Json<NewAlias>) -> Result<Json<PageUrl>, AppError> {
-  yourdocs_store::add_alias(&state.db, id, &body.path).await?;
+  cairn_store::add_alias(&state.db, id, &body.path).await?;
 
   Ok(Json(describe(&state, id).await?))
 }
@@ -130,7 +130,7 @@ async fn add_alias(State(state): State<AppState>, Path(id): Path<PageId>, Json(b
 ))]
 #[instrument(skip_all, fields(page_id = %id))]
 async fn remove_alias(State(state): State<AppState>, Path(id): Path<PageId>, Query(query): Query<AliasPath>) -> Result<Json<PageUrl>, AppError> {
-  yourdocs_store::remove_alias(&state.db, id, &query.path).await?;
+  cairn_store::remove_alias(&state.db, id, &query.path).await?;
 
   Ok(Json(describe(&state, id).await?))
 }

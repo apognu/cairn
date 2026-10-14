@@ -48,13 +48,13 @@ test("a custom component appears in the slash menu, renders in the editor and on
 });
 
 test("bundles built with another SDK version are refused at startup", () => {
-  const dir = mkdtempSync(join(tmpdir(), "yourdocs-sdk-"));
+  const dir = mkdtempSync(join(tmpdir(), "cairn-sdk-"));
   cpSync(".e2e-bundles", dir, { recursive: true });
   const manifest = JSON.parse(readFileSync(join(dir, "manifest.json"), "utf8"));
   writeFileSync(join(dir, "manifest.json"), JSON.stringify({ ...manifest, sdk_version: manifest.sdk_version + 1 }));
 
   const run = spawnSync(
-    "../../target/debug/yourdocs",
+    "../../target/debug/cairn",
     ["dev", "--data-dir", join(dir, "data"), "--bind", "127.0.0.1:3210", "--site-bind", "127.0.0.1:3211"],
     {
       env: { ...process.env, BUNDLES_DIR: dir },

@@ -3,12 +3,12 @@ use axum::{
   extract::{Query, State},
   http::StatusCode,
 };
+use cairn_core::{Inactive, PageId, Redirect, RedirectOrigin, resolve_redirect};
+use cairn_store::RedirectTarget;
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
 use utoipa::ToSchema;
 use utoipa_axum::{router::OpenApiRouter, routes};
-use yourdocs_core::{Inactive, PageId, Redirect, RedirectOrigin, resolve_redirect};
-use yourdocs_store::RedirectTarget;
 
 use crate::{
   app::AppState,
@@ -48,8 +48,8 @@ struct RedirectPath {
 }
 
 async fn entries(state: &AppState) -> Result<Vec<RedirectEntry>, AppError> {
-  let pages = yourdocs_store::list_pages(&state.db).await?;
-  let redirects: Vec<Redirect> = yourdocs_store::list_redirects(&state.db).await?;
+  let pages = cairn_store::list_pages(&state.db).await?;
+  let redirects: Vec<Redirect> = cairn_store::list_redirects(&state.db).await?;
 
   Ok(
     redirects
@@ -88,7 +88,7 @@ async fn add(State(state): State<AppState>, Json(body): Json<NewRedirect>) -> Re
     (None, Some(url)) => RedirectTarget::Url(url),
     _ => return Err(AppError::Invalid(vec!["give either a page or a URL to redirect to".into()])),
   };
-  yourdocs_store::add_redirect(&state.db, &body.from_path, target).await?;
+  cairn_store::add_redirect(&state.db, &body.from_path, target).await?;
 
   Ok((StatusCode::CREATED, Json(entries(&state).await?)))
 }
@@ -100,7 +100,7 @@ async fn add(State(state): State<AppState>, Json(body): Json<NewRedirect>) -> Re
 ))]
 #[instrument(skip_all)]
 async fn remove(State(state): State<AppState>, Query(query): Query<RedirectPath>) -> Result<Json<Vec<RedirectEntry>>, AppError> {
-  yourdocs_store::remove_redirect(&state.db, &query.path).await?;
+  cairn_store::remove_redirect(&state.db, &query.path).await?;
 
   Ok(Json(entries(&state).await?))
 }

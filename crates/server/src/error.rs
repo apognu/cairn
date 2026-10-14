@@ -3,12 +3,12 @@ use axum::{
   http::StatusCode,
   response::{IntoResponse, Response},
 };
+use cairn_core::CoreError;
+use cairn_publish::PublishError;
+use cairn_render::RenderError;
+use cairn_store::StoreError;
 use serde::Serialize;
 use utoipa::ToSchema;
-use yourdocs_core::CoreError;
-use yourdocs_publish::PublishError;
-use yourdocs_render::RenderError;
-use yourdocs_store::StoreError;
 
 /// The body of every error response.
 #[derive(Serialize, ToSchema)]
@@ -32,7 +32,7 @@ pub enum AppError {
   #[error(transparent)]
   Publish(#[from] PublishError),
   #[error(transparent)]
-  Auth(#[from] yourdocs_auth::AuthError),
+  Auth(#[from] cairn_auth::AuthError),
 }
 
 impl IntoResponse for AppError {
@@ -63,9 +63,9 @@ impl IntoResponse for AppError {
         RenderError::Timeout => (StatusCode::GATEWAY_TIMEOUT, None, vec![]),
         RenderError::Other(_) => (StatusCode::INTERNAL_SERVER_ERROR, None, vec![]),
       },
-      AppError::Auth(yourdocs_auth::AuthError::Unauthorized) => (StatusCode::UNAUTHORIZED, None, vec![]),
-      AppError::Auth(yourdocs_auth::AuthError::Forbidden(reason)) => (StatusCode::FORBIDDEN, Some(reason.clone()), vec![]),
-      AppError::Auth(yourdocs_auth::AuthError::Store(yourdocs_store::StoreError::Invalid(reason))) => (StatusCode::UNPROCESSABLE_ENTITY, Some(reason.clone()), vec![reason.clone()]),
+      AppError::Auth(cairn_auth::AuthError::Unauthorized) => (StatusCode::UNAUTHORIZED, None, vec![]),
+      AppError::Auth(cairn_auth::AuthError::Forbidden(reason)) => (StatusCode::FORBIDDEN, Some(reason.clone()), vec![]),
+      AppError::Auth(cairn_auth::AuthError::Store(cairn_store::StoreError::Invalid(reason))) => (StatusCode::UNPROCESSABLE_ENTITY, Some(reason.clone()), vec![reason.clone()]),
       AppError::Render(_) | AppError::Store(_) | AppError::Core(_) | AppError::Publish(_) | AppError::Auth(_) => (StatusCode::INTERNAL_SERVER_ERROR, None, vec![]),
     };
 

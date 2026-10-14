@@ -1,4 +1,4 @@
-import { type IconNode, registerIcons } from "@yourdocs/components";
+import { type IconNode, registerIcons } from "@cairn/components";
 import { createRoot, hydrateRoot } from "react-dom/client";
 import { Page } from "./page";
 import type { RenderInput } from "./types";

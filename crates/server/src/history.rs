@@ -2,12 +2,12 @@ use axum::{
   Json,
   extract::{Path, State},
 };
+use cairn_auth::CurrentUser;
+use cairn_core::{ContentStore, Document, Page, PageId, RevisionId, UserId};
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
 use utoipa::ToSchema;
 use utoipa_axum::{router::OpenApiRouter, routes};
-use yourdocs_auth::CurrentUser;
-use yourdocs_core::{ContentStore, Document, Page, PageId, RevisionId, UserId};
 
 use crate::{
   app::AppState,
@@ -40,12 +40,12 @@ struct Version {
 #[utoipa::path(get, path = "/api/pages/{id}/history", operation_id = "getHistory", params(("id" = PageId, Path)), responses((status = 200, body = Vec<Version>), (status = 404, body = ErrorBody)))]
 #[instrument(skip_all, fields(page_id = %id))]
 async fn history(State(state): State<AppState>, Path(id): Path<PageId>) -> Result<Json<Vec<Version>>, AppError> {
-  if !yourdocs_store::list_pages(&state.db).await?.iter().any(|p| p.id == id) {
+  if !cairn_store::list_pages(&state.db).await?.iter().any(|p| p.id == id) {
     return Err(AppError::NotFound);
   }
 
   Ok(Json(
-    yourdocs_store::page_history(&state.db, id)
+    cairn_store::page_history(&state.db, id)
       .await?
       .into_iter()
       .map(|h| Version {
@@ -127,7 +127,7 @@ struct TrashedPage {
 #[instrument(skip_all)]
 async fn trash(State(state): State<AppState>) -> Result<Json<Vec<TrashedPage>>, AppError> {
   Ok(Json(
-    yourdocs_store::list_trash(&state.db)
+    cairn_store::list_trash(&state.db)
       .await?
       .into_iter()
       .map(|t| TrashedPage {
@@ -152,15 +152,15 @@ struct Restored {
 #[utoipa::path(post, path = "/api/trash/{id}/restore", operation_id = "restoreFromTrash", params(("id" = PageId, Path)), responses((status = 200, body = Restored), (status = 404, body = ErrorBody)))]
 #[instrument(skip_all, fields(page_id = %id))]
 async fn restore_from_trash(State(state): State<AppState>, Path(id): Path<PageId>) -> Result<Json<Restored>, AppError> {
-  let (page, old_place_kept) = yourdocs_store::restore_page(&state.db, id).await?;
+  let (page, old_place_kept) = cairn_store::restore_page(&state.db, id).await?;
 
   Ok(Json(Restored { page, old_place_kept }))
 }
 
 #[cfg(test)]
 mod tests {
-  use yourdocs_auth::local_user_id;
-  use yourdocs_core::Placement;
+  use cairn_auth::local_user_id;
+  use cairn_core::Placement;
 
   use super::*;
   use crate::app::test_state;
@@ -169,7 +169,7 @@ mod tests {
   async fn restoring_a_version_makes_a_new_draft_and_keeps_the_replaced_one() {
     let state = test_state().await;
     let user = local_user_id();
-    let page = yourdocs_store::create_page(&state.db, user, None, "Page", Placement::Last).await.unwrap();
+    let page = cairn_store::create_page(&state.db, user, None, "Page", Placement::Last).await.unwrap();
     let doc = |text: &str| -> Document { serde_json::from_value(serde_json::json!({ "type": "doc", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": text }] }] })).unwrap() };
 
     let first = state.content.save_draft(page.id, doc("one"), None, user).await.unwrap();

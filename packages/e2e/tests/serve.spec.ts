@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { nameNewPage, publishAll, quiet } from "./helpers";
 
-// `yourdocs serve` on :3400 against a local Dex (`examples/dex`, user alice@example.com / password): the editor under /_editor behind a
+// `cairn serve` on :3400 against a local Dex (`examples/dex`, user alice@example.com / password): the editor under /_editor behind a
 // sign-in, and the published site at the root of the same address.
 const SERVER = "http://127.0.0.1:3400";
 

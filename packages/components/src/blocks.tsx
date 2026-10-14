@@ -1,4 +1,4 @@
-import { defineComponent, icon, link, z } from "@yourdocs/sdk";
+import { defineComponent, icon, link, z } from "@cairn/sdk";
 import { FeatureCard } from "./features";
 import { upgradeIconNames } from "./icons";
 

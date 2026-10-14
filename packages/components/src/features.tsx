@@ -1,4 +1,4 @@
-import { date, defineComponent, Editable, icon, link, z } from "@yourdocs/sdk";
+import { date, defineComponent, Editable, icon, link, z } from "@cairn/sdk";
 import { useEffect, useId, useState } from "react";
 import { useRenderEnv } from "./env";
 import { Icon, upgradeIconNames } from "./icons";

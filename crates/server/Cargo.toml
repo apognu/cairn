@@ -1,5 +1,5 @@
 [package]
-name = "yourdocs-server"
+name = "cairn-server"
 version = "0.0.0"
 edition.workspace = true
 license.workspace = true
@@ -28,15 +28,15 @@ tracing = "0.1"
 utoipa = "6.0.0"
 utoipa-axum = "0.3.0"
 uuid = { version = "1.28.0", features = ["v7"] }
-yourdocs-assets = { version = "0.0.0", path = "../assets" }
-yourdocs-auth = { version = "0.0.0", path = "../auth" }
-yourdocs-core = { version = "0.0.0", path = "../core", features = ["openapi"] }
-yourdocs-publish = { version = "0.0.0", path = "../publish" }
-yourdocs-render = { path = "../render" }
-yourdocs-store = { version = "0.0.0", path = "../store" }
+cairn-assets = { version = "0.0.0", path = "../assets" }
+cairn-auth = { version = "0.0.0", path = "../auth" }
+cairn-core = { version = "0.0.0", path = "../core", features = ["openapi"] }
+cairn-publish = { version = "0.0.0", path = "../publish" }
+cairn-render = { path = "../render" }
+cairn-store = { version = "0.0.0", path = "../store" }
 
 [dev-dependencies]
-yourdocs-store = { version = "0.0.0", path = "../store", features = ["testing"] }
-yourdocs-auth = { version = "0.0.0", path = "../auth", features = ["testing"] }
+cairn-store = { version = "0.0.0", path = "../store", features = ["testing"] }
+cairn-auth = { version = "0.0.0", path = "../auth", features = ["testing"] }
 # Already in the tree through axum; `oneshot` drives a router in tests.
 tower = { version = "0.5.3", features = ["util"] }

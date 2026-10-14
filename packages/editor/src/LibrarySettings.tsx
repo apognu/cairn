@@ -1,4 +1,4 @@
-import type { DocNode } from "@yourdocs/renderer";
+import type { DocNode } from "@cairn/renderer";
 import { useId, useRef, useState } from "react";
 import { Canvas } from "./Canvas";
 import { useDeleteEntry, useLibrary, useSaveSnippet, useSaveTerm, useSaveVariable } from "./queries";

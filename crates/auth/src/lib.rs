@@ -1,6 +1,6 @@
 //! Who is making a request: the OIDC login, and the `CurrentUser` extractor every writing handler takes.
 //!
-//! `yourdocs dev` runs every request as the built-in local user; `serve` requires a signed-in one.
+//! `cairn dev` runs every request as the built-in local user; `serve` requires a signed-in one.
 
 #![forbid(unsafe_code)]
 
@@ -16,8 +16,8 @@ use axum::{
   http::StatusCode,
   response::{IntoResponse, Response},
 };
-use yourdocs_core::UserId;
-use yourdocs_store::StoreError;
+use cairn_core::UserId;
+use cairn_store::StoreError;
 
 pub use crate::{
   access::AccessRules,
@@ -27,7 +27,7 @@ pub use crate::{
   session::SessionSettings,
 };
 
-/// The user every request runs as in `yourdocs dev`. A fixed value so rows written in earlier sessions still point at it.
+/// The user every request runs as in `cairn dev`. A fixed value so rows written in earlier sessions still point at it.
 pub fn local_user_id() -> UserId {
   UserId::from(uuid::Uuid::from_u128(1))
 }

@@ -13,9 +13,9 @@ use axum::{
   response::{IntoResponse, Response, Sse, sse::Event as SseEvent},
   routing::get,
 };
+use cairn_core::{Broadcast, Event, LocalBroadcast};
 use futures_util::{Stream, StreamExt};
 use tokio_stream::wrappers::BroadcastStream;
-use yourdocs_core::{Broadcast, Event, LocalBroadcast};
 
 #[derive(Clone)]
 struct SiteState {
@@ -157,7 +157,7 @@ mod tests {
 
   #[tokio::test]
   async fn the_slash_redirect_stays_on_the_site() {
-    let dir = std::env::temp_dir().join(format!("yourdocs-site-{}", uuid::Uuid::now_v7()));
+    let dir = std::env::temp_dir().join(format!("cairn-site-{}", uuid::Uuid::now_v7()));
     std::fs::create_dir_all(dir.join("guide")).unwrap();
     std::fs::write(dir.join("guide/index.html"), "guide").unwrap();
 

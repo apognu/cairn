@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
+use cairn_core::Operation;
 use serde_json::{Map, Value, json};
-use yourdocs_core::Operation;
 
 use crate::ApiSpecError;
 

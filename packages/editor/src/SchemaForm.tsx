@@ -1,4 +1,4 @@
-import type { JsonSchema } from "@yourdocs/sdk";
+import type { JsonSchema } from "@cairn/sdk";
 import { useId, useState } from "react";
 import { IconPicker } from "./IconPicker";
 import { PagePicker } from "./PagePicker";

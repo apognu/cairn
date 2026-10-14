@@ -1,4 +1,4 @@
-import { IconUsageContext, RenderEnvContext, UsedIcons } from "@yourdocs/components";
+import { IconUsageContext, RenderEnvContext, UsedIcons } from "@cairn/components";
 import { ApiReference } from "./ApiReference";
 import { collectHeadings } from "./headings";
 import { SiteLayout } from "./layout";

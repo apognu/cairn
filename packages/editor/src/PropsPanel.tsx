@@ -1,8 +1,8 @@
+import { componentsByName } from "@cairn/components";
+import { propsSchema } from "@cairn/sdk";
 import type { Editor } from "@tiptap/core";
 import { NodeSelection } from "@tiptap/pm/state";
 import { useEditorState } from "@tiptap/react";
-import { componentsByName } from "@yourdocs/components";
-import { propsSchema } from "@yourdocs/sdk";
 import { useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { CodeBlockFields } from "./CodeBlockFields";

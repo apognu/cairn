@@ -1,4 +1,4 @@
-import type { DocNode } from "@yourdocs/renderer";
+import type { DocNode } from "@cairn/renderer";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { api } from "./api/client";
 import { unwrap } from "./api/unwrap";

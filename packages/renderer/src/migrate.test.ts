@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { defineComponent, z } from "@yourdocs/sdk";
+import { defineComponent, z } from "@cairn/sdk";
 import { migrateDoc } from "./migrate";
 import type { DocNode } from "./types";
 

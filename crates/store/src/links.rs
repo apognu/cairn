@@ -1,5 +1,5 @@
+use cairn_core::{LinkKind, PageId, PageLink};
 use sea_orm::{ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
-use yourdocs_core::{LinkKind, PageId, PageLink};
 
 use crate::{
   StoreError,

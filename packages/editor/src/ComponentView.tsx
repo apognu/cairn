@@ -1,6 +1,6 @@
+import { componentsByName } from "@cairn/components";
+import { EditableScopeContext, setPath } from "@cairn/sdk";
 import { type NodeViewProps, NodeViewWrapper } from "@tiptap/react";
-import { componentsByName } from "@yourdocs/components";
-import { EditableScopeContext, setPath } from "@yourdocs/sdk";
 
 /** Draws an atom component with the very component the published page uses. */
 export function ComponentView({ node, updateAttributes }: NodeViewProps) {

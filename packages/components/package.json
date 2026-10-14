@@ -1,5 +1,5 @@
 {
-  "name": "@yourdocs/components",
+  "name": "@cairn/components",
   "private": true,
   "type": "module",
   "main": "src/index.ts",
@@ -8,7 +8,7 @@
   },
   "dependencies": {
     "react": "19.1.1",
-    "@yourdocs/sdk": "workspace:*"
+    "@cairn/sdk": "workspace:*"
   },
   "devDependencies": {
     "@types/react": "19.1.12"

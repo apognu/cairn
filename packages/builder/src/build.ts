@@ -2,14 +2,14 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { propsSchema, SDK_VERSION } from "@yourdocs/sdk";
+import { propsSchema, SDK_VERSION } from "@cairn/sdk";
 import { testRender } from "./check";
 import { BuildError, type Collected, collect } from "./collect";
 
 const PACKAGES = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const WORKDIR = resolve(PACKAGES, "builder/.work");
 
-/** The module `@yourdocs/components/custom` becomes: the deployer's components and slots, imported from the copy of their folder. */
+/** The module `@cairn/components/custom` becomes: the deployer's components and slots, imported from the copy of their folder. */
 function customModule(found: Collected): string {
   const imports = [...found.components.map((c) => c.file), ...found.slots.map((s) => s.file)].map(
     (file, i) => `import m${i} from "./components/${file}";`,
@@ -18,7 +18,7 @@ function customModule(found: Collected): string {
   const slots = found.slots.map((s, i) => `${s.definition.name}: m${found.components.length + i}`);
 
   return [
-    `import type { AnyComponent, SlotDefinition, SlotName } from "@yourdocs/sdk";`,
+    `import type { AnyComponent, SlotDefinition, SlotName } from "@cairn/sdk";`,
     ...imports,
     `export const customComponents = [${components.join(", ")}] as unknown as AnyComponent[];`,
     `export const customSlots = { ${slots.join(", ")} } as Partial<Record<SlotName, SlotDefinition>>;`,
@@ -29,7 +29,7 @@ function customModule(found: Collected): string {
 function vite(pkg: string, config: string, custom: string, out: string): void {
   const run = spawnSync("bunx", ["vite", "build", "--config", config, "--logLevel", "warn"], {
     cwd: join(PACKAGES, pkg),
-    env: { ...process.env, NODE_ENV: "production", YOURDOCS_CUSTOM: custom, YOURDOCS_OUT: out },
+    env: { ...process.env, NODE_ENV: "production", CAIRN_CUSTOM: custom, CAIRN_OUT: out },
     encoding: "utf8",
   });
 

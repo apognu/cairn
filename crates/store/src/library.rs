@@ -1,8 +1,8 @@
 use std::collections::{HashMap, HashSet};
 
+use cairn_core::{Document, EntryKind, Library, PageId, UserId, entry_refs, snippet_cycle, term_refs};
 use jiff::Timestamp;
 use sea_orm::{ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter, Set, sea_query::OnConflict};
-use yourdocs_core::{Document, EntryKind, Library, PageId, UserId, entry_refs, snippet_cycle, term_refs};
 
 use crate::{
   StoreError,
@@ -247,7 +247,7 @@ mod tests {
 
   #[tokio::test]
   async fn an_entry_in_use_cannot_be_deleted_whatever_its_kind() {
-    use yourdocs_core::{ContentStore, Placement};
+    use cairn_core::{ContentStore, Placement};
 
     use crate::{SqlContentStore, tree::create_page};
 

@@ -1,5 +1,5 @@
 import { runInNewContext } from "node:vm";
-import { sampleProps } from "@yourdocs/sdk";
+import { sampleProps } from "@cairn/sdk";
 import { BuildError, type Collected } from "./collect";
 
 type Ssr = { render: (json: string) => string };

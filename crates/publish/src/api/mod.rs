@@ -8,7 +8,7 @@ pub(crate) mod testing;
 pub use fetch::{ApiHosts, Fetched, SourceFetcher};
 pub use resolve::{ResolvedSpec, resolve};
 
-use yourdocs_core::{ApiConfig, Operation, PageId, ResolvedSource};
+use cairn_core::{ApiConfig, Operation, PageId, ResolvedSource};
 
 /// An API page ready to be rendered: its merged spec and what the release records about it.
 #[derive(Debug, Clone)]

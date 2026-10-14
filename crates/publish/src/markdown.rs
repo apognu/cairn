@@ -2,8 +2,8 @@
 
 use std::collections::HashMap;
 
+use cairn_core::{Document, Mark, Node};
 use serde_json::{Map, Value};
-use yourdocs_core::{Document, Mark, Node};
 
 /// What the converter needs to know about the rest of the site.
 pub(crate) struct Site<'a> {

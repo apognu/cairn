@@ -1,4 +1,4 @@
-import { defineComponent, Editable, link, z } from "@yourdocs/sdk";
+import { defineComponent, Editable, link, z } from "@cairn/sdk";
 import "./note.css";
 
 export default defineComponent({
