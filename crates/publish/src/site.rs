@@ -38,6 +38,23 @@ pub(crate) fn nav_tree(pages: &[Page], urls: &HashMap<PageId, String>, betas: &H
   children(pages, urls, betas, root, root)
 }
 
+/// Where the back link at the top of a section's own sidebar leads, as `{ title, href }`: the page the section sits under, or for a
+/// section at the top of the tree, the main documentation (its first page, titled with the site name). `None` when `current` is not in
+/// such a sidebar, or the main documentation has no page to go back to.
+pub(crate) fn section_back(pages: &[Page], urls: &HashMap<PageId, String>, current: PageId, site_name: &str) -> Option<Value> {
+  fn first_page(nodes: &[Value]) -> Option<&Value> {
+    nodes.iter().find_map(|n| if n["external"] == true { first_page(n["children"].as_array()?) } else { Some(&n["href"]) })
+  }
+
+  let section = sidebar_root(pages, Some(current))?;
+  let parent = pages.iter().find(|p| p.id == section)?.parent_id;
+
+  match parent.and_then(|id| pages.iter().find(|p| p.id == id)) {
+    Some(parent) => Some(json!({ "title": parent.title, "href": urls.get(&parent.id)? })),
+    None => Some(json!({ "title": site_name, "href": first_page(&nav_tree(pages, urls, &HashSet::new(), None))? })),
+  }
+}
+
 /// The pages above `page`, outermost first, as `{ title, href }` for the breadcrumb trail. An ancestor without a URL is skipped.
 pub(crate) fn breadcrumbs(pages: &[Page], urls: &HashMap<PageId, String>, page: PageId) -> Vec<Value> {
   let mut trail = Vec::new();
@@ -181,6 +198,38 @@ mod tests {
     assert_eq!(previous_next(&nav, faq.id).1, None);
 
     assert_eq!(markdown_path("/guide/install/"), "guide/install.md");
+  }
+
+  #[test]
+  fn a_section_sidebar_links_back_to_where_the_section_sits() {
+    let promoted = |p: Page| Page {
+      in_header: true,
+      header_position: Some("80".into()),
+      ..p
+    };
+    let guide = page("guide", None);
+    let api = promoted(page("api", None));
+    let endpoints = page("endpoints", Some(api.id));
+    let sdks = promoted(page("sdks", Some(guide.id)));
+    let python = page("python", Some(sdks.id));
+    let lonely = promoted(page("changelog", None));
+    let pages = vec![guide.clone(), api.clone(), endpoints.clone(), sdks.clone(), python.clone(), lonely.clone()];
+    let urls = page_urls(&pages);
+    let back = |id: PageId| section_back(&pages, &urls, id, "Docs").map(|b| (b["title"].as_str().unwrap().to_string(), b["href"].as_str().unwrap().to_string()));
+
+    let cases = [
+      // A top-level section goes back to the main documentation, named after the site.
+      (endpoints.id, Some(("Docs", "/guide/"))),
+      (api.id, Some(("Docs", "/guide/"))),
+      // A section under a page goes back to that page.
+      (python.id, Some(("guide", "/guide/"))),
+      // Pages of the main documentation, and a promoted page without subpages, have the whole sidebar already.
+      (guide.id, None),
+      (lonely.id, None),
+    ];
+    for (id, expected) in cases {
+      assert_eq!(back(id), expected.map(|(t, h)| (t.to_string(), h.to_string())), "{id}");
+    }
   }
 
   #[test]

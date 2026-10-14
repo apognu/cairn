@@ -61,6 +61,8 @@ export type RenderContext = {
   header: { id: string; title: string; href: string }[];
   /** The ID of the header entry the page belongs to, if any. */
   section?: string | null;
+  /** In a section's own sidebar: where the link at its top goes back to (the page above the section, or the main documentation). */
+  sectionBack?: { title: string; href: string } | null;
   /** Page ID to URL, for links stored by ID. */
   urls: Record<string, string>;
   /** Page ID to the title and description other pages show about it, for link cards. */

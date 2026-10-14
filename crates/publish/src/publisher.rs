@@ -28,7 +28,7 @@ use crate::{
   glossary::glossary_doc,
   markdown::{Site, page_markdown},
   search,
-  site::{breadcrumbs, header_items, image_asset_ids, markdown_path, nav_tree, output_path, previous_next},
+  site::{breadcrumbs, header_items, image_asset_ids, markdown_path, nav_tree, output_path, previous_next, section_back},
   target::{Deployed, OutputFile, Progress, PublishTarget},
 };
 
@@ -519,6 +519,7 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
             "markdown": format!("/{}", markdown_path(&urls[&source.page.id])),
             "header": header,
             "section": header_section(tree_pages, source.page.id),
+            "sectionBack": section_back(tree_pages, &urls, source.page.id, &site_name),
             "urls": only(&url_values, &referenced),
             "pages": only(&page_info, &referenced),
             "assets": source_assets(&source.doc, &asset_meta),
@@ -1206,13 +1207,18 @@ mod tests {
     f.publisher.publish(user).await.unwrap();
 
     let read = |path: &str| std::fs::read_to_string(f.dir.join("out/site").join(path)).unwrap();
-    // The page list only: on narrow screens the sidebar also repeats the header sections above it.
+    // The page list only: on narrow screens the sidebar also repeats the header sections above it, and a section's sidebar opens
+    // with a link back to the rest of the site.
     let sidebar = |html: &str| {
       let start = html.find("class=\"site-nav\"").unwrap();
       let end = html[start..].find("</nav>").unwrap();
       let nav = &html[start..start + end];
-      match nav.find("class=\"site-nav-sections\"") {
-        Some(sections) => nav[sections + nav[sections..].find("</ul>").unwrap()..].to_string(),
+      let nav = match nav.find("class=\"site-nav-sections\"") {
+        Some(sections) => &nav[sections + nav[sections..].find("</ul>").unwrap()..],
+        None => nav,
+      };
+      match nav.find("class=\"site-nav-back\"") {
+        Some(back) => nav[back + nav[back..].find("</a>").unwrap()..].to_string(),
         None => nav.to_string(),
       }
     };
@@ -1226,6 +1232,9 @@ mod tests {
       assert!(html.contains("aria-label=\"Sections\"") && html.contains("href=\"/guides/\""));
     }
     assert!(install.contains("aria-current=\"page\">Guides"), "the section is marked in the header");
+    // The section's sidebar leads back to the rest of the site, named after it; the rest of the site needs no way back.
+    assert!(install.contains("class=\"site-nav-back\" href=\"/about/\""), "{install}");
+    assert!(!about.contains("site-nav-back"));
   }
 
   #[tokio::test]

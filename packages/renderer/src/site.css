@@ -167,10 +167,29 @@ a {
 
 .site-nav a {
   display: block;
+  margin: 2px 0;
   padding: 4px 10px;
   border-radius: 6px;
   color: var(--text-body);
   text-decoration: none;
+}
+
+/* Leaves a section's own sidebar for the rest of the site: above the tree, set apart from its pages. */
+.site-nav a.site-nav-back {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.site-nav a.site-nav-back:hover {
+  background: none;
+  color: var(--text-body);
 }
 
 .site-nav a:has(.nav-badge) {

@@ -381,6 +381,25 @@ export function SiteLayout({
                 ))}
               </ul>
             )}
+            {context.sectionBack && (
+              // A section's sidebar lists only that section: this is the way back to the rest of the site.
+              <a className="site-nav-back" href={context.sectionBack.href}>
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M15 18l-6-6 6-6" />
+                </svg>
+                {context.sectionBack.title}
+              </a>
+            )}
             <NavList nodes={context.nav} currentId={context.page.id} />
             <Slot name="SidebarFooter" slots={slots} context={context} />
           </nav>

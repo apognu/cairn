@@ -67,11 +67,14 @@ test("promoting a page with children limits the published sidebar to that branch
   await publishAll(page);
 
   const html = (path: string) => readFileSync(`.e2e-data/site/${path}/index.html`, "utf8");
-  // The page list: on narrow screens the sidebar also repeats the header sections above it, in a list of their own.
+  // The page list: on narrow screens the sidebar also repeats the header sections above it, in a list of their own, and a section's
+  // sidebar opens with a link back to the rest of the site.
   const sidebar = (text: string) => {
-    const nav = text.slice(text.indexOf('class="site-nav"'), text.indexOf("</nav>", text.indexOf('class="site-nav"')));
+    let nav = text.slice(text.indexOf('class="site-nav"'), text.indexOf("</nav>", text.indexOf('class="site-nav"')));
     const sections = nav.indexOf('class="site-nav-sections"');
-    return sections === -1 ? nav : nav.slice(nav.indexOf("</ul>", sections));
+    if (sections !== -1) nav = nav.slice(nav.indexOf("</ul>", sections));
+    const back = nav.indexOf('class="site-nav-back"');
+    return back === -1 ? nav : nav.slice(nav.indexOf("</a>", back));
   };
 
   const inside = html(`${slug(section)}/${slug(child)}`);
@@ -79,4 +82,7 @@ test("promoting a page with children limits the published sidebar to that branch
   expect(sidebar(inside)).not.toContain(`/${slug(other)}/`);
   expect(html(slug(other))).toContain(`href="/${slug(section)}/"`);
   expect(sidebar(html(slug(other)))).not.toContain(`/${slug(section)}/`);
+  // The section's sidebar opens with a link back to the rest of the site; the main one has none.
+  expect(inside).toContain('class="site-nav-back"');
+  expect(html(slug(other))).not.toContain('class="site-nav-back"');
 });
