@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use cairn_core::{AssetStore, CoreError};
-use object_store::{ObjectStoreExt, PutPayload, local::LocalFileSystem, path::Path as StorePath};
+use object_store::{ObjectStore, ObjectStoreExt, PutPayload, local::LocalFileSystem, path::Path as StorePath};
 
 /// Assets on the local disk, behind the same `object_store` API an S3 bucket will use.
 pub struct LocalAssetStore {
@@ -53,6 +53,14 @@ impl AssetStore for LocalAssetStore {
       Err(error) => Err(other(error)),
     }
   }
+
+  async fn list(&self, folder: &str) -> Result<Vec<String>, CoreError> {
+    match self.store.list_with_delimiter(Some(&StorePath::from(folder))).await {
+      Ok(listed) => Ok(listed.objects.into_iter().map(|o| o.location.to_string()).collect()),
+      Err(object_store::Error::NotFound { .. }) => Ok(Vec::new()),
+      Err(error) => Err(other(error)),
+    }
+  }
 }
 
 #[cfg(test)]
@@ -70,6 +78,12 @@ mod tests {
 
     assert_eq!(store.get("originals/abc").await.unwrap(), [1, 2, 3]);
     assert!(store.exists("originals/abc").await.unwrap());
+
+    store.put("originals/def", vec![4]).await.unwrap();
+    let mut listed = store.list("originals").await.unwrap();
+    listed.sort();
+    assert_eq!(listed, ["originals/abc", "originals/def"]);
+    assert!(store.list("renders").await.unwrap().is_empty());
 
     store.delete("originals/abc").await.unwrap();
     assert!(matches!(store.get("originals/abc").await, Err(CoreError::NotFound)));

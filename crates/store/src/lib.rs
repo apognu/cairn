@@ -32,8 +32,8 @@ pub use migration::migrate;
 pub use purge::purge_trash;
 pub use redirects::{draft_docs, draft_revisions, list_redirects};
 pub use releases::{
-  LiveRelease, ReleasePage, add_release_pages, create_release, get_release, get_setting, latest_live_release, live_release, load_settings, make_release_live, save_settings, set_release_deployment,
-  set_release_status, set_setting,
+  LiveRelease, ReleasePage, add_release_pages, create_release, get_release, get_setting, kept_render_keys, latest_live_release, live_release, load_settings, make_release_live, save_settings,
+  set_release_deployment, set_release_render_keys, set_release_status, set_setting,
 };
 pub use sea_orm::DatabaseConnection;
 pub use sessions::{api_token_user, create_api_token, create_session, delete_api_token, delete_session, list_api_tokens, session_user};

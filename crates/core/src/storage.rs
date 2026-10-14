@@ -56,6 +56,9 @@ pub trait AssetStore: Send + Sync {
   fn exists(&self, key: &str) -> impl Future<Output = Result<bool, CoreError>> + Send;
 
   fn delete(&self, key: &str) -> impl Future<Output = Result<(), CoreError>> + Send;
+
+  /// The keys of the files directly inside `folder` (`renders`), as `put` took them; none when the folder does not exist.
+  fn list(&self, folder: &str) -> impl Future<Output = Result<Vec<String>, CoreError>> + Send;
 }
 
 /// Where the WebP copy of an image, `width` pixels wide, lives in the `AssetStore`.

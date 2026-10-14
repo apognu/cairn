@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use cairn_core::{ApiConfig, AssetId, Page, PageId, Release, ReleaseId, ReleaseStatus, RevisionId, Settings, UserId};
 use jiff::Timestamp;
@@ -26,6 +26,7 @@ pub async fn create_release(db: &DatabaseConnection, user: UserId, tree_snapshot
     target_version_id: Set(None),
     settings_snapshot: Set(Some(settings)),
     preview_url: Set(None),
+    render_keys: Set(None),
   }
   .insert(db)
   .await?;
@@ -106,6 +107,45 @@ pub async fn add_release_pages(db: &DatabaseConnection, id: ReleaseId, pages: Ve
   release_page::Entity::insert_many(rows).exec(db).await?;
 
   Ok(())
+}
+
+/// Notes which render cache entries a release's pages came from.
+pub async fn set_release_render_keys(db: &DatabaseConnection, id: ReleaseId, keys: &[String]) -> Result<(), StoreError> {
+  release::Entity::update_many()
+    .col_expr(release::Column::RenderKeys, serde_json::to_string(keys).map_err(|e| StoreError::Other(e.into()))?.into())
+    .filter(release::Column::Id.eq(id.as_uuid()))
+    .exec(db)
+    .await?;
+
+  Ok(())
+}
+
+/// The render cache entries to keep: those of the live release and of the previews made after it, which can still be promoted. `None`
+/// when one of them was made before entries were recorded, and nothing can be known.
+pub async fn kept_render_keys(db: &DatabaseConnection) -> Result<Option<HashSet<String>>, StoreError> {
+  let Some(live) = release::Entity::find()
+    .filter(release::Column::Status.eq(ReleaseStatus::Live.as_str()))
+    .order_by_desc(release::Column::Id)
+    .one(db)
+    .await?
+  else {
+    return Ok(Some(HashSet::new()));
+  };
+  let previews = release::Entity::find()
+    .filter(release::Column::Status.eq(ReleaseStatus::Preview.as_str()))
+    .filter(release::Column::Id.gt(live.id))
+    .all(db)
+    .await?;
+
+  let mut kept = HashSet::new();
+  for row in std::iter::once(live).chain(previews) {
+    let Some(keys) = row.render_keys.as_deref().and_then(|json| serde_json::from_str::<Vec<String>>(json).ok()) else {
+      return Ok(None);
+    };
+    kept.extend(keys);
+  }
+
+  Ok(Some(kept))
 }
 
 pub async fn latest_live_release(db: &DatabaseConnection) -> Result<Option<Release>, StoreError> {

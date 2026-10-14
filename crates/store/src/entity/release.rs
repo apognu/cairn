@@ -14,6 +14,7 @@ pub struct Model {
   pub target_version_id: Option<String>,
   pub settings_snapshot: Option<String>,
   pub preview_url: Option<String>,
+  pub render_keys: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

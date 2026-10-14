@@ -16,6 +16,7 @@ mod m0012_api_tokens;
 mod m0013_release_preview;
 mod m0014_content_hash;
 mod m0015_revision_description;
+mod m0016_render_keys;
 
 struct Migrator;
 
@@ -37,6 +38,7 @@ impl MigratorTrait for Migrator {
       Box::new(m0013_release_preview::Migration),
       Box::new(m0014_content_hash::Migration),
       Box::new(m0015_revision_description::Migration),
+      Box::new(m0016_render_keys::Migration),
     ]
   }
 }

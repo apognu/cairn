@@ -12,8 +12,8 @@ use cairn_core::{
 };
 use cairn_render::{Pool, Shell, highlight_css};
 use cairn_store::{
-  DatabaseConnection, ReleasePage, ReleaseSpec, add_release_pages, assets_by_ids, create_release, get_release, get_setting, latest_live_release, list_api_configs, list_pages, list_redirects,
-  live_release, load_library, load_settings, make_release_live, record_release_specs, release_specs, set_release_deployment, set_release_status, set_setting,
+  DatabaseConnection, ReleasePage, ReleaseSpec, add_release_pages, assets_by_ids, create_release, get_release, get_setting, kept_render_keys, latest_live_release, list_api_configs, list_pages,
+  list_redirects, live_release, load_library, load_settings, make_release_live, record_release_specs, release_specs, set_release_deployment, set_release_render_keys, set_release_status, set_setting,
 };
 use futures_util::{StreamExt, TryStreamExt, stream};
 use serde_json::{Value, json};
@@ -208,6 +208,31 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
     // a needless republish, so it does not turn a live release into an error.
     if let Err(error) = set_setting(&self.db, BUNDLES_SETTING, &self.bundles.hash).await {
       tracing::warn!(release_id = %id, %error, "could not record the bundles of the live release");
+    }
+    // Leftovers only cost disk space, so a failure here is not the publish's.
+    if let Err(error) = self.prune_renders().await {
+      tracing::warn!(release_id = %id, %error, "could not delete unused render cache entries");
+    }
+
+    Ok(())
+  }
+
+  /// Deletes the cached renders that neither the live release nor a preview made after it uses. Called with the build lock held, so no
+  /// build is adding entries meanwhile.
+  async fn prune_renders(&self) -> Result<(), PublishError> {
+    let Some(kept) = kept_render_keys(&self.db).await? else {
+      return Ok(());
+    };
+
+    let mut pruned = 0;
+    for key in self.assets.list(RENDERS_FOLDER).await? {
+      if !kept.contains(&key) {
+        self.assets.delete(&key).await?;
+        pruned += 1;
+      }
+    }
+    if pruned > 0 {
+      tracing::info!(pruned, "unused render cache entries deleted");
     }
 
     Ok(())
@@ -525,12 +550,13 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
       })
       .collect();
 
-    let rendered: Vec<(OutputFile, (PageId, RevisionId, String))> = stream::iter(jobs.into_iter().map(|job| render_job(job, self.assets.clone(), self.renders.clone())))
+    let rendered: Vec<Rendered> = stream::iter(jobs.into_iter().map(|job| render_job(job, self.assets.clone(), self.renders.clone())))
       .buffer_unordered(RENDER_CONCURRENCY)
       .try_collect()
       .await?;
 
-    let (mut files, mut hashes): (Vec<_>, Vec<_>) = rendered.into_iter().unzip();
+    let mut render_keys: Vec<String> = rendered.iter().map(|r| r.cache_key.clone()).collect();
+    let (mut files, mut hashes): (Vec<_>, Vec<_>) = rendered.into_iter().map(|r| (r.file, (r.page_id, r.revision, r.output_hash))).unzip();
     // An API page has no revision to record; what it was built from goes in `release_api_specs`.
     let apis: Vec<&ResolvedApi> = sources.iter().filter_map(|s| s.api.as_ref()).collect();
     hashes.retain(|(id, _, _)| !apis.iter().any(|a| a.page_id == *id));
@@ -623,7 +649,9 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
         revision: RevisionId::new(),
         path: output_path(glossary_url),
       };
-      files.push(render_job(glossary, self.assets.clone(), self.renders.clone()).await?.0);
+      let rendered = render_job(glossary, self.assets.clone(), self.renders.clone()).await?;
+      render_keys.push(rendered.cache_key);
+      files.push(rendered.file);
     }
 
     // The page people land on for a URL that does not exist, with the site navigation to find their way.
@@ -644,7 +672,9 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
       revision: RevisionId::new(),
       path: "404.html".into(),
     };
-    files.push(render_job(not_found, self.assets.clone(), self.renders.clone()).await?.0);
+    let rendered = render_job(not_found, self.assets.clone(), self.renders.clone()).await?;
+    render_keys.push(rendered.cache_key);
+    files.push(rendered.file);
 
     let html: Vec<&OutputFile> = files.iter().filter(|f| f.path.ends_with(".html")).collect();
     if let Some(index) = search::build_index(&self.config.pagefind, release.id, &html).await? {
@@ -674,6 +704,7 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
       })
       .collect();
     add_release_pages(&self.db, release.id, release_pages).await?;
+    set_release_render_keys(&self.db, release.id, &render_keys).await?;
     let specs: Vec<ReleaseSpec> = apis
       .iter()
       .map(|api| ReleaseSpec {
@@ -758,15 +789,27 @@ struct RenderJob {
   path: String,
 }
 
-/// Renders one page, or reuses what an identical render produced before. The cache is content addressed: the key is a hash of everything the
-/// HTML depends on (the render input, the page's own title and description, the site name and theme, the stylesheets and script), so the same
-/// key always means the same file and nothing ever has to be invalidated.
+/// Where cached renders live in the asset store.
+const RENDERS_FOLDER: &str = "renders";
+
 /// Part of every render cache key. The JS bundles are in the key by their hashed names, but the page shell and code highlighting are Rust:
 /// a release changes the version, and the number is bumped when either changes between releases. Otherwise unchanged pages would keep
 /// the old output for good.
 const RENDER_FORMAT: &str = concat!(env!("CARGO_PKG_VERSION"), "/1");
 
-async fn render_job<A: AssetStore>(job: RenderJob, cache: Arc<A>, renders: Arc<AtomicUsize>) -> Result<(OutputFile, (PageId, RevisionId, String)), PublishError> {
+/// A rendered page, the hash of its HTML, and the render cache entry it came from.
+struct Rendered {
+  file: OutputFile,
+  page_id: PageId,
+  revision: RevisionId,
+  output_hash: String,
+  cache_key: String,
+}
+
+/// Renders one page, or reuses what an identical render produced before. The cache is content addressed: the key is a hash of everything the
+/// HTML depends on (the render input, the page's own title and description, the site name and theme, the stylesheets and script), so the same
+/// key always means the same file and nothing ever has to be invalidated; entries no kept release uses are deleted when a release goes live.
+async fn render_job<A: AssetStore>(job: RenderJob, cache: Arc<A>, renders: Arc<AtomicUsize>) -> Result<Rendered, PublishError> {
   let key = {
     let mut digest = Sha256::new();
     for part in [
@@ -783,7 +826,7 @@ async fn render_job<A: AssetStore>(job: RenderJob, cache: Arc<A>, renders: Arc<A
       digest.update(part.as_bytes());
       digest.update([0]);
     }
-    format!("renders/{}.html", digest.finalize().iter().map(|b| format!("{b:02x}")).collect::<String>())
+    format!("{RENDERS_FOLDER}/{}.html", digest.finalize().iter().map(|b| format!("{b:02x}")).collect::<String>())
   };
 
   let bytes = if cache.exists(&key).await? {
@@ -806,9 +849,15 @@ async fn render_job<A: AssetStore>(job: RenderJob, cache: Arc<A>, renders: Arc<A
     html.into_bytes()
   };
 
-  let hash = Sha256::digest(&bytes).iter().map(|b| format!("{b:02x}")).collect();
+  let output_hash = Sha256::digest(&bytes).iter().map(|b| format!("{b:02x}")).collect();
 
-  Ok((OutputFile { path: job.path, bytes }, (job.page_id, job.revision, hash)))
+  Ok(Rendered {
+    file: OutputFile { path: job.path, bytes },
+    page_id: job.page_id,
+    revision: job.revision,
+    output_hash,
+    cache_key: key,
+  })
 }
 
 async fn resolve_page(fetcher: &SourceFetcher, page: Page, config: ApiConfig) -> (Page, Result<ResolvedSpec, String>, ApiConfig) {
@@ -1520,6 +1569,28 @@ mod tests {
     save(alt.id, serde_json::json!([{ "type": "image", "attrs": { "assetId": "x", "alt": "A chart" } }])).await;
     save(props.id, serde_json::json!([{ "type": "cards", "attrs": { "columns": "3", "cards": [] } }])).await;
     f.publisher.publish(user).await.unwrap();
+  }
+
+  #[tokio::test]
+  async fn only_the_render_cache_entries_of_the_live_release_are_kept() {
+    let f = fixture().await;
+    let user = UserId::new();
+    let assets = LocalAssetStore::new(&f.dir.join("assets")).unwrap();
+    let page = create_page(&f.db, user, None, "Guide", Placement::Last).await.unwrap();
+    create_page(&f.db, user, None, "Other", Placement::Last).await.unwrap();
+
+    let mut base = None;
+    for text in ["one", "two", "three"] {
+      base = f.content.save_draft(page.id, Document::paragraph(text), base, user).await.unwrap().base_revision_id;
+      f.publisher.publish(user).await.unwrap();
+    }
+
+    // Two pages and the 404 page: the earlier renders of the edited page are gone.
+    let mut cached = assets.list(RENDERS_FOLDER).await.unwrap();
+    cached.sort();
+    let mut kept: Vec<String> = kept_render_keys(&f.db).await.unwrap().unwrap().into_iter().collect();
+    kept.sort();
+    assert_eq!((cached.len(), &cached), (3, &kept));
   }
 
   #[tokio::test]
