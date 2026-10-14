@@ -8,7 +8,7 @@ use std::{
 
 use cairn_core::{
   ApiConfig, AssetId, AssetStore, Broadcast, ContentStore, Document, Event, Library, Page, PageId, PageKind, Release, ReleaseId, ReleaseStatus, RevisionId, Settings, UserId, effective_redirects,
-  expand, extract_links, header_section, original_key, page_urls, term_anchors, term_refs, variant_key,
+  expand, extract_links, header_section, hotfix_pages, original_key, page_urls, term_anchors, term_refs, variant_key,
 };
 use cairn_render::{Pool, Shell, highlight_css};
 use cairn_store::{
@@ -170,7 +170,17 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
 
   /// Publishes every page's latest saved draft as a new release and makes it live.
   pub async fn publish(&self, user: UserId) -> Result<Release, PublishError> {
-    self.build(user, true).await
+    self.build(user, true, None).await
+  }
+
+  /// Publishes a hotfix: the live site with `picked` (and what they need, see `hotfix_pages`) at their latest saved state. Every other
+  /// page keeps its published version, and its pending changes stay pending.
+  pub async fn publish_selected(&self, user: UserId, picked: &HashSet<PageId>) -> Result<Release, PublishError> {
+    if picked.is_empty() {
+      return Err(PublishError::Core(cairn_core::CoreError::Invalid("pick at least one page to publish".into())));
+    }
+
+    self.build(user, true, Some(picked)).await
   }
 
   /// Builds a release from every page's latest saved draft and hands it to the target without making it live: it can be looked at, and
@@ -180,7 +190,7 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
       return Err(PublishError::Core(cairn_core::CoreError::Invalid("this publish target has no previews".into())));
     }
 
-    self.build(user, false).await
+    self.build(user, false, None).await
   }
 
   /// Makes a preview the live site, exactly as it was built. A preview older than the live site is refused: it would put back what
@@ -253,12 +263,19 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
     Ok(())
   }
 
-  async fn build(&self, user: UserId, live: bool) -> Result<Release, PublishError> {
+  async fn build(&self, user: UserId, live: bool, picked: Option<&HashSet<PageId>>) -> Result<Release, PublishError> {
     let _turn = self.running.lock().await;
 
     // One snapshot for the checks and the build: a save or a tree change made meanwhile waits for the next publish instead of going out
     // unchecked.
-    let staging = staging(&self.db).await?;
+    let mut staging = staging(&self.db).await?;
+    // Links to pages that exist but are not in a hotfix render as plain text: they are not broken.
+    let mut linkable = staging.pages.clone();
+    if let Some(picked) = picked {
+      self.narrow(&mut staging, picked).await?;
+      // A page deleted since, but kept by the hotfix, is still there to link to.
+      linkable.extend(staging.pages.iter().filter(|p| !linkable.iter().any(|l| l.id == p.id)).cloned().collect::<Vec<_>>());
+    }
     let tree_pages = &staging.pages;
     // Every build reads the specs again; one that cannot be read stops the publish before anything is created.
     let apis = self.resolve_apis(tree_pages, &staging.api_configs).await?;
@@ -266,7 +283,7 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
     // Nothing is created, rendered or written until the site passes its checks, links to operations included: those are compared with
     // the specs of this very build.
     let anchors: crate::OperationAnchors = apis.iter().map(|api| (api.page_id, api.operations.iter().map(cairn_core::Operation::anchor).collect())).collect();
-    let problems = crate::changes::check_with(&staging, &self.pool, &anchors).await?;
+    let problems = crate::changes::check_with(&staging, &linkable, &self.pool, &anchors).await?;
     if !problems.is_empty() {
       return Err(PublishError::Blocked(problems));
     }
@@ -295,6 +312,40 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
       library: &staging.library,
     };
     self.deploy(release, &contents, live).await
+  }
+
+  /// Turns the staging snapshot into a hotfix of `picked`: the tree of `hotfix_pages`, and for every page that was not picked or pulled
+  /// in, the revision, settings and API settings the live release has. The site settings stay the live ones too.
+  async fn narrow(&self, staging: &mut Staging, picked: &HashSet<PageId>) -> Result<(), PublishError> {
+    let no_pages = Vec::new();
+    let live_pages = staging.live.as_ref().map_or(&no_pages, |l| &l.pages);
+    let (tree, pulled) = hotfix_pages(live_pages, &staging.pages, picked);
+    let included: HashSet<PageId> = picked.iter().copied().chain(pulled.iter().map(|p| p.page_id)).collect();
+
+    for page in tree.iter().filter(|p| !included.contains(&p.id)) {
+      let published = staging.live.as_ref().and_then(|l| l.revisions.get(&page.id).copied());
+      match published {
+        Some(revision) => {
+          staging.docs.insert(page.id, self.content.revision(revision).await?.doc);
+          staging.revisions.insert(page.id, revision);
+        }
+        None => {
+          staging.docs.remove(&page.id);
+          staging.revisions.remove(&page.id);
+        }
+      }
+      if page.kind == PageKind::Api
+        && let Some(live) = &staging.live
+      {
+        staging.api_configs.insert(page.id, live.api_configs.get(&page.id).cloned().unwrap_or_default());
+      }
+    }
+    if let Some(settings) = staging.live.as_ref().and_then(|l| l.settings.clone()) {
+      staging.settings = settings;
+    }
+    staging.pages = tree;
+
+    Ok(())
   }
 
   /// Renders the live release again when the bundles changed since it was last rendered: the same pages at the same revisions, the same
@@ -1075,6 +1126,65 @@ mod tests {
     assert!(f.dir.join("out/site/guide/index.html").is_file(), "the site is the build that was looked at");
     // Once live, it is not a preview any more.
     assert!(f.publisher.promote(preview.id).await.is_err());
+  }
+
+  #[tokio::test]
+  async fn a_hotfix_of_one_page_leaves_every_other_draft_pending() {
+    use cairn_core::{ChangeKind, OldUrls};
+
+    let f = fixture().await;
+    let user = UserId::new();
+    let save = |page, text: &str, base| {
+      let doc = doc(json!({ "type": "doc", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": text }] }] }));
+      f.content.save_draft(page, doc, base, user)
+    };
+    let guide = create_page(&f.db, user, None, "Guide", Placement::Last).await.unwrap();
+    let install = create_page(&f.db, user, Some(guide.id), "Install", Placement::Last).await.unwrap();
+    let faq = create_page(&f.db, user, None, "FAQ", Placement::Last).await.unwrap();
+    let first = save(install.id, "Old install", None).await.unwrap();
+    let faq_first = save(faq.id, "Old FAQ", None).await.unwrap();
+    f.publisher.publish(user).await.unwrap();
+
+    // Three pending changes: an edit of Install (the fix), an unfinished edit of FAQ, and a new page linked from the fix.
+    let draft_doc = |text: &str, link: PageId| {
+      doc(json!({ "type": "doc", "content": [{ "type": "paragraph", "content": [
+        { "type": "text", "text": text },
+        { "type": "text", "text": " see", "marks": [{ "type": "link", "attrs": { "pageId": link.to_string() } }] },
+      ] }] }))
+    };
+    let upcoming = create_page(&f.db, user, None, "Upcoming", Placement::Last).await.unwrap();
+    f.content.save_draft(install.id, draft_doc("Fixed install", upcoming.id), first.base_revision_id, user).await.unwrap();
+    save(faq.id, "Half-written FAQ", faq_first.base_revision_id).await.unwrap();
+    cairn_store::rename_page(&f.db, guide.id, "Handbook", OldUrls::Redirect).await.unwrap();
+
+    let plan = crate::hotfix_plan(&f.db, &[install.id].into()).await.unwrap();
+    assert!(plan.pulled.is_empty());
+    assert_eq!(plan.plain_links.iter().map(|l| l.target_title.as_str()).collect::<Vec<_>>(), ["Upcoming"]);
+
+    f.publisher.publish_selected(user, &[install.id].into()).await.unwrap();
+
+    let site = |path: &str| std::fs::read_to_string(f.dir.join("out/site").join(path)).unwrap_or_default();
+    assert!(site("guide/install/index.html").contains("Fixed install"), "the fix is live, at the old URL of its parent");
+    assert!(!site("guide/install/index.html").contains("href=\"/upcoming/\""), "the unpublished page is not linked");
+    assert!(site("faq/index.html").contains("Old FAQ"));
+    assert!(!f.dir.join("out/site/upcoming").exists() && !f.dir.join("out/site/handbook").exists());
+
+    // Install's own draft is live; it stays listed only because its link to Upcoming becomes a real link once Upcoming is published, as
+    // any page does whose linked pages change.
+    let pending = crate::pending(&f.db).await.unwrap().changes;
+    let mut kinds: Vec<_> = pending.iter().map(|c| (c.title.as_str(), c.kinds.clone())).collect();
+    kinds.sort_by_key(|(title, _)| *title);
+    assert_eq!(
+      kinds,
+      [
+        ("FAQ", vec![ChangeKind::Edited]),
+        ("Handbook", vec![ChangeKind::Renamed]),
+        ("Install", vec![ChangeKind::Edited]),
+        ("Upcoming", vec![ChangeKind::New]),
+      ]
+    );
+    let install_change = pending.iter().find(|c| c.page_id == install.id).unwrap();
+    assert_eq!(install_change.revision_id, install_change.live_revision_id, "the draft itself went out");
   }
 
   #[tokio::test]

@@ -2218,7 +2218,8 @@ span[data-label] > .component-invalid {
   cursor: pointer;
 }
 
-.segmented button[aria-selected="true"] {
+.segmented button[aria-selected="true"],
+.segmented button[aria-pressed="true"] {
   background: var(--bg);
   color: var(--text);
   font-weight: 600;
@@ -2865,7 +2866,8 @@ button.secondary:disabled {
   font-size: 13px;
 }
 
-.changes button.small {
+.changes button.small,
+.pick-bar button.small {
   height: 28px;
   padding: 0 10px;
   border: 1px solid var(--border-input);
@@ -2903,4 +2905,58 @@ button.secondary:disabled {
 
 .checks-strip .stats {
   margin-left: auto;
+}
+
+/* Everything or a hotfix, and the picking tools of a hotfix. */
+fieldset.segmented {
+  margin: 0;
+  border: 0;
+}
+
+.publish-mode {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin: 14px 0 0;
+  font-size: 13px;
+}
+
+.pick-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0 0;
+  font-size: 13px;
+}
+
+.pick-bar > span:first-child {
+  margin-right: auto;
+}
+
+.pick-bar button.small:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.changes td.select,
+.changes th:first-child:has(.sr-only) {
+  width: 28px;
+}
+
+.changes td.select input {
+  width: 16px;
+  height: 16px;
+  margin: 2px 0 0;
+}
+
+.dependency-notes ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dependency-notes li + li {
+  margin-top: 6px;
 }

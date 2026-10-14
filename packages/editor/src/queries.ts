@@ -100,7 +100,9 @@ export function usePublish() {
   const client = useQueryClient();
 
   return useMutation({
-    mutationFn: async () => unwrap(await api.POST("/api/publish")),
+    /** `pages` publishes a hotfix of them; without it, everything pending goes out. */
+    mutationFn: async (pages?: string[]) =>
+      unwrap(await api.POST("/api/publish", { body: pages ? { pages } : undefined })),
     onSuccess: () =>
       Promise.all([client.invalidateQueries({ queryKey: PENDING }), client.invalidateQueries({ queryKey: ["site"] })]),
   });

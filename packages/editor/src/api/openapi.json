@@ -1665,8 +1665,24 @@
     },
     "/api/publish": {
       "post": {
-        "summary": "Publishes the latest saved draft of every page as a new release.",
+        "summary": "Publishes the latest saved draft of every page as a new release, or of the pages picked for a hotfix.",
         "operationId": "publish",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/PublishRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "content": {
@@ -1720,6 +1736,33 @@
                   "items": {
                     "$ref": "#/components/schemas/Problem"
                   }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/publish/plan": {
+      "post": {
+        "summary": "What a hotfix of these pages would also publish, and which of their links would show as plain text. Nothing is published.",
+        "operationId": "hotfixPlan",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlanRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HotfixPlan"
                 }
               }
             }
@@ -3052,6 +3095,29 @@
           }
         }
       },
+      "HotfixPlan": {
+        "type": "object",
+        "required": [
+          "pulled",
+          "plain_links"
+        ],
+        "properties": {
+          "plain_links": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlainLink"
+            },
+            "description": "Links from the hotfix to pages it leaves out, which show as plain text."
+          },
+          "pulled": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Pulled"
+            },
+            "description": "Pages the hotfix takes along: the new parent of a picked page, or a page left under one the hotfix deletes or moves."
+          }
+        }
+      },
       "Impact": {
         "type": "object",
         "required": [
@@ -3647,6 +3713,39 @@
           }
         }
       },
+      "PlainLink": {
+        "type": "object",
+        "required": [
+          "source_title",
+          "target_id",
+          "target_title"
+        ],
+        "properties": {
+          "source_title": {
+            "type": "string"
+          },
+          "target_id": {
+            "$ref": "#/components/schemas/PageId"
+          },
+          "target_title": {
+            "type": "string"
+          }
+        }
+      },
+      "PlanRequest": {
+        "type": "object",
+        "required": [
+          "pages"
+        ],
+        "properties": {
+          "pages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PageId"
+            }
+          }
+        }
+      },
       "Problem": {
         "type": "object",
         "description": "A problem that stops a publish, with the page it is on.",
@@ -3700,6 +3799,49 @@
             "format": "int64",
             "description": "Files this build sends: those the target does not have yet. Unchanged files are not counted.",
             "minimum": 0
+          }
+        }
+      },
+      "PublishRequest": {
+        "type": "object",
+        "properties": {
+          "pages": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/PageId"
+            },
+            "description": "Publish only these pages (a hotfix), with what they need; every other page keeps its published version. Everything when absent."
+          }
+        }
+      },
+      "PullReason": {
+        "type": "string",
+        "description": "Why a page that was not picked goes out with a hotfix.",
+        "enum": [
+          "parent",
+          "orphan"
+        ]
+      },
+      "Pulled": {
+        "type": "object",
+        "description": "A page the hotfix takes along without being asked.",
+        "required": [
+          "page_id",
+          "title",
+          "reason"
+        ],
+        "properties": {
+          "page_id": {
+            "$ref": "#/components/schemas/PageId"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/PullReason"
+          },
+          "title": {
+            "type": "string"
           }
         }
       },
@@ -4372,10 +4514,14 @@
           "doc",
           "title",
           "description_recorded",
+          "author_id",
           "author_name",
           "created_at"
         ],
         "properties": {
+          "author_id": {
+            "$ref": "#/components/schemas/UserId"
+          },
           "author_name": {
             "type": "string"
           },

@@ -1,6 +1,8 @@
 use std::collections::{HashMap, HashSet};
 
-use cairn_core::{Current, Document, Live, Operation, PageId, PageKind, Pending, Problem, ProblemKind, doc_problems, expand, page_urls, pending_changes, term_refs, url_problems};
+use cairn_core::{
+  Current, Document, Live, Operation, Page, PageId, PageKind, Pending, Problem, ProblemKind, Pulled, doc_problems, expand, hotfix_pages, page_urls, pending_changes, term_refs, url_problems,
+};
 use cairn_render::Pool;
 use cairn_store::{DatabaseConnection, Staging, staging};
 
@@ -71,13 +73,14 @@ pub async fn check(db: &DatabaseConnection, pool: &Pool, fresh: &OperationAnchor
     anchors.entry(*page).or_default().extend(known.iter().cloned());
   }
 
-  check_with(&staging, pool, &anchors).await
+  check_with(&staging, &staging.pages, pool, &anchors).await
 }
 
 /// The anchors of the operations of each API page: what a link to one of them may point at.
 pub type OperationAnchors = HashMap<PageId, HashSet<String>>;
 
-pub(crate) async fn check_with(staging: &Staging, pool: &Pool, operations: &OperationAnchors) -> Result<Vec<Problem>, PublishError> {
+/// `linkable` are the pages a link may point to without being broken: all pages that exist, even those a hotfix leaves out.
+pub(crate) async fn check_with(staging: &Staging, linkable: &[Page], pool: &Pool, operations: &OperationAnchors) -> Result<Vec<Problem>, PublishError> {
   let Staging { pages: all, docs, library, .. } = staging;
   let pages: Vec<_> = all.iter().filter(|p| p.kind == PageKind::Page).cloned().collect();
   let empty = Document::empty();
@@ -96,7 +99,7 @@ pub(crate) async fn check_with(staging: &Staging, pool: &Pool, operations: &Oper
         message: format!("uses a {key} that does not exist"),
       });
     }
-    found.extend(doc_problems(page, doc, all, operations));
+    found.extend(doc_problems(page, doc, linkable, operations));
 
     let value = serde_json::to_value(doc).map_err(anyhow::Error::from)?;
     for message in pool.validate(&value).await.map_err(|source| PublishError::Render { page: page.title.clone(), source })? {
@@ -110,4 +113,45 @@ pub(crate) async fn check_with(staging: &Staging, pool: &Pool, operations: &Oper
   }
 
   Ok(found)
+}
+
+/// A link from a page in a hotfix to a page the hotfix leaves out: it shows as plain text until that page is published.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlainLink {
+  pub source_title: String,
+  pub target_id: PageId,
+  pub target_title: String,
+}
+
+/// What a hotfix of the picked pages would also take, and which of their links would show as plain text.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HotfixPlan {
+  pub pulled: Vec<Pulled>,
+  pub plain_links: Vec<PlainLink>,
+}
+
+pub async fn hotfix_plan(db: &DatabaseConnection, picked: &HashSet<PageId>) -> Result<HotfixPlan, PublishError> {
+  let staging = staging(db).await?;
+  let no_pages = Vec::new();
+  let live_pages = staging.live.as_ref().map_or(&no_pages, |l| &l.pages);
+  let (tree, pulled) = hotfix_pages(live_pages, &staging.pages, picked);
+  let included: HashSet<PageId> = picked.iter().copied().chain(pulled.iter().map(|p| p.page_id)).collect();
+  let title = |id: PageId| staging.pages.iter().find(|p| p.id == id).map(|p| p.title.clone());
+
+  let mut plain_links: Vec<PlainLink> = staging
+    .links
+    .iter()
+    .filter(|l| included.contains(&l.source) && !tree.iter().any(|p| p.id == l.target))
+    .filter_map(|l| {
+      Some(PlainLink {
+        source_title: title(l.source)?,
+        target_id: l.target,
+        target_title: title(l.target)?,
+      })
+    })
+    .collect();
+  plain_links.sort_by(|a, b| (&a.source_title, &a.target_title).cmp(&(&b.source_title, &b.target_title)));
+  plain_links.dedup();
+
+  Ok(HotfixPlan { pulled, plain_links })
 }

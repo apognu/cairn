@@ -104,6 +104,12 @@ export function ChangeRow({
             </span>
           )}
           {note}
+          {change.kinds.length === 1 &&
+            change.kinds[0] === "edited" &&
+            change.revision_id &&
+            change.revision_id === change.live_revision_id && (
+              <div className="url-note">a page it links to or a snippet it uses changed</div>
+            )}
         </td>
         <td className="muted">
           {current.data ? `${current.data.author_name} · ${ago(current.data.created_at)}` : "—"}
@@ -153,11 +159,14 @@ const mb = (bytes: number) => `${(bytes / 1_000_000).toLocaleString("en", { maxi
 /** The checks that passed, and the size of the site against the target's limit. */
 export function ChecksStrip({
   problems,
+  stayPending,
   files,
   bytes,
   maxFiles,
 }: {
   problems: Problem[];
+  /** In a hotfix, how many changes it leaves pending. */
+  stayPending: number;
   files: number | null | undefined;
   bytes: number | null | undefined;
   maxFiles: number | null | undefined;
@@ -176,6 +185,11 @@ export function ChecksStrip({
           {check.text}
         </span>
       ))}
+      {stayPending > 0 && (
+        <span className="muted">
+          {stayPending === 1 ? "1 change stays pending" : `${stayPending} changes stay pending`}
+        </span>
+      )}
       {files != null && (
         <span className="muted stats">
           Last build {files.toLocaleString("en")} files{bytes != null && ` · ${mb(bytes)}`}

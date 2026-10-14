@@ -9,9 +9,9 @@ use axum::{
   },
 };
 use cairn_auth::CurrentUser;
-use cairn_core::{Event, Pending, Problem, Release, ReleaseId};
+use cairn_core::{Event, PageId, Pending, Problem, Pulled, Release, ReleaseId};
 use futures_util::{Stream, StreamExt};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tokio_stream::wrappers::BroadcastStream;
 use tracing::instrument;
 use utoipa::ToSchema;
@@ -31,6 +31,7 @@ pub(crate) fn routes() -> OpenApiRouter<AppState> {
     .routes(routes!(checks))
     .routes(routes!(site))
     .routes(routes!(progress))
+    .routes(routes!(plan))
 }
 
 #[derive(Serialize, ToSchema)]
@@ -109,14 +110,65 @@ async fn site(State(state): State<AppState>) -> Result<Json<SiteInfo>, AppError>
   }))
 }
 
-/// Publishes the latest saved draft of every page as a new release.
-#[utoipa::path(post, path = "/api/publish", operation_id = "publish", responses(
+#[derive(Deserialize, ToSchema)]
+struct PublishRequest {
+  /// Publish only these pages (a hotfix), with what they need; every other page keeps its published version. Everything when absent.
+  pages: Option<Vec<PageId>>,
+}
+
+/// Publishes the latest saved draft of every page as a new release, or of the pages picked for a hotfix.
+#[utoipa::path(post, path = "/api/publish", operation_id = "publish", request_body = Option<PublishRequest>, responses(
   (status = 200, body = Release),
   (status = 422, body = ErrorBody, description = "the checks found problems or a page could not be rendered; nothing was published; the details name each page"),
 ))]
 #[instrument(skip_all)]
-async fn publish(State(state): State<AppState>, CurrentUser(user): CurrentUser) -> Result<Json<Release>, AppError> {
-  Ok(Json(state.publisher.publish(user).await?))
+async fn publish(State(state): State<AppState>, CurrentUser(user): CurrentUser, body: Option<Json<PublishRequest>>) -> Result<Json<Release>, AppError> {
+  let release = match body.and_then(|Json(b)| b.pages) {
+    Some(pages) => state.publisher.publish_selected(user, &pages.into_iter().collect()).await?,
+    None => state.publisher.publish(user).await?,
+  };
+
+  Ok(Json(release))
+}
+
+#[derive(Deserialize, ToSchema)]
+struct PlanRequest {
+  pages: Vec<PageId>,
+}
+
+#[derive(Serialize, ToSchema)]
+struct HotfixPlan {
+  /// Pages the hotfix takes along: the new parent of a picked page, or a page left under one the hotfix deletes or moves.
+  pulled: Vec<Pulled>,
+  /// Links from the hotfix to pages it leaves out, which show as plain text.
+  plain_links: Vec<PlainLink>,
+}
+
+#[derive(Serialize, ToSchema)]
+struct PlainLink {
+  source_title: String,
+  target_id: PageId,
+  target_title: String,
+}
+
+/// What a hotfix of these pages would also publish, and which of their links would show as plain text. Nothing is published.
+#[utoipa::path(post, path = "/api/publish/plan", operation_id = "hotfixPlan", request_body = PlanRequest, responses((status = 200, body = HotfixPlan)))]
+#[instrument(skip_all)]
+async fn plan(State(state): State<AppState>, Json(body): Json<PlanRequest>) -> Result<Json<HotfixPlan>, AppError> {
+  let plan = cairn_publish::hotfix_plan(&state.db, &body.pages.into_iter().collect()).await?;
+
+  Ok(Json(HotfixPlan {
+    pulled: plan.pulled,
+    plain_links: plan
+      .plain_links
+      .into_iter()
+      .map(|l| PlainLink {
+        source_title: l.source_title,
+        target_id: l.target_id,
+        target_title: l.target_title,
+      })
+      .collect(),
+  }))
 }
 
 /// Builds the latest saved drafts as a release that is not live: it can be looked at (`preview_url` when the target gives it an address of

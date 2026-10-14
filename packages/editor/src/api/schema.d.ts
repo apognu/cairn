@@ -497,7 +497,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Publishes the latest saved draft of every page as a new release. */
+        /** Publishes the latest saved draft of every page as a new release, or of the pages picked for a hotfix. */
         post: operations["publish"];
         delete?: never;
         options?: never;
@@ -533,6 +533,23 @@ export interface paths {
         get: operations["publishChecks"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/publish/plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** What a hotfix of these pages would also publish, and which of their links would show as plain text. Nothing is published. */
+        post: operations["hotfixPlan"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1040,6 +1057,12 @@ export interface components {
         HeaderBody: {
             in_header: boolean;
         };
+        HotfixPlan: {
+            /** @description Links from the hotfix to pages it leaves out, which show as plain text. */
+            plain_links: components["schemas"]["PlainLink"][];
+            /** @description Pages the hotfix takes along: the new parent of a picked page, or a page left under one the hotfix deletes or moves. */
+            pulled: components["schemas"]["Pulled"][];
+        };
         Impact: {
             /** @description Pages outside the deleted ones that link to any of them. */
             linked_from: components["schemas"]["Backlink"][];
@@ -1223,6 +1246,14 @@ export interface components {
             /** @description The site settings (name, logos, theme, header links, footer, custom CSS) differ from the live release's. */
             settings: boolean;
         };
+        PlainLink: {
+            source_title: string;
+            target_id: components["schemas"]["PageId"];
+            target_title: string;
+        };
+        PlanRequest: {
+            pages: components["schemas"]["PageId"][];
+        };
         /** @description A problem that stops a publish, with the page it is on. */
         Problem: {
             kind: components["schemas"]["ProblemKind"];
@@ -1246,6 +1277,21 @@ export interface components {
              * @description Files this build sends: those the target does not have yet. Unchanged files are not counted.
              */
             total: number;
+        };
+        PublishRequest: {
+            /** @description Publish only these pages (a hotfix), with what they need; every other page keeps its published version. Everything when absent. */
+            pages?: components["schemas"]["PageId"][] | null;
+        };
+        /**
+         * @description Why a page that was not picked goes out with a hotfix.
+         * @enum {string}
+         */
+        PullReason: "parent" | "orphan";
+        /** @description A page the hotfix takes along without being asked. */
+        Pulled: {
+            page_id: components["schemas"]["PageId"];
+            reason: components["schemas"]["PullReason"];
+            title: string;
         };
         /** @description A redirect as the Settings page shows it. */
         RedirectEntry: {
@@ -1485,6 +1531,7 @@ export interface components {
             title: string;
         };
         VersionContent: {
+            author_id: components["schemas"]["UserId"];
             author_name: string;
             /** Format: date-time */
             created_at: string;
@@ -2828,7 +2875,11 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PublishRequest"] | null;
+            };
+        };
         responses: {
             200: {
                 headers: {
@@ -2883,6 +2934,29 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Problem"][];
+                };
+            };
+        };
+    };
+    hotfixPlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlanRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HotfixPlan"];
                 };
             };
         };

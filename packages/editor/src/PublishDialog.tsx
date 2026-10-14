@@ -1,8 +1,9 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { serverUrl } from "./api/base";
 import type { components } from "./api/schema";
+import { DependencyNotes, ModeSwitch, PickBar, useHotfix } from "./Hotfix";
 import { Icon } from "./icons";
-import { ago } from "./LockBanner";
+import { ago, clock } from "./LockBanner";
 import { badge, ChangeRow, ChecksStrip, LockWarning } from "./PublishParts";
 import { pendingCount, useChecks, usePending, usePreview, usePromote, usePublish, useSiteInfo } from "./queries";
 import { useModal } from "./sidePanel";
@@ -28,7 +29,6 @@ export function PublishDialog({ onClose, onPublished }: { onClose: () => void; o
   const busy = publish.isPending || preview.isPending || promote.isPending;
   const building = publish.isPending || preview.isPending;
   const progress = useUploadProgress(building);
-  const blocked = pending.isPending || checks.isPending || problems.length > 0;
   const run = (action: { reset: () => void }, go: () => void) => {
     for (const other of [publish, preview, promote]) if (other !== action) other.reset();
     go();
@@ -42,11 +42,18 @@ export function PublishDialog({ onClose, onPublished }: { onClose: () => void; o
   const lost = pending.data?.lost_urls ?? [];
   const broken = pending.data?.broken_links ?? [];
   const lostPaths = new Set(lost.map((l) => l.path));
+  const hotfix = useHotfix(changes);
+  // A hotfix is judged only by the pages it takes; the rest stays as published.
+  const counts = (pageId: string) => !hotfix.on || hotfix.going.has(pageId);
+  const stopping = problems.filter((p) => counts(p.page_id));
   // Someone else's open editor on a page that goes out: what they saved goes out, what they did not stays with them. The warning
   // comes first.
   const others = (useLocks().data ?? []).filter((l) => !l.mine && l.page_title !== "");
   const lockedBy = new Map(others.map((l) => [l.page_id, l.user_name]));
   const live = site.data?.live;
+  const going = hotfix.on ? hotfix.going.size : count;
+  const blocked =
+    pending.isPending || checks.isPending || stopping.length > 0 || (hotfix.on && hotfix.picked.size === 0);
 
   return (
     <dialog ref={dialog} className="settings publish" aria-labelledby={`${id}-title`} onClose={onClose}>
@@ -61,17 +68,20 @@ export function PublishDialog({ onClose, onPublished }: { onClose: () => void; o
         {count === 0 ? "Nothing has changed since the live site." : "Compared with the live site."}
       </p>
 
-      <LockWarning locks={others.filter((l) => changes.some((c) => c.page_id === l.page_id))} />
+      <LockWarning locks={others.filter((l) => counts(l.page_id) && changes.some((c) => c.page_id === l.page_id))} />
 
-      {problems.length > 0 && (
+      {count > 0 && <ModeSwitch hotfix={hotfix} count={count} base={live ? clock(live.release.created_at) : null} />}
+      {hotfix.on && <PickBar hotfix={hotfix} />}
+
+      {stopping.length > 0 && (
         <div className="publish-problems" role="alert">
           <Icon name="info" size={18} />
           <div>
             <strong>
-              {problems.length === 1 ? "1 problem stops" : `${problems.length} problems stop`} this publish
+              {stopping.length === 1 ? "1 problem stops" : `${stopping.length} problems stop`} this publish
             </strong>
             <ul aria-label="Problems">
-              {problems.map((p) => (
+              {stopping.map((p) => (
                 <li key={`${p.page_id}-${p.kind}-${p.message}`}>
                   <strong>{p.page_title}</strong> <span>{p.message}</span>
                 </li>
@@ -81,7 +91,7 @@ export function PublishDialog({ onClose, onPublished }: { onClose: () => void; o
         </div>
       )}
 
-      {lost.length > 0 && (
+      {!hotfix.on && lost.length > 0 && (
         <div className="publish-warning" role="alert">
           <Icon name="info" size={18} />
           <div>
@@ -97,7 +107,7 @@ export function PublishDialog({ onClose, onPublished }: { onClose: () => void; o
         </div>
       )}
 
-      {broken.length > 0 && (
+      {!hotfix.on && broken.length > 0 && (
         <div className="publish-warning" role="alert">
           <Icon name="info" size={18} />
           <div>
@@ -117,6 +127,11 @@ export function PublishDialog({ onClose, onPublished }: { onClose: () => void; o
         <table className="changes">
           <thead>
             <tr>
+              {hotfix.on && (
+                <th scope="col">
+                  <span className="sr-only">Include</span>
+                </th>
+              )}
               <th scope="col">Change</th>
               <th scope="col">Page</th>
               <th scope="col">Last change</th>
@@ -127,7 +142,7 @@ export function PublishDialog({ onClose, onPublished }: { onClose: () => void; o
             </tr>
           </thead>
           <tbody>
-            {settingsChanged && (
+            {settingsChanged && !hotfix.on && (
               <tr>
                 <td>
                   <span className="badge" data-kind="edited">
@@ -145,6 +160,17 @@ export function PublishDialog({ onClose, onPublished }: { onClose: () => void; o
                 key={c.page_id}
                 change={c}
                 lockedBy={lockedBy.get(c.page_id)}
+                select={
+                  hotfix.on && (
+                    <input
+                      type="checkbox"
+                      aria-label={`Include ${c.title}`}
+                      checked={hotfix.going.has(c.page_id)}
+                      disabled={!hotfix.picked.has(c.page_id) && hotfix.going.has(c.page_id)}
+                      onChange={() => hotfix.toggle(c.page_id)}
+                    />
+                  )
+                }
                 note={
                   <UrlNote
                     change={c}
@@ -157,8 +183,13 @@ export function PublishDialog({ onClose, onPublished }: { onClose: () => void; o
         </table>
       )}
 
+      {hotfix.on && <DependencyNotes hotfix={hotfix} />}
+
       <ChecksStrip
-        problems={problems}
+        stayPending={
+          hotfix.on ? count - [...hotfix.going].filter((id) => changes.some((c) => c.page_id === id)).length : 0
+        }
+        problems={stopping}
         files={live?.release.file_count}
         bytes={live?.release.bytes}
         maxFiles={site.data?.capabilities.max_files}
@@ -186,7 +217,7 @@ export function PublishDialog({ onClose, onPublished }: { onClose: () => void; o
         <button type="button" onClick={() => dialog.current?.close()}>
           {previewed ? "Close" : "Cancel"}
         </button>
-        {site.data?.capabilities.preview && (
+        {site.data?.capabilities.preview && !hotfix.on && (
           <button type="button" disabled={busy || blocked} onClick={() => run(preview, () => preview.mutate())}>
             {preview.isPending ? "Building preview…" : previewed ? "Deploy new preview" : "Deploy preview"}
           </button>
@@ -215,7 +246,7 @@ export function PublishDialog({ onClose, onPublished }: { onClose: () => void; o
           disabled={busy || blocked}
           onClick={() =>
             run(publish, () =>
-              publish.mutate(undefined, {
+              publish.mutate(hotfix.on ? [...hotfix.picked] : undefined, {
                 onSuccess: (release) => {
                   onPublished(release.page_count);
                   dialog.current?.close();
@@ -226,9 +257,9 @@ export function PublishDialog({ onClose, onPublished }: { onClose: () => void; o
         >
           {publish.isPending
             ? "Publishing…"
-            : count === 0
+            : going === 0 && !hotfix.on
               ? "Publish site"
-              : `Publish ${count} ${count === 1 ? "change" : "changes"}`}
+              : `Publish ${going} ${going === 1 ? "change" : "changes"}`}
         </button>
       </div>
     </dialog>

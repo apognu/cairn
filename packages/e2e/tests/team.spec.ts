@@ -122,3 +122,42 @@ test("publishing while someone edits a page names them first", async ({ browser 
   await bob.emulateMedia({ colorScheme: "dark" });
   await dialog.screenshot({ path: "test-results/publish-dark.png" });
 });
+
+test("a hotfix of my changes leaves everyone else's drafts pending", async ({ browser }) => {
+  const suffix = Math.random().toString(36).slice(2, 8);
+  const [theirs, mine] = [`theirs-${suffix}`, `mine-${suffix}`];
+  const alice = await signedIn(browser, "alice");
+  const bob = await signedIn(browser, "bob");
+
+  for (const [page, title, text] of [
+    [alice, theirs, "Unfinished work"],
+    [bob, mine, "The urgent fix"],
+  ] as const) {
+    await page.getByRole("button", { name: "New page" }).click();
+    await nameNewPage(page, title);
+    await page.locator(".ProseMirror").click();
+    await page.keyboard.type(text);
+    await expect(page.getByRole("status").first()).toHaveText("Saved");
+  }
+
+  await bob
+    .getByRole("button", { name: /^Publish/ })
+    .first()
+    .click();
+  const dialog = bob.getByRole("dialog");
+  await dialog.getByRole("button", { name: "Selected pages (hotfix)" }).click();
+  await dialog.getByRole("button", { name: /^My changes/ }).click();
+  await expect(dialog.getByRole("checkbox", { name: `Include ${mine}` })).toBeChecked();
+  await expect(dialog.getByRole("checkbox", { name: `Include ${theirs}` })).not.toBeChecked();
+  await dialog.screenshot({ path: "test-results/hotfix.png" });
+  await dialog.getByRole("button", { name: "Publish 1 change" }).click();
+  await expect(dialog).toBeHidden({ timeout: 30_000 });
+
+  const reader = await browser.newPage();
+  expect((await reader.request.get(`${SERVER}/${mine}/`)).status()).toBe(200);
+  expect((await reader.request.get(`${SERVER}/${theirs}/`)).status()).toBe(404);
+  const pending = await (await bob.request.get(`${SERVER}/_editor/api/publish/changes`)).json();
+  const titles = pending.changes.map((c: { title: string }) => c.title);
+  expect(titles).toContain(theirs);
+  expect(titles).not.toContain(mine);
+});
