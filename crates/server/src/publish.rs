@@ -49,7 +49,8 @@ struct PublishProgress {
 ))]
 #[instrument(skip_all)]
 async fn progress(State(state): State<AppState>) -> Sse<impl Stream<Item = Result<SseEvent, Infallible>>> {
-  let stream = BroadcastStream::new(state.publisher.subscribe()).filter_map(|event| async move {
+  let stopping = state.until_stopping();
+  let stream = BroadcastStream::new(state.publisher.subscribe()).take_until(stopping).filter_map(|event| async move {
     let Ok(Event::PublishProgress { sent, total }) = event else { return None };
     SseEvent::default().json_data(PublishProgress { sent, total }).ok().map(Ok)
   });

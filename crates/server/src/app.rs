@@ -31,6 +31,22 @@ pub struct AppState {
   pub api_checks: Arc<crate::api_pages::ApiChecks>,
   /// The API reference script, which the editor's preview loads from `/api/scalar.js`.
   pub scalar_js: Arc<Vec<u8>>,
+  /// Turns true when the server is asked to stop.
+  pub stopping: tokio::sync::watch::Receiver<bool>,
+}
+
+impl AppState {
+  /// Resolves when the server is stopping. Event streams end with it: a graceful shutdown waits for every open request, and an editor's
+  /// stream would otherwise keep the server up until the tab closes.
+  pub(crate) fn until_stopping(&self) -> impl Future<Output = ()> + Send + use<> {
+    let mut stopping = self.stopping.clone();
+    async move {
+      // A dropped sender (tests, or `dev`, which has no graceful shutdown) never stops the streams.
+      if stopping.wait_for(|stop| *stop).await.is_err() {
+        std::future::pending::<()>().await;
+      }
+    }
+  }
 }
 
 impl axum::extract::FromRef<AppState> for cairn_auth::Auth {
@@ -175,6 +191,7 @@ pub(crate) async fn test_state_serving(target: impl FnOnce(&std::path::Path) -> 
       target(&dir),
     )
     .unwrap(),
+    stopping: tokio::sync::watch::channel(false).1,
     pool,
     content,
     assets,

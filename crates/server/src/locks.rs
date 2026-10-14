@@ -268,7 +268,8 @@ enum EditorEvent {
 ))]
 #[instrument(skip_all)]
 async fn events(State(state): State<AppState>) -> Sse<impl Stream<Item = Result<SseEvent, Infallible>>> {
-  let stream = BroadcastStream::new(state.publisher.subscribe()).filter_map(|event| async move {
+  let stopping = state.until_stopping();
+  let stream = BroadcastStream::new(state.publisher.subscribe()).take_until(stopping).filter_map(|event| async move {
     let event = match event.ok()? {
       Event::LockChanged { page } => EditorEvent::LockChanged { page_id: page },
       Event::LockTakenOver { page, from } => EditorEvent::LockTakenOver { page_id: page, from },

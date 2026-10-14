@@ -53,6 +53,8 @@ enum AuthSetup {
 struct Runtime {
   state: AppState,
   events: cairn_core::LocalBroadcast,
+  /// Tells the event streams the server is stopping.
+  stop: tokio::sync::watch::Sender<bool>,
 }
 
 async fn prepare(data_dir: &std::path::Path, database_url: Option<&str>, site_url: String, auth: AuthSetup, target: cairn_publish::PublishTarget) -> anyhow::Result<Runtime> {
@@ -105,7 +107,9 @@ async fn prepare(data_dir: &std::path::Path, database_url: Option<&str>, site_ur
     }
   };
 
+  let (stop, stopping) = tokio::sync::watch::channel(false);
   let state = AppState {
+    stopping,
     editor_dir: bundles.editor_dir.clone().map(Arc::new),
     api_checks: Default::default(),
     scalar_js: Arc::new(bundles.scalar_js.clone()),
@@ -144,7 +148,7 @@ async fn prepare(data_dir: &std::path::Path, database_url: Option<&str>, site_ur
 
   tokio::spawn(purge_trash_daily(state.db.clone()));
 
-  Ok(Runtime { state, events })
+  Ok(Runtime { state, events, stop })
 }
 
 /// How long a deleted page waits in the trash before it is deleted for good.
@@ -176,7 +180,7 @@ pub async fn run_dev(bind: SocketAddr, site_bind: SocketAddr, data_dir: PathBuf)
   // Without PUBLIC_URL, the address `dev` serves the site on, whichever port it was given.
   let site_url = env::var("PUBLIC_URL").unwrap_or_else(|_| format!("http://{site_bind}")).trim_end_matches('/').to_string();
   let target = cairn_publish::PublishTarget::Folder(cairn_publish::FolderTarget::new(data_dir.clone()));
-  let Runtime { state, events } = prepare(&data_dir, None, site_url, AuthSetup::Local, target).await?;
+  let Runtime { state, events, .. } = prepare(&data_dir, None, site_url, AuthSetup::Local, target).await?;
 
   let editor = tokio::net::TcpListener::bind(bind).await.with_context(|| format!("cannot bind {bind}"))?;
   let site = tokio::net::TcpListener::bind(site_bind).await.with_context(|| format!("cannot bind {site_bind}"))?;
@@ -204,14 +208,14 @@ pub async fn run_serve() -> anyhow::Result<()> {
     config::TargetChoice::Cloudflare(cloudflare) => cairn_publish::PublishTarget::Cloudflare(cairn_publish::CloudflareTarget::new(cloudflare.clone())?),
   };
   let setup = AuthSetup::Oidc(Box::new(config.oidc.clone()), config.github.clone(), redirect);
-  let Runtime { state, .. } = prepare(&config.data_dir, config.database_url.as_deref(), config.site_url.clone(), setup, target).await?;
+  let Runtime { state, stop, .. } = prepare(&config.data_dir, config.database_url.as_deref(), config.site_url.clone(), setup, target).await?;
 
   let listener = tokio::net::TcpListener::bind(config.bind).await.with_context(|| format!("cannot bind {}", config.bind))?;
   tracing::info!(address = %config.bind, public_url = %config.public_url, "listening");
   // Forwarded headers are believed only from the configured proxies, which needs to know who is connecting.
   let app = serving::serve_router(state).layer(axum::middleware::from_fn_with_state(config.trusted_proxies.clone(), proxy::forwarded));
   axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>())
-    .with_graceful_shutdown(shutdown_signal())
+    .with_graceful_shutdown(shutdown_signal(stop))
     .await
     .context("server stopped")?;
 
@@ -220,7 +224,7 @@ pub async fn run_serve() -> anyhow::Result<()> {
 
 /// Resolves when the process is asked to stop (SIGTERM from a container runtime or systemd, or Ctrl-C), so requests in flight finish.
 /// Without it a container, whose server is process 1, ignores SIGTERM and is killed after a timeout.
-async fn shutdown_signal() {
+async fn shutdown_signal(stop: tokio::sync::watch::Sender<bool>) {
   let terminate = async {
     match tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) {
       Ok(mut signal) => {
@@ -235,6 +239,8 @@ async fn shutdown_signal() {
     _ = terminate => {}
   }
   tracing::info!("stopping");
+  // Ends the editors' event streams, which never finish on their own; other requests in flight are waited for.
+  stop.send_replace(true);
 }
 
 /// GitHub's hosts for API sources. The variables exist for tests and mirrors; a deployment normally sets neither.
