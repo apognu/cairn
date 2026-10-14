@@ -152,7 +152,12 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
     &self.target
   }
 
-  /// Events sent from now on: releases going live, and the progress of the build being sent.
+  /// Tells every subscriber about something that happened outside publishing (a page lock changing hands).
+  pub fn notify(&self, event: Event) {
+    self.broadcast.send(event);
+  }
+
+  /// Events sent from now on: releases going live, the progress of the build being sent, and whatever `notify` was given.
   pub fn subscribe(&self) -> tokio::sync::broadcast::Receiver<Event> {
     self.broadcast.subscribe()
   }

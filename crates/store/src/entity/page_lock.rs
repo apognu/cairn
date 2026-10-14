@@ -10,6 +10,7 @@ pub struct Model {
   pub acquired_at: String,
   pub renewed_at: String,
   pub expires_at: i64,
+  pub active_at: i64,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

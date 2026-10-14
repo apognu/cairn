@@ -7,6 +7,9 @@ use crate::{PageId, UserId};
 /// page within this time.
 pub const LOCK_LEASE: SignedDuration = SignedDuration::from_mins(2);
 
+/// How long a holder must have done nothing before someone else may take over without forcing it.
+pub const LOCK_IDLE: SignedDuration = SignedDuration::from_mins(2);
+
 /// Who is editing a page, and since when.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
@@ -20,4 +23,7 @@ pub struct PageLock {
   pub renewed_at: Timestamp,
   #[cfg_attr(feature = "openapi", schema(value_type = String, format = DateTime))]
   pub expires_at: Timestamp,
+  /// When the holder last typed or clicked in the page, as their editor reported it.
+  #[cfg_attr(feature = "openapi", schema(value_type = String, format = DateTime))]
+  pub active_at: Timestamp,
 }

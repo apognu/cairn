@@ -1,11 +1,12 @@
-import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef } from "react";
+import type { DocNode } from "@cairn/renderer";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "./api/client";
 import { unwrap } from "./api/unwrap";
 import { Canvas } from "./Canvas";
 import { LeadField } from "./LeadField";
-import { LockBanner } from "./LockBanner";
-import { readLocal } from "./localDrafts";
+import { type LockActions, LockBanner } from "./LockBanner";
+import { discardLocal, readLocal } from "./localDrafts";
 import { usePages } from "./queries";
 import { type Page, pageUrls } from "./tree";
 import { type DraftLock, type InitialDraft, type SaveStatus, saveSettled, useDraftSync } from "./useDraftSync";
@@ -18,11 +19,14 @@ interface Props {
   page: Page;
   onStatus: (status: PageStatus | null) => void;
   panelHost: HTMLElement | null;
+  /** Opens another page, such as the one made from work kept after a take-over. */
+  onOpen?: (id: string) => void;
 }
 
 /** Opens the page for editing when its lock can be had, and read-only while someone else holds it. */
-export function PageEditor({ page, onStatus, panelHost }: Props) {
-  const lock = usePageLock(page.id);
+export function PageEditor({ page, onStatus, panelHost, onOpen }: Props) {
+  const lock = usePageLock(page.id, page.title);
+  const kept = useKeptWork(page, lock.state.kind === "taken", onOpen);
   // The sync must see one object for the page's whole life, and the latest lock functions through it.
   const latest = useRef(lock);
   latest.current = lock;
@@ -41,9 +45,70 @@ export function PageEditor({ page, onStatus, panelHost }: Props) {
       return <p className="muted pad">Loading…</p>;
     case "mine":
       return <EditablePage page={page} onStatus={onStatus} panelHost={panelHost} lock={draftLock} />;
-    default:
-      return <ReadOnlyPage page={page} banner={<LockBanner state={lock.state} onEdit={() => void lock.acquire()} />} />;
+    default: {
+      const actions: LockActions = {
+        edit: () => void lock.acquire(),
+        takeOver: lock.takeOver,
+        watching: lock.watching,
+        watch: () => void lock.watch(),
+        ...kept,
+      };
+      return <ReadOnlyPage page={page} banner={<LockBanner state={lock.state} actions={actions} />} />;
+    }
   }
+}
+
+/** The plain text of a document, one block per paragraph: what "Copy my changes" puts on the clipboard. */
+function docText(node: DocNode): string {
+  if (node.text) return node.text;
+  const inner = (node.content ?? []).map(docText);
+  return inner.join(node.content?.some((c) => c.text !== undefined) ? "" : "\n\n");
+}
+
+/**
+ * After the page was taken from this editor: what it had not saved, which stays in the browser copy, and the two ways to keep it. The
+ * page itself cannot take it any more (its draft moved on), so it goes to the clipboard or into a new page next to it.
+ */
+function useKeptWork(page: Page, taken: boolean, onOpen?: (id: string) => void) {
+  const queryClient = useQueryClient();
+  const [doc, setDoc] = useState<DocNode | null>(null);
+
+  useEffect(() => {
+    if (!taken) return;
+    // The editor writes its last copy as it closes, just before this runs.
+    const timer = window.setTimeout(async () => {
+      const local = await readLocal(page.id);
+      setDoc(local?.dirty ? local.doc : null);
+    }, 100);
+    return () => window.clearTimeout(timer);
+  }, [taken, page.id]);
+
+  const copy = async () => {
+    if (doc) await navigator.clipboard.writeText(docText(doc));
+  };
+
+  const saveAsNew = async () => {
+    if (!doc) return;
+    const created = unwrap(
+      await api.POST("/api/pages", {
+        body: { parent_id: page.parent_id ?? null, title: `${page.title} (my changes)`, before: null },
+      }),
+    );
+    const { token } = unwrap(await api.POST("/api/pages/{id}/lock", { params: { path: { id: created.id } } }));
+    unwrap(
+      await api.PUT("/api/pages/{id}/draft", {
+        params: { path: { id: created.id } },
+        body: { doc, base_revision_id: null, lock_token: token },
+      }),
+    );
+    await api.DELETE("/api/pages/{id}/lock", { params: { path: { id: created.id }, query: { token } } });
+    await discardLocal(page.id);
+    setDoc(null);
+    await queryClient.invalidateQueries({ queryKey: ["pages"] });
+    onOpen?.(created.id);
+  };
+
+  return { unsaved: doc !== null, copy, saveAsNew };
 }
 
 /** Loads what to edit: the server's draft, or the browser's copy when it holds typing the server has not seen. */

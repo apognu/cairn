@@ -1,6 +1,6 @@
 use tokio::sync::broadcast::Receiver;
 
-use crate::ReleaseId;
+use crate::{PageId, ReleaseId, UserId};
 
 /// Something that happened which other parts of the server (or other instances) may want to react to.
 /// Events carry IDs, not content: they are hints, and the database stays the source of truth.
@@ -10,6 +10,10 @@ pub enum Event {
   Published { release: ReleaseId },
   /// A build being handed to the publish target has sent `sent` of the `total` files the target lacked.
   PublishProgress { sent: u64, total: u64 },
+  /// A page's lock was taken, given back or dropped: open editors read it again.
+  LockChanged { page: PageId },
+  /// Someone took the page from the editor of `from`, which must stop and keep its unsaved work.
+  LockTakenOver { page: PageId, from: UserId },
 }
 
 /// Fans events out to subscribers. The first implementation lives in memory; a Postgres LISTEN/NOTIFY one comes with multi-instance setups.

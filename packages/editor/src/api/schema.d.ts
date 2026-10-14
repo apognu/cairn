@@ -16,6 +16,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Server-sent events for open editors: lock changes and new releases. They carry IDs only; the editor reads what it needs again. A
+         *     stream that falls behind skips the oldest events, so a reconnecting editor reloads its state.
+         */
+        get: operations["editorEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/library": {
         parameters: {
             query?: never;
@@ -368,6 +388,26 @@ export interface paths {
         post: operations["acquireLock"];
         /** Stops editing. The editor calls it when the page is left or after a long idle time; a token that lost the lock changes nothing. */
         delete: operations["releaseLock"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pages/{id}/lock/take-over": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Takes the page from someone who left it idle (or, with `force`, from someone still at work). Their editor is told at once, stops,
+         *     and keeps what it has not saved in their browser. Refused with 409 while the holder is active and `force` is not set.
+         */
+        post: operations["takeOverLock"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -938,6 +978,21 @@ export interface components {
             base_revision_id?: components["schemas"]["RevisionId"] | null;
             doc: components["schemas"]["Document"];
         };
+        /** @description What open editors are told about, as server-sent events: one JSON object each, tagged by `type`. */
+        EditorEvent: {
+            page_id: components["schemas"]["PageId"];
+            /** @enum {string} */
+            type: "lock_changed";
+        } | {
+            from: components["schemas"]["UserId"];
+            page_id: components["schemas"]["PageId"];
+            /** @enum {string} */
+            type: "lock_taken_over";
+        } | {
+            release_id: components["schemas"]["ReleaseId"];
+            /** @enum {string} */
+            type: "published";
+        };
         /**
          * @description What kind of reusable content an entry is.
          * @enum {string}
@@ -1009,8 +1064,15 @@ export interface components {
         LockView: {
             /** Format: date-time */
             acquired_at: string;
+            /**
+             * Format: date-time
+             * @description When the holder last typed or clicked in the page.
+             */
+            active_at: string;
             /** Format: date-time */
             expires_at: string;
+            /** @description The holder has done nothing for a while: taking over does not need forcing. */
+            idle: boolean;
             /**
              * Format: date-time
              * @description When the page's draft was last saved, by anyone.
@@ -1211,6 +1273,11 @@ export interface components {
             title: string;
         };
         RenewLock: {
+            /**
+             * Format: int64
+             * @description How long ago, in milliseconds, the holder last typed or clicked in the editor.
+             */
+            idle_ms?: number;
             token: components["schemas"]["LockToken"];
         };
         /** @description Where one spec was read from at a build, as recorded in the release. */
@@ -1322,6 +1389,10 @@ export interface components {
         };
         SnippetBody: {
             doc: components["schemas"]["Document"];
+        };
+        TakeOver: {
+            /** @description Take the page even though its holder is still active. */
+            force?: boolean;
         };
         TermBody: {
             aliases?: string[];
@@ -1445,6 +1516,25 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    editorEvents: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": components["schemas"]["EditorEvent"];
                 };
             };
         };
@@ -2436,6 +2526,48 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    takeOverLock: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["PageId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TakeOver"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AcquiredLock"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description the holder is still active */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
             };
         };
     };

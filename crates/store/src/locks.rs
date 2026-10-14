@@ -1,35 +1,38 @@
 //! Page locks: one editor per page, held by a lease the editor renews while its author is active.
 
-use cairn_core::{LOCK_LEASE, LockToken, PageId, PageLock, UserId};
+use cairn_core::{LOCK_IDLE, LOCK_LEASE, LockToken, PageId, PageLock, UserId};
 use jiff::Timestamp;
 use sea_orm::{
   ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter, Set,
   sea_query::{Expr, ExprTrait, OnConflict},
 };
 
-use crate::{StoreError, entity::page_lock};
+use crate::{StoreError, connect::write_tx, entity::page_lock};
 
-/// Takes the page's lock for `user` with a new token: it succeeds only if the page is free, its lease ran out, or `user` holds it already
-/// (another tab of theirs, which loses it). One atomic statement, so two editors arriving together cannot both win.
+/// Takes the page's lock for `user` with a new token: it succeeds only if the page is free, its lease ran out, or `user` holds it in
+/// another tab that has been idle for `LOCK_IDLE` (every editor tab opens a page on arrival; that must not stop the tab they are typing
+/// in). One atomic statement, so two editors arriving together cannot both win. A new lock counts as idle until its holder does something.
 pub async fn acquire_lock(db: &DatabaseConnection, page: PageId, user: UserId, now: Timestamp) -> Result<(PageLock, LockToken), StoreError> {
   let token = LockToken::new();
-  let expires = millis(now + LOCK_LEASE);
   let row = new_row(page, user, token, now);
 
-  // The start time is kept when the same person comes back before the lease ran out (a reload), so "editing since" stays true.
-  let acquired_at = format!(
-    r#"CASE WHEN "page_locks"."user_id" = "excluded"."user_id" AND "page_locks"."expires_at" >= {now} THEN "page_locks"."acquired_at" ELSE "excluded"."acquired_at" END"#,
-    now = millis(now),
-  );
   let result = page_lock::Entity::insert(row)
     .on_conflict(
       OnConflict::column(page_lock::Column::PageId)
-        .update_columns([page_lock::Column::UserId, page_lock::Column::Token, page_lock::Column::RenewedAt, page_lock::Column::ExpiresAt])
-        .value(page_lock::Column::AcquiredAt, Expr::cust(acquired_at))
+        .update_columns([
+          page_lock::Column::UserId,
+          page_lock::Column::Token,
+          page_lock::Column::AcquiredAt,
+          page_lock::Column::RenewedAt,
+          page_lock::Column::ExpiresAt,
+          page_lock::Column::ActiveAt,
+        ])
         .action_and_where(
-          Expr::col((page_lock::Entity, page_lock::Column::ExpiresAt))
-            .lt(millis(now))
-            .or(Expr::col((page_lock::Entity, page_lock::Column::UserId)).eq(user.as_uuid())),
+          Expr::col((page_lock::Entity, page_lock::Column::ExpiresAt)).lt(millis(now)).or(
+            Expr::col((page_lock::Entity, page_lock::Column::UserId))
+              .eq(user.as_uuid())
+              .and(Expr::col((page_lock::Entity, page_lock::Column::ActiveAt)).lt(millis(now - LOCK_IDLE))),
+          ),
         )
         .to_owned(),
     )
@@ -40,17 +43,17 @@ pub async fn acquire_lock(db: &DatabaseConnection, page: PageId, user: UserId, n
   if result == 0 || current.token != token.as_uuid() {
     return Err(StoreError::LockHeld(into_lock(current)?));
   }
-  debug_assert!(current.expires_at == expires);
 
   Ok((into_lock(current)?, token))
 }
 
-/// Extends the lease of the lock `token` names. Its lease may have run out, as long as nobody took the page since. Fails with the
-/// current holder (`LockHeld`) or `NotFound` when the page has no lock any more.
-pub async fn renew_lock(db: &impl ConnectionTrait, page: PageId, token: LockToken, now: Timestamp) -> Result<PageLock, StoreError> {
+/// Extends the lease of the lock `token` names, noting when its holder was last active. Its lease may have run out, as long as nobody
+/// took the page since. Fails with the current holder (`LockHeld`) or `NotFound` when the page has no lock any more.
+pub async fn renew_lock(db: &impl ConnectionTrait, page: PageId, token: LockToken, now: Timestamp, active_at: Timestamp) -> Result<PageLock, StoreError> {
   let result = page_lock::Entity::update_many()
     .col_expr(page_lock::Column::RenewedAt, Expr::value(now.to_string()))
     .col_expr(page_lock::Column::ExpiresAt, Expr::value(millis(now + LOCK_LEASE)))
+    .col_expr(page_lock::Column::ActiveAt, Expr::value(millis(active_at.min(now))))
     .filter(page_lock::Column::PageId.eq(page.as_uuid()))
     .filter(page_lock::Column::Token.eq(token.as_uuid()))
     .exec(db)
@@ -62,6 +65,41 @@ pub async fn renew_lock(db: &impl ConnectionTrait, page: PageId, token: LockToke
     Some(row) if row.expires_at >= millis(now) => Err(StoreError::LockHeld(into_lock(row)?)),
     _ => Err(StoreError::NotFound),
   }
+}
+
+/// Takes the page from its holder with a new token, as long as they have been idle for `LOCK_IDLE` (or with `force`, at any time). Returns
+/// the lock and whoever held it, so they can be told. An active holder without `force` is a `Conflict`.
+pub async fn take_over_lock(db: &DatabaseConnection, page: PageId, user: UserId, now: Timestamp, force: bool) -> Result<(PageLock, LockToken, Option<UserId>), StoreError> {
+  let tx = write_tx(db).await?;
+  let previous = find(&tx, page).await?.filter(|row| row.expires_at >= millis(now) && row.user_id != user.as_uuid());
+
+  if let Some(row) = &previous
+    && !force
+    && row.active_at > millis(now - LOCK_IDLE)
+  {
+    return Err(StoreError::Conflict("they are still working on the page".into()));
+  }
+
+  let token = LockToken::new();
+  page_lock::Entity::insert(new_row(page, user, token, now))
+    .on_conflict(
+      OnConflict::column(page_lock::Column::PageId)
+        .update_columns([
+          page_lock::Column::UserId,
+          page_lock::Column::Token,
+          page_lock::Column::AcquiredAt,
+          page_lock::Column::RenewedAt,
+          page_lock::Column::ExpiresAt,
+          page_lock::Column::ActiveAt,
+        ])
+        .to_owned(),
+    )
+    .exec_without_returning(&tx)
+    .await?;
+  let lock = into_lock(find(&tx, page).await?.ok_or(StoreError::NotFound)?)?;
+  tx.commit().await?;
+
+  Ok((lock, token, previous.map(|row| row.user_id.into())))
 }
 
 /// Gives the lock back; a token that no longer holds it changes nothing.
@@ -122,6 +160,8 @@ fn new_row(page: PageId, user: UserId, token: LockToken, now: Timestamp) -> page
     acquired_at: Set(now.to_string()),
     renewed_at: Set(now.to_string()),
     expires_at: Set(millis(now + LOCK_LEASE)),
+    // Opening a page is not working on it: the holder is idle until their editor reports a keystroke or a save.
+    active_at: Set(0),
   }
 }
 
@@ -138,6 +178,7 @@ fn into_lock(row: page_lock::Model) -> Result<PageLock, StoreError> {
     acquired_at: parse(&row.acquired_at)?,
     renewed_at: parse(&row.renewed_at)?,
     expires_at: Timestamp::from_millisecond(row.expires_at).map_err(|e| StoreError::Invalid(format!("bad lock expiry: {e}")))?,
+    active_at: Timestamp::from_millisecond(row.active_at).map_err(|e| StoreError::Invalid(format!("bad lock activity: {e}")))?,
   })
 }
 
@@ -164,9 +205,10 @@ mod tests {
 
     let (lock, token) = acquire_lock(&db, page, alice, at(0)).await.unwrap();
     assert_eq!(lock.expires_at, at(0) + LOCK_LEASE);
+    renew_lock(&db, page, token, at(10), at(10)).await.unwrap();
 
-    // (who, when, wins): others wait for the lease; the holder may always come back.
-    let cases = [(bob, 60, false), (alice, 90, true), (bob, 90 + 119, false), (bob, 90 + 121, true), (alice, 90 + 122, false)];
+    // (who, when, wins): others wait for the lease (from Alice's renewal at 10s); Alice's other tab waits until this one is idle.
+    let cases = [(bob, 60, false), (alice, 90, false), (bob, 129, false), (bob, 131, true), (alice, 132, false)];
     for (who, secs, wins) in cases {
       let result = acquire_lock(&db, page, who, at(secs)).await;
       assert_eq!(result.is_ok(), wins, "{who} at {secs}s: {result:?}");
@@ -175,10 +217,27 @@ mod tests {
       }
     }
 
-    // Alice's first token was replaced by her second acquire, and Bob holds the page now.
-    assert!(matches!(renew_lock(&db, page, token, at(300)).await, Err(StoreError::LockHeld(l)) if l.user_id == bob));
-    assert_eq!(page_lock(&db, page, at(300)).await.unwrap().unwrap().user_id, bob);
-    assert!(page_lock(&db, page, at(90 + 121) + LOCK_LEASE + SignedDuration::from_secs(1)).await.unwrap().is_none());
+    // Bob holds the page now: Alice's token is dead.
+    assert!(matches!(renew_lock(&db, page, token, at(200), at(200)).await, Err(StoreError::LockHeld(l)) if l.user_id == bob));
+    assert_eq!(page_lock(&db, page, at(200)).await.unwrap().unwrap().user_id, bob);
+    assert!(page_lock(&db, page, at(131) + LOCK_LEASE + SignedDuration::from_secs(1)).await.unwrap().is_none());
+  }
+
+  #[tokio::test]
+  async fn a_tab_that_only_opened_the_page_gives_way_to_the_same_users_other_tab() {
+    let db = test_db().await;
+    let (alice, bob) = (UserId::new(), UserId::new());
+    let page = create_page(&db, alice, None, "Guide", Placement::Last).await.unwrap().id;
+    let start = now();
+    let at = |secs: i64| start + SignedDuration::from_secs(secs);
+
+    let (_, opened) = acquire_lock(&db, page, alice, at(0)).await.unwrap();
+    assert!(acquire_lock(&db, page, bob, at(1)).await.is_err(), "someone else still waits for the lease");
+    let (_, typing) = acquire_lock(&db, page, alice, at(2)).await.unwrap();
+    renew_lock(&db, page, typing, at(3), at(3)).await.unwrap();
+
+    assert!(matches!(renew_lock(&db, page, opened, at(4), at(4)).await, Err(StoreError::LockHeld(_))));
+    assert!(acquire_lock(&db, page, alice, at(5)).await.is_err(), "the tab she types in keeps the page");
   }
 
   #[tokio::test]
@@ -190,7 +249,7 @@ mod tests {
 
     let (first, token) = acquire_lock(&db, page, alice, now).await.unwrap();
     let later = now + SignedDuration::from_secs(100);
-    let renewed = renew_lock(&db, page, token, later).await.unwrap();
+    let renewed = renew_lock(&db, page, token, later, later).await.unwrap();
     assert_eq!((renewed.acquired_at, renewed.expires_at), (first.acquired_at, later + LOCK_LEASE));
     assert!(
       acquire_lock(&db, page, bob, now + LOCK_LEASE + SignedDuration::from_secs(1)).await.is_err(),
@@ -200,8 +259,32 @@ mod tests {
     release_lock(&db, page, LockToken::new()).await.unwrap();
     assert!(page_lock(&db, page, later).await.unwrap().is_some(), "a wrong token releases nothing");
     release_lock(&db, page, token).await.unwrap();
-    assert!(matches!(renew_lock(&db, page, token, later).await, Err(StoreError::NotFound)));
+    assert!(matches!(renew_lock(&db, page, token, later, later).await, Err(StoreError::NotFound)));
     acquire_lock(&db, page, bob, later).await.unwrap();
+  }
+
+  #[tokio::test]
+  async fn only_an_idle_holder_can_be_taken_over_without_forcing() {
+    let db = test_db().await;
+    let (alice, bob) = (UserId::new(), UserId::new());
+    let page = create_page(&db, alice, None, "Guide", Placement::Last).await.unwrap().id;
+    let start = now();
+    let at = |secs: i64| start + SignedDuration::from_secs(secs);
+    let (_, token) = acquire_lock(&db, page, alice, at(0)).await.unwrap();
+
+    // Alice's editor renews at 100s, reporting her last keystroke at 90s.
+    renew_lock(&db, page, token, at(100), at(90)).await.unwrap();
+    assert!(matches!(take_over_lock(&db, page, bob, at(150), false).await, Err(StoreError::Conflict(_))));
+
+    let (lock, bobs, from) = take_over_lock(&db, page, bob, at(90 + 121), false).await.unwrap();
+    assert_eq!((lock.user_id, from), (bob, Some(alice)));
+    assert!(matches!(renew_lock(&db, page, token, at(220), at(220)).await, Err(StoreError::LockHeld(_))), "alice's token is dead");
+
+    // Forcing works on an active holder, and taking a free page names nobody.
+    renew_lock(&db, page, bobs, at(230), at(230)).await.unwrap();
+    assert_eq!(take_over_lock(&db, page, alice, at(231), true).await.unwrap().2, Some(bob));
+    release_lock(&db, page, take_over_lock(&db, page, alice, at(232), false).await.unwrap().1).await.unwrap();
+    assert_eq!(take_over_lock(&db, page, bob, at(233), false).await.unwrap().2, None);
   }
 
   #[tokio::test]

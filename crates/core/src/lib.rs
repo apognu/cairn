@@ -31,7 +31,7 @@ pub use error::CoreError;
 pub use id::{AssetId, LockToken, PageId, ReleaseId, RevisionId, UserId};
 pub use library::{EntryKind, Library, SNIPPET_NODE, TERM_MARK, Term, VARIABLE_NODE, entry_refs, expand, snippet_cycle, term_anchors, term_refs};
 pub use links::{LinkKind, PageLink, extract_links};
-pub use lock::{LOCK_LEASE, PageLock};
+pub use lock::{LOCK_IDLE, LOCK_LEASE, PageLock};
 pub use nav::{header_pages, header_section, in_sidebar, sidebar_root};
 pub use page::{Page, PageKind, Placement, page_urls, slugify};
 pub use redirect::{BrokenLink, Change, ChangeKind, Current, Inactive, Live, LostUrl, OldUrls, Pending, Redirect, RedirectOrigin, effective_redirects, pending_changes, resolve_redirect};

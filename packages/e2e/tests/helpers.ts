@@ -47,7 +47,7 @@ export const SITE = "http://127.0.0.1:3001";
  * The same user's editor tab, if one has the page open, loses its lock.
  */
 export async function saveDraft(request: APIRequestContext, pageId: string, doc: unknown, base: string | null) {
-  const lock = await request.post(`/api/pages/${pageId}/lock`);
+  const lock = await request.post(`/api/pages/${pageId}/lock/take-over`, { data: { force: true } });
   expect(lock.ok(), await lock.text()).toBe(true);
   const { token } = await lock.json();
 

@@ -63,6 +63,23 @@
         }
       }
     },
+    "/api/events": {
+      "get": {
+        "summary": "Server-sent events for open editors: lock changes and new releases. They carry IDs only; the editor reads what it needs again. A\nstream that falls behind skips the oldest events, so a reconnecting editor reloads its state.",
+        "operationId": "editorEvents",
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/EditorEvent"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/library": {
       "get": {
         "summary": "Every variable, snippet and glossary term.",
@@ -1300,6 +1317,62 @@
         ],
         "responses": {
           "204": {}
+        }
+      }
+    },
+    "/api/pages/{id}/lock/take-over": {
+      "post": {
+        "summary": "Takes the page from someone who left it idle (or, with `force`, from someone still at work). Their editor is told at once, stops,\nand keeps what it has not saved in their browser. Refused with 409 while the holder is active and `force` is not set.",
+        "operationId": "takeOverLock",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/PageId"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TakeOver"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcquiredLock"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "the holder is still active",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
         }
       }
     },
@@ -2725,6 +2798,72 @@
           }
         }
       },
+      "EditorEvent": {
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "Someone took, renewed into, or gave back a page's lock: read it again.",
+            "required": [
+              "page_id",
+              "type"
+            ],
+            "properties": {
+              "page_id": {
+                "$ref": "#/components/schemas/PageId"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "lock_changed"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "`from` lost the page to someone else.",
+            "required": [
+              "page_id",
+              "from",
+              "type"
+            ],
+            "properties": {
+              "from": {
+                "$ref": "#/components/schemas/UserId"
+              },
+              "page_id": {
+                "$ref": "#/components/schemas/PageId"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "lock_taken_over"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "A release went live.",
+            "required": [
+              "release_id",
+              "type"
+            ],
+            "properties": {
+              "release_id": {
+                "$ref": "#/components/schemas/ReleaseId"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "published"
+                ]
+              }
+            }
+          }
+        ],
+        "description": "What open editors are told about, as server-sent events: one JSON object each, tagged by `type`."
+      },
       "EntryKind": {
         "type": "string",
         "description": "What kind of reusable content an entry is.",
@@ -2971,16 +3110,27 @@
           "mine",
           "acquired_at",
           "renewed_at",
-          "expires_at"
+          "expires_at",
+          "active_at",
+          "idle"
         ],
         "properties": {
           "acquired_at": {
             "type": "string",
             "format": "date-time"
           },
+          "active_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the holder last typed or clicked in the page."
+          },
           "expires_at": {
             "type": "string",
             "format": "date-time"
+          },
+          "idle": {
+            "type": "boolean",
+            "description": "The holder has done nothing for a while: taking over does not need forcing."
           },
           "last_saved_at": {
             "type": [
@@ -3619,6 +3769,12 @@
           "token"
         ],
         "properties": {
+          "idle_ms": {
+            "type": "integer",
+            "format": "int64",
+            "description": "How long ago, in milliseconds, the holder last typed or clicked in the editor.",
+            "minimum": 0
+          },
           "token": {
             "$ref": "#/components/schemas/LockToken"
           }
@@ -3893,6 +4049,15 @@
         "properties": {
           "doc": {
             "$ref": "#/components/schemas/Document"
+          }
+        }
+      },
+      "TakeOver": {
+        "type": "object",
+        "properties": {
+          "force": {
+            "type": "boolean",
+            "description": "Take the page even though its holder is still active."
           }
         }
       },

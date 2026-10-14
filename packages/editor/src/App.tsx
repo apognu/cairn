@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
 import { ApiSettings } from "./ApiSettings";
 import { serverUrl } from "./api/base";
+import { useEditorEvents } from "./events";
 import { FixtureView } from "./FixtureView";
 import { HistoryDrawer } from "./HistoryDrawer";
 import { Icon } from "./icons";
@@ -50,6 +51,7 @@ function breadcrumb(pages: Page[], page: Page): string[] {
 
 function Editor() {
   useCloseMenus();
+  useEditorEvents();
   const pages = usePages();
   // The selected page lives in the URL, so a reload comes back to it.
   const [selected, setSelected] = useState(() => new URLSearchParams(window.location.hash.slice(1)).get("page"));
@@ -214,7 +216,13 @@ function Editor() {
                 <ApiSettings key={current.id} page={current} />
               </div>
             ) : current ? (
-              <PageEditor key={`${current.id}-${restores}`} page={current} onStatus={setStatus} panelHost={panelHost} />
+              <PageEditor
+                key={`${current.id}-${restores}`}
+                page={current}
+                onStatus={setStatus}
+                panelHost={panelHost}
+                onOpen={select}
+              />
             ) : (
               !pages.isPending && (
                 <p className="muted pad">

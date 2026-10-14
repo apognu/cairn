@@ -76,7 +76,7 @@ async fn save_draft(State(state): State<AppState>, CurrentUser(user): CurrentUse
     return Err(AppError::Invalid(vec!["the root node must have type \"doc\"".into()]));
   }
 
-  crate::locks::keep(&state, id, body.lock_token, user).await?;
+  crate::locks::keep(&state, id, body.lock_token, user, jiff::Timestamp::now()).await?;
   let draft = state.content.save_draft(id, body.doc, body.base_revision_id, user).await?;
 
   Ok(Json(DraftResponse {

@@ -33,7 +33,8 @@ test("a page someone edits is read-only for others, and free again when they lea
   await expect(banner).toContainText("alice is editing this page.");
   await expect(bob.locator(".ProseMirror")).toContainText("Alice was here");
   await expect(bob.locator(".ProseMirror")).toHaveAttribute("contenteditable", "false");
-  await expect(bob.getByRole("img", { name: "Locked by alice" })).toBeVisible();
+  const row = bob.locator(".row", { has: bob.getByRole("button", { name: title, exact: true }) });
+  await expect(row.getByRole("img", { name: "Locked by alice" })).toBeVisible();
   await bob.screenshot({ path: "test-results/locked-light.png" });
   await bob.emulateMedia({ colorScheme: "dark" });
   await bob.screenshot({ path: "test-results/locked-dark.png" });
@@ -52,4 +53,40 @@ test("a page someone edits is read-only for others, and free again when they lea
   await expect(banner).toContainText("Nobody is editing this page now.", { timeout: 20_000 });
   await banner.getByRole("button", { name: "Edit" }).click();
   await expect(bob.locator(".ProseMirror")).toHaveAttribute("contenteditable", "true");
+});
+
+test("taking over stops the holder's editor at once, and their unsaved work can become a page", async ({ browser }) => {
+  const title = `takeover-${Math.random().toString(36).slice(2, 8)}`;
+  const alice = await signedIn(browser, "alice");
+  const bob = await signedIn(browser, "bob");
+
+  await alice.getByRole("button", { name: "New page" }).click();
+  await nameNewPage(alice, title);
+  await alice.locator(".ProseMirror").click();
+  await alice.keyboard.type("Saved part.");
+  await expect(alice.getByRole("status").first()).toHaveText("Saved");
+  // Alice's next words never reach the server.
+  await alice.route("**/api/pages/*/draft", (route) =>
+    route.request().method() === "PUT" ? route.abort() : route.fallback(),
+  );
+  await alice.keyboard.type(" Unsaved part.");
+
+  // Alice is active, so taking over asks first.
+  await bob.reload();
+  await bob.getByRole("button", { name: title, exact: true }).click();
+  const banner = bob.locator(".lock-banner");
+  await banner.getByRole("button", { name: "Take over…" }).click();
+  await expect(banner).toContainText("alice is still working on this page.");
+  await banner.getByRole("button", { name: "Take over anyway" }).click();
+  await expect(bob.locator(".ProseMirror")).toHaveAttribute("contenteditable", "true");
+
+  // Alice's editor is told without waiting for its next renewal, and offers to keep what she wrote.
+  const told = alice.locator(".lock-banner");
+  await expect(told).toContainText("bob took over editing this page.", { timeout: 5_000 });
+  await expect(alice.locator(".ProseMirror")).toHaveAttribute("contenteditable", "false");
+  await alice.unroute("**/api/pages/*/draft");
+  await told.getByRole("button", { name: "Save as a new page" }).click();
+  await expect(alice.getByRole("button", { name: `${title} (my changes)`, exact: true })).toBeVisible();
+  await expect(alice.locator(".ProseMirror")).toContainText("Saved part. Unsaved part.");
+  await expect(alice.locator(".ProseMirror")).toHaveAttribute("contenteditable", "true");
 });
