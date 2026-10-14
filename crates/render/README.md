@@ -1,4 +1,5 @@
 # render
 
-Renders ProseMirror documents to HTML with `ssr_rs` (embedded V8) on dedicated threads.
-Not obvious: V8 isolates are `!Send`, so each pool thread owns its own instance.
+Renders ProseMirror documents to HTML in embedded V8 on dedicated threads (one isolate per worker; `ssr_rs` only sets up the platform).
+Not obvious: V8 isolates are `!Send`, so each pool thread owns its own instance; a watchdog thread stops a render past its timeout, and a
+render near the heap limit is stopped by a near-heap-limit callback (safe Rust: a plain `extern "C" fn`), after which the worker starts a fresh isolate.

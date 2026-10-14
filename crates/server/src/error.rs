@@ -58,7 +58,7 @@ impl IntoResponse for AppError {
       AppError::Publish(PublishError::Blocked(problems)) => (StatusCode::UNPROCESSABLE_ENTITY, None, problems.iter().map(ToString::to_string).collect()),
       // Only a page that cannot render is the author's to fix; a full queue or a dead worker is the server's.
       AppError::Publish(PublishError::Render { source, .. }) => match source {
-        RenderError::Invalid(_) => (StatusCode::UNPROCESSABLE_ENTITY, None, vec![self.to_string()]),
+        RenderError::Invalid(_) | RenderError::OutOfMemory => (StatusCode::UNPROCESSABLE_ENTITY, None, vec![self.to_string()]),
         RenderError::Busy => (StatusCode::SERVICE_UNAVAILABLE, None, vec![]),
         RenderError::Timeout => (StatusCode::GATEWAY_TIMEOUT, None, vec![]),
         RenderError::Other(_) => (StatusCode::INTERNAL_SERVER_ERROR, None, vec![]),

@@ -91,15 +91,29 @@ impl Pool {
 }
 
 fn work(script: &str, receiver: &Mutex<Receiver<Job>>, ready: &mpsc::Sender<Result<(), RenderError>>, timeout: Duration) {
+  // A render that ran out of memory leaves its isolate full: the worker starts over with a fresh one.
+  while serve_jobs(script, receiver, ready, timeout) == Next::FreshIsolate {}
+}
+
+#[derive(PartialEq)]
+enum Next {
+  FreshIsolate,
+  Stop,
+}
+
+fn serve_jobs(script: &str, receiver: &Mutex<Receiver<Job>>, ready: &mpsc::Sender<Result<(), RenderError>>, timeout: Duration) -> Next {
   let (watch, watched) = mpsc::channel::<Watch>();
   let (done, acknowledged) = mpsc::channel::<()>();
+  let mut next = Next::Stop;
 
   engine::run(
     script,
     |handle| match handle {
       Ok(handle) => {
-        // The watchdog is a thread of its own, since the worker is busy inside V8 while a render runs.
+        // The watchdog is a thread of its own, since the worker is busy inside V8 while a render runs. It ends with this isolate, when
+        // `watch` is dropped.
         let started = spawn_v8_thread("render-watchdog".into(), move || watchdog(&handle, &watched, &done));
+        // Only the first isolate's report is awaited; later ones go nowhere.
         let _ = ready.send(started.map(|_| ()).map_err(|e| RenderError::Other(e.into())));
       }
       Err(e) => {
@@ -128,10 +142,18 @@ fn work(script: &str, receiver: &Mutex<Receiver<Job>>, ready: &mpsc::Sender<Resu
       let _ = watch.send(Watch::Disarm);
       let _ = acknowledged.recv();
 
+      let out_of_memory = matches!(outcome, Err(RenderError::OutOfMemory));
       // The requester may have given up and dropped its end.
       let _ = job.reply.send(outcome);
+
+      if out_of_memory {
+        next = Next::FreshIsolate;
+        return;
+      }
     },
   );
+
+  next
 }
 
 /// Stops the isolate when a render runs longer than it was given.
@@ -203,6 +225,22 @@ mod tests {
     // The same worker renders the next documents, more than once, and a second runaway is stopped as well.
     assert_eq!(pool.render(serde_json::json!("hello")).await.unwrap(), "ok:\"hello\"");
     assert!(matches!(pool.render(serde_json::json!("spin")).await, Err(RenderError::Timeout)));
+    assert_eq!(pool.render(serde_json::json!("again")).await.unwrap(), "ok:\"again\"");
+  }
+
+  #[tokio::test]
+  async fn a_render_that_allocates_without_end_fails_alone() {
+    // Keeps every array it makes, so nothing can be collected; the timeout is long enough that memory runs out first.
+    const GREEDY: &str =
+      r#"var SSR = { render: function (input) { if (input.indexOf("greedy") >= 0) { var kept = []; for (;;) { kept.push(new Array(100000).fill(kept.length)); } } return "ok:" + input; } };"#;
+    let pool = Pool::new(GREEDY, 1, 8, Duration::from_secs(60)).unwrap();
+
+    let stopped = pool.render(serde_json::json!("greedy")).await;
+    assert!(matches!(stopped, Err(RenderError::OutOfMemory)), "{stopped:?}");
+
+    // The one worker goes on with a fresh isolate, which stops a second greedy render the same way.
+    assert_eq!(pool.render(serde_json::json!("hello")).await.unwrap(), "ok:\"hello\"");
+    assert!(matches!(pool.render(serde_json::json!("greedy")).await, Err(RenderError::OutOfMemory)));
     assert_eq!(pool.render(serde_json::json!("again")).await.unwrap(), "ok:\"again\"");
   }
 

@@ -22,6 +22,9 @@ pub enum RenderError {
   /// The render ran past its time and was stopped; the worker is fine and takes the next job.
   #[error("render timed out")]
   Timeout,
+  /// The render used more memory than an isolate may have and was stopped; the worker takes the next job with a fresh isolate.
+  #[error("render ran out of memory")]
+  OutOfMemory,
   #[error(transparent)]
   Other(#[from] anyhow::Error),
 }
