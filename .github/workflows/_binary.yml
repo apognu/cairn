@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     container: rust:1-bookworm
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: Swatinem/rust-cache@v2
         with: { save-if: "${{ github.ref == 'refs/heads/main' }}" }
       - run: apt-get update && apt-get install -y --no-install-recommends unzip
@@ -20,7 +20,7 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run build
       - run: cargo build --release -p cairn-cli
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: cairn-linux-amd64
           path: target/release/cairn

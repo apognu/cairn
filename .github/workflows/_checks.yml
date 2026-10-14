@@ -13,7 +13,7 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with: { components: "rustfmt, clippy" }
       # Pull requests read the caches of main but do not write their own, which would push main's out of the 10 GB budget.
@@ -45,13 +45,13 @@ jobs:
         options: >-
           --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with: { shared-key: test, save-if: "${{ github.ref == 'refs/heads/main' && matrix.db == 'sqlite' }}" }
       - uses: oven-sh/setup-bun@v2
       # Pagefind's launcher, used by the publish tests, runs on Node.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with: { node-version: 22 }
       - run: bun install --frozen-lockfile
       - run: bun run build
@@ -63,12 +63,12 @@ jobs:
   e2e:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with: { save-if: "${{ github.ref == 'refs/heads/main' }}" }
       - uses: oven-sh/setup-bun@v2
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with: { node-version: 22 }
       - run: bun install --frozen-lockfile
       - run: bun run build
@@ -81,7 +81,7 @@ jobs:
       - id: playwright
         run: echo "version=$(jq -r '.devDependencies["@playwright/test"]' packages/e2e/package.json)" >> "$GITHUB_OUTPUT"
       - id: browsers
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
