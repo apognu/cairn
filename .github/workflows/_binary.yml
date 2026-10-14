@@ -1,4 +1,4 @@
-# Reusable: the release binary for the server image, uploaded as the `cairn-linux-amd64` artifact of the run. Built on Debian bookworm
+# Reusable: the release binary for the server image, uploaded as the `cairn-linux-amd64` artifact of the run. Built on Debian trixie
 # like the runtime image, so it links against the glibc that image has (the Ubuntu runner's is newer).
 name: binary
 on:
@@ -10,7 +10,7 @@ env:
 jobs:
   binary:
     runs-on: ubuntu-latest
-    container: rust:1-bookworm
+    container: rust:1-trixie
     steps:
       - uses: actions/checkout@v7
       - uses: Swatinem/rust-cache@v2

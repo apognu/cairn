@@ -25,8 +25,8 @@ WORKDIR /work
 FROM js AS web
 RUN bun run build
 
-# Debian bookworm on both sides, so the binary finds the libc it was linked against.
-FROM rust:1-bookworm AS server
+# Debian trixie on both sides (as `oven/bun:1` above), so the binary finds the libc it was linked against.
+FROM rust:1-trixie AS server
 WORKDIR /src
 COPY Cargo.toml Cargo.lock .rustfmt.toml ./
 COPY crates ./crates
@@ -38,7 +38,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/src/target \
     cargo build --release -p cairn-cli && cp target/release/cairn /cairn
 
-FROM debian:bookworm-slim AS runtime
+FROM debian:trixie-slim AS runtime
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates libstdc++6 && rm -rf /var/lib/apt/lists/*
 COPY --from=server /cairn /usr/local/bin/cairn
 COPY --from=js /opt/pagefind /usr/local/bin/pagefind
