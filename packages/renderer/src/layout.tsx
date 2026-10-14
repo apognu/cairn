@@ -182,6 +182,26 @@ function useActiveHeading(anchors: string[]): string | undefined {
   return active;
 }
 
+/** An image of the page shown as large as the window allows, over a dimmed page. Any click or Escape closes it. */
+function ImageZoom({ image, onClose }: { image: { src: string; alt: string }; onClose: () => void }) {
+  const dialog = useRef<HTMLDialogElement>(null);
+
+  useEffect(() => dialog.current?.showModal(), []);
+
+  return (
+    // biome-ignore lint/a11y/useKeyWithClickEvents: Escape closes a modal dialog by itself
+    <dialog
+      ref={dialog}
+      className="image-zoom"
+      aria-label={image.alt || "Image"}
+      onClose={onClose}
+      onClick={() => dialog.current?.close()}
+    >
+      <img src={image.src} alt={image.alt} />
+    </dialog>
+  );
+}
+
 /** The site chrome around a page body: header, navigation, title and table of contents. */
 export function SiteLayout({
   context,
@@ -207,19 +227,42 @@ export function SiteLayout({
   const navId = useId();
   const active = useActiveHeading(embedded ? [] : toc.map((h) => h.anchor));
   const [tocOpen, setTocOpen] = useState(false);
+  const [zoomed, setZoomed] = useState<{ src: string; alt: string } | null>(null);
 
   useEffect(() => {
     if (!navOpen) return;
 
     const onKey = (event: KeyboardEvent) => event.key === "Escape" && setNavOpen(false);
+    // The toggle closes the panel with its own click.
+    const onPointer = (event: PointerEvent) => {
+      const target = event.target as Element | null;
+      if (target && !target.closest(".site-nav, .nav-toggle")) setNavOpen(false);
+    };
     document.addEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onPointer);
     document.documentElement.style.overflow = "hidden";
 
     return () => {
       document.removeEventListener("keydown", onKey);
+      document.removeEventListener("pointerdown", onPointer);
       document.documentElement.style.overflow = "";
     };
   }, [navOpen]);
+
+  // One listener for every image of the body, so the rendered markup stays the same with or without script. The original file, not
+  // the copy sized for the column, is the one worth enlarging.
+  useEffect(() => {
+    if (embedded) return;
+
+    const onClick = (event: MouseEvent) => {
+      const image = (event.target as Element | null)?.closest(".doc-content figure img");
+      if (image instanceof HTMLImageElement)
+        setZoomed({ src: image.getAttribute("src") ?? image.currentSrc, alt: image.alt });
+    };
+    document.addEventListener("click", onClick);
+
+    return () => document.removeEventListener("click", onClick);
+  }, [embedded]);
 
   return (
     <div
@@ -405,6 +448,7 @@ export function SiteLayout({
           {context.site.footer && <SiteFooter footer={context.site.footer} />}
         </Slot>
       )}
+      {zoomed && <ImageZoom image={zoomed} onClose={() => setZoomed(null)} />}
     </div>
   );
 }

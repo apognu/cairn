@@ -8,6 +8,8 @@ use crate::ReleaseId;
 pub enum Event {
   /// A release became live.
   Published { release: ReleaseId },
+  /// A build being handed to the publish target has sent `sent` of the `total` files the target lacked.
+  PublishProgress { sent: u64, total: u64 },
 }
 
 /// Fans events out to subscribers. The first implementation lives in memory; a Postgres LISTEN/NOTIFY one comes with multi-instance setups.

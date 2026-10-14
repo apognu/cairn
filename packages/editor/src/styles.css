@@ -125,6 +125,7 @@ small,
 /* The right column is always there, so opening the settings of a block, Page settings or History never moves the page. */
 .shell {
   --panel-width: 420px;
+  --page-actions-height: 53px;
   display: grid;
   grid-template: 52px 1fr / 270px minmax(0, 1fr) var(--panel-width);
   height: 100vh;
@@ -141,14 +142,20 @@ small,
 
 .brand {
   display: flex;
+  flex: none;
   align-items: center;
   gap: 10px;
   font-size: 15px;
 }
 
+/* The breadcrumb is what gives way when the bar is short of room; the actions never wrap or shrink. */
 .crumbs {
-  font-size: 13px;
+  min-width: 0;
+  overflow: hidden;
   color: var(--muted);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .save-status {
@@ -517,6 +524,17 @@ small,
   background: var(--accent-soft);
 }
 
+.emoji-menu {
+  width: 260px;
+}
+
+.emoji-glyph {
+  flex: none;
+  width: 24px;
+  font-size: 18px;
+  text-align: center;
+}
+
 .slash-icon {
   display: flex;
   flex: none;
@@ -599,27 +617,6 @@ fieldset.bubble {
   margin: 0;
 }
 
-.bubble-code {
-  gap: 8px;
-  padding: 6px 8px;
-}
-
-.bubble-code label {
-  padding: 0;
-  font-size: 12px;
-}
-
-.bubble-code select,
-.bubble-code input {
-  height: 32px;
-  font-size: 14px;
-  color: var(--text);
-}
-
-.bubble-code input {
-  width: 160px;
-}
-
 .bubble-link {
   gap: 6px;
   padding: 8px 10px;
@@ -675,6 +672,67 @@ fieldset.bubble {
   cursor: pointer;
 }
 
+/* The column beside the page: actions on the page itself on top, the settings of the selected block under them. */
+.side-column {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-left: 1px solid var(--border);
+  background: var(--bg-side);
+}
+
+.page-actions {
+  display: flex;
+  flex: none;
+  gap: 6px;
+  box-sizing: border-box;
+  height: var(--page-actions-height);
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.page-actions > a.button,
+.page-actions > button {
+  display: inline-flex;
+  flex: 1 1 0;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--border-input);
+  border-radius: 7px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13.5px;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.page-actions > a.button:hover,
+.page-actions > button:hover:not(:disabled),
+.page-actions > button[aria-pressed="true"] {
+  background: var(--hover);
+}
+
+.page-actions > button:disabled {
+  color: var(--muted);
+  cursor: default;
+}
+
+.page-actions svg {
+  flex: none;
+  color: var(--muted);
+}
+
+/* The page's drawers open under its actions, which stay there to switch from one to the other or close them. */
+.shell:has(.page-actions) > .drawer {
+  top: calc(52px + var(--page-actions-height));
+  height: calc(100vh - 52px - var(--page-actions-height));
+}
+
 /* Empty until the cursor is in a component, then it takes its width. */
 .props {
   width: var(--panel-width);
@@ -691,6 +749,15 @@ fieldset.bubble {
   content: "Select a component to change its settings.";
   color: var(--muted);
   font-size: 13px;
+}
+
+.props-drawer::backdrop {
+  background: rgba(16, 20, 22, 0.35);
+}
+
+.props-drawer {
+  inset: 0 0 0 auto;
+  height: 100vh;
 }
 
 .props-head {
@@ -861,9 +928,15 @@ fieldset.bubble {
 
 .topbar-actions {
   display: flex;
+  flex: none;
   align-items: center;
   gap: 12px;
   margin-left: auto;
+  white-space: nowrap;
+}
+
+.save-status {
+  flex: none;
 }
 
 .error-text {
@@ -890,6 +963,9 @@ button.primary:disabled {
 /* Direct children only: the buttons inside the account menu are menu items. */
 .topbar-actions > a.button,
 .topbar-actions > button:not(.primary):not(.theme-toggle) {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   height: 32px;
   padding: 0 12px;
   border: 1px solid var(--border-input);
@@ -1518,8 +1594,7 @@ button.primary:disabled {
 }
 
 .alt-warning {
-  max-width: 220px;
-  padding: 0 6px;
+  padding: 0;
   color: var(--warn-icon);
   font-size: 12.5px;
 }
@@ -1799,6 +1874,48 @@ span[data-label] > .component-invalid {
   background: var(--hover);
 }
 
+/* Below 1100px the secondary actions fold into this menu. */
+.more-menu summary {
+  width: auto;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--border-input);
+  border-radius: 7px;
+  color: var(--text);
+}
+
+.more-menu .menu-pop {
+  top: 36px;
+  min-width: 180px;
+}
+
+/* A link in the menu reads as one of its items. */
+.more-menu .menu-pop a.button {
+  padding: 6px 10px;
+  border-radius: 5px;
+}
+
+.more-menu .menu-pop > a.button,
+.more-menu .menu-pop > button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.topbar-actions svg {
+  flex: none;
+  color: var(--muted);
+}
+
+.more-menu .menu-pop a.button:hover {
+  background: var(--hover);
+}
+
+.more-menu .menu-pop button:disabled {
+  color: var(--muted);
+  cursor: default;
+}
+
 /* Settings screens have no side panel: they take its column too. */
 .settings-main {
   grid-column: 2 / -1;
@@ -1810,19 +1927,37 @@ span[data-label] > .component-invalid {
     grid-template-columns: 270px minmax(0, 1fr);
   }
 
-  .props {
-    position: fixed;
-    inset: 52px 0 0 auto;
-    z-index: 20;
-    box-shadow: -12px 0 32px rgba(16, 20, 22, 0.16);
+  .published-count,
+  .brand strong {
+    display: none;
   }
 
-  .props:empty {
+  /* The fields open in a modal drawer (PropsPanel) instead of a column, and the page actions go to the top bar's menu. */
+  .props,
+  .side-column {
     display: none;
+  }
+
+  .props-open {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    z-index: 20;
   }
 
   .drawer {
     box-shadow: -12px 0 32px rgba(16, 20, 22, 0.16);
+  }
+}
+
+/* Sidebar (270px) and settings column (420px) leave the page less than 900px: the section list would squeeze the text under about 600px. */
+@media (max-width: 1600px) {
+  .site[data-embedded] .site-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .site[data-embedded] .site-toc {
+    display: none;
   }
 }
 
@@ -2323,7 +2458,8 @@ button.secondary:disabled {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .spinner {
+  .spinner,
+  .publish-progress progress:not([value]) {
     animation-duration: 3s;
   }
 }
@@ -2355,13 +2491,72 @@ button.secondary:disabled {
   cursor: pointer;
 }
 
-/* The preview's state sits at the start of the dialog's footer, its buttons at the end. */
+/* The upload of a build: a thin bar in the accent color, with the count under it. */
+.publish-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 16px 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.publish-progress progress {
+  width: 100%;
+  height: 6px;
+  border: 0;
+  border-radius: 3px;
+  background: var(--border);
+  accent-color: var(--accent);
+  appearance: none;
+}
+
+.publish-progress progress::-webkit-progress-bar {
+  border-radius: 3px;
+  background: var(--border);
+}
+
+.publish-progress progress::-webkit-progress-value {
+  border-radius: 3px;
+  background: var(--accent);
+  transition: width 0.2s;
+}
+
+.publish-progress progress::-moz-progress-bar {
+  border-radius: 3px;
+  background: var(--accent);
+}
+
+/* No value yet: the pages are rendering. A band of the accent color sweeps across, as the browser's own busy bar would. */
+.publish-progress progress:not([value]) {
+  background: linear-gradient(90deg, var(--border) 35%, var(--accent) 50%, var(--border) 65%) 0 0 / 300% 100%;
+  animation: progress-busy 1.4s linear infinite;
+}
+
+.publish-progress progress:not([value])::-webkit-progress-bar {
+  background: transparent;
+}
+
+.publish-progress progress:not([value])::-moz-progress-bar {
+  background: transparent;
+}
+
+@keyframes progress-busy {
+  from {
+    background-position: 100% 0;
+  }
+
+  to {
+    background-position: 0 0;
+  }
+}
+
+/* The preview's state is a line of its own above the buttons, which keep their row whatever it says. */
 .publish-preview {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-width: 0;
-  margin-right: auto;
+  margin: 16px 0;
   color: var(--muted);
   font-size: 13px;
 }
@@ -2374,4 +2569,83 @@ button.secondary:disabled {
 .publish .dialog-actions {
   flex-wrap: wrap;
   align-items: center;
+}
+
+/* Inside the side column the settings fill what the page actions leave; the column draws the border. */
+.side-column .props {
+  flex: 1;
+  width: auto;
+  border-left: 0;
+}
+
+/* Icon fields: the chosen icon reads like a select; it opens a searchable grid under it, inside the panel so no edge clips it. */
+.icon-picker-current {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border-input);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.icon-picker-current span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.icon-picker-current > svg:last-child {
+  color: var(--muted);
+}
+
+.icon-picker-panel {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 8px;
+  border: 1px solid var(--border-input);
+  border-radius: 8px;
+  background: var(--bg);
+}
+
+.icon-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(36px, 1fr));
+  gap: 2px;
+  max-height: 232px;
+  overflow-y: auto;
+}
+
+.icon-grid button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 36px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.icon-grid button:hover {
+  background: var(--hover);
+}
+
+.icon-grid button[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
 }

@@ -26,7 +26,7 @@ use crate::{
   markdown::{Site, page_markdown},
   search,
   site::{breadcrumbs, header_items, image_asset_ids, markdown_path, nav_tree, output_path, previous_next},
-  target::{Deployed, OutputFile, PublishTarget},
+  target::{Deployed, OutputFile, Progress, PublishTarget},
 };
 
 /// The browser-side files every page links to; embedded in the binary and written into each release.
@@ -138,6 +138,11 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
 
   pub fn target(&self) -> &PublishTarget {
     &self.target
+  }
+
+  /// Events sent from now on: releases going live, and the progress of the build being sent.
+  pub fn subscribe(&self) -> tokio::sync::broadcast::Receiver<Event> {
+    self.broadcast.subscribe()
   }
 
   /// The public address of the site, without a trailing slash.
@@ -638,7 +643,24 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
       .collect();
     record_release_specs(&self.db, release.id, &specs).await?;
 
-    self.target.publish(release.id, files, live).await
+    self.target.publish(release.id, files, live, self.progress()).await
+  }
+
+  /// Sends what a target reports of its upload to the editors watching. A message per file would flood the channel on a large site, and
+  /// subscribers that fall behind lose messages: one per percent is enough for a bar.
+  fn progress(&self) -> Arc<Progress> {
+    let broadcast = self.broadcast.clone();
+    let last = AtomicUsize::new(usize::MAX);
+
+    Progress::new(move |sent, total| {
+      let percent = (sent * 100).checked_div(total).unwrap_or(100);
+      if last.swap(percent, Ordering::Relaxed) != percent {
+        broadcast.send(Event::PublishProgress {
+          sent: sent as u64,
+          total: total as u64,
+        });
+      }
+    })
   }
 
   /// The image files the pages use, and what the renderer needs to know about them.
@@ -977,6 +999,27 @@ mod tests {
     // 404 is a page of the site but not a searchable one.
     assert!(!std::fs::read_to_string(site.join("404.html")).unwrap().contains("data-pagefind-body"));
     assert!(std::fs::read_to_string(site.join("guide/index.html")).unwrap().contains("data-pagefind-body"));
+  }
+
+  #[tokio::test]
+  async fn the_upload_is_reported_until_every_file_is_sent() {
+    let f = fixture().await;
+    let user = UserId::new();
+    create_page(&f.db, user, None, "Guide", Placement::Last).await.unwrap();
+    let mut events = f.publisher.subscribe();
+
+    f.publisher.publish(user).await.unwrap();
+
+    let mut reports = Vec::new();
+    while let Ok(event) = events.try_recv() {
+      if let Event::PublishProgress { sent, total } = event {
+        reports.push((sent, total));
+      }
+    }
+    let (first, last) = (reports.first().unwrap(), reports.last().unwrap());
+    assert_eq!(first.0, 0, "the first report comes before anything is sent");
+    assert!(last.1 > 0 && last.0 == last.1, "the last one says everything went: {reports:?}");
+    assert!(reports.windows(2).all(|w| w[0].0 < w[1].0), "each report is news: {reports:?}");
   }
 
   #[tokio::test]

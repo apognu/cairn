@@ -85,9 +85,9 @@ export function link() {
   return z.string().optional().meta({ title: "Page", "x-field": "page" });
 }
 
-/** One of the given icon names. */
-export function icon<const Names extends readonly [string, ...string[]]>(names: Names) {
-  return z.enum(names).meta({ title: "Icon", "x-field": "icon" });
+/** The name of an icon of the Lucide collection (lucide.dev), chosen in the editor from a searchable grid. */
+export function icon() {
+  return z.string().meta({ title: "Icon", "x-field": "icon" });
 }
 
 /** An optional calendar date, `YYYY-MM-DD`. */

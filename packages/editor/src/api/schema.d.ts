@@ -473,6 +473,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/publish/progress": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Server-sent events while a build is sent to the publish target, each a `PublishProgress` as JSON, about one per percent. Nothing comes
+         *     while the pages render. Builds run one at a time, so the events are those of the build running.
+         */
+        get: operations["publishProgress"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/redirects": {
         parameters: {
             query?: never;
@@ -1058,6 +1078,18 @@ export interface components {
          * @enum {string}
          */
         ProblemKind: "broken_link" | "invalid_props" | "broken_operation_link" | "duplicate_url" | "missing_alt";
+        PublishProgress: {
+            /**
+             * Format: int64
+             * @description Files sent so far.
+             */
+            sent: number;
+            /**
+             * Format: int64
+             * @description Files this build sends: those the target does not have yet. Unchanged files are not counted.
+             */
+            total: number;
+        };
         /** @description A redirect as the Settings page shows it. */
         RedirectEntry: {
             from_path: string;
@@ -2427,6 +2459,25 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    publishProgress: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": components["schemas"]["PublishProgress"];
                 };
             };
         };

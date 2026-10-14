@@ -11,7 +11,7 @@ use reqwest::{Client, multipart};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
-use crate::{OutputFile, PublishError};
+use crate::{OutputFile, Progress, PublishError};
 
 /// What Cloudflare accepts of a Worker's static assets (paid plans); checked before anything is uploaded.
 const MAX_FILE_BYTES: usize = 25 * 1024 * 1024;
@@ -104,8 +104,8 @@ impl CloudflareTarget {
   }
 
   /// Uploads what Cloudflare does not have yet and makes a version of the Worker from it, without deploying it.
-  pub async fn upload(&self, files: &[OutputFile]) -> Result<Version, PublishError> {
-    let completion = self.upload_assets(files).await?;
+  pub async fn upload(&self, files: &[OutputFile], progress: &Progress) -> Result<Version, PublishError> {
+    let completion = self.upload_assets(files, progress).await?;
     let id = self.create_version(&completion, files, false).await?;
 
     Ok(Version {
@@ -115,8 +115,8 @@ impl CloudflareTarget {
   }
 
   /// Uploads a build and makes it live in one step. The first publish creates the Worker, which has no versions to deploy yet.
-  pub async fn publish(&self, files: &[OutputFile]) -> Result<Version, PublishError> {
-    let completion = self.upload_assets(files).await?;
+  pub async fn publish(&self, files: &[OutputFile], progress: &Progress) -> Result<Version, PublishError> {
+    let completion = self.upload_assets(files, progress).await?;
 
     match self.create_version(&completion, files, false).await {
       Ok(id) => {
@@ -148,7 +148,7 @@ impl CloudflareTarget {
   }
 
   /// Hashes the files, asks Cloudflare which it lacks, sends those, and returns the token that stands for the whole set.
-  async fn upload_assets(&self, files: &[OutputFile]) -> Result<String, PublishError> {
+  async fn upload_assets(&self, files: &[OutputFile], progress: &Progress) -> Result<String, PublishError> {
     let assets: Vec<(&OutputFile, String)> = files.iter().filter(|f| !is_config(&f.path)).map(|f| (f, hash(f))).collect();
     let manifest: serde_json::Map<String, Value> = assets
       .iter()
@@ -167,6 +167,7 @@ impl CloudflareTarget {
 
     // Nothing to send: Cloudflare has every file already, and the session token is the completion token.
     let buckets = session.buckets.unwrap_or_default();
+    progress.start(buckets.iter().map(Vec::len).sum());
     if buckets.is_empty() {
       return Ok(session.jwt);
     }
@@ -196,6 +197,7 @@ impl CloudflareTarget {
         .await
         .map_err(request_error)?;
       let uploaded: Uploaded = read(response).await?;
+      progress.advance(bucket.len());
       // The last bucket's answer carries the completion token.
       completion = uploaded.jwt.or(completion);
     }
@@ -593,7 +595,7 @@ mod tests {
     };
 
     // The first publish: the Worker does not exist, so it is created, and every file goes up (the `_redirects` file is a setting).
-    target.publish(&site("v1")).await.unwrap();
+    target.publish(&site("v1"), &Progress::none()).await.unwrap();
     {
       let state = cloudflare.lock().unwrap();
       assert_eq!(state.uploads.iter().map(Vec::len).sum::<usize>(), 3);
@@ -602,7 +604,7 @@ mod tests {
     }
 
     // One page changed: one file goes up, and the new version is the deployed one.
-    target.publish(&site("v2")).await.unwrap();
+    target.publish(&site("v2"), &Progress::none()).await.unwrap();
     {
       let state = cloudflare.lock().unwrap();
       assert_eq!(
@@ -614,7 +616,7 @@ mod tests {
     }
 
     // Nothing changed: nothing goes up, a version is still made.
-    target.publish(&site("v2")).await.unwrap();
+    target.publish(&site("v2"), &Progress::none()).await.unwrap();
     let state = cloudflare.lock().unwrap();
     assert_eq!(state.uploads.len(), 3);
     assert_eq!(state.versions.len(), 2);
@@ -625,7 +627,7 @@ mod tests {
     let (target, cloudflare) = target().await;
     cloudflare.lock().unwrap().worker_exists = true;
 
-    let preview = target.upload(&[file("index.html", "new")]).await.unwrap();
+    let preview = target.upload(&[file("index.html", "new")], &Progress::none()).await.unwrap();
 
     assert_eq!(preview.preview_url.as_deref(), Some("https://00000001-site.acme.workers.dev"));
     assert!(cloudflare.lock().unwrap().deployed.is_empty(), "a preview is not the site");
@@ -639,7 +641,7 @@ mod tests {
   async fn a_preview_needs_a_worker_to_make_a_version_of() {
     let (target, _) = target().await;
 
-    let error = target.upload(&[file("index.html", "new")]).await.expect_err("no Worker yet");
+    let error = target.upload(&[file("index.html", "new")], &Progress::none()).await.expect_err("no Worker yet");
 
     assert!(error.to_string().contains("does not exist"), "{error}");
   }
@@ -663,7 +665,7 @@ mod tests {
       Ok(dir) => super::walk(std::path::Path::new(&dir), std::path::Path::new(&dir)),
       Err(_) => vec![file("index.html", "<h1>yourdocs smoke test</h1>"), file("404.html", "not found"), file("_redirects", "/old/ /new/ 301")],
     };
-    let version = target.upload(&files).await;
+    let version = target.upload(&files, &Progress::none()).await;
 
     // The version is in the failure message when it does not work, and in the Worker's dashboard when it does.
     version.unwrap();

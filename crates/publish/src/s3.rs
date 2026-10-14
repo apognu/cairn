@@ -14,7 +14,7 @@ use md5::{Digest, Md5};
 use reqwest::{Client, Method};
 use rusty_s3::{Bucket, Credentials, S3Action, UrlStyle, actions::ListObjectsV2};
 
-use crate::{OutputFile, PublishError};
+use crate::{OutputFile, Progress, PublishError};
 
 /// Objects sent at the same time.
 const CONCURRENCY: usize = 8;
@@ -88,7 +88,7 @@ impl S3Target {
   }
 
   /// Sends the site: changed assets, then changed pages, then the deletion of what the previous publish wrote and this one does not.
-  pub async fn publish(&self, files: &[OutputFile]) -> Result<(), PublishError> {
+  pub async fn publish(&self, files: &[OutputFile], progress: &Progress) -> Result<(), PublishError> {
     let objects: Vec<Arc<Object>> = plan(&self.prefix, files).into_iter().map(Arc::new).collect();
     let existing = self.list().await?;
 
@@ -103,8 +103,9 @@ impl S3Target {
     let (assets, pages) = (changed(true), changed(false));
     tracing::info!(assets = assets.len(), pages = pages.len(), unchanged = objects.len() - assets.len() - pages.len(), "uploading to S3");
 
-    self.send_all(assets).await?;
-    self.send_all(pages).await?;
+    progress.start(assets.len() + pages.len());
+    self.send_all(assets, progress).await?;
+    self.send_all(pages, progress).await?;
 
     let keys: HashSet<String> = objects.iter().map(|o| o.key.clone()).collect();
     let previous = self.previous_keys().await?;
@@ -179,8 +180,15 @@ impl S3Target {
     Ok(serde_json::from_slice(&response.bytes().await.map_err(request_error)?).unwrap_or_default())
   }
 
-  async fn send_all(&self, objects: Vec<Arc<Object>>) -> Result<(), PublishError> {
-    let results: Vec<Result<(), PublishError>> = stream::iter(objects.into_iter().map(|object| self.put(object))).buffer_unordered(CONCURRENCY).collect().await;
+  async fn send_all(&self, objects: Vec<Arc<Object>>, progress: &Progress) -> Result<(), PublishError> {
+    let results: Vec<Result<(), PublishError>> = stream::iter(objects.into_iter().map(|object| async move {
+      let result = self.put(object).await;
+      progress.advance(1);
+      result
+    }))
+    .buffer_unordered(CONCURRENCY)
+    .collect()
+    .await;
 
     results.into_iter().collect()
   }
@@ -472,7 +480,7 @@ mod tests {
       files
     };
 
-    target.publish(&site("v1", true)).await.unwrap();
+    target.publish(&site("v1", true), &Progress::none()).await.unwrap();
     {
       let state = s3.lock().unwrap();
       let order: Vec<&str> = state.puts.iter().map(String::as_str).collect();
@@ -486,7 +494,7 @@ mod tests {
     // A page changed and one was removed: one page is sent again (and the redirect, which is always sent), the removed one is deleted
     // after everything is in place, and the unchanged files are left alone.
     let before = s3.lock().unwrap().puts.len();
-    target.publish(&site("v2", false)).await.unwrap();
+    target.publish(&site("v2", false), &Progress::none()).await.unwrap();
 
     let state = s3.lock().unwrap();
     let sent: Vec<&str> = state.puts[before..].iter().map(String::as_str).collect();
@@ -501,8 +509,8 @@ mod tests {
     let (target, s3) = target("").await;
     s3.lock().unwrap().objects.insert("someone-elses.txt".into(), fake::Stored::default());
 
-    target.publish(&[file("index.html", "home")]).await.unwrap();
-    target.publish(&[file("other/index.html", "other")]).await.unwrap();
+    target.publish(&[file("index.html", "home")], &Progress::none()).await.unwrap();
+    target.publish(&[file("other/index.html", "other")], &Progress::none()).await.unwrap();
 
     let state = s3.lock().unwrap();
     assert!(state.objects.contains_key("someone-elses.txt"));

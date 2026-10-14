@@ -16,6 +16,7 @@ import { Sidebar } from "./Sidebar";
 import { firstPage, type Page, pageUrls } from "./tree";
 import { UserMenu } from "./UserMenu";
 import type { SaveStatus } from "./useDraftSync";
+import { useNarrow } from "./useNarrow";
 
 const statusText: Record<SaveStatus, string> = {
   saved: "Saved",
@@ -111,6 +112,42 @@ function Editor() {
     setSection(next);
   };
 
+  const narrow = useNarrow();
+  // Actions on the open page: a header over the settings column when it is shown, the top bar (or its menu) otherwise.
+  const pageActions = !section && current && current.kind !== "link" && (
+    <>
+      {liveUrl && site.data ? (
+        <a className="button" href={`${site.data.url}${liveUrl}`} target="_blank" rel="noopener">
+          <Icon name="eye" size={15} />
+          View as reader
+        </a>
+      ) : (
+        <button type="button" disabled title="This page has not been published yet">
+          <Icon name="eye" size={15} />
+          View as reader
+        </button>
+      )}
+      {current.kind === "page" && (
+        <button type="button" aria-pressed={panel === "history"} onClick={() => toggle("history")}>
+          <Icon name="history" size={15} />
+          History
+        </button>
+      )}
+      <button type="button" aria-pressed={panel === "settings"} onClick={() => toggle("settings")}>
+        <Icon name="sliders" size={15} />
+        Page settings
+      </button>
+    </>
+  );
+  const sideColumn = current?.kind !== "api";
+  const actionsInColumn = sideColumn && !narrow && Boolean(pageActions);
+  const siteSettings = (
+    <button type="button" onClick={() => openSettings("site")}>
+      <Icon name="gear" size={15} />
+      Settings
+    </button>
+  );
+
   return (
     <div className="shell">
       <header className="topbar">
@@ -128,33 +165,31 @@ function Editor() {
           </output>
         )}
         <div className="topbar-actions">
-          {published !== null && <span className="muted">Published {published} pages</span>}
+          {published !== null && <span className="muted published-count">Published {published} pages</span>}
           <ThemeToggle />
           <UserMenu />
-          {!section && current && current.kind !== "link" && (
+          {narrow ? (
+            <details className="menu more-menu">
+              <summary>More</summary>
+              {/* Every item leaves the menu: History and the settings open a panel, the reader view another tab. */}
+              {/* biome-ignore lint/a11y/useKeyWithClickEvents: closes after the item's own click, which the keyboard triggers too */}
+              {/* biome-ignore lint/a11y/noStaticElementInteractions: the items inside are the controls; this only closes the menu */}
+              <div className="menu-pop" onClick={(e) => e.currentTarget.closest("details")?.removeAttribute("open")}>
+                {pageActions && (
+                  <>
+                    {pageActions}
+                    <hr />
+                  </>
+                )}
+                {siteSettings}
+              </div>
+            </details>
+          ) : (
             <>
-              {liveUrl && site.data ? (
-                <a className="button" href={`${site.data.url}${liveUrl}`} target="_blank" rel="noopener">
-                  View as reader
-                </a>
-              ) : (
-                <button type="button" disabled title="This page has not been published yet">
-                  View as reader
-                </button>
-              )}
-              {current.kind === "page" && (
-                <button type="button" aria-pressed={panel === "history"} onClick={() => toggle("history")}>
-                  History
-                </button>
-              )}
-              <button type="button" aria-pressed={panel === "settings"} onClick={() => toggle("settings")}>
-                Page settings
-              </button>
+              {!actionsInColumn && pageActions}
+              {siteSettings}
             </>
           )}
-          <button type="button" onClick={() => openSettings("site")}>
-            Settings
-          </button>
           <button
             type="button"
             className="primary"
@@ -189,7 +224,16 @@ function Editor() {
               )
             )}
           </main>
-          {current?.kind !== "api" && <aside className="props" aria-label="Component settings" ref={setPanelHost} />}
+          {sideColumn && (
+            <div className="side-column">
+              {actionsInColumn && (
+                <nav className="page-actions" aria-label="Page actions">
+                  {pageActions}
+                </nav>
+              )}
+              <aside className="props" aria-label="Component settings" ref={setPanelHost} />
+            </div>
+          )}
         </>
       )}
       {panel === "history" && current && !section && (

@@ -11,7 +11,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 
 use crate::{
-  OutputFile, PublishError,
+  OutputFile, Progress, PublishError,
   cloudflare::{check_limits, hash, is_config, read, read_ok, request_error},
 };
 
@@ -74,20 +74,20 @@ impl PagesTarget {
   }
 
   /// Deploys the site to the production branch: it is the live site as soon as the deployment is ready.
-  pub async fn publish(&self, files: &[OutputFile]) -> Result<String, PublishError> {
-    Ok(self.deploy(files, &self.config.production_branch).await?.id)
+  pub async fn publish(&self, files: &[OutputFile], progress: &Progress) -> Result<String, PublishError> {
+    Ok(self.deploy(files, &self.config.production_branch, progress).await?.id)
   }
 
   /// Deploys the site to the preview branch: a deployment of its own, with an address, that is not the site.
-  pub async fn upload(&self, files: &[OutputFile]) -> Result<(String, Option<String>), PublishError> {
-    let deployment = self.deploy(files, &self.config.preview_branch).await?;
+  pub async fn upload(&self, files: &[OutputFile], progress: &Progress) -> Result<(String, Option<String>), PublishError> {
+    let deployment = self.deploy(files, &self.config.preview_branch, progress).await?;
 
     Ok((deployment.id, deployment.url))
   }
 
-  async fn deploy(&self, files: &[OutputFile], branch: &str) -> Result<Deployment, PublishError> {
+  async fn deploy(&self, files: &[OutputFile], branch: &str, progress: &Progress) -> Result<Deployment, PublishError> {
     let assets: Vec<(&OutputFile, String)> = files.iter().filter(|f| !is_config(&f.path)).map(|f| (f, hash(f))).collect();
-    self.upload_assets(&assets).await?;
+    self.upload_assets(&assets, progress).await?;
 
     let manifest: HashMap<String, &str> = assets.iter().map(|(file, hash)| (format!("/{}", file.path), hash.as_str())).collect();
     let mut form = multipart::Form::new()
@@ -113,7 +113,7 @@ impl PagesTarget {
   }
 
   /// Sends the files Pages does not have. The project is created when it does not exist yet.
-  async fn upload_assets(&self, assets: &[(&OutputFile, String)]) -> Result<(), PublishError> {
+  async fn upload_assets(&self, assets: &[(&OutputFile, String)], progress: &Progress) -> Result<(), PublishError> {
     let jwt = self.upload_token().await?;
     let hashes: Vec<&str> = assets.iter().map(|(_, hash)| hash.as_str()).collect();
 
@@ -127,6 +127,7 @@ impl PagesTarget {
       .map_err(request_error)?;
     let missing: Vec<String> = read(response).await?;
     let wanted: HashMap<&str, &OutputFile> = assets.iter().map(|(file, hash)| (hash.as_str(), *file)).collect();
+    progress.start(missing.len());
 
     let mut bucket: Vec<Value> = Vec::new();
     let mut size = 0;
@@ -144,12 +145,16 @@ impl PagesTarget {
       }));
 
       if size >= BUCKET_BYTES || bucket.len() >= BUCKET_FILES {
+        let count = bucket.len();
         self.send_bucket(&jwt, std::mem::take(&mut bucket)).await?;
+        progress.advance(count);
         size = 0;
       }
     }
     if !bucket.is_empty() {
+      let count = bucket.len();
       self.send_bucket(&jwt, bucket).await?;
+      progress.advance(count);
     }
 
     // Every hash of the deployment is recorded, so that what is already stored is not purged as unused.
@@ -338,7 +343,7 @@ mod tests {
       ]
     };
 
-    target.publish(&site("v1")).await.unwrap();
+    target.publish(&site("v1"), &Progress::none()).await.unwrap();
     {
       let state = pages.lock().unwrap();
       assert!(state.created, "a missing project is created");
@@ -348,7 +353,7 @@ mod tests {
     }
 
     // One page changed: one file goes up, the manifest still names all three.
-    target.publish(&site("v2")).await.unwrap();
+    target.publish(&site("v2"), &Progress::none()).await.unwrap();
     let state = pages.lock().unwrap();
     assert_eq!(state.uploads.last().map(Vec::len), Some(1));
     assert_eq!(state.deployments.len(), 2);
@@ -360,7 +365,7 @@ mod tests {
     let (target, pages) = start().await;
     pages.lock().unwrap().project_exists = true;
 
-    let (id, url) = target.upload(&[file("index.html", "new")]).await.unwrap();
+    let (id, url) = target.upload(&[file("index.html", "new")], &Progress::none()).await.unwrap();
 
     assert_eq!((id.as_str(), url.as_deref()), ("dep-1", Some("https://dep-1.docs.pages.dev")));
     assert_eq!(pages.lock().unwrap().deployments[0].0, "preview", "not the production branch");
@@ -396,7 +401,7 @@ mod tests {
       Ok(dir) => crate::cloudflare::walk(std::path::Path::new(&dir), std::path::Path::new(&dir)),
       Err(_) => vec![file("index.html", "<h1>yourdocs smoke test</h1>"), file("404.html", "not found"), file("_redirects", "/old/ /new/ 301")],
     };
-    let result = target.upload(&files).await;
+    let result = target.upload(&files, &Progress::none()).await;
 
     // The failure message carries Cloudflare's own answer; the address is in the dashboard when it works.
     result.unwrap();

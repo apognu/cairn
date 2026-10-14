@@ -18,6 +18,7 @@ import {
 import { customComponents } from "@yourdocs/components/custom";
 import { type AnyComponent, propsSchema, VERSION_ATTR } from "@yourdocs/sdk";
 import { ComponentView } from "./ComponentView";
+import { EmojiSuggestion } from "./emoji";
 import { PageLink, PagePickerTriggers } from "./pageLink";
 import { SlashCommand } from "./slash";
 
@@ -296,7 +297,8 @@ export const buildExtensions = (editable: boolean) => [
   PageLink,
   Term,
   CodeWithFileName,
-  Table,
+  // Wrapped as the published page wraps it, so a wide table scrolls inside its own box in both.
+  Table.configure({ renderWrapper: true }),
   TableRow,
   TableHeader,
   TableCell,
@@ -317,5 +319,5 @@ export const buildExtensions = (editable: boolean) => [
   atomComponent(snippet as unknown as AnyComponent),
   ...customComponents.map((component) => atomComponent(component)),
   UniqueID.configure({ types: blockTypes }),
-  ...(editable ? [SlashCommand, PagePickerTriggers] : []),
+  ...(editable ? [SlashCommand, EmojiSuggestion, PagePickerTriggers] : []),
 ];

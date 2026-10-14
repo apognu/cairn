@@ -1,6 +1,7 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import type { components } from "./api/schema";
 import { useCreateToken, useRevokeToken, useTokens } from "./queries";
+import { useModal } from "./sidePanel";
 
 type ApiToken = components["schemas"]["ApiToken"];
 
@@ -143,7 +144,7 @@ function RevokeDialog({ token, onConfirm, onClose }: { token: ApiToken; onConfir
   const id = useId();
   const dialog = useRef<HTMLDialogElement>(null);
 
-  useEffect(() => dialog.current?.showModal(), []);
+  useModal(dialog);
 
   return (
     <dialog ref={dialog} className="settings" aria-labelledby={`${id}-title`} onClose={onClose}>

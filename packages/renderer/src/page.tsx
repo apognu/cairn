@@ -1,4 +1,4 @@
-import { RenderEnvContext } from "@yourdocs/components";
+import { IconUsageContext, RenderEnvContext, UsedIcons } from "@yourdocs/components";
 import { ApiReference } from "./ApiReference";
 import { collectHeadings } from "./headings";
 import { SiteLayout } from "./layout";
@@ -13,16 +13,20 @@ export function Page({ doc: saved, context }: RenderInput) {
   const { list, byNode } = collectHeadings(doc);
 
   return (
-    <RenderEnvContext.Provider
-      value={{ urls: full.urls, pages: full.pages, variables: {}, snippets: {}, editing: false, today: full.today }}
-    >
-      <SiteLayout context={full} headings={full.api ? [] : list}>
-        {full.api ? (
-          <ApiReference api={full.api} />
-        ) : (
-          renderNode(doc, { urls: full.urls, terms: full.terms, assets: full.assets, anchors: byNode }, 0)
-        )}
-      </SiteLayout>
-    </RenderEnvContext.Provider>
+    <IconUsageContext.Provider value={new Set()}>
+      <RenderEnvContext.Provider
+        value={{ urls: full.urls, pages: full.pages, variables: {}, snippets: {}, editing: false, today: full.today }}
+      >
+        <SiteLayout context={full} headings={full.api ? [] : list}>
+          {full.api ? (
+            <ApiReference api={full.api} />
+          ) : (
+            renderNode(doc, { urls: full.urls, terms: full.terms, assets: full.assets, anchors: byNode }, 0)
+          )}
+        </SiteLayout>
+        {/* Last, so every icon of the page has been drawn by the time it lists them. */}
+        <UsedIcons />
+      </RenderEnvContext.Provider>
+    </IconUsageContext.Provider>
   );
 }

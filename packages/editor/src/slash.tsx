@@ -314,19 +314,23 @@ const MENU_WIDTH = 393;
 const MARGIN = 8;
 
 /** Below the cursor, or above it when there is more room there; never past the edges of the window. */
-function place(element: HTMLElement, props: SuggestionProps<SlashItem, SlashItem>) {
-  const rect = props.clientRect?.();
+export function place(
+  element: HTMLElement,
+  rect: DOMRect | null | undefined,
+  height = MENU_HEIGHT,
+  width = MENU_WIDTH,
+) {
   if (!rect) return;
 
   const below = window.innerHeight - rect.bottom - MARGIN;
   const above = rect.top - MARGIN;
-  const up = below < Math.min(MENU_HEIGHT, 280) && above > below;
+  const up = below < Math.min(height, 280) && above > below;
   const menu = element.firstElementChild;
 
-  element.style.left = `${Math.max(MARGIN, Math.min(rect.left, window.innerWidth - MENU_WIDTH - MARGIN))}px`;
+  element.style.left = `${Math.max(MARGIN, Math.min(rect.left, window.innerWidth - width - MARGIN))}px`;
   element.style.top = up ? "" : `${rect.bottom + 4}px`;
   element.style.bottom = up ? `${window.innerHeight - rect.top + 4}px` : "";
-  if (menu instanceof HTMLElement) menu.style.maxHeight = `${Math.min(MENU_HEIGHT, up ? above : below)}px`;
+  if (menu instanceof HTMLElement) menu.style.maxHeight = `${Math.min(height, up ? above : below)}px`;
 }
 
 /** Typing "/" at the start of a block or after a space opens a menu of blocks to insert. */
@@ -350,11 +354,11 @@ export const SlashCommand = Extension.create({
               renderer = new ReactRenderer(SlashList, { props, editor: props.editor });
               renderer.element.classList.add("slash-popup");
               document.body.append(renderer.element);
-              place(renderer.element, props);
+              place(renderer.element, props.clientRect?.());
             },
             onUpdate(props) {
               renderer?.updateProps(props);
-              if (renderer) place(renderer.element, props);
+              if (renderer) place(renderer.element, props.clientRect?.());
             },
             onKeyDown({ event }: SuggestionKeyDownProps) {
               if (event.key === "Escape") {

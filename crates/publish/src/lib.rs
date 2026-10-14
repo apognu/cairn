@@ -22,4 +22,4 @@ pub use error::{ApiProblem, PublishError};
 pub use pages::{PagesConfig, PagesTarget};
 pub use publisher::{Bundles, PublishConfig, Publisher, PublisherParts};
 pub use s3::{S3Config, S3Target};
-pub use target::{Capabilities, Deployed, FolderTarget, OutputFile, PublishTarget};
+pub use target::{Capabilities, Deployed, FolderTarget, OutputFile, Progress, PublishTarget};

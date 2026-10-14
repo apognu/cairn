@@ -15,7 +15,7 @@ use axum::{
 };
 use futures_util::{Stream, StreamExt};
 use tokio_stream::wrappers::BroadcastStream;
-use yourdocs_core::{Broadcast, LocalBroadcast};
+use yourdocs_core::{Broadcast, Event, LocalBroadcast};
 
 #[derive(Clone)]
 struct SiteState {
@@ -38,7 +38,7 @@ pub(crate) fn public_router(dir: PathBuf) -> Router {
 /// Server-sent events: one `reload` message per published release.
 async fn reload(State(state): State<SiteState>) -> Sse<impl Stream<Item = Result<SseEvent, Infallible>>> {
   let events = state.events.unwrap_or_default();
-  let stream = BroadcastStream::new(events.subscribe()).filter_map(|event| async move { event.ok().map(|_| Ok(SseEvent::default().data("reload"))) });
+  let stream = BroadcastStream::new(events.subscribe()).filter_map(|event| async move { matches!(event, Ok(Event::Published { .. })).then(|| Ok(SseEvent::default().data("reload"))) });
 
   Sse::new(stream).keep_alive(axum::response::sse::KeepAlive::default())
 }

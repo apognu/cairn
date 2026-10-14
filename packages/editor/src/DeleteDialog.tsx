@@ -1,5 +1,6 @@
-import { useEffect, useId, useRef } from "react";
+import { useId, useRef } from "react";
 import { useDeleteImpact } from "./queries";
+import { useModal } from "./sidePanel";
 import type { Page } from "./tree";
 
 /** Confirms a delete, naming the pages that go with it and every page whose links would break. */
@@ -8,7 +9,7 @@ export function DeleteDialog({ page, onConfirm, onClose }: { page: Page; onConfi
   const dialog = useRef<HTMLDialogElement>(null);
   const impact = useDeleteImpact(page.id);
 
-  useEffect(() => dialog.current?.showModal(), []);
+  useModal(dialog);
 
   const linked = impact.data?.linked_from ?? [];
 

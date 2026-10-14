@@ -1,13 +1,21 @@
+use std::convert::Infallible;
+
 use axum::{
   Json,
   extract::{Path, State},
+  response::{
+    Sse,
+    sse::{Event as SseEvent, KeepAlive},
+  },
 };
+use futures_util::{Stream, StreamExt};
 use serde::Serialize;
+use tokio_stream::wrappers::BroadcastStream;
 use tracing::instrument;
 use utoipa::ToSchema;
 use utoipa_axum::{router::OpenApiRouter, routes};
 use yourdocs_auth::CurrentUser;
-use yourdocs_core::{Pending, Problem, Release, ReleaseId};
+use yourdocs_core::{Event, Pending, Problem, Release, ReleaseId};
 
 use crate::{
   app::AppState,
@@ -22,6 +30,30 @@ pub(crate) fn routes() -> OpenApiRouter<AppState> {
     .routes(routes!(changes))
     .routes(routes!(checks))
     .routes(routes!(site))
+    .routes(routes!(progress))
+}
+
+#[derive(Serialize, ToSchema)]
+struct PublishProgress {
+  /// Files sent so far.
+  sent: u64,
+  /// Files this build sends: those the target does not have yet. Unchanged files are not counted.
+  total: u64,
+}
+
+/// Server-sent events while a build is sent to the publish target, each a `PublishProgress` as JSON, about one per percent. Nothing comes
+/// while the pages render. Builds run one at a time, so the events are those of the build running.
+#[utoipa::path(get, path = "/api/publish/progress", operation_id = "publishProgress", responses(
+  (status = 200, content_type = "text/event-stream", body = PublishProgress),
+))]
+#[instrument(skip_all)]
+async fn progress(State(state): State<AppState>) -> Sse<impl Stream<Item = Result<SseEvent, Infallible>>> {
+  let stream = BroadcastStream::new(state.publisher.subscribe()).filter_map(|event| async move {
+    let Ok(Event::PublishProgress { sent, total }) = event else { return None };
+    SseEvent::default().json_data(PublishProgress { sent, total }).ok().map(Ok)
+  });
+
+  Sse::new(stream).keep_alive(KeepAlive::default())
 }
 
 #[derive(Serialize, ToSchema)]

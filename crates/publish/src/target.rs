@@ -1,4 +1,10 @@
-use std::path::{Component, Path, PathBuf};
+use std::{
+  path::{Component, Path, PathBuf},
+  sync::{
+    Arc,
+    atomic::{AtomicUsize, Ordering},
+  },
+};
 
 use yourdocs_core::ReleaseId;
 
@@ -8,6 +14,40 @@ use crate::{CloudflareTarget, PagesTarget, PublishError, S3Target};
 pub struct OutputFile {
   pub path: String,
   pub bytes: Vec<u8>,
+}
+
+/// Counts the files a target sends, for the editor's progress bar. A target calls `start` once it knows how many files it must send (only
+/// the ones it lacks, for the targets that compare), then `advance` as they go.
+pub struct Progress {
+  sent: AtomicUsize,
+  total: AtomicUsize,
+  report: Box<dyn Fn(usize, usize) + Send + Sync>,
+}
+
+impl Progress {
+  pub fn new(report: impl Fn(usize, usize) + Send + Sync + 'static) -> Arc<Self> {
+    Arc::new(Self {
+      sent: AtomicUsize::new(0),
+      total: AtomicUsize::new(0),
+      report: Box::new(report),
+    })
+  }
+
+  /// For a build nobody watches.
+  pub fn none() -> Arc<Self> {
+    Self::new(|_, _| {})
+  }
+
+  pub(crate) fn start(&self, total: usize) {
+    self.sent.store(0, Ordering::Relaxed);
+    self.total.store(total, Ordering::Relaxed);
+    (self.report)(0, total);
+  }
+
+  pub(crate) fn advance(&self, files: usize) {
+    let sent = self.sent.fetch_add(files, Ordering::Relaxed) + files;
+    (self.report)(sent, self.total.load(Ordering::Relaxed));
+  }
 }
 
 /// What the configured target can do; the editor hides what it cannot.
@@ -62,22 +102,22 @@ impl PublishTarget {
   }
 
   /// Hands a release to the target. With `live` it becomes the site; without, it is only put where it can be looked at.
-  pub async fn publish(&self, release: ReleaseId, files: Vec<OutputFile>, live: bool) -> Result<Deployed, PublishError> {
+  pub async fn publish(&self, release: ReleaseId, files: Vec<OutputFile>, live: bool, progress: Arc<Progress>) -> Result<Deployed, PublishError> {
     match self {
       PublishTarget::Folder(folder) | PublishTarget::SelfHosted(folder) => {
         if !live && !self.capabilities().preview {
           return Err(PublishError::Other(anyhow::anyhow!("this publish target has no previews")));
         }
-        folder.publish(release, files, live).await.map(|()| Deployed::default())
+        folder.publish(release, files, live, progress).await.map(|()| Deployed::default())
       }
       PublishTarget::Pages(pages) => {
         if live {
           return Ok(Deployed {
-            version: Some(pages.publish(&files).await?),
+            version: Some(pages.publish(&files, &progress).await?),
             preview_url: None,
           });
         }
-        let (id, url) = pages.upload(&files).await?;
+        let (id, url) = pages.upload(&files, &progress).await?;
 
         Ok(Deployed { version: Some(id), preview_url: url })
       }
@@ -85,10 +125,14 @@ impl PublishTarget {
         if !live {
           return Err(PublishError::Other(anyhow::anyhow!("this publish target has no previews")));
         }
-        s3.publish(&files).await.map(|()| Deployed::default())
+        s3.publish(&files, &progress).await.map(|()| Deployed::default())
       }
       PublishTarget::Cloudflare(cloudflare) => {
-        let version = if live { cloudflare.publish(&files).await? } else { cloudflare.upload(&files).await? };
+        let version = if live {
+          cloudflare.publish(&files, &progress).await?
+        } else {
+          cloudflare.upload(&files, &progress).await?
+        };
 
         Ok(Deployed {
           version: Some(version.id),
@@ -154,11 +198,11 @@ impl FolderTarget {
     self.root.join("releases")
   }
 
-  async fn publish(&self, release: ReleaseId, files: Vec<OutputFile>, live: bool) -> Result<(), PublishError> {
+  async fn publish(&self, release: ReleaseId, files: Vec<OutputFile>, live: bool, progress: Arc<Progress>) -> Result<(), PublishError> {
     let root = self.root.clone();
 
     tokio::task::spawn_blocking(move || {
-      write_release(&root, release, files)?;
+      write_release(&root, release, files, &progress)?;
       if live {
         switch_site(&root, release)?;
       }
@@ -187,12 +231,13 @@ impl FolderTarget {
   }
 }
 
-fn write_release(root: &Path, release: ReleaseId, files: Vec<OutputFile>) -> std::io::Result<()> {
+fn write_release(root: &Path, release: ReleaseId, files: Vec<OutputFile>, progress: &Progress) -> std::io::Result<()> {
   let releases = root.join("releases");
   let partial = releases.join(format!("{release}.partial"));
   let done = releases.join(release.to_string());
 
   std::fs::create_dir_all(&partial)?;
+  progress.start(files.len());
 
   for file in files {
     let relative = Path::new(&file.path);
@@ -206,6 +251,7 @@ fn write_release(root: &Path, release: ReleaseId, files: Vec<OutputFile>) -> std
       std::fs::create_dir_all(parent)?;
     }
     std::fs::write(target, file.bytes)?;
+    progress.advance(1);
   }
 
   std::fs::rename(&partial, &done)

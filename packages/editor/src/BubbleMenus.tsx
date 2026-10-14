@@ -5,35 +5,7 @@ import { useEffect, useState } from "react";
 import { PICKER_EVENT, type PickerRequest, pageUrlRegistry } from "./pageLink";
 import { useLibrary, usePages } from "./queries";
 
-// Names the highlighter knows, as they are written in the document.
-const languages: [value: string, label: string][] = [
-  ["bash", "Bash"],
-  ["c", "C"],
-  ["cpp", "C++"],
-  ["csharp", "C#"],
-  ["css", "CSS"],
-  ["diff", "Diff"],
-  ["dockerfile", "Dockerfile"],
-  ["go", "Go"],
-  ["html", "HTML"],
-  ["java", "Java"],
-  ["javascript", "JavaScript"],
-  ["json", "JSON"],
-  ["kotlin", "Kotlin"],
-  ["markdown", "Markdown"],
-  ["php", "PHP"],
-  ["python", "Python"],
-  ["ruby", "Ruby"],
-  ["rust", "Rust"],
-  ["sql", "SQL"],
-  ["swift", "Swift"],
-  ["toml", "TOML"],
-  ["typescript", "TypeScript"],
-  ["xml", "XML"],
-  ["yaml", "YAML"],
-];
-
-/** Floating tools: formatting for a text selection, settings for the code block the cursor is in. */
+/** Floating tools: formatting for a text selection, a link the cursor is in. */
 export function BubbleMenus({ editor }: { editor: Editor }) {
   return (
     <>
@@ -59,60 +31,7 @@ export function BubbleMenus({ editor }: { editor: Editor }) {
       >
         <LinkTools editor={editor} />
       </BubbleMenu>
-      <BubbleMenu
-        editor={editor}
-        shouldShow={({ editor: e }) => e.isEditable && e.isActive("codeBlock")}
-        options={{ placement: "top-start" }}
-      >
-        <CodeBlockTools editor={editor} />
-      </BubbleMenu>
-      <BubbleMenu
-        editor={editor}
-        shouldShow={({ editor: e }) => e.isEditable && e.isActive("image")}
-        options={{ placement: "bottom" }}
-      >
-        <ImageTools editor={editor} />
-      </BubbleMenu>
     </>
-  );
-}
-
-function ImageTools({ editor }: { editor: Editor }) {
-  const attrs = useEditorState({
-    editor,
-    selector: ({ editor: e }) => ({
-      alt: String(e.getAttributes("image").alt ?? ""),
-      caption: String(e.getAttributes("image").caption ?? ""),
-      decorative: e.getAttributes("image").decorative === true,
-    }),
-  });
-  const set = (name: "alt" | "caption" | "decorative", value: string | boolean) =>
-    editor
-      .chain()
-      .updateAttributes("image", { [name]: value })
-      .run();
-
-  return (
-    <fieldset className="bubble">
-      <legend className="sr-only">Image</legend>
-      <label>
-        Alt text
-        <input value={attrs.alt} disabled={attrs.decorative} onChange={(e) => set("alt", e.target.value)} />
-      </label>
-      <label>
-        <input type="checkbox" checked={attrs.decorative} onChange={(e) => set("decorative", e.target.checked)} />
-        Decorative
-      </label>
-      {!attrs.alt.trim() && !attrs.decorative && (
-        <span role="alert" className="alt-warning">
-          Describe this image for people who cannot see it, or mark it decorative.
-        </span>
-      )}
-      <label>
-        Caption
-        <input value={attrs.caption} onChange={(e) => set("caption", e.target.value)} />
-      </label>
-    </fieldset>
   );
 }
 
@@ -263,44 +182,5 @@ function LinkTools({ editor }: { editor: Editor }) {
         Remove
       </button>
     </div>
-  );
-}
-
-function CodeBlockTools({ editor }: { editor: Editor }) {
-  const attrs = useEditorState({
-    editor,
-    selector: ({ editor: e }) => ({
-      language: String(e.getAttributes("codeBlock").language ?? ""),
-      fileName: String(e.getAttributes("codeBlock").fileName ?? ""),
-    }),
-  });
-  const set = (name: "language" | "fileName", value: string) =>
-    editor
-      .chain()
-      .updateAttributes("codeBlock", { [name]: value || null })
-      .run();
-  // A language written some other way (in an imported page, say) stays selectable instead of silently turning to plain text.
-  const known = languages.some(([value]) => value === attrs.language);
-
-  return (
-    <fieldset className="bubble bubble-code">
-      <legend className="sr-only">Code block</legend>
-      <label>
-        Language
-        <select value={attrs.language} onChange={(e) => set("language", e.target.value)}>
-          <option value="">Plain text</option>
-          {!known && attrs.language && <option value={attrs.language}>{attrs.language}</option>}
-          {languages.map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        File name
-        <input value={attrs.fileName} placeholder="Optional" onChange={(e) => set("fileName", e.target.value)} />
-      </label>
-    </fieldset>
   );
 }

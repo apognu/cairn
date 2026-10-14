@@ -1,38 +1,80 @@
-// A small set of 24x24 stroke icons, enough for feature cards.
-const paths = {
-  rocket:
-    "M5 15c-1 1-1.5 4-1.5 4s3-.5 4-1.5M12 15l-3-3a22 22 0 0 1 2-4 12 12 0 0 1 9-5c0 3-1 7-5 11a22 22 0 0 1-4 2zM9 12H5l2-3h4M12 15v4l3-2v-4",
-  shield: "M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z",
-  bolt: "M13 3L5 14h6l-1 7 8-11h-6z",
-  git: "M6 3v12M6 15a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM18 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM18 9c0 6-12 3-12 6",
-  bell: "M6 17V11a6 6 0 0 1 12 0v6l2 2H4zM10 21a2 2 0 0 0 4 0",
-  book: "M4 5a2 2 0 0 1 2-2h13v17H6a2 2 0 0 0-2 2zM4 19a2 2 0 0 1 2-2h13",
-  cog: "M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM19 12l2-1-2-4-2 1-2-2 1-2-4-1-1 2h-2L8 3 4 4l1 2-2 2 1 4 2-1 1 2-1 2 3 3 2-1 1 2 4-1-1-2 2-2 2 1z",
-  cloud: "M7 18a4 4 0 0 1-.5-8A6 6 0 0 1 18 9a4.5 4.5 0 0 1 0 9z",
-  lock: "M6 11h12v9H6zM8 11V8a4 4 0 0 1 8 0v3",
-  chart: "M4 20V4M4 20h16M8 16v-4M12 16V8M16 16v-6",
-  plug: "M9 3v5M15 3v5M6 8h12v3a6 6 0 0 1-12 0zM12 17v4",
-  star: "M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z",
-} as const;
+import { createContext, createElement, useContext } from "react";
 
-export const iconNames = Object.keys(paths) as [keyof typeof paths, ...(keyof typeof paths)[]];
+/** An icon of the Lucide collection: its SVG elements, each a tag and its attributes, drawn in a 24x24 box with a 2px stroke. */
+export type IconNode = [tag: string, attrs: Record<string, string>][];
 
-export function Icon({ name }: { name: string }) {
-  const path = paths[name as keyof typeof paths] ?? paths.star;
+// The drawings `Icon` can use. `ssr.js` and the editor register the whole collection; a published page registers only the icons it
+// shows, which the server render lists in the page (`UsedIcons`). Components stay free of the collection, which would weigh on every page.
+const registry = new Map<string, IconNode>();
+
+export function registerIcons(icons: Record<string, IconNode>) {
+  for (const [name, node] of Object.entries(icons)) registry.set(name, node);
+}
+
+/** Every registered icon name, for the editor's picker. */
+export const registeredIcons = (): string[] => [...registry.keys()];
+
+const FALLBACK = "star";
+
+/** Collects the names of the icons a render draws, so `UsedIcons` can list them. Absent in the editor. */
+export const IconUsageContext = createContext<Set<string> | null>(null);
+
+export function Icon({ name, size = 20 }: { name: string; size?: number }) {
+  const usage = useContext(IconUsageContext);
+  const drawn = registry.has(name) ? name : FALLBACK;
+  usage?.add(drawn);
 
   return (
     <svg
-      width="20"
-      height="20"
+      width={size}
+      height={size}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="1.8"
+      strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
     >
-      <path d={path} />
+      {/* The elements of an icon never move: their position is their key. */}
+      {(registry.get(drawn) ?? []).map(([tag, attrs], i) => createElement(tag, { key: i, ...attrs }))}
     </svg>
   );
+}
+
+/**
+ * The drawings of the icons rendered so far, as JSON for the browser to register before hydrating. It must come after every `Icon` of the
+ * page in render order; in the browser it renders the same list from what it registered, so hydration finds the same markup.
+ */
+export function UsedIcons() {
+  const usage = useContext(IconUsageContext);
+  const used = Object.fromEntries([...(usage ?? [])].sort().map((name) => [name, registry.get(name)]));
+  // `<` in a script would let a value close it; Lucide's data has none, but JSON in HTML is escaped as a rule.
+  const json = JSON.stringify(used).replace(/</g, "\\u003c");
+
+  return (
+    // biome-ignore lint/security/noDangerouslySetInnerHtml: JSON data, escaped above
+    // biome-ignore lint/correctness/useUniqueElementIds: one per page, which the browser bundle finds by this ID
+    <script type="application/json" id="icons" dangerouslySetInnerHTML={{ __html: json }} />
+  );
+}
+
+/** Names the first built-in icons had, before Lucide, and the Lucide icon that draws the same thing. */
+export const legacyIconNames: Record<string, string> = { bolt: "zap", git: "git-branch", chart: "chart-column" };
+
+/** Props with every `icon` field written with a legacy name renamed; the migration of the components that show icons. */
+export function upgradeIconNames(value: Record<string, unknown>): Record<string, unknown> {
+  const walk = (v: unknown): unknown => {
+    if (Array.isArray(v)) return v.map(walk);
+    if (v === null || typeof v !== "object") return v;
+
+    return Object.fromEntries(
+      Object.entries(v).map(([key, inner]) => [
+        key,
+        key === "icon" && typeof inner === "string" ? (legacyIconNames[inner] ?? inner) : walk(inner),
+      ]),
+    );
+  };
+
+  return walk(value) as Record<string, unknown>;
 }

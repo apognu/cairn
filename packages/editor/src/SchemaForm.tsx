@@ -1,5 +1,6 @@
 import type { JsonSchema } from "@yourdocs/sdk";
 import { useId, useState } from "react";
+import { IconPicker } from "./IconPicker";
 import { PagePicker } from "./PagePicker";
 import { useLibrary, usePages } from "./queries";
 
@@ -94,6 +95,8 @@ function Field({
       <label htmlFor={id}>{label}</label>
       {schema["x-field"] === "page" ? (
         <PageField id={id} value={String(value ?? "")} onChange={(next) => onChange(next || undefined)} />
+      ) : schema["x-field"] === "icon" ? (
+        <IconPicker id={id} value={String(value ?? "")} onChange={onChange} />
       ) : schema["x-field"] === "date" ? (
         <input
           id={id}

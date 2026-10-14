@@ -102,9 +102,11 @@ export function renderNode(node: DocNode, ctx: NodeContext, key: number): ReactN
     }
     case "table":
       return (
-        <table key={key}>
-          <tbody>{children}</tbody>
-        </table>
+        <div key={key} className="tableWrapper">
+          <table>
+            <tbody>{children}</tbody>
+          </table>
+        </div>
       );
     case "steps":
       return (

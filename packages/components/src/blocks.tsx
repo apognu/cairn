@@ -1,9 +1,9 @@
 import { defineComponent, icon, link, z } from "@yourdocs/sdk";
 import { FeatureCard } from "./features";
-import { iconNames } from "./icons";
+import { upgradeIconNames } from "./icons";
 
 const card = z.object({
-  icon: icon(iconNames).default("star"),
+  icon: icon().default("star"),
   title: z.string().default("Card"),
   description: z.string().default(""),
   page: link(),
@@ -13,7 +13,9 @@ const card = z.object({
 /** A grid of cards, each with an icon, a title, a description and an optional link to a page or a web address. */
 export const cards = defineComponent({
   name: "cards",
-  version: 1,
+  version: 2,
+  // Version 1 had a dozen icons of its own; 2 uses Lucide, where three of them have other names.
+  migrate: { 1: upgradeIconNames },
   title: "Cards",
   props: z.object({
     columns: z.enum(["2", "3"]).default("2"),

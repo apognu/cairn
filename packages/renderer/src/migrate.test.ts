@@ -35,3 +35,22 @@ test("a version 1 document is migrated when it is opened with a version 2 compon
   // Migrating twice changes nothing more.
   expect(migrateDoc(migrated, components)).toBe(migrated);
 });
+
+test("cards and features saved with the first icon names get the Lucide ones", () => {
+  const old: DocNode = {
+    type: "doc",
+    content: [
+      { type: "cards", attrs: { columns: "2", cards: [{ icon: "bolt" }, { icon: "rocket" }] } },
+      { type: "featureTabs", attrs: { families: [{ label: "Core", features: [{ icon: "git" }, { icon: "chart" }] }] } },
+      { type: "whatsNew", attrs: { __v: 2, items: [{ icon: "bolt" }] } },
+    ],
+  };
+  const [cards, tabs, current] = migrateDoc(old).content as DocNode[];
+
+  expect(cards.attrs?.cards).toEqual([{ icon: "zap" }, { icon: "rocket" }]);
+  expect(tabs.attrs?.families).toEqual([
+    { label: "Core", features: [{ icon: "git-branch" }, { icon: "chart-column" }] },
+  ]);
+  // Saved by version 2, `bolt` is Lucide's own bolt.
+  expect(current.attrs?.items).toEqual([{ icon: "bolt" }]);
+});

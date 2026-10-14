@@ -1,10 +1,10 @@
 import { date, defineComponent, Editable, icon, link, z } from "@yourdocs/sdk";
 import { useEffect, useId, useState } from "react";
 import { useRenderEnv } from "./env";
-import { Icon, iconNames } from "./icons";
+import { Icon, upgradeIconNames } from "./icons";
 
 const feature = z.object({
-  icon: icon(iconNames).default("star"),
+  icon: icon().default("star"),
   title: z.string().default("New feature"),
   description: z.string().default(""),
   page: link(),
@@ -70,7 +70,9 @@ const families = z
 
 export const featureTabs = defineComponent({
   name: "featureTabs",
-  version: 1,
+  version: 2,
+  // Version 1 had a dozen icons of its own; 2 uses Lucide, where three of them have other names.
+  migrate: { 1: upgradeIconNames },
   title: "Feature tabs",
   props: z.object({ families }),
   render: (props) => <FeatureTabs families={props.families} />,
@@ -122,7 +124,9 @@ export function FeatureTabs({ families }: { families: { label: string; features:
 
 export const whatsNew = defineComponent({
   name: "whatsNew",
-  version: 1,
+  version: 2,
+  // Version 1 had a dozen icons of its own; 2 uses Lucide, where three of them have other names.
+  migrate: { 1: upgradeIconNames },
   title: "What's new",
   props: z.object({
     title: z.string().default("What's new").meta({ title: "Heading" }),

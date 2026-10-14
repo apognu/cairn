@@ -1437,6 +1437,23 @@
         }
       }
     },
+    "/api/publish/progress": {
+      "get": {
+        "summary": "Server-sent events while a build is sent to the publish target, each a `PublishProgress` as JSON, about one per percent. Nothing comes\nwhile the pages render. Builds run one at a time, so the events are those of the build running.",
+        "operationId": "publishProgress",
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublishProgress"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/redirects": {
       "get": {
         "summary": "Every redirect of the site, with where it leads and whether it is written.",
@@ -3119,6 +3136,27 @@
           "duplicate_url",
           "missing_alt"
         ]
+      },
+      "PublishProgress": {
+        "type": "object",
+        "required": [
+          "sent",
+          "total"
+        ],
+        "properties": {
+          "sent": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Files sent so far.",
+            "minimum": 0
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Files this build sends: those the target does not have yet. Unchanged files are not counted.",
+            "minimum": 0
+          }
+        }
       },
       "RedirectEntry": {
         "type": "object",
