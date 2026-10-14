@@ -2,6 +2,7 @@ import type { DocNode } from "@cairn/renderer";
 import { useId, useRef, useState } from "react";
 import { Canvas } from "./Canvas";
 import { useDeleteEntry, useLibrary, useSaveSnippet, useSaveTerm, useSaveVariable } from "./queries";
+import { TermForm } from "./TermForm";
 
 /** Reusable content: variables written inline and snippets included as blocks, edited once and used on many pages. */
 export function LibrarySettings() {
@@ -11,7 +12,8 @@ export function LibrarySettings() {
   const saveTerm = useSaveTerm();
   const remove = useDeleteEntry();
   const [term, setTerm] = useState("");
-  const [definition, setDefinition] = useState("");
+  // The term whose form is open: an entry's ID, or `new` for the one named in the add form.
+  const [editingTerm, setEditingTerm] = useState<string | null>(null);
   const id = useId();
   const [name, setName] = useState("");
   const [value, setValue] = useState("");
@@ -24,10 +26,6 @@ export function LibrarySettings() {
   const clearVariableForm = () => {
     setName("");
     setValue("");
-  };
-  const clearTermForm = () => {
-    setTerm("");
-    setDefinition("");
   };
   const toggle = (entry: string) => {
     draft.current = null;
@@ -212,83 +210,73 @@ export function LibrarySettings() {
         Mark words in a page as a term to show this definition on hover and link them to the Glossary page, which lists
         every term.
       </p>
-      <table className="changes" aria-label="Glossary terms">
-        <thead>
-          <tr>
-            <th scope="col">Term</th>
-            <th scope="col">Definition</th>
-            <th scope="col">Used in</th>
-            <th scope="col">
-              <span className="sr-only">Actions</span>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {entries.filter((e) => e.kind === "term").length === 0 && (
-            <tr>
-              <td colSpan={4} className="muted">
-                No terms yet.
-              </td>
-            </tr>
-          )}
-          {entries
-            .filter((e) => e.kind === "term")
-            .map((e) => (
-              <tr key={e.id}>
-                <td>
-                  <strong>{e.key}</strong>
-                </td>
-                <td>
-                  <input
-                    aria-label={`Definition of ${e.key}`}
-                    defaultValue={e.text_value ?? ""}
-                    onBlur={(ev) =>
-                      ev.target.value !== (e.text_value ?? "") &&
-                      saveTerm.mutate({ term: e.key, definition: ev.target.value })
-                    }
-                  />
-                </td>
-                <td>
-                  {e.used_in.length === 0 ? (
-                    <span className="muted">no pages</span>
-                  ) : (
-                    `${e.used_in.length} ${e.used_in.length === 1 ? "page" : "pages"}`
-                  )}
-                </td>
-                <td>
-                  <button
-                    type="button"
-                    className="icon"
-                    aria-label={`Delete term ${e.key}`}
-                    onClick={() => remove.mutate(e.id)}
-                  >
-                    ×
-                  </button>
-                </td>
-              </tr>
-            ))}
-        </tbody>
-      </table>
+      <ul className="snippet-list" aria-label="Glossary terms">
+        {entries.filter((e) => e.kind === "term").length === 0 && editingTerm !== "new" && (
+          <li className="muted">No terms yet.</li>
+        )}
+        {entries
+          .filter((e) => e.kind === "term")
+          .map((e) => (
+            <li key={e.id}>
+              <div className="snippet-head">
+                <strong>{e.key}</strong>
+                <span className="term-summary">
+                  {e.text_value}
+                  {e.aliases.length > 0 && <span className="muted"> · also {e.aliases.join(", ")}</span>}
+                </span>
+                <span className="muted">
+                  {e.used_in.length === 0
+                    ? "no pages"
+                    : `${e.used_in.length} ${e.used_in.length === 1 ? "page" : "pages"}`}
+                </span>
+                <button type="button" onClick={() => setEditingTerm(editingTerm === e.id ? null : e.id)}>
+                  {editingTerm === e.id ? "Close" : "Edit"}
+                </button>
+                <button
+                  type="button"
+                  className="icon"
+                  aria-label={`Delete term ${e.key}`}
+                  onClick={() => remove.mutate(e.id)}
+                >
+                  ×
+                </button>
+              </div>
+              {editingTerm === e.id && <TermForm entry={e} term={e.key} onDone={() => setEditingTerm(null)} />}
+            </li>
+          ))}
+        {editingTerm === "new" && (
+          <li>
+            <div className="snippet-head">
+              <strong>{term}</strong>
+            </div>
+            <TermForm
+              term={term}
+              onDone={() => {
+                setEditingTerm(null);
+                setTerm("");
+              }}
+            />
+          </li>
+        )}
+      </ul>
       <form
         className="row-inline"
         onSubmit={(ev) => {
           ev.preventDefault();
-          saveTerm.mutate({ term, definition }, { onSuccess: clearTermForm });
+          if (term.trim()) setEditingTerm("new");
         }}
       >
+        <label htmlFor={`${id}-term`} className="sr-only">
+          New term
+        </label>
         <input
-          aria-label="New term"
+          id={`${id}-term`}
           placeholder="Blue-green deploy"
           value={term}
+          disabled={editingTerm === "new"}
           onChange={(e) => setTerm(e.target.value)}
         />
-        <input
-          aria-label="New term definition"
-          placeholder="Switching all traffic to a new release at once"
-          value={definition}
-          onChange={(e) => setDefinition(e.target.value)}
-        />
-        <button type="submit" disabled={!term || !definition || saveTerm.isPending}>
+        <button type="submit" disabled={!term.trim() || editingTerm === "new"}>
           Add term
         </button>
       </form>

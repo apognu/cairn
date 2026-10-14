@@ -25,7 +25,7 @@ pub use connect::connect_for_tests;
 pub use connect::{StoreError, connect, connect_url};
 pub use content::SqlContentStore;
 pub use history::{HistoryEntry, Trashed, list_trash, page_history, restore_page};
-pub use library::{Entry, delete_entry, list_entries, load_library, save_snippet, save_term, save_variable};
+pub use library::{Entry, TermInput, delete_entry, list_entries, load_library, save_snippet, save_term, save_variable};
 pub use links::{StoredLink, all_links};
 pub use migration::migrate;
 pub use redirects::{draft_docs, draft_revisions, list_redirects};

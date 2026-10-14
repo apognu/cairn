@@ -58,7 +58,10 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Creates or changes a glossary term. A marked term shows its definition on hover and links to the generated Glossary page. */
+        /**
+         * Creates or changes a glossary term. A marked term shows its definition on hover and links to the generated Glossary page, which also
+         *     lists its aliases and links the page that explains it in full.
+         */
         put: operations["saveTerm"];
         post?: never;
         delete?: never;
@@ -936,11 +939,14 @@ export interface components {
         Inactive: "page_at_path" | "target_gone" | "loop";
         /** @description A variable, snippet or glossary term of the library, with the pages that use it. */
         LibraryEntry: {
+            /** @description Other words for a term. */
+            aliases: string[];
             doc?: components["schemas"]["Document"] | null;
             id: string;
             key: string;
             kind: components["schemas"]["EntryKind"];
-            /** @description The value of a variable, or the definition of a term. */
+            page_id?: components["schemas"]["PageId"] | null;
+            /** @description The value of a variable, or the definition of a term as plain text. */
             text_value?: string | null;
             used_in: components["schemas"]["UsedBy"][];
         };
@@ -1237,7 +1243,10 @@ export interface components {
             doc: components["schemas"]["Document"];
         };
         TermBody: {
-            definition: string;
+            aliases?: string[];
+            /** @description Paragraphs of text with inline marks, at most 400 characters. */
+            definition: components["schemas"]["Document"];
+            page_id?: components["schemas"]["PageId"] | null;
             term: string;
         };
         /** @description What the settings form shows while the palette is being edited. */
@@ -1429,7 +1438,7 @@ export interface operations {
                     "application/json": components["schemas"]["LibraryEntry"][];
                 };
             };
-            /** @description empty or too long */
+            /** @description empty or too long, an alias another term has, or a linked page that does not exist */
             422: {
                 headers: {
                     [name: string]: unknown;

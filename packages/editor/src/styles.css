@@ -1721,6 +1721,79 @@ button.primary:disabled {
   background: var(--bg);
 }
 
+/* A glossary term: its words, a one-line summary of the definition, and its form when open. */
+.term-summary {
+  overflow: hidden;
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.term-form {
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.term-form .form-label {
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.definition-field {
+  border: 1px solid var(--border-input);
+  border-radius: 6px;
+  background: var(--bg);
+}
+
+.definition-field:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.definition-tools {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-bottom: 1px solid var(--border);
+}
+
+.definition-tools button {
+  min-width: 28px;
+  height: 24px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.definition-tools button:hover,
+.definition-tools button[aria-pressed="true"] {
+  background: var(--hover);
+}
+
+.definition-tools button[aria-pressed="true"] {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.definition-field .ProseMirror {
+  min-height: 34px;
+  padding: 7px 10px;
+  font-size: 14px;
+  line-height: 1.45;
+  outline: none;
+}
+
+.definition-field p {
+  margin: 0;
+}
+
 /* A snippet is edited in a box inside the settings page: no site margins, no table of contents. */
 .snippet-editor .site-body {
   grid-template-columns: minmax(0, 1fr);

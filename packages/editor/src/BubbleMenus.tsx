@@ -37,7 +37,8 @@ export function BubbleMenus({ editor }: { editor: Editor }) {
 
 function TextTools({ editor }: { editor: Editor }) {
   const [marking, setMarking] = useState(false);
-  const terms = (useLibrary().data ?? []).filter((e) => e.kind === "term").map((e) => e.key);
+  const entries = (useLibrary().data ?? []).filter((e) => e.kind === "term");
+  const terms = entries.map((e) => e.key);
   const active = useEditorState({
     editor,
     selector: ({ editor: e }) => ({
@@ -76,7 +77,8 @@ function TextTools({ editor }: { editor: Editor }) {
         <select
           name="term"
           aria-label="Glossary term"
-          defaultValue={terms.find((t) => t.toLowerCase() === words) ?? ""}
+          // The selected words preselect their term, written as the term or as one of its other words.
+          defaultValue={entries.find((e) => [e.key, ...e.aliases].some((w) => w.toLowerCase() === words))?.key ?? ""}
         >
           <option value="">{terms.length === 0 ? "No terms defined yet" : "Choose a term…"}</option>
           {terms.map((t) => (

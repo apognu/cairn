@@ -135,7 +135,7 @@
     },
     "/api/library/terms": {
       "put": {
-        "summary": "Creates or changes a glossary term. A marked term shows its definition on hover and links to the generated Glossary page.",
+        "summary": "Creates or changes a glossary term. A marked term shows its definition on hover and links to the generated Glossary page, which also\nlists its aliases and links the page that explains it in full.",
         "operationId": "saveTerm",
         "requestBody": {
           "content": {
@@ -161,7 +161,7 @@
             }
           },
           "422": {
-            "description": "empty or too long",
+            "description": "empty or too long, an alias another term has, or a linked page that does not exist",
             "content": {
               "application/json": {
                 "schema": {
@@ -2647,14 +2647,22 @@
           "id",
           "kind",
           "key",
+          "aliases",
           "used_in"
         ],
         "properties": {
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Other words for a term."
+          },
           "doc": {
             "oneOf": [
               {
                 "$ref": "#/components/schemas/Document",
-                "description": "The content of a snippet."
+                "description": "The content of a snippet, or the definition of a term."
               },
               {
                 "type": "null"
@@ -2670,12 +2678,23 @@
           "kind": {
             "$ref": "#/components/schemas/EntryKind"
           },
+          "page_id": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PageId",
+                "description": "The page that explains a term in full."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "text_value": {
             "type": [
               "string",
               "null"
             ],
-            "description": "The value of a variable, or the definition of a term."
+            "description": "The value of a variable, or the definition of a term as plain text."
           },
           "used_in": {
             "type": "array",
@@ -3563,8 +3582,25 @@
           "definition"
         ],
         "properties": {
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "definition": {
-            "type": "string"
+            "$ref": "#/components/schemas/Document",
+            "description": "Paragraphs of text with inline marks, at most 400 characters."
+          },
+          "page_id": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PageId"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "term": {
             "type": "string"

@@ -1,20 +1,28 @@
 //! Files generated from the page list rather than rendered: sitemap, robots, llms.txt and the redirect rules.
 
-use cairn_core::Page;
+use jiff::Timestamp;
+
+/// A page of the site as the sitemap and `llms.txt` list it: a real page, or one the publisher generates (the Glossary).
+pub(crate) struct Listed<'a> {
+  pub title: &'a str,
+  pub description: Option<&'a str>,
+  /// The URL path (`/guide/`).
+  pub url: &'a str,
+  pub updated: Timestamp,
+}
 
 fn xml_escape(text: &str) -> String {
   text.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
 }
 
-/// `pages` pairs each page with its URL path (`/guide/`).
-pub(crate) fn sitemap(site_url: &str, pages: &[(&Page, &str)]) -> String {
+pub(crate) fn sitemap(site_url: &str, pages: &[Listed]) -> String {
   let entries: String = pages
     .iter()
-    .map(|(page, url)| {
+    .map(|page| {
       format!(
         "  <url><loc>{}</loc><lastmod>{}</lastmod></url>\n",
-        xml_escape(&format!("{site_url}{url}")),
-        page.updated_at.to_zoned(jiff::tz::TimeZone::UTC).date()
+        xml_escape(&format!("{site_url}{}", page.url)),
+        page.updated.to_zoned(jiff::tz::TimeZone::UTC).date()
       )
     })
     .collect();
@@ -28,14 +36,14 @@ pub(crate) fn robots(site_url: &str) -> String {
 
 /// A plain-text map of the site for language models: https://llmstxt.org. Each entry links the Markdown version of the page, with its
 /// description when it has one.
-pub(crate) fn llms_txt(site_name: &str, site_url: &str, pages: &[(&Page, &str)]) -> String {
+pub(crate) fn llms_txt(site_name: &str, site_url: &str, pages: &[Listed]) -> String {
   let links: String = pages
     .iter()
-    .map(|(page, url)| {
+    .map(|page| {
       let title = page.title.replace(['[', ']'], "");
-      let note = page.description.as_deref().map(|d| format!(": {d}")).unwrap_or_default();
+      let note = page.description.map(|d| format!(": {d}")).unwrap_or_default();
 
-      format!("- [{title}]({site_url}{}.md){note}\n", url.trim_end_matches('/'))
+      format!("- [{title}]({site_url}{}.md){note}\n", page.url.trim_end_matches('/'))
     })
     .collect();
 
@@ -53,34 +61,16 @@ pub(crate) fn redirects(first_page_url: Option<&str>, rules: &[(String, String)]
 
 #[cfg(test)]
 mod tests {
-  use cairn_core::{PageId, UserId};
-  use jiff::Timestamp;
-
   use super::*;
-
-  fn page(title: &str) -> Page {
-    Page {
-      id: PageId::new(),
-      kind: cairn_core::PageKind::Page,
-      parent_id: None,
-      position: "80".into(),
-      slug: "a".into(),
-      title: title.into(),
-      external_url: None,
-      path_override: None,
-      in_header: false,
-      header_position: None,
-      description: None,
-      created_by: UserId::new(),
-      created_at: Timestamp::UNIX_EPOCH,
-      updated_at: Timestamp::UNIX_EPOCH,
-    }
-  }
 
   #[test]
   fn generates_each_file() {
-    let a = page("Guide [v2]");
-    let pages = [(&a, "/guide/")];
+    let pages = [Listed {
+      title: "Guide [v2]",
+      description: None,
+      url: "/guide/",
+      updated: Timestamp::UNIX_EPOCH,
+    }];
 
     let sitemap = sitemap("https://docs.example.com", &pages);
     assert!(sitemap.contains("<loc>https://docs.example.com/guide/</loc><lastmod>1970-01-01</lastmod>"), "{sitemap}");

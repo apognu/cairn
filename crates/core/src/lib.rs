@@ -28,7 +28,7 @@ pub use checks::{Problem, ProblemKind, doc_problems, url_problems};
 pub use document::{Document, Mark, Node};
 pub use error::CoreError;
 pub use id::{AssetId, PageId, ReleaseId, RevisionId, UserId};
-pub use library::{EntryKind, Library, SNIPPET_NODE, TERM_MARK, VARIABLE_NODE, entry_refs, expand, snippet_cycle, term_anchors, term_refs};
+pub use library::{EntryKind, Library, SNIPPET_NODE, TERM_MARK, Term, VARIABLE_NODE, entry_refs, expand, snippet_cycle, term_anchors, term_refs};
 pub use links::{LinkKind, PageLink, extract_links};
 pub use nav::{header_pages, header_section, in_sidebar, sidebar_root};
 pub use page::{Page, PageKind, Placement, page_urls, slugify};

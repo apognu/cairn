@@ -62,13 +62,34 @@ test("a variable and a snippet are used on a page, and a snippet cannot include 
 
 test("a term marked in a page shows as a dfn linking to the Glossary page", async ({ page }) => {
   const tag = Math.random().toString(36).slice(2, 8);
-  const [term, title] = [`Zorbing ${tag}`, `Terms ${tag}`];
+  const [term, title, full] = [`Zorbing ${tag}`, `Terms ${tag}`, `Ball sports ${tag}`];
 
-  await page.goto("/#settings=library");
+  // The page that explains the term in full.
+  await page.goto("/");
+  await page.getByRole("button", { name: "New page" }).click();
+  await nameNewPage(page, full);
+
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await page.getByRole("button", { name: "Library", exact: true }).click();
   await page.getByLabel("New term", { exact: true }).fill(term);
-  await page.getByLabel("New term definition").fill("Rolling downhill in a ball");
-  await page.getByRole("button", { name: "Add term" }).click();
-  await expect(page.getByLabel(`Definition of ${term}`)).toHaveValue("Rolling downhill in a ball");
+  await page.keyboard.press("Enter");
+  const form = page.getByRole("form", { name: `Term ${term}` });
+  // The definition field has the focus; bold text stays bold on the Glossary page.
+  await expect(form.getByRole("textbox", { name: "Definition" })).toBeFocused();
+  await page.keyboard.type("Rolling downhill in a ");
+  await form.getByRole("button", { name: "Bold" }).click();
+  await page.keyboard.type("ball");
+  await form.getByLabel("Also called").fill(`Sphering ${tag}`);
+  await form.getByLabel("Full explanation").click();
+  await page.getByRole("dialog").getByRole("combobox").fill(full);
+  await page
+    .getByRole("dialog")
+    .getByRole("option", { name: new RegExp(full) })
+    .first()
+    .click();
+  await form.getByRole("button", { name: "Add term" }).click();
+  const item = page.getByRole("list", { name: "Glossary terms" }).getByRole("listitem").filter({ hasText: term });
+  await expect(item).toContainText(`Rolling downhill in a ball · also Sphering ${tag}`);
 
   await page.getByRole("button", { name: "Back to pages" }).click();
   await page.getByRole("button", { name: "New page" }).click();
@@ -93,5 +114,9 @@ test("a term marked in a page shows as a dfn linking to the Glossary page", asyn
       `<dfn class="term"><a href="/glossary/#zorbing-${tag}" data-definition="Rolling downhill in a ball">${term}</a></dfn>`,
     ),
   );
-  expect(readFileSync(".e2e-data/site/glossary/index.html", "utf8")).toContain(term);
+  const glossary = readFileSync(".e2e-data/site/glossary/index.html", "utf8");
+  expect(glossary).toContain("Rolling downhill in a <strong>ball</strong>");
+  expect(glossary).toContain(`Also called <em>Sphering ${tag}</em>.`);
+  expect(glossary).toContain(`href="/ball-sports-${tag}/"`);
+  expect(readFileSync(".e2e-data/site/sitemap.xml", "utf8")).toContain("/glossary/</loc>");
 });

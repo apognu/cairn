@@ -2,7 +2,7 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Document, Mark, Node};
+use crate::{Document, Mark, Node, PageId};
 
 /// What kind of reusable content an entry is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -31,13 +31,23 @@ impl EntryKind {
   }
 }
 
-/// The variables and snippets a build substitutes into documents.
+/// The variables and snippets a build substitutes into documents, and the glossary.
 #[derive(Debug, Clone, Default)]
 pub struct Library {
   pub variables: HashMap<String, String>,
   pub snippets: HashMap<String, Document>,
-  /// Glossary term to its short definition.
-  pub terms: HashMap<String, String>,
+  /// Glossary terms by the words as written.
+  pub terms: HashMap<String, Term>,
+}
+
+/// A glossary term: a short rich definition, other words for the same thing, and the page that explains it in full, if any.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Term {
+  /// Paragraphs of text with inline marks only.
+  pub definition: Document,
+  pub aliases: Vec<String>,
+  pub page: Option<PageId>,
+  pub updated_at: jiff::Timestamp,
 }
 
 /// The node types that stand for library entries; the node's `key` attribute names the entry.

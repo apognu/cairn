@@ -16,7 +16,10 @@ pub(crate) fn content_hash(expanded: &Document, pages: &[Page], urls: &HashMap<P
       (link.target.to_string(), shown)
     })
     .collect();
-  let terms: BTreeMap<String, _> = term_refs(expanded).into_iter().map(|t| (t.clone(), library.terms.get(&t))).collect();
+  let terms: BTreeMap<String, _> = term_refs(expanded)
+    .into_iter()
+    .map(|t| (t.clone(), library.terms.get(&t).map(|term| term.definition.plain_text())))
+    .collect();
 
   let content = json!({ "doc": expanded, "pages": linked, "terms": terms });
   Sha256::digest(content.to_string()).iter().map(|b| format!("{b:02x}")).collect()

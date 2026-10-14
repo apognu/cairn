@@ -36,10 +36,14 @@ struct LibraryEntry {
   id: uuid::Uuid,
   kind: EntryKind,
   key: String,
-  /// The value of a variable, or the definition of a term.
+  /// The value of a variable, or the definition of a term as plain text.
   text_value: Option<String>,
-  /// The content of a snippet.
+  /// The content of a snippet, or the definition of a term.
   doc: Option<Document>,
+  /// Other words for a term.
+  aliases: Vec<String>,
+  /// The page that explains a term in full.
+  page_id: Option<PageId>,
   used_in: Vec<UsedBy>,
 }
 
@@ -51,7 +55,11 @@ struct VariableBody {
 #[derive(Deserialize, ToSchema)]
 struct TermBody {
   term: String,
-  definition: String,
+  /// Paragraphs of text with inline marks, at most 400 characters.
+  definition: Document,
+  #[serde(default)]
+  aliases: Vec<String>,
+  page_id: Option<PageId>,
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -72,6 +80,8 @@ async fn entries(state: &AppState) -> Result<Vec<LibraryEntry>, AppError> {
         key: e.key,
         text_value: e.text_value,
         doc: e.doc,
+        aliases: e.aliases,
+        page_id: e.link_page_id,
         used_in: e
           .used_in
           .iter()
@@ -118,14 +128,21 @@ async fn put_snippet(State(state): State<AppState>, CurrentUser(user): CurrentUs
   Ok(Json(entries(&state).await?))
 }
 
-/// Creates or changes a glossary term. A marked term shows its definition on hover and links to the generated Glossary page.
+/// Creates or changes a glossary term. A marked term shows its definition on hover and links to the generated Glossary page, which also
+/// lists its aliases and links the page that explains it in full.
 #[utoipa::path(put, path = "/api/library/terms", operation_id = "saveTerm", request_body = TermBody, responses(
   (status = 200, body = Vec<LibraryEntry>),
-  (status = 422, body = ErrorBody, description = "empty or too long"),
+  (status = 422, body = ErrorBody, description = "empty or too long, an alias another term has, or a linked page that does not exist"),
 ))]
 #[instrument(skip_all)]
 async fn put_term(State(state): State<AppState>, CurrentUser(user): CurrentUser, Json(body): Json<TermBody>) -> Result<Json<Vec<LibraryEntry>>, AppError> {
-  cairn_store::save_term(&state.db, user, &body.term, &body.definition).await?;
+  let input = cairn_store::TermInput {
+    term: body.term,
+    definition: body.definition,
+    aliases: body.aliases,
+    page: body.page_id,
+  };
+  cairn_store::save_term(&state.db, user, &input).await?;
 
   Ok(Json(entries(&state).await?))
 }

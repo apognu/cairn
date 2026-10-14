@@ -222,7 +222,7 @@ function summaryOf(entry: unknown): string | undefined {
 }
 
 /** A component's page field: the chosen page's title and a button that opens the page picker. */
-function PageField({ id, value, onChange }: { id: string; value: string; onChange: (next: string) => void }) {
+export function PageField({ id, value, onChange }: { id: string; value: string; onChange: (next: string) => void }) {
   const pages = usePages();
   const [open, setOpen] = useState(false);
   const chosen = pages.data?.find((p) => p.id === value);

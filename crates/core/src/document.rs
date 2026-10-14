@@ -26,6 +26,35 @@ impl Document {
       text: None,
     })
   }
+
+  /// The text of the document, its blocks joined by spaces.
+  pub fn plain_text(&self) -> String {
+    self
+      .0
+      .content
+      .iter()
+      .flatten()
+      .map(|block| block.walk().iter().filter_map(|n| n.text.as_deref()).collect::<String>())
+      .filter(|t| !t.is_empty())
+      .collect::<Vec<_>>()
+      .join(" ")
+  }
+
+  /// A document with one paragraph of plain text.
+  pub fn paragraph(text: &str) -> Self {
+    let mut doc = Self::empty();
+    if let Some(paragraph) = doc.0.content.iter_mut().flatten().next() {
+      paragraph.content = Some(vec![Node {
+        kind: "text".into(),
+        attrs: None,
+        content: None,
+        marks: None,
+        text: Some(text.into()),
+      }]);
+    }
+
+    doc
+  }
 }
 
 /// A ProseMirror node. Absent fields stay absent when serialized, so a document comes back unchanged.

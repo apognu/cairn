@@ -8,6 +8,7 @@ mod cloudflare;
 mod content;
 mod error;
 mod generated;
+mod glossary;
 mod markdown;
 mod pages;
 mod publisher;

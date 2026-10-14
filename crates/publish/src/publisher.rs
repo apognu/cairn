@@ -24,6 +24,8 @@ use crate::{
   api::{ApiHosts, ResolvedApi, ResolvedSpec, SourceFetcher, resolve},
   content::content_hash,
   generated,
+  generated::Listed,
+  glossary::glossary_doc,
   markdown::{Site, page_markdown},
   search,
   site::{breadcrumbs, header_items, image_asset_ids, markdown_path, nav_tree, output_path, previous_next},
@@ -465,7 +467,12 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
         // Only the terms this page marks go into its context, so defining another term leaves it alone.
         let terms: serde_json::Map<String, Value> = term_refs(&source.doc)
           .into_iter()
-          .filter_map(|t| Some((t.clone(), json!({ "definition": library.terms.get(&t)?, "href": format!("{glossary_url}#{}", anchors.get(&t)?) }))))
+          .filter_map(|t| {
+            Some((
+              t.clone(),
+              json!({ "definition": library.terms.get(&t)?.definition.plain_text(), "href": format!("{glossary_url}#{}", anchors.get(&t)?) }),
+            ))
+          })
           .collect();
         let today = if serde_json::to_string(&source.doc.0).is_ok_and(|json| json.contains("\"newUntil\"")) {
           today.as_str()
@@ -532,7 +539,24 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
       bytes: api.bytes.clone(),
     }));
 
-    let listed: Vec<(&Page, &str)> = pages.iter().map(|p| (p, urls[&p.id].as_str())).collect();
+    let glossary = (!glossary_terms.is_empty()).then(|| glossary_doc(&glossary_terms, &library, &urls));
+    let mut listed: Vec<Listed> = pages
+      .iter()
+      .map(|p| Listed {
+        title: &p.title,
+        description: p.description.as_deref(),
+        url: &urls[&p.id],
+        updated: p.updated_at,
+      })
+      .collect();
+    if glossary.is_some() {
+      listed.push(Listed {
+        title: "Glossary",
+        description: None,
+        url: glossary_url,
+        updated: library.terms.values().map(|t| t.updated_at).max().unwrap_or_default(),
+      });
+    }
     // The site root goes to the first top-level page. Positions only order siblings: the lowest one in the whole tree can be a child's.
     let home = pages.iter().find(|p| p.parent_id.is_none()).or(pages.first());
     let site_url = self.config.site_url.as_str();
@@ -565,22 +589,28 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
       bytes: page_markdown(&s.page.title, s.page.description.as_deref(), &s.doc, &site).into_bytes(),
     }));
 
-    if !glossary_terms.is_empty() {
-      let blocks: Vec<Value> = glossary_terms
-        .iter()
-        .flat_map(|t| {
-          [
-            json!({ "type": "heading", "attrs": { "level": 2 }, "content": [{ "type": "text", "text": t }] }),
-            json!({ "type": "paragraph", "content": [{ "type": "text", "text": library.terms[t] }] }),
-          ]
-        })
-        .collect();
+    if let Some(glossary) = glossary {
+      files.push(OutputFile {
+        path: markdown_path(glossary_url),
+        bytes: page_markdown("Glossary", None, &glossary, &site).into_bytes(),
+      });
+
+      let referenced: HashSet<String> = extract_links(&glossary).into_iter().map(|l| l.target.to_string()).collect();
       let glossary = RenderJob {
         pool: self.pool.clone(),
         input: json!({
-          "doc": { "type": "doc", "content": blocks },
+          "doc": glossary,
           // A fixed ID keeps the page searchable and its render cacheable.
-          "context": { "site": site_ctx, "page": { "id": "00000000-0000-7000-8000-00000000610c", "title": "Glossary" }, "nav": nav_tree(tree_pages, &urls, &betas, None), "header": header, "urls": {}, "assets": {}, "today": "" },
+          "context": {
+            "site": site_ctx,
+            "page": { "id": "00000000-0000-7000-8000-00000000610c", "title": "Glossary" },
+            "nav": nav_tree(tree_pages, &urls, &betas, None),
+            "header": header,
+            "urls": only(&url_values, &referenced),
+            "pages": only(&page_info, &referenced),
+            "assets": {},
+            "today": "",
+          },
         }),
         title: "Glossary".into(),
         description: None,
@@ -1574,12 +1604,30 @@ mod tests {
 
   #[tokio::test]
   async fn a_marked_term_is_a_dfn_linking_to_the_generated_glossary_page() {
-    use cairn_store::save_term;
+    use cairn_store::{TermInput, save_term};
 
     let f = fixture().await;
     let user = UserId::new();
-    save_term(&f.db, user, "Blue-green deploy", "Switching all traffic to a new release at once.").await.unwrap();
-    save_term(&f.db, user, "API", "A way for programs to talk to each other.").await.unwrap();
+    let rollouts = create_page(&f.db, user, None, "Rollouts", Placement::Last).await.unwrap();
+    let term = |term: &str, definition: Document, aliases: &[&str], page: Option<PageId>| TermInput {
+      term: term.into(),
+      definition,
+      aliases: aliases.iter().map(|a| a.to_string()).collect(),
+      page,
+    };
+    // A rich definition: the hover shows its text, the Glossary page the formatting.
+    let rich = doc(serde_json::json!({ "type": "doc", "content": [{ "type": "paragraph", "content": [
+      { "type": "text", "text": "Switching " },
+      { "type": "text", "text": "all", "marks": [{ "type": "bold" }] },
+      { "type": "text", "text": " traffic to a new release at once." },
+    ] }] }));
+    save_term(&f.db, user, &term("Blue-green deploy", rich, &["red-black deploy"], Some(rollouts.id))).await.unwrap();
+    save_term(&f.db, user, &term("API", Document::paragraph("A way for programs to talk to each other."), &[], None))
+      .await
+      .unwrap();
+    // Another term cannot take an alias that is already used.
+    let taken = save_term(&f.db, user, &term("Red-black", Document::paragraph("Same."), &["Red-black deploy"], None)).await;
+    assert!(matches!(&taken, Err(cairn_store::StoreError::Invalid(m)) if m.contains("Blue-green deploy")), "{taken:?}");
 
     let page = create_page(&f.db, user, None, "Deploying", Placement::Last).await.unwrap();
     f.content
@@ -1609,6 +1657,18 @@ mod tests {
     let glossary = std::fs::read_to_string(site.join("glossary/index.html")).unwrap();
     let (api, blue) = (glossary.find("id=\"api\"").unwrap(), glossary.find("id=\"blue-green-deploy\"").unwrap());
     assert!(api < blue && glossary.contains("talk to each other"));
+    // With its formatting, its other words and the page that explains it.
+    assert!(glossary.contains("Switching <strong>all</strong> traffic"), "{glossary}");
+    assert!(glossary.contains("Also called <em>red-black deploy</em>."), "{glossary}");
+    assert!(glossary.contains("href=\"/rollouts/\"") && glossary.contains("Read more about Blue-green deploy"), "{glossary}");
+
+    // Listed for search engines and language models, with a Markdown copy.
+    let sitemap = std::fs::read_to_string(site.join("sitemap.xml")).unwrap();
+    assert!(sitemap.contains("<loc>https://docs.example.com/glossary/</loc>"), "{sitemap}");
+    let llms = std::fs::read_to_string(site.join("llms.txt")).unwrap();
+    assert!(llms.contains("- [Glossary](https://docs.example.com/glossary.md)"), "{llms}");
+    let markdown = std::fs::read_to_string(site.join("glossary.md")).unwrap();
+    assert!(markdown.contains("## API") && markdown.contains("Also called *red-black deploy*."), "{markdown}");
   }
 
   mod apis {

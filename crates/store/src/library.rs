@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use cairn_core::{Document, EntryKind, Library, PageId, UserId, entry_refs, snippet_cycle, term_refs};
+use cairn_core::{Document, EntryKind, Library, PageId, Term, UserId, entry_refs, snippet_cycle, term_refs};
 use jiff::Timestamp;
 use sea_orm::{ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter, Set, sea_query::OnConflict};
 
@@ -17,7 +17,12 @@ pub struct Entry {
   pub kind: EntryKind,
   pub key: String,
   pub text_value: Option<String>,
+  /// The content of a snippet, or the definition of a term.
   pub doc: Option<Document>,
+  /// Other words for a term.
+  pub aliases: Vec<String>,
+  /// The page that explains a term in full.
+  pub link_page_id: Option<PageId>,
   pub updated_at: String,
   /// The pages that use it directly.
   pub used_in: Vec<PageId>,
@@ -42,12 +47,19 @@ pub async fn list_entries(db: &DatabaseConnection) -> Result<Vec<Entry>, StoreEr
     .into_iter()
     .filter_map(|row| {
       let kind = EntryKind::parse(&row.kind)?;
+      let mut doc = row.doc.and_then(|d| serde_json::from_str(&d).ok());
+      // Terms saved before definitions were rich have only their text.
+      if kind == EntryKind::Term && doc.is_none() {
+        doc = Some(Document::paragraph(row.text_value.as_deref().unwrap_or_default()));
+      }
       Some(Entry {
         id: row.id,
         kind,
         key: row.key,
         text_value: row.text_value,
-        doc: row.doc.and_then(|d| serde_json::from_str(&d).ok()),
+        doc,
+        aliases: serde_json::from_str(&row.aliases).unwrap_or_default(),
+        link_page_id: row.link_page_id.map(Into::into),
         updated_at: row.updated_at,
         used_in: usages.iter().filter(|u| u.entry_id == row.id).map(|u| u.page_id.into()).collect(),
       })
@@ -71,7 +83,13 @@ pub async fn load_library(db: &DatabaseConnection) -> Result<Library, StoreError
         library.snippets.insert(entry.key, entry.doc.unwrap_or_else(Document::empty));
       }
       EntryKind::Term => {
-        library.terms.insert(entry.key, entry.text_value.unwrap_or_default());
+        let term = Term {
+          definition: entry.doc.unwrap_or_else(Document::empty),
+          aliases: entry.aliases,
+          page: entry.link_page_id,
+          updated_at: entry.updated_at.parse().unwrap_or_default(),
+        };
+        library.terms.insert(entry.key, term);
       }
     }
   }
@@ -79,23 +97,34 @@ pub async fn load_library(db: &DatabaseConnection) -> Result<Library, StoreError
   Ok(library)
 }
 
-async fn upsert(db: &DatabaseConnection, user: UserId, kind: EntryKind, key: &str, text_value: Option<String>, doc: Option<&Document>) -> Result<(), StoreError> {
+/// What an entry holds besides its kind and key; each kind uses some of it.
+#[derive(Default)]
+struct Values<'a> {
+  text_value: Option<String>,
+  doc: Option<&'a Document>,
+  aliases: &'a [String],
+  link_page_id: Option<PageId>,
+}
+
+async fn upsert(db: &DatabaseConnection, user: UserId, kind: EntryKind, key: &str, values: Values<'_>) -> Result<(), StoreError> {
   library_entry::Entity::insert(library_entry::ActiveModel {
     id: Set(uuid::Uuid::now_v7()),
     kind: Set(kind.as_str().into()),
     key: Set(key.to_string()),
-    aliases: Set("[]".into()),
-    text_value: Set(text_value),
-    doc: Set(doc.map(serde_json::to_string).transpose().map_err(|e| StoreError::Other(e.into()))?),
-    link_page_id: Set(None),
+    aliases: Set(serde_json::to_string(values.aliases).map_err(|e| StoreError::Other(e.into()))?),
+    text_value: Set(values.text_value),
+    doc: Set(values.doc.map(serde_json::to_string).transpose().map_err(|e| StoreError::Other(e.into()))?),
+    link_page_id: Set(values.link_page_id.map(|id| id.as_uuid())),
     updated_by: Set(user.as_uuid()),
     updated_at: Set(Timestamp::now().to_string()),
   })
   .on_conflict(
     OnConflict::columns([library_entry::Column::Kind, library_entry::Column::Key])
       .update_columns([
+        library_entry::Column::Aliases,
         library_entry::Column::TextValue,
         library_entry::Column::Doc,
+        library_entry::Column::LinkPageId,
         library_entry::Column::UpdatedBy,
         library_entry::Column::UpdatedAt,
       ])
@@ -111,20 +140,76 @@ async fn upsert(db: &DatabaseConnection, user: UserId, kind: EntryKind, key: &st
 pub async fn save_variable(db: &DatabaseConnection, user: UserId, key: &str, value: &str) -> Result<(), StoreError> {
   check_key(key)?;
 
-  upsert(db, user, EntryKind::Variable, key, Some(value.to_string()), None).await
+  let values = Values {
+    text_value: Some(value.to_string()),
+    ..Values::default()
+  };
+  upsert(db, user, EntryKind::Variable, key, values).await
 }
 
-/// Creates or changes a glossary term: the words as written, and a short definition.
-pub async fn save_term(db: &DatabaseConnection, user: UserId, term: &str, definition: &str) -> Result<(), StoreError> {
-  let term = term.trim();
+/// A glossary term as an author writes it.
+pub struct TermInput {
+  /// The words as written.
+  pub term: String,
+  /// A short definition: paragraphs of text with inline marks.
+  pub definition: Document,
+  /// Other words for the same thing.
+  pub aliases: Vec<String>,
+  /// A page that explains the term in full.
+  pub page: Option<PageId>,
+}
+
+const DEFINITION_LENGTH: usize = 400;
+
+/// Creates or changes a glossary term. The definition is short (paragraphs of text, at most 400 characters), and an alias may not be the
+/// words or an alias of another term.
+pub async fn save_term(db: &DatabaseConnection, user: UserId, input: &TermInput) -> Result<(), StoreError> {
+  let term = input.term.trim();
   if term.is_empty() || term.chars().count() > 80 {
     return Err(StoreError::Invalid("a term is 1 to 80 characters".into()));
   }
-  if definition.trim().is_empty() || definition.chars().count() > 400 {
-    return Err(StoreError::Invalid("a definition is 1 to 400 characters".into()));
+
+  if input.definition.0.content.iter().flatten().any(|block| block.kind != "paragraph") {
+    return Err(StoreError::Invalid("a definition is text only: no headings, lists or blocks".into()));
+  }
+  let text = input.definition.plain_text();
+  if text.trim().is_empty() || text.chars().count() > DEFINITION_LENGTH {
+    return Err(StoreError::Invalid(format!("a definition is 1 to {DEFINITION_LENGTH} characters")));
   }
 
-  upsert(db, user, EntryKind::Term, term, Some(definition.trim().to_string()), None).await
+  let mut aliases: Vec<String> = Vec::new();
+  for alias in input.aliases.iter().map(|a| a.trim()).filter(|a| !a.is_empty()) {
+    if alias.chars().count() > 80 {
+      return Err(StoreError::Invalid("an alias is at most 80 characters".into()));
+    }
+    if !alias.eq_ignore_ascii_case(term) && !aliases.iter().any(|a| a.eq_ignore_ascii_case(alias)) {
+      aliases.push(alias.to_string());
+    }
+  }
+  let others = list_entries(db).await?.into_iter().filter(|e| e.kind == EntryKind::Term && e.key != term);
+  for other in others {
+    let words = std::iter::once(&other.key).chain(&other.aliases);
+    if let Some(taken) = words
+      .into_iter()
+      .find(|w| w.to_lowercase() == term.to_lowercase() || aliases.iter().any(|a| a.to_lowercase() == w.to_lowercase()))
+    {
+      return Err(StoreError::Invalid(format!("\"{taken}\" already belongs to the term {}", other.key)));
+    }
+  }
+
+  if let Some(page) = input.page
+    && !list_pages(db).await?.iter().any(|p| p.id == page && p.kind.has_url())
+  {
+    return Err(StoreError::Invalid("the linked page does not exist".into()));
+  }
+
+  let values = Values {
+    text_value: Some(text),
+    doc: Some(&input.definition),
+    aliases: &aliases,
+    link_page_id: input.page,
+  };
+  upsert(db, user, EntryKind::Term, term, values).await
 }
 
 /// Creates or changes a snippet. A snippet that would include itself, directly or through other snippets, is refused.
@@ -136,7 +221,8 @@ pub async fn save_snippet(db: &DatabaseConnection, user: UserId, key: &str, doc:
     return Err(StoreError::Invalid(format!("the snippet {key} would include itself: {}", chain.join(" → "))));
   }
 
-  upsert(db, user, EntryKind::Snippet, key, None, Some(doc)).await
+  let values = Values { doc: Some(doc), ..Values::default() };
+  upsert(db, user, EntryKind::Snippet, key, values).await
 }
 
 /// Deletes an entry, unless live pages or other snippets still use it.

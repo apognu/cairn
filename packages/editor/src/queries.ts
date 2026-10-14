@@ -281,7 +281,7 @@ export function useSaveVariable() {
 }
 
 export function useSaveTerm() {
-  return useLibraryMutation(async (body: { term: string; definition: string }) =>
+  return useLibraryMutation(async (body: components["schemas"]["TermBody"]) =>
     unwrap(await api.PUT("/api/library/terms", { body })),
   );
 }
