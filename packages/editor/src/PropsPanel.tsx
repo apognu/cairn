@@ -10,6 +10,7 @@ import { Icon } from "./icons";
 import { PropsHead } from "./PropsHead";
 import { SchemaForm } from "./SchemaForm";
 import { useSideDrawer } from "./sidePanel";
+import * as ui from "./ui";
 
 type Active =
   | { kind: "component"; name: string; attrs: Record<string, unknown>; at: number }
@@ -111,39 +112,53 @@ function ImageFields({ editor, attrs }: { editor: Editor; attrs: Record<string, 
     <>
       <PropsHead title="Image" description="A picture in the page, resized for every screen when published." />
       {typeof attrs.assetId === "string" && (
-        <div className="props-preview">
-          <img src={`/_a/${attrs.assetId}`} alt="" />
+        <div className="flex justify-center mt-0 mb-4.5 p-2.5 border border-border rounded-lg bg-hover">
+          <img className="max-w-full max-h-45 object-contain rounded-sm" src={`/_a/${attrs.assetId}`} alt="" />
         </div>
       )}
-      <div className="form-field">
-        <label htmlFor={`${id}-alt`}>Alt text</label>
+      <div className={ui.field}>
+        <label htmlFor={`${id}-alt`} className={ui.fieldLabel}>
+          Alt text
+        </label>
         <textarea
           id={`${id}-alt`}
+          className={ui.textarea}
           rows={3}
           value={alt}
           disabled={decorative}
           placeholder={decorative ? "Not needed for a decorative image" : "What the image shows"}
           onChange={(e) => set("alt", e.target.value)}
         />
-        <small className="muted">Read aloud by screen readers, and shown when the image cannot load.</small>
+        <small className="text-muted">Read aloud by screen readers, and shown when the image cannot load.</small>
       </div>
-      <div className="form-field">
-        <label className="form-check">
+      <div className={ui.field}>
+        <label className={ui.checkInField}>
           <input type="checkbox" checked={decorative} onChange={(e) => set("decorative", e.target.checked)} />
           Decorative
         </label>
-        <small className="muted">It adds nothing to the text, so screen readers skip it.</small>
+        <small className="text-muted">It adds nothing to the text, so screen readers skip it.</small>
       </div>
       {!alt.trim() && !decorative && (
-        <p role="alert" className="props-warning">
-          <Icon name="info" size={16} />
+        <p
+          role="alert"
+          className="flex gap-2 mt-0 mb-3.5 py-2.5 px-3 border border-warn-border rounded-lg bg-warn-bg text-warn-text text-help leading-[1.45]"
+        >
+          <Icon name="info" size={16} className="flex-none mt-px text-warn-icon" />
           Describe this image for people who cannot see it, or mark it decorative. Publishing waits until then.
         </p>
       )}
-      <div className="form-field">
-        <label htmlFor={`${id}-caption`}>Caption</label>
-        <textarea id={`${id}-caption`} rows={2} value={caption} onChange={(e) => set("caption", e.target.value)} />
-        <small className="muted">Shown under the image. Optional.</small>
+      <div className={ui.field}>
+        <label htmlFor={`${id}-caption`} className={ui.fieldLabel}>
+          Caption
+        </label>
+        <textarea
+          id={`${id}-caption`}
+          className={ui.textarea}
+          rows={2}
+          value={caption}
+          onChange={(e) => set("caption", e.target.value)}
+        />
+        <small className="text-muted">Shown under the image. Optional.</small>
       </div>
     </>
   );
@@ -178,10 +193,19 @@ function DrawerOpener({ label, editor, open }: { label: string; editor: Editor; 
   }, [editor, open]);
 
   return (
-    <button type="button" className="props-open" aria-keyshortcuts="Alt+Enter" onClick={open}>
+    // It must stand out from the page without hiding much of it.
+    <button
+      type="button"
+      className="fixed right-5 bottom-5 z-20 inline-flex items-center gap-2 h-10 pr-2 pl-3.5 border-0 rounded-[20px] bg-accent text-bg text-ui font-semibold shadow-[0_6px_18px_rgb(16_20_22/22%)] cursor-pointer hover:brightness-108 focus-visible:outline-offset-3"
+      aria-keyshortcuts="Alt+Enter"
+      onClick={open}
+    >
       <Icon name="sliders" size={16} />
       {label}
-      <span className="key" aria-hidden="true">
+      <span
+        className="py-0.5 px-1.75 rounded-[10px] bg-[color-mix(in_srgb,var(--bg)_22%,transparent)] font-[inherit] text-label font-medium"
+        aria-hidden="true"
+      >
         Alt ↵
       </span>
     </button>

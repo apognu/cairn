@@ -199,8 +199,10 @@ function Editor() {
   );
 
   return (
-    // `shell` and `topbar` are hooks: the side panels find the top bar, and drawers place themselves in the shell.
-    <div className="shell grid grid-rows-[52px_1fr] grid-cols-[270px_minmax(0,1fr)_var(--panel-width)] h-screen [--page-actions-height:53px] [--panel-width:420px] narrow:grid-cols-[270px_minmax(0,1fr)]">
+    // `topbar` is a hook: the side panels find the top bar. Drawers open under `--drawer-top`.
+    <div
+      className={`shell grid grid-rows-[52px_1fr] grid-cols-[270px_minmax(0,1fr)_var(--panel-width)] h-screen [--page-actions-height:53px] [--panel-width:420px] narrow:grid-cols-[270px_minmax(0,1fr)] ${actionsInColumn ? "[--drawer-top:calc(52px+var(--page-actions-height))]" : "[--drawer-top:52px]"}`}
+    >
       <header className="topbar col-span-full flex items-center gap-3.5 px-4 border-b border-border text-ui leading-[1.4]">
         <span className="flex flex-none items-center gap-2.5 text-[15px]">
           <Icon name="logo" size={20} />
@@ -311,7 +313,7 @@ function Editor() {
                     {pageActions("column")}
                   </nav>
                 )}
-                <aside className="props" aria-label="Component settings" ref={setPanelHost} />
+                <aside className={`${ui.props} flex-1`} aria-label="Component settings" ref={setPanelHost} />
               </SideColumnDrawer>
             ) : (
               <div className={`${sideColumnLook} narrow:hidden`}>
@@ -320,7 +322,7 @@ function Editor() {
                     {pageActions("column")}
                   </nav>
                 )}
-                <aside className="props" aria-label="Component settings" ref={setPanelHost} />
+                <aside className={`${ui.props} flex-1`} aria-label="Component settings" ref={setPanelHost} />
               </div>
             ))}
         </>

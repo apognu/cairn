@@ -12,8 +12,9 @@ export const textarea = "py-2 px-2.5 leading-[1.45] border border-input rounded-
 export const codeInput =
   "w-full py-2 px-2.5 border border-input rounded-md bg-bg text-text font-mono text-[12.5px] leading-normal resize-y";
 
-/** A checkbox or radio with its label beside it. */
+/** A checkbox or radio with its label beside it; `checkInField` when it is one of a field's choices. */
 export const check = "flex items-center gap-2 mb-3.5 text-ui font-normal";
+export const checkInField = "flex items-center gap-2 mt-0 mb-1.5 text-ui font-normal";
 export const inline = "flex gap-2";
 
 export const primary =
@@ -58,9 +59,9 @@ const badgeColors: Record<string, string> = {
   deleted: "bg-badge-del-bg text-badge-del",
 };
 
-/** A short tag; a change kind (`new`, `edited`, `moved`…) gives it that kind's color. */
-export function badge(kind?: string): string {
-  return `inline-block mr-1 py-0.5 px-2 rounded-sm text-label font-semibold ${(kind && badgeColors[kind]) || "bg-hover"}`;
+/** A short tag; a change kind (`new`, `edited`, `moved`…) gives it that kind's color. `margin` replaces the space after it. */
+export function badge(kind?: string, margin = "mr-1"): string {
+  return `inline-block ${margin} py-0.5 px-2 rounded-sm text-label font-semibold ${(kind && badgeColors[kind]) || "bg-hover"}`;
 }
 
 export const tinyButton =
@@ -96,3 +97,21 @@ export const cursorMenu =
   "flex flex-col max-h-[476px] overflow-y-auto border border-input rounded-xl bg-bg shadow-[0_12px_32px_rgb(16_20_22/18%)] text-ui leading-[1.4]";
 export const cursorOption =
   "group/option flex items-center gap-3 py-1.5 px-2 border-0 rounded-lg bg-transparent text-left cursor-pointer hover:bg-accent-soft aria-selected:bg-accent-soft";
+
+/**
+ * A panel from the right, under the top bar (and under the page actions when the side column shows them: the shell sets
+ * `--drawer-top`): page settings and history.
+ */
+export const drawer =
+  "fixed top-(--drawer-top) right-0 bottom-0 left-auto z-30 w-(--panel-width) max-w-screen h-[calc(100vh-var(--drawer-top))] max-h-none m-0 py-5 px-6 border-0 border-l border-border bg-side text-text text-ui leading-[1.4] overflow-y-auto narrow:shadow-drawer";
+export const drawerHead = "flex items-center justify-between mb-4";
+export const drawerTitle = "m-0 text-[20px]";
+/** A section of a drawer, and its heading, the same whether a legend or a heading. */
+export const drawerSection = `${fieldBase} mb-4.5`;
+export const drawerHeading = "p-0 mt-0 mb-2 text-ui font-semibold";
+/** A drawer's direct paragraphs are help text. */
+export const drawerNote = "text-muted text-help";
+
+/** The block settings, in the side column or beside a snippet; empty until the cursor is in a component. */
+export const props =
+  "props pt-4.5 px-4.5 pb-6 overflow-y-auto overflow-x-hidden bg-side text-ui leading-[1.4] empty:before:content-['Select_a_component_to_change_its_settings.'] empty:before:text-muted empty:before:text-help";

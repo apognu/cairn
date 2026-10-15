@@ -3,6 +3,12 @@ import { useId, useState } from "react";
 import { IconPicker } from "./IconPicker";
 import { PagePicker } from "./PagePicker";
 import { useLibrary, usePages } from "./queries";
+import * as ui from "./ui";
+
+/** A group of fields (an object), or a list of entries. */
+const group = "mt-0 mx-0 mb-3.5 min-w-0";
+const itemButton =
+  "w-6 h-6 border border-transparent rounded-md bg-bg text-muted cursor-pointer enabled:hover:border-input enabled:hover:text-text disabled:opacity-35 disabled:cursor-default";
 
 type Values = Record<string, unknown>;
 
@@ -74,8 +80,8 @@ function Field({
   if (schema.type === "object") {
     const object = (value ?? {}) as Values;
     return (
-      <fieldset className="form-group">
-        <legend>{label}</legend>
+      <fieldset className={`${group} p-3 border border-input rounded-[10px] bg-side`}>
+        <legend className={ui.fieldLabel}>{label}</legend>
         <SchemaForm schema={schema} value={object} onChange={(name, next) => onChange({ ...object, [name]: next })} />
       </fieldset>
     );
@@ -83,7 +89,7 @@ function Field({
 
   if (schema.type === "boolean") {
     return (
-      <label className="form-check">
+      <label className={ui.check}>
         <input type="checkbox" checked={value === true} onChange={(e) => onChange(e.target.checked)} />
         {label}
       </label>
@@ -91,8 +97,10 @@ function Field({
   }
 
   return (
-    <div className="form-field">
-      <label htmlFor={id}>{label}</label>
+    <div className={ui.field}>
+      <label htmlFor={id} className={ui.fieldLabel}>
+        {label}
+      </label>
       {schema["x-field"] === "page" ? (
         <PageField id={id} value={String(value ?? "")} onChange={(next) => onChange(next || undefined)} />
       ) : schema["x-field"] === "icon" ? (
@@ -100,6 +108,7 @@ function Field({
       ) : schema["x-field"] === "date" ? (
         <input
           id={id}
+          className={ui.input}
           type="date"
           value={String(value ?? "")}
           onChange={(e) => onChange(e.target.value || undefined)}
@@ -107,9 +116,15 @@ function Field({
       ) : schema["x-field"] === "variable" || schema["x-field"] === "snippet" ? (
         <LibraryKey id={id} kind={schema["x-field"]} value={String(value ?? "")} onChange={(next) => onChange(next)} />
       ) : schema["x-field"] === "text" ? (
-        <textarea id={id} rows={6} value={String(value ?? "")} onChange={(e) => onChange(e.target.value)} />
+        <textarea
+          id={id}
+          className={ui.textarea}
+          rows={6}
+          value={String(value ?? "")}
+          onChange={(e) => onChange(e.target.value)}
+        />
       ) : schema.enum ? (
-        <select id={id} value={String(value)} onChange={(e) => onChange(e.target.value)}>
+        <select id={id} className={ui.select} value={String(value)} onChange={(e) => onChange(e.target.value)}>
           {schema.enum.map((option) => (
             <option key={String(option)} value={String(option)}>
               {readable(String(option))}
@@ -117,11 +132,23 @@ function Field({
           ))}
         </select>
       ) : schema.type === "number" || schema.type === "integer" ? (
-        <input id={id} type="number" value={Number(value)} onChange={(e) => onChange(Number(e.target.value))} />
+        <input
+          id={id}
+          className={ui.input}
+          type="number"
+          value={Number(value)}
+          onChange={(e) => onChange(Number(e.target.value))}
+        />
       ) : (
-        <input id={id} type="text" value={String(value ?? "")} onChange={(e) => onChange(e.target.value)} />
+        <input
+          id={id}
+          className={ui.input}
+          type="text"
+          value={String(value ?? "")}
+          onChange={(e) => onChange(e.target.value)}
+        />
       )}
-      {schema.description && <small className="muted">{schema.description}</small>}
+      {schema.description && <small className="text-muted">{schema.description}</small>}
     </div>
   );
 }
@@ -148,19 +175,22 @@ function ListField({
   };
 
   return (
-    <fieldset className="form-group list-group">
-      <legend>{label}</legend>
+    <fieldset className={`${group} p-0 border-0`}>
+      <legend className={`${ui.fieldLabel} p-0 mb-1.5`}>{label}</legend>
       {value.map((entry, i) => (
         // biome-ignore lint/suspicious/noArrayIndexKey: list items have no identity of their own
-        <details className="form-item" key={i} open={i === 0}>
-          <summary>
-            <span className="grip" aria-hidden="true">
+        <details className="group/item mb-2 border border-input rounded-lg bg-bg" key={i} open={i === 0}>
+          <summary className="flex items-center gap-2 min-w-0 py-2 px-2.5 cursor-pointer list-none [&::-webkit-details-marker]:hidden group-open/item:font-semibold">
+            <span className="text-muted" aria-hidden="true">
               ⠿
             </span>
-            <span className="form-item-title">{summaryOf(entry) ?? `${label} ${i + 1}`}</span>
-            <span className="form-item-actions">
+            <span className="flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
+              {summaryOf(entry) ?? `${label} ${i + 1}`}
+            </span>
+            <span className="flex gap-0.5">
               <button
                 type="button"
+                className={itemButton}
                 aria-label={`Move ${label} ${i + 1} up`}
                 disabled={i === 0}
                 onClick={(e) => {
@@ -172,6 +202,7 @@ function ListField({
               </button>
               <button
                 type="button"
+                className={itemButton}
                 aria-label={`Move ${label} ${i + 1} down`}
                 disabled={i === value.length - 1}
                 onClick={(e) => {
@@ -183,6 +214,7 @@ function ListField({
               </button>
               <button
                 type="button"
+                className={itemButton}
                 aria-label={`Remove ${label} ${i + 1}`}
                 // Fewer than the schema allows and the component could no longer render.
                 disabled={value.length <= (schema.minItems ?? 0)}
@@ -195,7 +227,7 @@ function ListField({
               </button>
             </span>
           </summary>
-          <div className="form-item-body">
+          <div className="pt-1 px-3 pb-0">
             {item.type === "object" ? (
               <SchemaForm
                 schema={item}
@@ -208,7 +240,11 @@ function ListField({
           </div>
         </details>
       ))}
-      <button type="button" className="form-add" onClick={() => onChange([...value, defaultFor(item)])}>
+      <button
+        type="button"
+        className="h-8 px-2.5 border border-dashed border-input rounded-md bg-bg cursor-pointer"
+        onClick={() => onChange([...value, defaultFor(item)])}
+      >
         + Add {one}
       </button>
     </fieldset>
@@ -240,19 +276,25 @@ export function PageField({ id, value, onChange }: { id: string; value: string; 
   const gone = Boolean(value) && pages.data !== undefined && !chosen;
 
   return (
-    <div className="page-field">
-      <button type="button" id={id} className="page-field-button" aria-haspopup="dialog" onClick={() => setOpen(true)}>
+    <div className="relative flex gap-1.5">
+      <button
+        type="button"
+        id={id}
+        className="flex flex-1 items-center justify-between h-8.5 px-2.5 border border-input rounded-md bg-bg cursor-pointer"
+        aria-haspopup="dialog"
+        onClick={() => setOpen(true)}
+      >
         {chosen ? (
           chosen.title
         ) : gone ? (
-          <span className="error-text">Deleted page</span>
+          <span className="text-danger">Deleted page</span>
         ) : (
-          <span className="muted">No link</span>
+          <span className="text-muted">No link</span>
         )}
-        <span className="link-button">{value ? "Change" : "Choose"}</span>
+        <span className={ui.linkButton}>{value ? "Change" : "Choose"}</span>
       </button>
       {value && (
-        <button type="button" className="icon" aria-label="Remove link" onClick={() => onChange("")}>
+        <button type="button" className={ui.icon} aria-label="Remove link" onClick={() => onChange("")}>
           ×
         </button>
       )}
@@ -286,7 +328,7 @@ function LibraryKey({
   const keys = library.data?.filter((e) => e.kind === kind).map((e) => e.key) ?? [];
 
   return (
-    <select id={id} value={value} onChange={(e) => onChange(e.target.value)}>
+    <select id={id} className={ui.select} value={value} onChange={(e) => onChange(e.target.value)}>
       <option value="">Choose a {kind}…</option>
       {/* An entry that was deleted since still shows, so the choice is visible and can be changed. */}
       {value && !keys.includes(value) && <option value={value}>{value} (missing)</option>}

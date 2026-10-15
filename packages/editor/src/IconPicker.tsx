@@ -2,6 +2,7 @@ import { registeredIcons, Icon as SiteIcon } from "@cairn/components";
 import tags from "lucide-static/tags.json";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "./icons";
+import * as ui from "./ui";
 
 const tagsByName = tags as Record<string, string[]>;
 
@@ -58,22 +59,22 @@ export function IconPicker({ id, value, onChange }: { id: string; value: string;
   };
 
   return (
-    <div className="icon-picker" ref={root}>
+    <div ref={root}>
       <button
         ref={toggle}
         id={id}
         type="button"
-        className="icon-picker-current"
+        className="flex items-center gap-2 w-full h-8.5 px-2.5 border border-input rounded-md bg-bg text-text text-ui text-left cursor-pointer"
         aria-expanded={open}
         onClick={() => setOpen(!open)}
       >
         <SiteIcon name={value} size={18} />
-        <span>{value}</span>
-        <Icon name="chevron" size={14} />
+        <span className="flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{value}</span>
+        <Icon name="chevron" size={14} className="text-muted" />
       </button>
       {open && (
         <fieldset
-          className="icon-picker-panel"
+          className="flex min-w-0 flex-col gap-2 mt-1.5 p-2 border border-input rounded-lg bg-bg"
           onKeyDown={(event) => {
             if (event.key !== "Escape") return;
             // Only the grid closes, not the drawer around it.
@@ -86,6 +87,7 @@ export function IconPicker({ id, value, onChange }: { id: string; value: string;
           <legend className="sr-only">Icons</legend>
           <input
             type="search"
+            className={ui.input}
             // biome-ignore lint/a11y/noAutofocus: opening the grid is asking to search it
             autoFocus
             placeholder={`Search ${names.length.toLocaleString("en")} icons`}
@@ -99,11 +101,12 @@ export function IconPicker({ id, value, onChange }: { id: string; value: string;
               }
             }}
           />
-          <div className="icon-grid">
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(36px,1fr))] gap-0.5 max-h-58 overflow-y-auto">
             {matches.slice(0, SHOWN).map((name) => (
               <button
                 key={name}
                 type="button"
+                className="flex items-center justify-center h-9 p-0 border border-transparent rounded-md bg-transparent text-text cursor-pointer hover:bg-hover aria-pressed:border-accent aria-pressed:bg-accent-soft aria-pressed:text-accent"
                 title={name}
                 aria-label={name}
                 aria-pressed={name === value}
@@ -113,7 +116,7 @@ export function IconPicker({ id, value, onChange }: { id: string; value: string;
               </button>
             ))}
           </div>
-          <small className="muted">
+          <small className="text-muted">
             {matches.length === 0
               ? "No icon matches."
               : matches.length > SHOWN

@@ -6,7 +6,15 @@ import { blockLines, diffLines } from "./diff";
 import { useHistory, useRestoreVersion, useRevision } from "./queries";
 import { useSidePanel } from "./sidePanel";
 import type { Page } from "./tree";
+import * as ui from "./ui";
 import { saveSettled } from "./useDraftSync";
+
+const version = "border-b border-border last:border-b-0";
+const added = "bg-badge-new-bg text-badge-new";
+const removed = "bg-badge-del-bg text-badge-del";
+/** A version's old title or description can be long: it wraps beside its checkbox instead of running out of the drawer. */
+const option = "flex items-start gap-2 mt-0 mb-1.5 text-ui font-normal";
+const optionText = "flex-1 min-w-0 wrap-anywhere";
 
 /** Saves less than this far apart, by one author, read as one editing session. */
 const SESSION_GAP_MS = 30 * 60 * 1000;
@@ -72,23 +80,26 @@ export function HistoryDrawer({
   const changed = diff.some((l) => l.kind !== "same");
 
   return (
-    <dialog ref={dialog} className="drawer wide-drawer" aria-labelledby={`${id}-title`} onClose={onClose}>
-      <header className="drawer-head">
-        <h2 id={`${id}-title`}>History</h2>
-        <button type="button" className="icon" aria-label="Close history" onClick={() => dialog.current?.close()}>
+    <dialog ref={dialog} className={ui.drawer} aria-labelledby={`${id}-title`} onClose={onClose}>
+      <header className={ui.drawerHead}>
+        <h2 id={`${id}-title`} className={ui.drawerTitle}>
+          History
+        </h2>
+        <button type="button" className={ui.icon} aria-label="Close history" onClick={() => dialog.current?.close()}>
           ×
         </button>
       </header>
-      <p className="muted">
+      <p className={ui.drawerNote}>
         Every save is kept. Restoring a version makes it the page's draft; the draft it replaces stays here.
       </p>
 
-      <ul className="versions" aria-label="Versions">
-        {history.isPending && <li className="muted">Loading…</li>}
+      <ul className="mt-0 mb-4.5 p-0 list-none border border-input rounded-lg" aria-label="Versions">
+        {history.isPending && <li className={`${version} text-muted`}>Loading…</li>}
         {sessions.map((s) => (
-          <li key={s.newest.id}>
+          <li key={s.newest.id} className={version}>
             <button
               type="button"
+              className="flex items-center gap-2.5 w-full py-2 px-3 border-0 bg-transparent text-left cursor-pointer aria-pressed:bg-accent-soft"
               aria-pressed={chosen === s.newest.id}
               onClick={() => {
                 setChosen(s.newest.id);
@@ -98,55 +109,62 @@ export function HistoryDrawer({
             >
               <strong>{when(s.newest.created_at)}</strong>
               {s.published && (
-                <span className="badge" data-kind="new">
+                <span className={ui.badge("new")} data-kind="new">
                   Published
                 </span>
               )}
-              <span className="muted">{s.count > 1 ? `${s.count} saves` : "1 save"}</span>
+              <span className="ml-auto text-muted">{s.count > 1 ? `${s.count} saves` : "1 save"}</span>
             </button>
           </li>
         ))}
       </ul>
 
       {chosen && revision.data && (
-        <section className="form-field">
-          <h3>{changed ? "Restoring this version would" : "This version is the same as the page now"}</h3>
-          <ul className="diff" aria-label="Changes">
+        <section className={ui.drawerSection}>
+          <h3 className={ui.drawerHeading}>
+            {changed ? "Restoring this version would" : "This version is the same as the page now"}
+          </h3>
+          <ul
+            className="mt-0 mb-3 p-0 list-none border border-input rounded-lg overflow-hidden font-mono text-[12.5px]"
+            aria-label="Changes"
+          >
             {diff
               .filter((l) => l.kind !== "same")
               .map((l, i) => (
                 // biome-ignore lint/suspicious/noArrayIndexKey: diff lines can repeat
-                <li key={i} data-kind={l.kind}>
+                <li key={i} className={l.kind === "added" ? added : removed} data-kind={l.kind}>
                   {l.kind === "added" ? "+ " : "− "}
                   {l.text || "(empty line)"}
                 </li>
               ))}
           </ul>
-          <fieldset className="form-field restore-options">
-            <legend>Also restore</legend>
-            <label className="form-check">
+          <fieldset className={`${ui.drawerSection} border-0 p-0`}>
+            <legend className={ui.drawerHeading}>Also restore</legend>
+            <label className={option}>
               <input
                 type="checkbox"
+                className="mt-0.5"
                 checked={withTitle}
                 disabled={revision.data.title === page.title}
                 onChange={(e) => setWithTitle(e.target.checked)}
               />
-              <span>
-                Title <span className="muted">{versionValue(revision.data.title, page.title)}</span>
+              <span className={optionText}>
+                Title <span className="text-muted">{versionValue(revision.data.title, page.title)}</span>
               </span>
             </label>
-            <label className="form-check">
+            <label className={option}>
               <input
                 type="checkbox"
+                className="mt-0.5"
                 checked={withDescription}
                 disabled={
                   !revision.data.description_recorded || (revision.data.description ?? "") === (page.description ?? "")
                 }
                 onChange={(e) => setWithDescription(e.target.checked)}
               />
-              <span>
+              <span className={optionText}>
                 Description{" "}
-                <span className="muted">
+                <span className="text-muted">
                   {revision.data.description_recorded
                     ? versionValue(revision.data.description ?? "", page.description ?? "", "no description")
                     : "not recorded for this version"}
@@ -155,14 +173,14 @@ export function HistoryDrawer({
             </label>
           </fieldset>
           {restore.isError && (
-            <p role="alert" className="error-text">
+            <p role="alert" className="text-danger">
               {restore.error.message}
             </p>
           )}
-          <div className="dialog-actions">
+          <div className={ui.actions}>
             <button
               type="button"
-              className="primary"
+              className={ui.primary}
               disabled={restore.isPending}
               onClick={() =>
                 restore.mutate(

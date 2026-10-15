@@ -1,5 +1,6 @@
 import type { Editor } from "@tiptap/core";
 import { PropsHead } from "./PropsHead";
+import * as ui from "./ui";
 
 // Names the highlighter knows, as they are written in the document.
 const languages: [value: string, label: string][] = [
@@ -44,10 +45,10 @@ export function CodeBlockFields({ editor, attrs }: { editor: Editor; attrs: Reco
   return (
     <>
       <PropsHead title="Code block" description="Code shown as written, with colors for its language when published." />
-      <div className="form-field">
-        <label>
+      <div className={ui.field}>
+        <label className={ui.fieldLabel}>
           Language
-          <select value={language} onChange={(e) => set("language", e.target.value)}>
+          <select className={ui.select} value={language} onChange={(e) => set("language", e.target.value)}>
             <option value="">Plain text</option>
             {!known && language && <option value={language}>{language}</option>}
             {languages.map(([value, label]) => (
@@ -58,12 +59,17 @@ export function CodeBlockFields({ editor, attrs }: { editor: Editor; attrs: Reco
           </select>
         </label>
       </div>
-      <div className="form-field">
-        <label>
+      <div className={ui.field}>
+        <label className={ui.fieldLabel}>
           File name
-          <input value={fileName} placeholder="Optional" onChange={(e) => set("fileName", e.target.value)} />
+          <input
+            className={ui.input}
+            value={fileName}
+            placeholder="Optional"
+            onChange={(e) => set("fileName", e.target.value)}
+          />
         </label>
-        <small className="muted">Shown above the code, like a tab: config.toml, src/main.rs.</small>
+        <small className="text-muted">Shown above the code, like a tab: config.toml, src/main.rs.</small>
       </div>
     </>
   );

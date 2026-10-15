@@ -80,8 +80,7 @@ export function TermForm({ entry, term, onDone }: { entry?: Entry; term: string;
         />
         <small className="text-muted">Other words for the same thing, separated by commas.</small>
       </div>
-      {/* TODO(M6b.6): `form-field` still styles the page field inside until SchemaForm moves to utilities. */}
-      <div className={`${ui.field} form-field`}>
+      <div className={ui.field}>
         <label htmlFor={`${id}-page`} className={ui.fieldLabel}>
           Full explanation
         </label>

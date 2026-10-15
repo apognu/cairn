@@ -177,7 +177,11 @@ export function LibrarySettings() {
                     onChange={remember}
                     panelHost={panelHost}
                   />
-                  <aside className="props" aria-label="Component settings" ref={setPanelHost} />
+                  <aside
+                    className={`${ui.props} w-(--panel-width) border-l border-border`}
+                    aria-label="Component settings"
+                    ref={setPanelHost}
+                  />
                   <div className={ui.actions}>
                     <button
                       type="button"

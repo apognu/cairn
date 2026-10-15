@@ -10,6 +10,12 @@ import {
 } from "./queries";
 import { useSidePanel } from "./sidePanel";
 import type { Page } from "./tree";
+import * as ui from "./ui";
+
+/** The lists of aliases and of pages linking here. */
+const list = "mt-0 mb-2 p-0 list-none border border-input rounded-lg";
+const item = "flex items-center gap-2 py-2 px-2.5 border-b border-border last:border-b-0";
+const empty = "mt-0 mb-2 text-help text-muted";
 
 const originLabel = { move: "moved", rename: "previous URL", manual: "manual" } as const;
 
@@ -50,7 +56,7 @@ export function PageSettings({ page, onClose }: { page: Page; onClose: () => voi
   return (
     <dialog
       ref={dialog}
-      className="drawer"
+      className={ui.drawer}
       aria-labelledby={`${id}-title`}
       onClose={() => {
         // Escape closes the drawer without moving the focus out of the description first.
@@ -58,20 +64,27 @@ export function PageSettings({ page, onClose }: { page: Page; onClose: () => voi
         onClose();
       }}
     >
-      <header className="drawer-head">
-        <h2 id={`${id}-title`}>Page settings</h2>
-        <button type="button" className="icon" aria-label="Close page settings" onClick={() => dialog.current?.close()}>
+      <header className={ui.drawerHead}>
+        <h2 id={`${id}-title`} className={ui.drawerTitle}>
+          Page settings
+        </h2>
+        <button
+          type="button"
+          className={ui.icon}
+          aria-label="Close page settings"
+          onClick={() => dialog.current?.close()}
+        >
           ×
         </button>
       </header>
 
       {!data ? (
-        <p className="muted">Loading…</p>
+        <p className={ui.drawerNote}>Loading…</p>
       ) : (
         <>
-          <fieldset className="form-field">
-            <legend>URL</legend>
-            <label className="form-check">
+          <fieldset className={`${ui.drawerSection} border-0 p-0`}>
+            <legend className={ui.drawerHeading}>URL</legend>
+            <label className={ui.checkInField}>
               <input
                 type="radio"
                 name={`${id}-mode`}
@@ -81,62 +94,67 @@ export function PageSettings({ page, onClose }: { page: Page; onClose: () => voi
                   if (data.custom_url) saveUrl(null);
                 }}
               />
-              <span>From its place in the tree</span>
-              <code className="mono muted" title={data.derived_url}>
+              <span className="flex-none">From its place in the tree</span>
+              {/* A long path gives way to the label beside it. */}
+              <code
+                className="min-w-0 ml-auto overflow-hidden text-ellipsis whitespace-nowrap font-mono text-label text-muted"
+                title={data.derived_url}
+              >
                 {data.derived_url}
               </code>
             </label>
-            <label className="form-check">
+            <label className={ui.checkInField}>
               <input type="radio" name={`${id}-mode`} checked={useCustom} onChange={() => setUseCustom(true)} />
               Custom URL
             </label>
             {useCustom && (
               <form
-                className="row-inline"
+                className={ui.inline}
                 onSubmit={(e) => {
                   e.preventDefault();
                   saveUrl(custom);
                 }}
               >
                 <input
+                  className={ui.rowInput}
                   aria-label="Custom URL"
                   placeholder="/webhooks"
                   value={custom}
                   onChange={(e) => setCustomPath(e.target.value)}
                 />
-                <button type="submit" disabled={setCustom.isPending}>
+                <button type="submit" className={ui.rowSubmit} disabled={setCustom.isPending}>
                   Save
                 </button>
               </form>
             )}
             {useCustom && setCustom.error && (
-              <small role="alert" className="error-text">
+              <small role="alert" className="text-danger">
                 {setCustom.error.message}
               </small>
             )}
-            {useCustom && <small className="muted">Stays the same when the page moves in the tree.</small>}
+            {useCustom && <small className="text-muted">Stays the same when the page moves in the tree.</small>}
           </fieldset>
 
-          <section className="form-field">
-            <h3>
-              Aliases <small className="muted">old URLs that redirect here</small>
+          <section className={ui.drawerSection}>
+            <h3 className={ui.drawerHeading}>
+              Aliases <small className="font-normal text-muted">old URLs that redirect here</small>
             </h3>
-            {data.aliases.length === 0 && <p className="muted empty">None yet.</p>}
-            <ul className="aliases" aria-label="Aliases" hidden={data.aliases.length === 0}>
+            {data.aliases.length === 0 && <p className={empty}>None yet.</p>}
+            <ul className={list} aria-label="Aliases" hidden={data.aliases.length === 0}>
               {data.aliases.map((a) => (
-                <li key={a.path}>
-                  <code className="mono">{a.path}</code>
-                  <span className="badge">{originLabel[a.origin]}</span>
+                <li key={a.path} className={item}>
+                  <code className={ui.mono}>{a.path}</code>
+                  <span className={ui.badge(undefined, "mr-auto")}>{originLabel[a.origin]}</span>
                   <button
                     type="button"
-                    className="link-button"
+                    className={ui.linkButton}
                     onClick={() => setCustom.mutate({ custom_url: a.path })}
                   >
                     Make canonical
                   </button>
                   <button
                     type="button"
-                    className="icon"
+                    className={ui.icon}
                     aria-label={`Remove alias ${a.path}`}
                     onClick={() => removeAlias.mutate(a.path)}
                   >
@@ -146,32 +164,33 @@ export function PageSettings({ page, onClose }: { page: Page; onClose: () => voi
               ))}
             </ul>
             <form
-              className="row-inline"
+              className={ui.inline}
               onSubmit={(e) => {
                 e.preventDefault();
                 addAlias.mutate(alias, { onSuccess: () => setAlias("") });
               }}
             >
               <input
+                className={ui.rowInput}
                 aria-label="New alias"
                 placeholder="/old-path"
                 value={alias}
                 onChange={(e) => setAlias(e.target.value)}
               />
-              <button type="submit" disabled={addAlias.isPending}>
+              <button type="submit" className={ui.rowSubmit} disabled={addAlias.isPending}>
                 Add
               </button>
             </form>
             {addAlias.error && (
-              <small role="alert" className="error-text">
+              <small role="alert" className="text-danger">
                 {addAlias.error.message}
               </small>
             )}
           </section>
 
-          <fieldset className="form-field">
-            <legend>Navigation</legend>
-            <label className="form-check">
+          <fieldset className={`${ui.drawerSection} border-0 p-0`}>
+            <legend className={ui.drawerHeading}>Navigation</legend>
+            <label className={ui.checkInField}>
               <input
                 type="checkbox"
                 checked={page.in_header}
@@ -180,14 +199,17 @@ export function PageSettings({ page, onClose }: { page: Page; onClose: () => voi
               />
               Show in header
             </label>
-            <small className="muted">A page with subpages becomes a section with a sidebar of its own.</small>
+            <small className="text-muted">A page with subpages becomes a section with a sidebar of its own.</small>
           </fieldset>
 
-          <section className="form-field">
-            <h3>Search and sharing</h3>
-            <label htmlFor={`${id}-description`}>Description</label>
+          <section className={ui.drawerSection}>
+            <h3 className={ui.drawerHeading}>Search and sharing</h3>
+            <label htmlFor={`${id}-description`} className={ui.fieldLabel}>
+              Description
+            </label>
             <textarea
               id={`${id}-description`}
+              className={ui.textarea}
               rows={3}
               maxLength={300}
               value={description}
@@ -197,25 +219,25 @@ export function PageSettings({ page, onClose }: { page: Page; onClose: () => voi
             />
           </section>
 
-          <section className="form-field">
-            <h3>Linked from</h3>
-            {backlinks.data?.linked_from.length === 0 && <p className="muted empty">No page links here yet.</p>}
-            <ul className="aliases" aria-label="Linked from" hidden={!backlinks.data?.linked_from.length}>
+          <section className={ui.drawerSection}>
+            <h3 className={ui.drawerHeading}>Linked from</h3>
+            {backlinks.data?.linked_from.length === 0 && <p className={empty}>No page links here yet.</p>}
+            <ul className={list} aria-label="Linked from" hidden={!backlinks.data?.linked_from.length}>
               {backlinks.data?.linked_from.map((l) => (
-                <li key={`${l.source_id}-${l.kind}`}>
+                <li key={`${l.source_id}-${l.kind}`} className={item}>
                   <span>{l.source_title}</span>
-                  <span className="badge">{l.kind}</span>
+                  <span className={ui.badge(undefined, "mr-auto")}>{l.kind}</span>
                 </li>
               ))}
             </ul>
           </section>
 
           {error && (
-            <p role="alert" className="error-text">
+            <p role="alert" className="text-danger">
               {error.message}
             </p>
           )}
-          <p className="muted">URL changes are pending until you publish.</p>
+          <p className={ui.drawerNote}>URL changes are pending until you publish.</p>
         </>
       )}
     </dialog>

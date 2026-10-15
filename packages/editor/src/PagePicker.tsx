@@ -3,6 +3,14 @@ import { Icon } from "./icons";
 import { useApiOperations, useApiOperationsOf, useCreatePage, usePages, usePending } from "./queries";
 import type { Page } from "./tree";
 import { pageUrls } from "./tree";
+import * as ui from "./ui";
+
+const searchRow = "flex gap-2 p-2.5";
+const searchInput = "flex-1 h-9.5 px-3 border border-accent rounded-[7px] bg-bg text-[15px]";
+const list = "pt-0 px-1.5 pb-1.5";
+/** A row of the list; the one the arrow keys are on is lit. */
+const option =
+  "flex items-center gap-2.5 w-full py-2 px-2.5 border-0 rounded-lg bg-transparent text-left cursor-pointer group-aria-selected/option:bg-accent-soft";
 
 type Tab = "page" | "url";
 
@@ -97,7 +105,7 @@ export function PagePicker({ onPage, operations = false, onUrl, onClose, nearPag
   return (
     <div
       ref={root}
-      className="picker"
+      className="fixed z-30 w-110 max-w-[calc(100vw-32px)] border border-input rounded-xl bg-bg shadow-[0_16px_40px_rgb(16_20_22/18%)] text-ui leading-[1.4] overflow-hidden"
       role="dialog"
       aria-label="Link to"
       style={style}
@@ -110,9 +118,16 @@ export function PagePicker({ onPage, operations = false, onUrl, onClose, nearPag
       }}
     >
       {onUrl && (
-        <div className="picker-tabs" role="tablist" aria-label="Link type">
+        <div className="flex gap-1 pt-2 px-2 pb-0 border-b border-border" role="tablist" aria-label="Link type">
           {(["page", "url"] as const).map((t) => (
-            <button key={t} type="button" role="tab" aria-selected={tab === t} onClick={() => setTab(t)}>
+            <button
+              key={t}
+              type="button"
+              role="tab"
+              className="h-8 px-2.5 border-0 bg-transparent text-muted cursor-pointer aria-selected:text-text aria-selected:font-semibold aria-selected:shadow-[inset_0_-2px_0_var(--accent)]"
+              aria-selected={tab === t}
+              onClick={() => setTab(t)}
+            >
               {t === "page" ? "Page" : "URL"}
             </button>
           ))}
@@ -129,26 +144,33 @@ export function PagePicker({ onPage, operations = false, onUrl, onClose, nearPag
         />
       ) : tab === "url" && onUrl ? (
         <form
-          className="picker-url"
+          className={searchRow}
           onSubmit={(e) => {
             e.preventDefault();
             const url = String(new FormData(e.currentTarget).get("url") ?? "").trim();
             if (url) onUrl(url);
           }}
         >
-          <input name="url" aria-label="Link address" placeholder="https://…" defaultValue={initialUrl} />
-          <button type="submit" className="primary">
+          <input
+            name="url"
+            className={searchInput}
+            aria-label="Link address"
+            placeholder="https://…"
+            defaultValue={initialUrl}
+          />
+          <button type="submit" className={ui.primary}>
             Apply
           </button>
         </form>
       ) : (
         <>
-          <div className="picker-search">
+          <div className={searchRow}>
             <label htmlFor={`${id}-q`} className="sr-only">
               Search pages
             </label>
             <input
               ref={input}
+              className={searchInput}
               id={`${id}-q`}
               role="combobox"
               aria-expanded="true"
@@ -169,12 +191,20 @@ export function PagePicker({ onPage, operations = false, onUrl, onClose, nearPag
               }}
             />
           </div>
-          <div className="picker-list" id={`${id}-list`} role="listbox" aria-label="Pages">
+          <div className={list} id={`${id}-list`} role="listbox" aria-label="Pages">
             {rows.map((row, i) =>
               row === "create" ? (
-                <div key="create" id={`${id}-${i}`} role="option" aria-selected={i === choice} tabIndex={-1}>
+                <div
+                  key="create"
+                  id={`${id}-${i}`}
+                  role="option"
+                  className="group/option"
+                  aria-selected={i === choice}
+                  tabIndex={-1}
+                >
                   <button
                     type="button"
+                    className={option}
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={createPage}
                     disabled={create.isPending}
@@ -182,10 +212,10 @@ export function PagePicker({ onPage, operations = false, onUrl, onClose, nearPag
                     <Icon name="plus" size={16} />
                     <span>
                       <strong>Create page “{query.trim()}”</strong>
-                      <small className="muted">Draft page, linked right away. You can write it later.</small>
+                      <small className="block text-muted">Draft page, linked right away. You can write it later.</small>
                     </span>
                   </button>
-                  <label className="picker-parent">
+                  <label className="flex items-center gap-2 pt-0.5 pr-2.5 pb-2 pl-9 text-help text-muted">
                     Under
                     <select
                       value={parent}
@@ -206,15 +236,21 @@ export function PagePicker({ onPage, operations = false, onUrl, onClose, nearPag
                   key={`${row.page.id}${row.operation.anchor}`}
                   id={`${id}-${i}`}
                   role="option"
+                  className="group/option"
                   aria-selected={i === choice}
                   tabIndex={-1}
                 >
-                  <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => chooseOperation(row)}>
+                  <button
+                    type="button"
+                    className={option}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => chooseOperation(row)}
+                  >
                     <span>
-                      <strong className="mono">
+                      <strong className={ui.mono}>
                         {row.operation.method} {row.operation.path}
                       </strong>
-                      <small className="muted">
+                      <small className="block text-muted">
                         {row.page.title}
                         {row.operation.summary ? ` · ${row.operation.summary}` : ""}
                       </small>
@@ -222,26 +258,40 @@ export function PagePicker({ onPage, operations = false, onUrl, onClose, nearPag
                   </button>
                 </div>
               ) : (
-                <div key={row.id} id={`${id}-${i}`} role="option" aria-selected={i === choice} tabIndex={-1}>
-                  <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => pick(row)}>
+                <div
+                  key={row.id}
+                  id={`${id}-${i}`}
+                  role="option"
+                  className="group/option"
+                  aria-selected={i === choice}
+                  tabIndex={-1}
+                >
+                  <button
+                    type="button"
+                    className={option}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => pick(row)}
+                  >
                     <span>
                       <strong>{row.title}</strong>
-                      {drafts.has(row.id) && <span className="badge">Draft</span>}
-                      {operations && row.kind === "api" && <span className="badge">API</span>}
-                      <small className="muted mono">{urls[row.id]}</small>
+                      {drafts.has(row.id) && <span className={ui.badge(undefined, "mr-1 ml-2")}>Draft</span>}
+                      {operations && row.kind === "api" && (
+                        <span className={ui.badge(undefined, "mr-1 ml-2")}>API</span>
+                      )}
+                      <small className="block text-muted font-mono text-label">{urls[row.id]}</small>
                     </span>
                   </button>
                 </div>
               ),
             )}
-            {rows.length === 0 && <div className="muted picker-empty">No pages yet.</div>}
+            {rows.length === 0 && <div className="py-2 px-2.5 text-muted">No pages yet.</div>}
           </div>
           {create.isError && (
-            <p role="alert" className="error-text">
+            <p role="alert" className="text-danger">
               {create.error.message}
             </p>
           )}
-          <div className="picker-foot muted">
+          <div className="flex justify-between gap-3.5 py-2 px-4 border-t border-border bg-side text-label text-muted">
             <span>↵ to {canCreate && choice === 0 ? "create and link" : "link"}</span>
             <span>Links are stored by page, so moves never break them</span>
           </div>
@@ -287,12 +337,13 @@ function OperationList({
 
   return (
     <>
-      <div className="picker-search">
-        <button type="button" className="secondary" onClick={onBack} aria-label="Back to pages">
+      <div className={searchRow}>
+        <button type="button" className={ui.secondary} onClick={onBack} aria-label="Back to pages">
           ←
         </button>
         <input
           ref={input}
+          className={searchInput}
           role="combobox"
           aria-expanded="true"
           aria-controls={`${id}-list`}
@@ -314,28 +365,40 @@ function OperationList({
           }}
         />
       </div>
-      <div className="picker-list" id={`${id}-list`} role="listbox" aria-label="Operations">
+      <div className={list} id={`${id}-list`} role="listbox" aria-label="Operations">
         {rows.map((row, i) => (
-          <div key={row?.anchor ?? "page"} id={`${id}-${i}`} role="option" aria-selected={i === choice} tabIndex={-1}>
-            <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => choose(row)}>
+          <div
+            key={row?.anchor ?? "page"}
+            id={`${id}-${i}`}
+            role="option"
+            className="group/option"
+            aria-selected={i === choice}
+            tabIndex={-1}
+          >
+            <button
+              type="button"
+              className={option}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => choose(row)}
+            >
               {row ? (
                 <span>
-                  <strong className="mono">
+                  <strong className={ui.mono}>
                     {row.method} {row.path}
                   </strong>
-                  {row.summary && <small className="muted">{row.summary}</small>}
+                  {row.summary && <small className="block text-muted">{row.summary}</small>}
                 </span>
               ) : (
                 <span>
                   <strong>The whole page</strong>
-                  <small className="muted">{page.title}</small>
+                  <small className="block text-muted">{page.title}</small>
                 </span>
               )}
             </button>
           </div>
         ))}
         {!loading && (operations ?? []).length === 0 && (
-          <div className="muted picker-empty">
+          <div className="py-2 px-2.5 text-muted">
             No operations known yet: use “Check sources now” in the page's settings, or publish.
           </div>
         )}

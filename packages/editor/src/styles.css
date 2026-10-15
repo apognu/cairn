@@ -72,34 +72,9 @@
 }
 
 /* Editor chrome outside the canvas shares one scale: 14px text, 13px help, 12px labels. The canvas keeps the site's 16px. */
-.drawer,
-.settings,
-.picker {
+.settings {
   font-size: 14px;
   line-height: 1.4;
-}
-
-.form-field label.form-check,
-.form-check {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0 0 6px;
-  font-size: 14px;
-  font-weight: 400;
-}
-
-/* A long path gives way to the label beside it. */
-.form-check code {
-  min-width: 0;
-  margin-left: auto;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.form-check > span {
-  flex: none;
 }
 
 .muted {
@@ -141,21 +116,6 @@
   --badge-del: #f0a8a0;
 }
 
-.icon {
-  width: 24px;
-  height: 24px;
-  border: 0;
-  border-radius: 5px;
-  background: none;
-  color: var(--muted);
-  cursor: pointer;
-}
-
-.icon:hover {
-  background: var(--border);
-  color: var(--text);
-}
-
 .ProseMirror:focus {
   outline: none;
 }
@@ -167,239 +127,6 @@
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
-}
-
-/* The page's drawers open under its actions, which stay there to switch from one to the other or close them. */
-.shell:has(> div.side-column > .page-actions) > .drawer {
-  top: calc(52px + var(--page-actions-height));
-  height: calc(100vh - 52px - var(--page-actions-height));
-}
-
-/* Empty until the cursor is in a component, then it takes its width. */
-.props {
-  width: var(--panel-width);
-  padding: 18px 18px 24px;
-  overflow-y: auto;
-  border-left: 1px solid var(--border);
-  background: var(--bg-side);
-  font-size: 14px;
-  line-height: 1.4;
-}
-
-/* The reserved column, before anything is selected: a hint, not an empty box. */
-.props:empty::before {
-  content: "Select a component to change its settings.";
-  color: var(--muted);
-  font-size: 13px;
-}
-
-/* What the block is, set apart from its fields. */
-.props-head {
-  margin: 0 0 18px;
-  padding-bottom: 14px;
-  border-bottom: 1px solid var(--border);
-}
-
-.props h2 {
-  margin: 0;
-  font-size: 17px;
-}
-
-.props-head p {
-  margin: 4px 0 0;
-  font-size: 13px;
-  line-height: 1.45;
-}
-
-.props .form-field small {
-  font-size: 13px;
-  line-height: 1.4;
-}
-
-/* The image being described, on a neutral ground so transparent pictures show their edges. */
-.props-preview {
-  display: flex;
-  justify-content: center;
-  margin: 0 0 18px;
-  padding: 10px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--hover);
-}
-
-.props-preview img {
-  max-width: 100%;
-  max-height: 180px;
-  object-fit: contain;
-  border-radius: 4px;
-}
-
-.props-warning {
-  display: flex;
-  gap: 8px;
-  margin: 0 0 14px;
-  padding: 10px 12px;
-  border: 1px solid var(--warn-border);
-  border-radius: 8px;
-  background: var(--warn-bg);
-  color: var(--warn-text);
-  font-size: 13px;
-  line-height: 1.45;
-}
-
-.props-warning svg {
-  flex: none;
-  margin-top: 1px;
-  color: var(--warn-icon);
-}
-
-.mono {
-  font-family: var(--font-mono);
-  font-size: 12px;
-}
-
-.props-head .mono {
-  display: block;
-  margin-top: 6px;
-}
-
-.form-field {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  margin-bottom: 14px;
-}
-
-.form-field label,
-.form-group legend {
-  font-size: 12.5px;
-  font-weight: 600;
-}
-
-.form-field input:not([type="checkbox"]):not([type="radio"]),
-.form-field select {
-  height: 34px;
-  padding: 0 10px;
-  border: 1px solid var(--border-input);
-  border-radius: 6px;
-  background: var(--bg);
-}
-
-/* A select draws like the text fields beside it, with a chevron in the theme's color rather than the system's arrow. */
-.form-field select {
-  padding-right: 30px;
-  appearance: none;
-  background-image:
-    linear-gradient(45deg, transparent 50%, var(--muted) 50%),
-    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
-  background-position:
-    calc(100% - 15px) 50%,
-    calc(100% - 10px) 50%;
-  background-size: 5px 5px;
-  background-repeat: no-repeat;
-  cursor: pointer;
-}
-
-.form-check {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 14px;
-}
-
-.form-group {
-  margin: 0 0 14px;
-  padding: 12px;
-  border: 1px solid var(--border-input);
-  border-radius: 10px;
-  background: var(--bg-side);
-}
-
-.list-group {
-  padding: 0;
-  border: 0;
-  background: none;
-}
-
-.list-group > legend {
-  padding: 0;
-  margin-bottom: 6px;
-}
-
-.form-item {
-  margin-bottom: 8px;
-  border: 1px solid var(--border-input);
-  border-radius: 8px;
-  background: var(--bg);
-}
-
-.form-item summary {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  cursor: pointer;
-  list-style: none;
-}
-
-.form-item summary::-webkit-details-marker {
-  display: none;
-}
-
-.form-item[open] > summary {
-  font-weight: 600;
-}
-
-.grip {
-  color: var(--muted);
-}
-
-.form-item-title {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.form-item-body {
-  padding: 4px 12px 0;
-}
-
-.form-item-actions {
-  display: flex;
-  gap: 2px;
-}
-
-.form-item-actions button,
-.form-add {
-  border: 1px solid var(--border-input);
-  border-radius: 6px;
-  background: var(--bg);
-  cursor: pointer;
-}
-
-.form-item-actions button {
-  width: 24px;
-  height: 24px;
-  border-color: transparent;
-  color: var(--muted);
-}
-
-.form-item-actions button:hover:not(:disabled) {
-  border-color: var(--border-input);
-  color: var(--text);
-}
-
-.form-item-actions button:disabled {
-  opacity: 0.35;
-  cursor: default;
-}
-
-.form-add {
-  height: 32px;
-  padding: 0 10px;
-  border-style: dashed;
 }
 
 .ProseMirror-selectednode {
@@ -469,11 +196,6 @@ button.primary:disabled {
   letter-spacing: -0.01em;
 }
 
-.row-inline {
-  display: flex;
-  gap: 8px;
-}
-
 .dialog-actions {
   display: flex;
   justify-content: flex-end;
@@ -487,22 +209,6 @@ button.primary:disabled {
   border-radius: 7px;
   background: var(--bg);
   cursor: pointer;
-}
-
-/* Nested forms must not push the panel wider than itself. */
-.props {
-  overflow-x: hidden;
-}
-
-.form-group,
-.form-item > :first-child,
-.form-field {
-  min-width: 0;
-}
-
-.form-field input:not([type="checkbox"]):not([type="radio"]),
-.form-field select {
-  width: 100%;
 }
 
 .settings.publish {
@@ -614,103 +320,6 @@ button.primary:disabled {
   font-weight: 600;
 }
 
-/* Page settings slides in from the right, like the mockup's side panel. */
-/* A side panel opens over the reserved right column, under the top bar: the page stays where it is and usable. */
-.drawer {
-  position: fixed;
-  inset: 52px 0 0 auto;
-  z-index: 30;
-  width: var(--panel-width);
-  max-width: 100vw;
-  height: calc(100vh - 52px);
-  max-height: none;
-  margin: 0;
-  padding: 20px 24px;
-  border: 0;
-  border-left: 1px solid var(--border);
-  background: var(--bg-side);
-  color: var(--text);
-  overflow-y: auto;
-}
-
-.drawer-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 16px;
-}
-
-.drawer h2 {
-  margin: 0;
-  font-size: 20px;
-}
-
-.drawer h3 {
-  margin: 0 0 8px;
-  font-size: 14px;
-}
-
-.drawer fieldset {
-  border: 0;
-  padding: 0;
-}
-
-.drawer legend {
-  margin-bottom: 8px;
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.aliases {
-  margin: 0 0 8px;
-  padding: 0;
-  list-style: none;
-  border: 1px solid var(--border-input);
-  border-radius: 8px;
-}
-
-.aliases li {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  border-bottom: 1px solid var(--border);
-}
-
-.aliases li:last-child {
-  border-bottom: 0;
-}
-
-.aliases[hidden] {
-  display: none;
-}
-
-.drawer p.empty {
-  margin: 0 0 8px;
-  font-size: 13px;
-}
-
-.aliases .badge {
-  margin-right: auto;
-}
-
-.link-button {
-  border: 0;
-  background: none;
-  color: var(--accent);
-  cursor: pointer;
-  text-decoration: underline;
-}
-
-.row-inline button[type="submit"] {
-  height: 34px;
-  padding: 0 12px;
-  border: 1px solid var(--border-input);
-  border-radius: 6px;
-  background: var(--bg);
-  cursor: pointer;
-}
-
 /* The page picker: a floating search with results, used by text links and component fields. */
 .picker {
   position: fixed;
@@ -724,126 +333,6 @@ button.primary:disabled {
   font-size: 14px;
   line-height: 1.4;
   overflow: hidden;
-}
-
-.picker-tabs {
-  display: flex;
-  gap: 4px;
-  padding: 8px 8px 0;
-  border-bottom: 1px solid var(--border);
-}
-
-.picker-tabs button {
-  height: 32px;
-  padding: 0 10px;
-  border: 0;
-  background: none;
-  color: var(--muted);
-  cursor: pointer;
-}
-
-.picker-tabs button[aria-selected="true"] {
-  color: var(--text);
-  font-weight: 600;
-  box-shadow: inset 0 -2px 0 var(--accent);
-}
-
-.picker-search,
-.picker-url {
-  display: flex;
-  gap: 8px;
-  padding: 10px;
-}
-
-.picker-search input,
-.picker-url input {
-  flex: 1;
-  height: 38px;
-  padding: 0 12px;
-  border: 1px solid var(--accent);
-  border-radius: 7px;
-  background: var(--bg);
-  font-size: 15px;
-}
-
-.picker-list {
-  padding: 0 6px 6px;
-}
-
-.picker-list [aria-selected="true"] > button:first-child {
-  background: var(--accent-soft);
-}
-
-.picker-list [role="option"] > button {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 8px 10px;
-  border: 0;
-  border-radius: 8px;
-  background: none;
-  text-align: left;
-  cursor: pointer;
-}
-
-.picker-list small {
-  display: block;
-}
-
-.picker-list .badge {
-  margin-left: 8px;
-}
-
-.picker-parent {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 2px 10px 8px 36px;
-  font-size: 13px;
-  color: var(--muted);
-}
-
-.picker-empty {
-  padding: 8px 10px;
-}
-
-.picker-foot {
-  display: flex;
-  justify-content: space-between;
-  gap: 14px;
-  padding: 8px 16px;
-  border-top: 1px solid var(--border);
-  background: var(--bg-side);
-  font-size: 12px;
-}
-
-.page-field {
-  position: relative;
-  display: flex;
-  gap: 6px;
-}
-
-.page-field-button {
-  display: flex;
-  flex: 1;
-  align-items: center;
-  justify-content: space-between;
-  height: 34px;
-  padding: 0 10px;
-  border: 1px solid var(--border-input);
-  border-radius: 6px;
-  background: var(--bg);
-  cursor: pointer;
-}
-
-.form-field textarea {
-  padding: 8px 10px;
-  line-height: 1.45;
-  border: 1px solid var(--border-input);
-  border-radius: 6px;
-  background: var(--bg);
-  resize: vertical;
 }
 
 .publish-problems {
@@ -868,43 +357,12 @@ button.primary:disabled {
   list-style: none;
 }
 
-/* Section headings in the drawer: the same size and weight whether a legend or a heading. */
-.drawer legend,
-.drawer h3 {
-  padding: 0;
-  margin: 0 0 8px;
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.drawer h3 small {
-  font-weight: 400;
-}
-
-.drawer .form-field {
-  margin-bottom: 18px;
-}
-
-.drawer > p.muted {
-  font-size: 13px;
-}
-
 .snippet-editor {
   margin-top: 10px;
   padding: 8px 12px;
   border: 1px solid var(--border);
   border-radius: 8px;
   font-size: 16px;
-}
-
-.row-inline input {
-  flex: 1;
-  min-width: 0;
-  height: 34px;
-  padding: 0 10px;
-  border: 1px solid var(--border-input);
-  border-radius: 6px;
-  background: var(--bg);
 }
 
 /* A snippet is edited in a box inside the settings page: no site margins, no table of contents. */
@@ -919,47 +377,6 @@ button.primary:disabled {
 
 .snippet-editor .site-toc {
   display: none;
-}
-
-/* History: a wider drawer with the versions and the lines a restore would add or remove. */
-.wide-drawer {
-  width: var(--panel-width);
-}
-
-.versions {
-  margin: 0 0 18px;
-  padding: 0;
-  list-style: none;
-  border: 1px solid var(--border-input);
-  border-radius: 8px;
-}
-
-.versions li {
-  border-bottom: 1px solid var(--border);
-}
-
-.versions li:last-child {
-  border-bottom: 0;
-}
-
-.versions button {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 8px 12px;
-  border: 0;
-  background: none;
-  text-align: left;
-  cursor: pointer;
-}
-
-.versions button[aria-pressed="true"] {
-  background: var(--accent-soft);
-}
-
-.versions .muted {
-  margin-left: auto;
 }
 
 .diff {
@@ -1010,52 +427,6 @@ button.primary:disabled {
 .topbar .theme-toggle svg {
   flex: none;
   color: var(--muted);
-}
-
-/* Too narrow for the side column (see the `narrow` variant). */
-@media (max-width: 1380px) {
-  /* Shown while a block with settings is selected: it must stand out from the page without hiding much of it. */
-  .props-open {
-    position: fixed;
-    right: 20px;
-    bottom: 20px;
-    z-index: 20;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    height: 40px;
-    padding: 0 8px 0 14px;
-    border: 0;
-    border-radius: 20px;
-    background: var(--accent);
-    color: var(--bg);
-    font-size: 14px;
-    font-weight: 600;
-    box-shadow: 0 6px 18px rgba(16, 20, 22, 0.22);
-    cursor: pointer;
-  }
-
-  .props-open:hover {
-    filter: brightness(1.08);
-  }
-
-  .props-open:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 3px;
-  }
-
-  .props-open .key {
-    padding: 2px 7px;
-    border-radius: 10px;
-    background: color-mix(in srgb, var(--bg) 22%, transparent);
-    font-family: inherit;
-    font-size: 12px;
-    font-weight: 500;
-  }
-
-  .drawer {
-    box-shadow: -12px 0 32px rgba(16, 20, 22, 0.16);
-  }
 }
 
 /* Sidebar (270px) and settings column (420px) leave the page less than 900px: the section list would squeeze the text under about 600px. */
@@ -1133,14 +504,6 @@ button.secondary:disabled {
 
 .editable:focus {
   outline: 2px solid var(--accent);
-}
-
-.row-inline button.primary[type="submit"] {
-  height: 32px;
-  border: 0;
-  border-radius: 7px;
-  background: var(--text);
-  color: var(--bg);
 }
 
 @keyframes spin {
@@ -1233,100 +596,6 @@ button.secondary:disabled {
 .publish .dialog-actions {
   flex-wrap: wrap;
   align-items: center;
-}
-
-/* Inside the side column the settings fill what the page actions leave; the column draws the border. */
-.side-column .props {
-  flex: 1;
-  width: auto;
-  border-left: 0;
-}
-
-/* Icon fields: the chosen icon reads like a select; it opens a searchable grid under it, inside the panel so no edge clips it. */
-.icon-picker-current {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  height: 34px;
-  padding: 0 10px;
-  border: 1px solid var(--border-input);
-  border-radius: 6px;
-  background: var(--bg);
-  color: var(--text);
-  font-size: 14px;
-  text-align: left;
-  cursor: pointer;
-}
-
-.icon-picker-current span {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.icon-picker-current > svg:last-child {
-  color: var(--muted);
-}
-
-.icon-picker-panel {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 6px;
-  padding: 8px;
-  border: 1px solid var(--border-input);
-  border-radius: 8px;
-  background: var(--bg);
-}
-
-.icon-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(36px, 1fr));
-  gap: 2px;
-  max-height: 232px;
-  overflow-y: auto;
-}
-
-.icon-grid button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 36px;
-  padding: 0;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  background: none;
-  color: var(--text);
-  cursor: pointer;
-}
-
-.icon-grid button:hover {
-  background: var(--hover);
-}
-
-.icon-grid button[aria-pressed="true"] {
-  border-color: var(--accent);
-  background: var(--accent-soft);
-  color: var(--accent);
-}
-
-/* A version's old title or description can be long: it wraps beside its checkbox instead of running out of the drawer. */
-.restore-options label.form-check {
-  align-items: flex-start;
-}
-
-.restore-options .form-check > span {
-  flex: 1;
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.restore-options .form-check input {
-  margin-top: 2px;
 }
 
 /* The publish dialog: who is editing, each change's author and size, and the checks that passed. */
