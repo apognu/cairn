@@ -4,7 +4,7 @@ use cairn_core::{
   Current, Document, Live, Operation, Page, PageId, PageKind, Pending, Problem, ProblemKind, Pulled, doc_problems, expand, hotfix_pages, page_urls, pending_changes, term_refs, url_problems,
 };
 use cairn_render::Pool;
-use cairn_store::{DatabaseConnection, Staging, staging};
+use cairn_store::{DatabaseConnection, LiveRelease, Staging, staging};
 
 use crate::{PublishError, content::content_hash};
 
@@ -14,6 +14,11 @@ pub async fn pending(db: &DatabaseConnection) -> Result<Pending, PublishError> {
 }
 
 pub(crate) fn pending_in(staging: &Staging) -> Pending {
+  pending_against(staging, staging.live.as_ref())
+}
+
+/// What publishing now would change compared with `against`, which is the live release, or a preview to see what happened since it.
+pub(crate) fn pending_against(staging: &Staging, against: Option<&LiveRelease>) -> Pending {
   let Staging {
     pages,
     redirects,
@@ -23,7 +28,6 @@ pub(crate) fn pending_in(staging: &Staging) -> Pending {
     api_configs,
     settings,
     library,
-    live,
     ..
   } = staging;
   let links: Vec<_> = links.iter().map(|l| (l.source, l.target)).collect();
@@ -37,7 +41,7 @@ pub(crate) fn pending_in(staging: &Staging) -> Pending {
     .map(|p| (p.id, content_hash(&expand(docs.get(&p.id).unwrap_or(&empty), library).0, pages, &urls, library)))
     .collect();
 
-  let state = live.as_ref().map(|l| Live {
+  let state = against.map(|l| Live {
     pages: &l.pages,
     redirects: &l.redirects,
     revisions: &l.revisions,

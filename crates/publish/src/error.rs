@@ -20,8 +20,8 @@ pub enum PublishError {
   #[error("the publish target cannot take this site: {}", .0.join("; "))]
   Rejected(Vec<String>),
   /// A preview that can no longer be promoted as it is.
-  #[error("{0}")]
-  Stale(String),
+  #[error("{reason}")]
+  Stale { reason: String, pages: Vec<String> },
   #[error(transparent)]
   Store(#[from] StoreError),
   #[error(transparent)]

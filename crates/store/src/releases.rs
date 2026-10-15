@@ -201,6 +201,17 @@ pub async fn live_release(db: &impl ConnectionTrait) -> Result<Option<LiveReleas
     return Ok(None);
   };
 
+  Ok(Some(release_state(db, row).await?))
+}
+
+/// What any release published, live or not: a preview is compared with the staging it was made from this way.
+pub async fn release_state_of(db: &impl ConnectionTrait, id: ReleaseId) -> Result<LiveRelease, StoreError> {
+  let row = release::Entity::find_by_id(id.as_uuid()).one(db).await?.ok_or(StoreError::NotFound)?;
+
+  release_state(db, row).await
+}
+
+async fn release_state(db: &impl ConnectionTrait, row: release::Model) -> Result<LiveRelease, StoreError> {
   let revisions = release_page::Entity::find().filter(release_page::Column::ReleaseId.eq(row.id)).all(db).await?;
   let specs = release_api_spec::Entity::find().filter(release_api_spec::Column::ReleaseId.eq(row.id)).all(db).await?;
   let api_configs = specs
@@ -208,7 +219,7 @@ pub async fn live_release(db: &impl ConnectionTrait) -> Result<Option<LiveReleas
     .filter_map(|spec| Some((spec.page_id.into(), serde_json::from_str(spec.config.as_deref()?).ok()?)))
     .collect();
 
-  Ok(Some(LiveRelease {
+  Ok(LiveRelease {
     id: row.id.into(),
     pages: serde_json::from_str(&row.tree_snapshot).unwrap_or_default(),
     redirects: serde_json::from_str(&row.redirects_snapshot).unwrap_or_default(),
@@ -216,7 +227,7 @@ pub async fn live_release(db: &impl ConnectionTrait) -> Result<Option<LiveReleas
     revisions: revisions.into_iter().map(|r| (r.page_id.into(), r.revision_id.into())).collect(),
     settings: row.settings_snapshot.as_deref().and_then(|json| serde_json::from_str(json).ok()),
     api_configs,
-  }))
+  })
 }
 
 async fn into_release(db: &impl ConnectionTrait, row: release::Model) -> Result<Release, StoreError> {

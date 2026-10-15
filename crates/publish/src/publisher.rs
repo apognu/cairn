@@ -13,8 +13,8 @@ use cairn_core::{
 use cairn_render::{Pool, Shell, highlight_css};
 use cairn_store::{
   DatabaseConnection, ReleasePage, ReleaseSpec, Staging, add_release_pages, assets_by_ids, create_release, get_release, get_setting, kept_render_keys, latest_live_release, list_api_configs,
-  live_release, load_library, load_settings, make_release_live, record_release_specs, release_specs, set_release_deployment, set_release_render_keys, set_release_stats, set_release_status,
-  set_setting, staging,
+  live_release, load_library, load_settings, make_release_live, record_release_specs, release_specs, release_state_of, set_release_deployment, set_release_render_keys, set_release_stats,
+  set_release_status, set_setting, staging,
 };
 use futures_util::{StreamExt, TryStreamExt, stream};
 use serde_json::{Value, json};
@@ -23,6 +23,7 @@ use sha2::{Digest, Sha256};
 use crate::{
   ApiProblem, PublishError,
   api::{ApiHosts, ResolvedApi, ResolvedSpec, SourceFetcher, resolve},
+  changes::pending_against,
   content::content_hash,
   generated,
   generated::Listed,
@@ -207,9 +208,7 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
     if release.status != ReleaseStatus::Preview {
       return Err(PublishError::Core(cairn_core::CoreError::Invalid("only a preview can be promoted".into())));
     }
-    if latest_live_release(&self.db).await?.is_some_and(|live| live.id > release.id) {
-      return Err(PublishError::Stale("the site was published after this preview was made; make a new preview".into()));
-    }
+    self.ensure_current(&release).await?;
 
     self.target.promote(release.id, version.as_deref()).await?;
     self.make_live(release.id).await?;
@@ -220,6 +219,45 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
       status: ReleaseStatus::Live,
       preview_url: None,
       ..release
+    })
+  }
+
+  /// A preview goes live as it is only when it is still what publishing now would build: its base is the live release and nothing
+  /// pending differs from what it holds. Otherwise promoting could put an older page over a newer one, or publish what the previewer
+  /// never saw; the person publishes again, which builds from current staging.
+  async fn ensure_current(&self, preview: &Release) -> Result<(), PublishError> {
+    let live = latest_live_release(&self.db).await?;
+    let staging = staging(&self.db).await?;
+    let made = release_state_of(&self.db, preview.id).await?;
+    let since = pending_against(&staging, Some(&made));
+
+    let base_moved = live.map(|l| l.id) != preview.base_release_id;
+    if !base_moved && since.changes.is_empty() && !since.settings {
+      return Ok(());
+    }
+
+    let mut pages: Vec<String> = since.changes.iter().map(|c| c.title.clone()).collect();
+    if since.settings {
+      pages.push("Site settings".into());
+    }
+    let reason = if base_moved {
+      "The site was published after this preview was made. Publish to build the current state, or make a new preview."
+    } else {
+      "Pages changed since this preview was made. Publish to build the current state, or make a new preview."
+    };
+
+    // The editor shows only the message, so the pages are named in it as well.
+    let shown = pages.iter().take(5).cloned().collect::<Vec<_>>().join(", ");
+    let more = pages.len().saturating_sub(5);
+    let named = match (pages.is_empty(), more) {
+      (true, _) => String::new(),
+      (false, 0) => format!(" Changed: {shown}."),
+      (false, more) => format!(" Changed: {shown} and {more} more."),
+    };
+
+    Err(PublishError::Stale {
+      reason: format!("{reason}{named}"),
+      pages,
     })
   }
 
@@ -1197,11 +1235,51 @@ mod tests {
     let published = f.publisher.publish(user).await.unwrap();
     let error = f.publisher.promote(old.id).await.expect_err("the site moved on");
 
-    assert!(matches!(error, PublishError::Stale(_)), "{error}");
+    assert!(matches!(error, PublishError::Stale { .. }), "{error}");
     // The newer release is the only live one.
     let (first, _) = cairn_store::get_release(&f.db, old.id).await.unwrap();
     let (second, _) = cairn_store::get_release(&f.db, published.id).await.unwrap();
     assert_eq!((first.status, second.status), (ReleaseStatus::Preview, ReleaseStatus::Live));
+  }
+
+  #[tokio::test]
+  async fn a_preview_is_not_promoted_over_pages_changed_since() {
+    let f = self_hosted_fixture().await;
+    let user = UserId::new();
+    let guide = create_page(&f.db, user, None, "Guide", Placement::Last).await.unwrap();
+    let faq = create_page(&f.db, user, None, "FAQ", Placement::Last).await.unwrap();
+    let first = f.content.save_draft(guide.id, Document::paragraph("as previewed"), None, user).await.unwrap();
+    f.content.save_draft(faq.id, Document::paragraph("faq"), None, user).await.unwrap();
+    let preview = f.publisher.preview(user).await.unwrap();
+
+    // Someone saves a newer version of one page after the preview.
+    f.content.save_draft(guide.id, Document::paragraph("saved later"), first.base_revision_id, user).await.unwrap();
+    let error = f.publisher.promote(preview.id).await.expect_err("staging moved on");
+
+    let PublishError::Stale { pages, .. } = error else { panic!("{error}") };
+    assert_eq!(pages, vec!["Guide".to_string()]);
+    assert!(latest_live_release(&f.db).await.unwrap().is_none(), "nothing went live");
+
+    // Publishing builds from current staging, and carries the newer page.
+    let published = f.publisher.publish(user).await.unwrap();
+    let html = std::fs::read_to_string(f.dir.join("out/site/guide/index.html")).unwrap();
+    assert!(html.contains("saved later") && published.status == ReleaseStatus::Live);
+  }
+
+  #[tokio::test]
+  async fn a_preview_is_not_promoted_after_a_hotfix_changed_the_live_site() {
+    let f = self_hosted_fixture().await;
+    let user = UserId::new();
+    let guide = create_page(&f.db, user, None, "Guide", Placement::Last).await.unwrap();
+    let faq = create_page(&f.db, user, None, "FAQ", Placement::Last).await.unwrap();
+    f.content.save_draft(guide.id, Document::paragraph("guide"), None, user).await.unwrap();
+    f.content.save_draft(faq.id, Document::paragraph("faq"), None, user).await.unwrap();
+    let preview = f.publisher.preview(user).await.unwrap();
+
+    f.publisher.publish_selected(user, &[faq.id].into()).await.unwrap();
+    let error = f.publisher.promote(preview.id).await.expect_err("the live site moved on");
+
+    assert!(matches!(error, PublishError::Stale { .. }), "{error}");
   }
 
   #[tokio::test]

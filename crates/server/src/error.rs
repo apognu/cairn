@@ -59,7 +59,7 @@ impl IntoResponse for AppError {
       AppError::Publish(PublishError::Api(problems)) => (StatusCode::UNPROCESSABLE_ENTITY, None, problems.iter().map(ToString::to_string).collect()),
       AppError::Publish(PublishError::ApiSource { .. }) => (StatusCode::UNPROCESSABLE_ENTITY, None, vec![self.to_string()]),
       AppError::Publish(PublishError::Rejected(problems)) => (StatusCode::UNPROCESSABLE_ENTITY, None, problems.clone()),
-      AppError::Publish(PublishError::Stale(reason)) => (StatusCode::CONFLICT, Some(reason.clone()), vec![]),
+      AppError::Publish(PublishError::Stale { reason, pages }) => (StatusCode::CONFLICT, Some(reason.clone()), pages.clone()),
       AppError::Publish(PublishError::Core(CoreError::Invalid(reason))) => (StatusCode::UNPROCESSABLE_ENTITY, Some(reason.clone()), vec![reason.clone()]),
       AppError::Publish(PublishError::Core(CoreError::NotFound) | PublishError::Store(StoreError::NotFound)) => (StatusCode::NOT_FOUND, None, vec![]),
       AppError::Publish(PublishError::Blocked(problems)) => (StatusCode::UNPROCESSABLE_ENTITY, None, problems.iter().map(ToString::to_string).collect()),
