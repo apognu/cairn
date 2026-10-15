@@ -23,6 +23,11 @@
       "!**/.work"
     ]
   },
+  "css": {
+    "parser": {
+      "tailwindDirectives": true
+    }
+  },
   "linter": {
     "rules": {
       "recommended": true

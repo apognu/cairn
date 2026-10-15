@@ -1,9 +1,10 @@
+import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
 // The Rust server embeds `dist`; in development it serves the API and Vite proxies to it.
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
   // `build-components` points the custom components module at the deployer's folder and builds elsewhere than `dist`.
   resolve: { alias: process.env.CAIRN_CUSTOM ? { "@cairn/components/custom": process.env.CAIRN_CUSTOM } : {} },
   // Relative, so the same build works at `/` (`dev`) and under `/_editor/` (`serve`).

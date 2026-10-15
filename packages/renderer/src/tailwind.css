@@ -1,0 +1,61 @@
+/*
+ * The Tailwind theme the site, the editor and deployers' components share. Utilities read the theme tokens defined in `site.css`, so the
+ * saved theme and dark mode apply to them with no `dark:` variant. Tailwind's preflight and its color palette are left out: the site keeps
+ * its own base rules, and nothing is styled with a fixed color.
+ */
+@import "tailwindcss/theme.css" layer(theme);
+
+@theme {
+  --color-*: initial;
+  --font-*: initial;
+  --shadow-*: initial;
+  --inset-shadow-*: initial;
+  --drop-shadow-*: initial;
+  --text-shadow-*: initial;
+
+  /* The editor chrome's scale: 14px text, 13px help text, 12px labels and badges. Line height comes from the container. */
+  --text-ui: 14px;
+  --text-help: 13px;
+  --text-label: 12px;
+
+  --shadow-popover: 0 8px 24px rgb(16 20 22 / 18%);
+  --shadow-drawer: -12px 0 32px rgb(16 20 22 / 16%);
+  --shadow-dialog: 0 20px 50px rgb(16 20 22 / 30%);
+}
+
+/* `inline`: utilities use the token itself (`background-color: var(--bg)`), which changes with the mode and the saved theme. */
+@theme inline {
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+
+  --color-bg: var(--bg);
+  --color-side: var(--bg-side);
+  --color-hover: var(--hover);
+  --color-code: var(--code-bg);
+  --color-border: var(--border);
+  --color-input: var(--border-input);
+  --color-text: var(--text);
+  --color-body: var(--text-body);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-link: var(--link);
+  --color-danger: var(--danger);
+  --color-warn-bg: var(--warn-bg);
+  --color-warn-border: var(--warn-border);
+  --color-warn-text: var(--warn-text);
+  --color-warn-icon: var(--warn-icon);
+}
+
+/* The same three cases as the tokens: the system preference unless light was chosen, or dark chosen. */
+@custom-variant dark {
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) & {
+      @slot;
+    }
+  }
+
+  :root[data-theme="dark"] & {
+    @slot;
+  }
+}

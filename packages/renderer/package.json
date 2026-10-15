@@ -18,13 +18,16 @@
   },
   "devDependencies": {
     "@scalar/api-reference": "1.74.0",
+    "@tailwindcss/vite": "4.3.3",
     "@types/bun": "1.2.21",
     "@types/react": "19.1.12",
     "@types/react-dom": "19.1.9",
+    "tailwindcss": "4.3.3",
     "vite": "7.1.5"
   },
   "exports": {
     ".": "./src/index.ts",
-    "./site.css": "./src/site.css"
+    "./site.css": "./src/site.css",
+    "./tailwind.css": "./src/tailwind.css"
   }
 }

@@ -1,5 +1,15 @@
 /* Theme tokens and the styles of the published site. The editor imports this file too, so both look the same. */
 
+/*
+ * Rules written here are unlayered, so they win over utilities on the same element: a rule moves to utilities whole, or not at all.
+ * Sources: the site layout, the built-in components and the copy of a deployer's components that `build-components` makes.
+ */
+@import "./tailwind.css";
+@import "tailwindcss/utilities.css" layer(utilities) source(none);
+@source "./**/*.{ts,tsx}";
+@source "../../components/src/**/*.{ts,tsx}";
+@source "../../builder/.work/components/**/*.{ts,tsx,js,jsx}";
+
 /* Latin subsets only, bundled so readers never contact a font service. The client build inlines them into this file. */
 @font-face {
   font-family: "Hanken Grotesk";
@@ -40,6 +50,11 @@
   --hover: #eef0ec;
   --code-bg: #f2f3f0;
   --danger: #b3261e;
+  --accent-soft: color-mix(in srgb, var(--accent) 11%, var(--bg));
+  --warn-bg: #fff6e0;
+  --warn-border: #eed9a2;
+  --warn-text: #3a2c08;
+  --warn-icon: #8a5a00;
   color-scheme: light;
 }
 
@@ -57,6 +72,10 @@
     --hover: #23272b;
     --code-bg: #1d2024;
     --danger: #f2b8b5;
+    --warn-bg: #2b2410;
+    --warn-border: #5c4a1c;
+    --warn-text: #f1e2b5;
+    --warn-icon: #e0b050;
     color-scheme: dark;
   }
 }
@@ -74,6 +93,10 @@
   --hover: #23272b;
   --code-bg: #1d2024;
   --danger: #f2b8b5;
+  --warn-bg: #2b2410;
+  --warn-border: #5c4a1c;
+  --warn-text: #f1e2b5;
+  --warn-icon: #e0b050;
   color-scheme: dark;
 }
 

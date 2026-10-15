@@ -54,7 +54,6 @@ export function UsedIcons() {
 
   return (
     // biome-ignore lint/security/noDangerouslySetInnerHtml: JSON data, escaped above
-    // biome-ignore lint/correctness/useUniqueElementIds: one per page, which the browser bundle finds by this ID
     <script type="application/json" id="icons" dangerouslySetInnerHTML={{ __html: json }} />
   );
 }

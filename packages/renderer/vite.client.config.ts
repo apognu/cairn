@@ -1,5 +1,6 @@
 import { copyFileSync } from "node:fs";
 import { join } from "node:path";
+import tailwindcss from "@tailwindcss/vite";
 import { defineConfig, type Plugin } from "vite";
 
 // The API reference script is not part of `client.js`: only API pages load it. It is copied as it is, from the pinned package.
@@ -13,7 +14,7 @@ const scalar: Plugin = {
 
 // Browser bundle that hydrates the server-rendered page; emptyOutDir stays off so ssr.js survives.
 export default defineConfig({
-  plugins: [scalar],
+  plugins: [tailwindcss(), scalar],
   // `build-components` points the custom components module at the deployer's folder and builds elsewhere than `dist`.
   resolve: { alias: process.env.CAIRN_CUSTOM ? { "@cairn/components/custom": process.env.CAIRN_CUSTOM } : {} },
   define: { "process.env.NODE_ENV": JSON.stringify("production") },

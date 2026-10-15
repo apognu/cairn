@@ -1,3 +1,11 @@
+/*
+ * The editor's own utilities; `site.css` (imported first) brings the theme tokens and the site's utilities. Unlayered rules here win over
+ * utilities on the same element, so a rule moves to utilities whole, or not at all.
+ */
+@import "tailwindcss/utilities.css" layer(utilities) source(none);
+@reference "@cairn/renderer/tailwind.css";
+@source "./**/*.{ts,tsx}";
+
 /* The document keeps the site's 16px; only the editor's own chrome is smaller. */
 .topbar,
 .sidebar {
@@ -75,11 +83,6 @@ small,
 }
 
 :root {
-  --accent-soft: color-mix(in srgb, var(--accent) 11%, var(--bg));
-  --warn-bg: #fff6e0;
-  --warn-border: #eed9a2;
-  --warn-text: #3a2c08;
-  --warn-icon: #8a5a00;
   --badge-new-bg: #dff3e9;
   --badge-new: #0b5c3d;
   --badge-edit-bg: #e3edf8;
@@ -92,10 +95,6 @@ small,
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --warn-bg: #2b2410;
-    --warn-border: #5c4a1c;
-    --warn-text: #f1e2b5;
-    --warn-icon: #e0b050;
     --badge-new-bg: #12362a;
     --badge-new: #7fd6ae;
     --badge-edit-bg: #1b2d44;
@@ -108,10 +107,6 @@ small,
 }
 
 :root[data-theme="dark"] {
-  --warn-bg: #2b2410;
-  --warn-border: #5c4a1c;
-  --warn-text: #f1e2b5;
-  --warn-icon: #e0b050;
   --badge-new-bg: #12362a;
   --badge-new: #7fd6ae;
   --badge-edit-bg: #1b2d44;
