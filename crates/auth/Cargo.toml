@@ -17,7 +17,7 @@ anyhow = "1"
 axum = "0.8"
 base64 = "0.22"
 jiff = "0.2.38"
-openidconnect = { version = "4.0.1", default-features = false, features = ["reqwest", "rustls-tls"] }
+openidconnect = { version = "4.0.1", default-features = false, features = ["reqwest", "rustls-tls", "accept-rfc3339-timestamps"] }
 percent-encoding = "2.3.2"
 rand = "0.9"
 serde = { version = "1", features = ["derive"] }
