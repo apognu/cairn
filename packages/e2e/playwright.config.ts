@@ -23,7 +23,7 @@ export default defineConfig({
   // Publishing takes everything pending, whoever made it. Tests that read the list of pending changes run after the others finish,
   // so no other test's publish can swallow their changes in between.
   projects: [
-    { name: "main", testIgnore: /(redirects|checks|custom|api-reference|serve|team)\.spec/ },
+    { name: "main", testIgnore: /(redirects|checks|releases|custom|api-reference|serve|team)\.spec/ },
     // A third server whose GitHub is `stand-in.ts`, so API pages read specs the tests control.
     { name: "api", testMatch: /api-reference\.spec/, use: { baseURL: "http://127.0.0.1:3300" } },
     // A second server running with bundles `build-components` made from `examples/components`.
@@ -33,6 +33,8 @@ export default defineConfig({
     { name: "pending-changes", testMatch: /redirects\.spec/, dependencies: ["main"] },
     // A page with a problem blocks every publish, so this runs alone, last, and removes the page again.
     { name: "checks", testMatch: /checks\.spec/, dependencies: ["pending-changes"] },
+    // Rolling back changes the live site under every other test, so it goes after all of them.
+    { name: "releases", testMatch: /releases\.spec/, dependencies: ["checks"] },
   ],
   // Wide enough for the editor's side column (it folds into drawers at 1380px and below).
   use: { baseURL: "http://127.0.0.1:3000", viewport: { width: 1440, height: 900 } },

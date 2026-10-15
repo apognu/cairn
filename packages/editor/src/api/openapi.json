@@ -1919,6 +1919,26 @@
         }
       }
     },
+    "/api/releases": {
+      "get": {
+        "summary": "The latest releases that were the live site, newest first, for the Releases settings and rollback.",
+        "operationId": "listReleases",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ReleaseRow"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/releases/{id}/promote": {
       "post": {
         "summary": "Makes a preview the live site, exactly as it was built.",
@@ -1964,6 +1984,53 @@
           },
           "422": {
             "description": "the release is not a preview",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/releases/{id}/rollback": {
+      "post": {
+        "summary": "Makes an earlier release the live site again. Drafts are untouched, and what was published after it shows as pending.",
+        "operationId": "rollbackRelease",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/ReleaseId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "the release that is the site now: the one asked for, or a new one rendered from its content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Release"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "the release is the live site already, or never was the site",
             "content": {
               "application/json": {
                 "schema": {
@@ -3965,6 +4032,47 @@
       "ReleaseId": {
         "type": "string",
         "description": "An immutable published state of the whole site."
+      },
+      "ReleaseRow": {
+        "type": "object",
+        "required": [
+          "release",
+          "number",
+          "changes",
+          "published_by",
+          "can_roll_back",
+          "exact"
+        ],
+        "properties": {
+          "can_roll_back": {
+            "type": "boolean",
+            "description": "Whether it can be rolled back to now: it was the site and is not any more."
+          },
+          "changes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Titles of the pages that changed compared with the release it was built on: edited, new or removed."
+          },
+          "exact": {
+            "type": "boolean",
+            "description": "Whether rolling back gives back exactly the files that were published, rather than rendering the release again from its content."
+          },
+          "number": {
+            "type": "integer",
+            "format": "int32",
+            "description": "1 for the first release that went live; stays with its release.",
+            "minimum": 0
+          },
+          "published_by": {
+            "type": "string",
+            "description": "The name of whoever published it."
+          },
+          "release": {
+            "$ref": "#/components/schemas/Release"
+          }
+        }
       },
       "ReleaseStatus": {
         "type": "string",

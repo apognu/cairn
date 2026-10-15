@@ -1541,6 +1541,11 @@ button.primary:disabled {
   max-width: 820px;
 }
 
+/* The releases table has five columns of text, as wide as the screen allows. */
+.settings-form.releases {
+  max-width: 1120px;
+}
+
 .settings-form h1 {
   margin: 0 0 18px;
   font-size: 24px;
@@ -2995,6 +3000,10 @@ button.secondary:disabled {
 
 .changes td.muted {
   font-size: 13px;
+}
+
+.releases .changes td.muted {
+  white-space: nowrap;
 }
 
 .changes button.small,

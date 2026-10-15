@@ -230,7 +230,7 @@ async fn release_state(db: &impl ConnectionTrait, row: release::Model) -> Result
   })
 }
 
-async fn into_release(db: &impl ConnectionTrait, row: release::Model) -> Result<Release, StoreError> {
+pub(crate) async fn into_release(db: &impl ConnectionTrait, row: release::Model) -> Result<Release, StoreError> {
   let page_count = release_page::Entity::find().filter(release_page::Column::ReleaseId.eq(row.id)).count(db).await?;
 
   Ok(Release {

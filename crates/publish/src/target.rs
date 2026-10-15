@@ -186,6 +186,29 @@ impl PublishTarget {
     }
   }
 
+  /// Whether the target still has this release and can make it the site again exactly as it was, without building it. Folders keep the
+  /// last few releases, Cloudflare keeps versions; an S3 bucket and a Pages project only have the latest files.
+  pub fn holds(&self, release: ReleaseId, version: Option<&str>) -> bool {
+    match self {
+      PublishTarget::Folder(folder) | PublishTarget::SelfHosted(folder) => folder.releases_dir().join(release.to_string()).is_dir(),
+      PublishTarget::Cloudflare(_) => version.is_some(),
+      PublishTarget::S3(_) | PublishTarget::Pages(_) => false,
+    }
+  }
+
+  /// Makes a release the target `holds` the live site. Unlike `promote`, the release may have been live before.
+  pub async fn switch_to(&self, release: ReleaseId, version: Option<&str>) -> Result<(), PublishError> {
+    match self {
+      PublishTarget::Folder(folder) | PublishTarget::SelfHosted(folder) => folder.switch(release).await,
+      PublishTarget::Cloudflare(cloudflare) => {
+        cloudflare
+          .deploy(version.ok_or_else(|| PublishError::Other(anyhow::anyhow!("the release has no Cloudflare version")))?)
+          .await
+      }
+      PublishTarget::S3(_) | PublishTarget::Pages(_) => Err(PublishError::Other(anyhow::anyhow!("this publish target does not keep earlier releases"))),
+    }
+  }
+
   /// The folder of the live site, when the files are on this machine.
   pub fn site_dir(&self) -> Option<PathBuf> {
     match self {

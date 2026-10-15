@@ -1,16 +1,18 @@
 import { LibrarySettings } from "./LibrarySettings";
 import { usePending, useSignedIn } from "./queries";
 import { RedirectsSettings } from "./RedirectsSettings";
+import { ReleasesSettings } from "./ReleasesSettings";
 import { SiteSettings } from "./SiteSettings";
 import { TokensSettings } from "./TokensSettings";
 import { TrashSettings } from "./TrashSettings";
 
-export type SettingsSection = "site" | "library" | "redirects" | "trash" | "tokens";
+export type SettingsSection = "site" | "library" | "redirects" | "releases" | "trash" | "tokens";
 
 export const sectionTitle: Record<SettingsSection, string> = {
   site: "Site and theme",
   library: "Library",
   redirects: "Redirects",
+  releases: "Releases",
   trash: "Trash",
   tokens: "API tokens",
 };
@@ -62,6 +64,8 @@ export function SettingsView({
           <SiteSettings />
         ) : section === "library" ? (
           <LibrarySettings />
+        ) : section === "releases" ? (
+          <ReleasesSettings />
         ) : section === "trash" ? (
           <TrashSettings />
         ) : section === "tokens" ? (

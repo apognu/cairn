@@ -125,6 +125,22 @@ export function usePromote() {
   });
 }
 
+/** The releases that were the site, newest first. Read again each time Releases opens: publishing elsewhere adds one. */
+export function useReleases() {
+  return useQuery({ queryKey: ["releases"], gcTime: 0, queryFn: async () => unwrap(await api.GET("/api/releases")) });
+}
+
+export function useRollback() {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) =>
+      unwrap(await api.POST("/api/releases/{id}/rollback", { params: { path: { id } } })),
+    onSuccess: () =>
+      Promise.all([PENDING, ["site"], ["releases"]].map((queryKey) => client.invalidateQueries({ queryKey }))),
+  });
+}
+
 /** Where the published site lives. Fixed for the life of the server. */
 export function useSiteInfo() {
   return useQuery({

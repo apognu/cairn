@@ -615,6 +615,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/releases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The latest releases that were the live site, newest first, for the Releases settings and rollback. */
+        get: operations["listReleases"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/releases/{id}/promote": {
         parameters: {
             query?: never;
@@ -626,6 +643,23 @@ export interface paths {
         put?: never;
         /** Makes a preview the live site, exactly as it was built. */
         post: operations["promoteRelease"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/releases/{id}/rollback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Makes an earlier release the live site again. Drafts are untouched, and what was published after it shows as pending. */
+        post: operations["rollbackRelease"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1333,6 +1367,22 @@ export interface components {
         };
         /** @description An immutable published state of the whole site. */
         ReleaseId: string;
+        ReleaseRow: {
+            /** @description Whether it can be rolled back to now: it was the site and is not any more. */
+            can_roll_back: boolean;
+            /** @description Titles of the pages that changed compared with the release it was built on: edited, new or removed. */
+            changes: string[];
+            /** @description Whether rolling back gives back exactly the files that were published, rather than rendering the release again from its content. */
+            exact: boolean;
+            /**
+             * Format: int32
+             * @description 1 for the first release that went live; stays with its release.
+             */
+            number: number;
+            /** @description The name of whoever published it. */
+            published_by: string;
+            release: components["schemas"]["Release"];
+        };
         /** @enum {string} */
         ReleaseStatus: "building" | "preview" | "live" | "superseded" | "failed";
         RenamePage: {
@@ -3097,6 +3147,25 @@ export interface operations {
             };
         };
     };
+    listReleases: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReleaseRow"][];
+                };
+            };
+        };
+    };
     promoteRelease: {
         parameters: {
             query?: never;
@@ -3134,6 +3203,45 @@ export interface operations {
                 };
             };
             /** @description the release is not a preview */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    rollbackRelease: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["ReleaseId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description the release that is the site now: the one asked for, or a new one rendered from its content */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Release"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description the release is the live site already, or never was the site */
             422: {
                 headers: {
                     [name: string]: unknown;

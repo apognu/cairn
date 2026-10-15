@@ -12,9 +12,9 @@ use cairn_core::{
 };
 use cairn_render::{Pool, Shell, highlight_css};
 use cairn_store::{
-  DatabaseConnection, ReleasePage, ReleaseSpec, Staging, add_release_pages, assets_by_ids, create_release, get_release, get_setting, kept_render_keys, latest_live_release, list_api_configs,
-  live_release, load_library, load_settings, make_release_live, record_release_specs, release_specs, release_state_of, set_release_deployment, set_release_render_keys, set_release_stats,
-  set_release_status, set_setting, staging,
+  DatabaseConnection, LiveRelease, ReleasePage, ReleaseSpec, Staging, add_release_pages, assets_by_ids, create_release, get_release, get_setting, kept_render_keys, latest_live_release,
+  list_api_configs, live_release, load_library, load_settings, make_release_live, record_release_specs, release_specs, release_state_of, set_release_deployment, set_release_render_keys,
+  set_release_stats, set_release_status, set_setting, staging,
 };
 use futures_util::{StreamExt, TryStreamExt, stream};
 use serde_json::{Value, json};
@@ -430,10 +430,21 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
       return Ok(None);
     };
 
+    let release = self.rebuild_from(live, previous.created_by).await?;
+    tracing::info!(release_id = %release.id, pages = release.page_count, "republished for new bundles");
+
+    Ok(Some(release))
+  }
+
+  /// Renders what a release published, from its frozen state, as a new release that becomes the live site. The specs and settings are
+  /// the ones it was built with: a new bundle must not pull in what upstream changed since, nor what was saved and not published. A
+  /// release made before settings were recorded has only the current ones to go by. Snippets, variables and terms are not frozen, so
+  /// they are the current ones. Called with the build lock held.
+  async fn rebuild_from(&self, state: LiveRelease, user: UserId) -> Result<Release, PublishError> {
     let library = load_library(&self.db).await?;
     let mut sources = Vec::new();
-    for page in live.pages.iter().filter(|p| p.kind == PageKind::Page) {
-      let Some(revision) = live.revisions.get(&page.id) else { continue };
+    for page in state.pages.iter().filter(|p| p.kind == PageKind::Page) {
+      let Some(revision) = state.revisions.get(&page.id) else { continue };
       let revision = self.content.revision(*revision).await?;
       sources.push(PageSource {
         page: page.clone(),
@@ -444,9 +455,7 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
       });
     }
 
-    // The specs and settings as they were: a new bundle must not pull in what upstream changed since, nor what was saved and not published.
-    // A release made before settings were recorded has only the current ones to go by.
-    let recorded = release_specs(&self.db, previous.id).await?;
+    let recorded = release_specs(&self.db, state.id).await?;
     let current = list_api_configs(&self.db).await?;
     let mut apis = Vec::new();
     for spec in recorded {
@@ -461,34 +470,70 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
         config,
       });
     }
-    sources.extend(api_sources(&live.pages, apis));
-    let settings = match live.settings {
+    sources.extend(api_sources(&state.pages, apis));
+    let settings = match state.settings {
       Some(settings) => settings,
       None => load_settings(&self.db).await?,
     };
 
     let release = create_release(
       &self.db,
-      previous.created_by,
-      serde_json::to_string(&live.pages).map_err(anyhow::Error::from)?,
-      serde_json::to_string(&live.redirects).map_err(anyhow::Error::from)?,
+      user,
+      serde_json::to_string(&state.pages).map_err(anyhow::Error::from)?,
+      serde_json::to_string(&state.redirects).map_err(anyhow::Error::from)?,
       &settings,
     )
     .await?;
+
     let contents = Contents {
-      tree_pages: &live.pages,
-      rules: &live.redirects,
+      tree_pages: &state.pages,
+      rules: &state.redirects,
       sources: &sources,
       settings: &settings,
       library: &library,
     };
-    let release = self.deploy(release, &contents, true).await?;
-    tracing::info!(release_id = %release.id, pages = release.page_count, "republished for new bundles");
-
-    Ok(Some(release))
+    self.deploy(release, &contents, true).await
   }
 
-  /// Renders and hands over a release that was just created, then marks it live, as a preview, or failed.
+  /// Makes an earlier release the live site again. A target that still has the release switches to it, which gives back exactly what
+  /// was published; otherwise the release is rendered again from its frozen content as a new one. Either way every draft stays as it
+  /// is, and what was published after shows as pending again, since pending is always compared with the live release.
+  pub async fn rollback(&self, user: UserId, id: ReleaseId) -> Result<Release, PublishError> {
+    let _turn = self.running.lock().await;
+
+    let (release, version) = get_release(&self.db, id).await?;
+    match release.status {
+      ReleaseStatus::Superseded => {}
+      ReleaseStatus::Live => return Err(PublishError::Core(cairn_core::CoreError::Invalid("this release is already the live site".into()))),
+      _ => return Err(PublishError::Core(cairn_core::CoreError::Invalid("only a release that was the site can be rolled back to".into()))),
+    }
+
+    if self.target.holds(id, version.as_deref()) {
+      self.target.switch_to(id, version.as_deref()).await?;
+      self.make_live(id).await?;
+      tracing::info!(release_id = %id, "rolled back to a release the target kept");
+      self.broadcast.send(Event::Published { release: id });
+
+      return Ok(Release {
+        status: ReleaseStatus::Live,
+        ..release
+      });
+    }
+
+    let state = release_state_of(&self.db, id).await?;
+    let rebuilt = self.rebuild_from(state, user).await?;
+    tracing::info!(release_id = %rebuilt.id, from = %id, "rolled back by rendering the release again");
+
+    Ok(rebuilt)
+  }
+
+  /// Whether rolling back to the release gives back exactly what was published, rather than rendering it again.
+  pub async fn rolls_back_exactly(&self, id: ReleaseId) -> Result<bool, PublishError> {
+    let (_, version) = get_release(&self.db, id).await?;
+
+    Ok(self.target.holds(id, version.as_deref()))
+  }
+
   async fn deploy(&self, release: Release, contents: &Contents<'_>, live: bool) -> Result<Release, PublishError> {
     let sources = contents.sources;
     match self.build_and_deploy(&release, contents, live).await {
@@ -1337,6 +1382,85 @@ mod tests {
     // A publish asked for after that build is a build of its own.
     let later = f.publisher.publish(user).await.unwrap();
     assert!(!ids.contains(&later.id));
+  }
+
+  /// Every file under `dir` with its bytes, by relative path.
+  fn tree_of(dir: &std::path::Path) -> std::collections::BTreeMap<String, Vec<u8>> {
+    fn walk(root: &std::path::Path, dir: &std::path::Path, found: &mut std::collections::BTreeMap<String, Vec<u8>>) {
+      for entry in std::fs::read_dir(dir).unwrap() {
+        let path = entry.unwrap().path();
+        if path.is_dir() {
+          walk(root, &path, found);
+        } else {
+          found.insert(path.strip_prefix(root).unwrap().to_string_lossy().into_owned(), std::fs::read(&path).unwrap());
+        }
+      }
+    }
+    let mut found = Default::default();
+    walk(dir, dir, &mut found);
+
+    found
+  }
+
+  #[tokio::test]
+  async fn rolling_back_restores_the_earlier_site_exactly_and_makes_what_followed_pending() {
+    let f = self_hosted_fixture().await;
+    let user = UserId::new();
+    let guide = create_page(&f.db, user, None, "Guide", Placement::Last).await.unwrap();
+    let first = f.content.save_draft(guide.id, Document::paragraph("version one"), None, user).await.unwrap();
+    let one = f.publisher.publish(user).await.unwrap();
+    let released_one = tree_of(&f.dir.join("out/site"));
+
+    f.content.save_draft(guide.id, Document::paragraph("version two"), first.base_revision_id, user).await.unwrap();
+    let two = f.publisher.publish(user).await.unwrap();
+    assert_ne!(tree_of(&f.dir.join("out/site")), released_one);
+    assert!(crate::changes::pending(&f.db).await.unwrap().changes.is_empty());
+
+    let log = cairn_store::release_log(&f.db).await.unwrap();
+    assert_eq!(log.iter().map(|e| (e.number, e.release.id)).collect::<Vec<_>>(), [(2, two.id), (1, one.id)]);
+    assert_eq!(log.iter().map(|e| e.changes.clone()).collect::<Vec<_>>(), [vec!["Guide".to_string()], vec!["Guide".to_string()]]);
+
+    let back = f.publisher.rollback(user, one.id).await.unwrap();
+
+    assert_eq!(back.id, one.id, "the release the target kept is the site again");
+    assert_eq!(tree_of(&f.dir.join("out/site")), released_one, "byte for byte");
+    assert_eq!(latest_live_release(&f.db).await.unwrap().unwrap().id, one.id);
+    assert_eq!(cairn_store::get_release(&f.db, two.id).await.unwrap().0.status, ReleaseStatus::Superseded);
+    let pending = crate::changes::pending(&f.db).await.unwrap();
+    assert_eq!(
+      pending.changes.iter().map(|c| c.title.as_str()).collect::<Vec<_>>(),
+      ["Guide"],
+      "version two is waiting to be published again"
+    );
+    assert!(f.publisher.rollback(user, one.id).await.is_err(), "already live");
+
+    // And forward again.
+    assert_eq!(f.publisher.rollback(user, two.id).await.unwrap().id, two.id);
+    assert!(crate::changes::pending(&f.db).await.unwrap().changes.is_empty());
+  }
+
+  #[tokio::test]
+  async fn a_release_the_target_no_longer_has_is_rendered_again_on_rollback() {
+    let f = self_hosted_fixture().await;
+    let user = UserId::new();
+    let guide = create_page(&f.db, user, None, "Guide", Placement::Last).await.unwrap();
+    let first = f.content.save_draft(guide.id, Document::paragraph("version one"), None, user).await.unwrap();
+    let one = f.publisher.publish(user).await.unwrap();
+    let released_one = tree_of(&f.dir.join("out/site"));
+    f.content.save_draft(guide.id, Document::paragraph("version two"), first.base_revision_id, user).await.unwrap();
+    f.publisher.publish(user).await.unwrap();
+
+    std::fs::remove_dir_all(f.dir.join("out/releases").join(one.id.to_string())).unwrap();
+    assert!(!f.publisher.rolls_back_exactly(one.id).await.unwrap());
+    let back = f.publisher.rollback(user, one.id).await.unwrap();
+
+    assert_ne!(back.id, one.id, "a new release");
+    assert_eq!(latest_live_release(&f.db).await.unwrap().unwrap().id, back.id);
+    let html = |files: &std::collections::BTreeMap<String, Vec<u8>>| String::from_utf8(files["guide/index.html"].clone()).unwrap();
+    let now = tree_of(&f.dir.join("out/site"));
+    assert!(html(&now).contains("version one") && !html(&now).contains("version two"));
+    assert_eq!(now.keys().collect::<Vec<_>>(), released_one.keys().collect::<Vec<_>>());
+    assert_eq!(crate::changes::pending(&f.db).await.unwrap().changes.len(), 1, "version two is pending again");
   }
 
   #[tokio::test]

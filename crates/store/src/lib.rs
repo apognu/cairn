@@ -14,6 +14,7 @@ mod locks;
 mod migration;
 mod purge;
 mod redirects;
+mod release_log;
 mod releases;
 mod sessions;
 mod staging;
@@ -34,6 +35,7 @@ pub use locks::{acquire_lock, ensure_unlocked, live_locks, page_lock, release_lo
 pub use migration::migrate;
 pub use purge::purge_trash;
 pub use redirects::{draft_docs, draft_revisions, list_redirects};
+pub use release_log::{ReleaseEntry, release_log};
 pub use releases::{
   LiveRelease, ReleasePage, add_release_pages, create_release, get_release, get_setting, kept_render_keys, latest_live_release, live_release, load_settings, make_release_live, release_state_of,
   save_settings, set_release_deployment, set_release_render_keys, set_release_stats, set_release_status, set_setting,

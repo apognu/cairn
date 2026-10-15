@@ -9,7 +9,7 @@ use axum::{
   },
 };
 use cairn_auth::CurrentUser;
-use cairn_core::{Event, PageId, Pending, Problem, Pulled, Release, ReleaseId};
+use cairn_core::{Event, PageId, Pending, Problem, Pulled, Release, ReleaseId, ReleaseStatus};
 use futures_util::{Stream, StreamExt};
 use serde::{Deserialize, Serialize};
 use tokio_stream::wrappers::BroadcastStream;
@@ -27,6 +27,8 @@ pub(crate) fn routes() -> OpenApiRouter<AppState> {
     .routes(routes!(publish))
     .routes(routes!(preview))
     .routes(routes!(promote))
+    .routes(routes!(releases))
+    .routes(routes!(rollback))
     .routes(routes!(changes))
     .routes(routes!(checks))
     .routes(routes!(site))
@@ -207,4 +209,50 @@ async fn changes(State(state): State<AppState>) -> Result<Json<Pending>, AppErro
 #[instrument(skip_all)]
 async fn checks(State(state): State<AppState>) -> Result<Json<Vec<Problem>>, AppError> {
   Ok(Json(cairn_publish::check(&state.db, &state.pool, &state.api_checks.anchors()).await?))
+}
+
+#[derive(Serialize, ToSchema)]
+struct ReleaseRow {
+  release: Release,
+  /// 1 for the first release that went live; stays with its release.
+  number: u32,
+  /// Titles of the pages that changed compared with the release it was built on: edited, new or removed.
+  changes: Vec<String>,
+  /// The name of whoever published it.
+  published_by: String,
+  /// Whether it can be rolled back to now: it was the site and is not any more.
+  can_roll_back: bool,
+  /// Whether rolling back gives back exactly the files that were published, rather than rendering the release again from its content.
+  exact: bool,
+}
+
+/// The latest releases that were the live site, newest first, for the Releases settings and rollback.
+#[utoipa::path(get, path = "/api/releases", operation_id = "listReleases", responses((status = 200, body = Vec<ReleaseRow>)))]
+#[instrument(skip_all)]
+async fn releases(State(state): State<AppState>) -> Result<Json<Vec<ReleaseRow>>, AppError> {
+  let mut rows = Vec::new();
+  for entry in cairn_store::release_log(&state.db).await? {
+    let can_roll_back = entry.release.status == ReleaseStatus::Superseded;
+    rows.push(ReleaseRow {
+      published_by: crate::me::display_name(&state, entry.release.created_by).await?,
+      exact: can_roll_back && state.publisher.rolls_back_exactly(entry.release.id).await?,
+      can_roll_back,
+      number: entry.number,
+      changes: entry.changes,
+      release: entry.release,
+    });
+  }
+
+  Ok(Json(rows))
+}
+
+/// Makes an earlier release the live site again. Drafts are untouched, and what was published after it shows as pending.
+#[utoipa::path(post, path = "/api/releases/{id}/rollback", operation_id = "rollbackRelease", params(("id" = ReleaseId, Path)), responses(
+  (status = 200, body = Release, description = "the release that is the site now: the one asked for, or a new one rendered from its content"),
+  (status = 404, body = ErrorBody),
+  (status = 422, body = ErrorBody, description = "the release is the live site already, or never was the site"),
+))]
+#[instrument(skip_all)]
+async fn rollback(State(state): State<AppState>, CurrentUser(user): CurrentUser, Path(id): Path<ReleaseId>) -> Result<Json<Release>, AppError> {
+  Ok(Json(state.publisher.rollback(user, id).await?))
 }
