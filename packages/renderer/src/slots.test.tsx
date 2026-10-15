@@ -27,7 +27,7 @@ test("a Footer slot replaces the default footer, and can wrap it", () => {
   expect(replaced).not.toContain("Default footer text");
 
   const wrapped = render({ Footer: defineSlot("Footer", ({ children }) => <div className="wrap">{children}</div>) });
-  expect(wrapped).toContain('<div class="wrap"><footer class="site-footer"');
+  expect(wrapped).toContain('<div class="wrap"><footer class="site-footer ');
 });
 
 test("the other slots land in their place, and NotFound only on the not-found page", () => {

@@ -227,7 +227,7 @@ function Editor() {
         )}
         <div className="flex flex-none items-center gap-3 ml-auto whitespace-nowrap">
           {published !== null && <span className="text-muted narrow:hidden">Published {published} pages</span>}
-          <ThemeToggle />
+          <ThemeToggle className="w-8 h-8 ml-0 [&_svg]:flex-none [&_svg]:text-muted" />
           <UserMenu />
           {narrow ? (
             <details data-menu className={ui.menu}>

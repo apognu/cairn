@@ -36,7 +36,7 @@ test("changing the accent color, name and logo reaches every published page", as
     const html = readFileSync(`.e2e-data/site/${slug}/index.html`, "utf8");
     expect(html, slug).toContain("--accent-base:#aa3300");
     expect(html, slug).toContain(`Halyard ${tag}`);
-    expect(html, slug).toContain('class="site-logo"');
+    expect(html, slug).toContain('class="site-logo ');
   }
 
   const reader = await page.context().newPage();

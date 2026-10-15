@@ -17,5 +17,5 @@ test("publishing writes one page per page, with its text", async ({ page }) => {
 
   const html = readFileSync(`.e2e-data/site/${slug}/index.html`, "utf8");
   expect(html).toContain("Hello from the editor");
-  expect(html).toContain('<h1 class="doc-title">');
+  expect(html).toContain('<h1 class="doc-title ');
 });

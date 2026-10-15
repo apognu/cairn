@@ -11,8 +11,11 @@ const glyphs: Record<ThemeChoice, string> = {
   dark: "M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z",
 };
 
-/** Cycles system, light and dark. The server renders "system"; the saved choice shows once the page is running. */
-export function ThemeToggle() {
+/**
+ * Cycles system, light and dark. The server renders "system"; the saved choice shows once the page is running. `className` replaces its
+ * size and spacing in the site header, for a place that sets its own (the editor's top bar).
+ */
+export function ThemeToggle({ className = "w-8.5 h-8.5 ml-3 phone:ml-2" }: { className?: string }) {
   const [choice, setChoice] = useState<ThemeChoice>("system");
   useEffect(() => setChoice(readTheme()), []);
   const label = `Theme: ${labels[choice]}. Change theme`;
@@ -20,7 +23,7 @@ export function ThemeToggle() {
   return (
     <button
       type="button"
-      className="theme-toggle"
+      className={`theme-toggle flex flex-none items-center justify-center p-0 border border-input rounded-lg bg-bg text-text cursor-pointer hover:bg-hover ${className}`}
       aria-label={label}
       title={label}
       onClick={() => {

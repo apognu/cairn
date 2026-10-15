@@ -203,19 +203,6 @@
   text-underline-offset: 3px;
 }
 
-/* The theme toggle matches the top bar's 32px buttons.
-   TODO(M6b.8): the renderer's theme toggle takes classes once the site moves to utilities. */
-.topbar .theme-toggle {
-  width: 32px;
-  height: 32px;
-  margin-left: 0;
-}
-
-.topbar .theme-toggle svg {
-  flex: none;
-  color: var(--muted);
-}
-
 /* Sidebar (270px) and settings column (420px) leave the page less than 900px: the section list would squeeze the text under about 600px. */
 @media (max-width: 1600px) {
   .site[data-embedded] .site-body {

@@ -48,6 +48,11 @@
   --color-warn-icon: var(--warn-icon);
 }
 
+/* The site's breakpoints, as `max-width` like the rest of its rules: the side columns narrow, then fold away, then the header empties. */
+@custom-variant compact (@media (max-width: 1360px));
+@custom-variant tablet (@media (max-width: 900px));
+@custom-variant phone (@media (max-width: 600px));
+
 /* The same three cases as the tokens: the system preference unless light was chosen, or dark chosen. */
 @custom-variant dark {
   @media (prefers-color-scheme: dark) {

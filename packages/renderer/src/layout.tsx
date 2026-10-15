@@ -9,7 +9,7 @@ import type { NavNode, RenderContext, SiteImage } from "./types";
 function ExternalMark() {
   return (
     <svg
-      className="external-mark"
+      className="ml-1.5 text-muted"
       width="12"
       height="12"
       viewBox="0 0 24 24"
@@ -48,7 +48,15 @@ function Slot({
 
 function SiteLogo({ image, mode }: { image: SiteImage; mode?: "light" | "dark" }) {
   return (
-    <img className="site-logo" data-mode={mode} src={image.src} width={image.width} height={image.height} alt="" />
+    <img
+      // With both logos, each shows only in its own mode.
+      className={`site-logo h-6 w-auto ${mode === "dark" ? "hidden dark:block" : mode === "light" ? "dark:hidden" : ""}`}
+      data-mode={mode}
+      src={image.src}
+      width={image.width}
+      height={image.height}
+      alt=""
+    />
   );
 }
 
@@ -60,16 +68,18 @@ function SiteFooter({ footer }: { footer: NonNullable<RenderContext["site"]["foo
   if (!footer.text && footer.columns.length === 0) return null;
 
   return (
-    <footer className="site-footer" data-pagefind-ignore="">
+    <footer className="site-footer py-8 px-4 border-t border-border bg-side text-muted text-ui" data-pagefind-ignore="">
       {footer.columns.length > 0 && (
-        <div className="site-footer-columns">
+        <div className="flex flex-wrap gap-x-16 gap-y-8 mb-5">
           {footer.columns.map((column) => (
             <nav key={column.title} aria-label={column.title}>
-              <h2>{column.title}</h2>
-              <ul>
+              <h2 className="mt-0 mb-2 text-text text-help font-semibold">{column.title}</h2>
+              <ul className="m-0 p-0 list-none">
                 {column.links.map((link) => (
-                  <li key={link.url + link.label}>
-                    <a href={link.url}>{link.label}</a>
+                  <li key={link.url + link.label} className="my-1 mx-0">
+                    <a href={link.url} className="text-muted">
+                      {link.label}
+                    </a>
                   </li>
                 ))}
               </ul>
@@ -77,22 +87,35 @@ function SiteFooter({ footer }: { footer: NonNullable<RenderContext["site"]["foo
           ))}
         </div>
       )}
-      {footer.text && <p>{footer.text}</p>}
+      {footer.text && <p className="m-0">{footer.text}</p>}
     </footer>
   );
 }
 
-function NavList({ nodes, currentId }: { nodes: NavNode[]; currentId?: string }) {
+/** A link of the navigation panel; `look` is its display and anything that sets it apart. */
+const navLink = (look = "block") =>
+  `${look} my-0.5 mx-0 py-1 px-2.5 rounded-md text-body no-underline hover:bg-hover aria-[current=page]:bg-hover aria-[current=page]:font-semibold tablet:py-1.75`;
+const navList = "list-none m-0 p-0";
+
+function NavList({ nodes, currentId, nested = false }: { nodes: NavNode[]; currentId?: string; nested?: boolean }) {
   return (
-    <ul>
+    <ul className={`${navList} ${nested ? "pl-3.5" : ""}`}>
       {nodes.map((node) => (
         <li key={node.id}>
-          <a href={node.href} aria-current={node.id === currentId ? "page" : undefined}>
+          <a
+            href={node.href}
+            className={navLink(node.badge ? "flex items-center gap-2" : "block")}
+            aria-current={node.id === currentId ? "page" : undefined}
+          >
             {node.title}
             {node.external && <ExternalMark />}
-            {node.badge && <span className="nav-badge">{node.badge}</span>}
+            {node.badge && (
+              <span className="ml-auto px-1.75 rounded-full bg-[color-mix(in_srgb,var(--accent)_14%,var(--bg))] text-accent text-[11px] font-semibold leading-[18px]">
+                {node.badge}
+              </span>
+            )}
           </a>
-          {node.children.length > 0 && <NavList nodes={node.children} currentId={currentId} />}
+          {node.children.length > 0 && <NavList nodes={node.children} currentId={currentId} nested />}
         </li>
       ))}
     </ul>
@@ -137,7 +160,7 @@ function load(tag: "script" | "link", url: string): Promise<void> {
 }
 
 /** Search over the Pagefind index of the published site. Loaded after hydration, so it never disturbs the server-rendered markup. */
-function SearchBox() {
+function SearchBox({ afterLinks }: { afterLinks: boolean }) {
   const container = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -153,7 +176,13 @@ function SearchBox() {
       .catch(() => {});
   }, []);
 
-  return <div className="site-search" ref={container} />;
+  // Both want the free space of the header: the links take it, and the search follows them.
+  return (
+    <div
+      className={`site-search relative w-[min(260px,40vw)] ${afterLinks ? "ml-0" : "ml-auto"} phone:flex-1 phone:w-auto phone:min-w-0 phone:ml-3`}
+      ref={container}
+    />
+  );
 }
 
 /** The section being read: the last heading scrolled past the top of the window, or the first one. */
@@ -201,6 +230,18 @@ function ImageZoom({ image, onClose }: { image: { src: string; alt: string }; on
     </dialog>
   );
 }
+
+/**
+ * The navigation as a panel over the page, under the header, while the menu button has it open on a narrow screen. A grid item keeps its
+ * own alignment even when fixed: "start" would size the panel to its content.
+ */
+const navPanel =
+  "tablet:block tablet:fixed tablet:self-stretch tablet:inset-x-0 tablet:top-13 tablet:bottom-0 tablet:z-15 tablet:h-auto tablet:pt-3 tablet:px-4 tablet:pb-8 tablet:border-r-0 tablet:text-[15px]";
+/** The sections and header links, which the header has no room for on a phone: the menu panel carries them instead. */
+const navSections = "hidden phone:block mt-0 mx-0 mb-3 pt-0 px-0 pb-3 border-b border-border list-none";
+const pagerLink =
+  "block py-3.5 px-4.5 border border-border rounded-[10px] text-text font-semibold no-underline hover:border-accent";
+const pagerLabel = "block text-muted text-help font-normal";
 
 /** The site chrome around a page body: header, navigation, title and table of contents. */
 export function SiteLayout({
@@ -270,20 +311,29 @@ export function SiteLayout({
     return () => document.removeEventListener("click", onClick);
   }, [embedded]);
 
+  const api = Boolean(context.api);
+  const headerLinks = (context.site.headerLinks ?? []).length > 0;
+  // The page tree and the table of contents beside the reading column; an API reference uses the whole width beside the navigation.
+  // In the editor (embedded) there is no tree, and the editor narrows it further itself.
+  const columns = embedded
+    ? "grid-cols-[minmax(0,1fr)_var(--toc-width)]"
+    : `${api ? "grid-cols-[var(--nav-width)_minmax(0,1fr)]" : "grid-cols-[var(--nav-width)_minmax(0,1fr)_var(--toc-width)]"} tablet:grid-cols-[minmax(0,1fr)]`;
+
   return (
     <div
-      className="site"
+      // The side columns widen only where the reading column keeps its full width (808px, plus both of them).
+      className="site [--nav-width:280px] [--toc-width:240px] compact:[--nav-width:250px] compact:[--toc-width:200px]"
       data-embedded={embedded || undefined}
       data-api={context.api ? "" : undefined}
       data-nav-open={navOpen || undefined}
     >
       {!embedded && (
         <Slot name="Header" slots={slots} context={context}>
-          <header className="site-header">
+          <header className="site-header sticky top-0 z-20 flex items-center h-13 px-4 border-b border-border bg-bg">
             <button
               ref={navToggle}
               type="button"
-              className="nav-toggle"
+              className="nav-toggle hidden tablet:flex items-center justify-center w-9 h-9 mr-2 -ml-2 p-0 border-0 rounded-lg bg-transparent text-text cursor-pointer hover:bg-hover"
               aria-label="Menu"
               aria-expanded={navOpen}
               aria-controls={navId}
@@ -301,7 +351,7 @@ export function SiteLayout({
                 <path d={navOpen ? "M6 6l12 12M18 6L6 18" : "M4 7h16M4 12h16M4 17h16"} strokeLinecap="round" />
               </svg>
             </button>
-            <a href="/" className="site-name">
+            <a href="/" className="site-name flex items-center gap-2 font-bold text-text no-underline phone:flex-none">
               {context.site.logo && (
                 <SiteLogo image={context.site.logo} mode={context.site.logoDark ? "light" : undefined} />
               )}
@@ -309,41 +359,59 @@ export function SiteLayout({
               {context.site.name}
             </a>
             {context.header.length > 0 && (
-              <nav className="site-sections" aria-label="Sections">
+              // On a phone the sections move into the menu panel.
+              <nav className="site-sections flex self-stretch gap-1 ml-6 phone:hidden" aria-label="Sections">
                 {context.header.map((item) => (
-                  <a key={item.id} href={item.href} aria-current={item.id === context.section ? "page" : undefined}>
+                  <a
+                    key={item.id}
+                    href={item.href}
+                    className="flex items-center px-3 text-muted text-[14.5px] no-underline aria-[current=page]:text-text aria-[current=page]:font-semibold aria-[current=page]:shadow-[inset_0_-2px_0_var(--accent)]"
+                    aria-current={item.id === context.section ? "page" : undefined}
+                  >
                     {item.title}
                   </a>
                 ))}
               </nav>
             )}
-            {context.site.headerLinks && context.site.headerLinks.length > 0 && (
-              <nav className="site-links" aria-label="Links">
+            {context.site.headerLinks && headerLinks && (
+              <nav className="site-links flex gap-1 ml-auto pr-2 phone:hidden" aria-label="Links">
                 {context.site.headerLinks.map((link) => (
-                  <a key={link.url + link.label} href={link.url}>
+                  <a
+                    key={link.url + link.label}
+                    href={link.url}
+                    className="flex items-center gap-1 py-1.5 px-2.5 rounded-md text-muted text-[14.5px] no-underline hover:bg-hover hover:text-text"
+                  >
                     {link.label}
                     {isExternal(link.url) && <ExternalMark />}
                   </a>
                 ))}
               </nav>
             )}
-            <SearchBox />
+            <SearchBox afterLinks={headerLinks} />
             <ThemeToggle />
           </header>
         </Slot>
       )}
       {!embedded && toc.length > 0 && (
         // Narrow screens have no column for the table of contents: it folds into a bar under the header.
-        <details className="toc-bar" open={tocOpen} onToggle={(e) => setTocOpen(e.currentTarget.open)}>
-          <summary>
-            <span className="muted">On this page:</span>
-            <strong>{toc.find((h) => h.anchor === active)?.text ?? toc[0].text}</strong>
+        <details
+          className="toc-bar group/toc hidden tablet:block sticky top-13 z-10 border-b border-border bg-side text-ui"
+          open={tocOpen}
+          onToggle={(e) => setTocOpen(e.currentTarget.open)}
+        >
+          {/* A chevron after the heading turns when the list is open. */}
+          <summary className="flex items-center gap-1.5 py-2.5 px-4 list-none cursor-pointer [&::-webkit-details-marker]:hidden after:content-[''] after:flex-none after:w-[7px] after:h-[7px] after:-mt-[3px] after:mr-0.5 after:ml-auto after:border-r-[1.5px] after:border-b-[1.5px] after:border-muted after:rotate-45 group-open/toc:after:mt-[3px] group-open/toc:after:-rotate-135">
+            <span className="text-muted">On this page:</span>
+            <strong className="overflow-hidden text-ellipsis whitespace-nowrap">
+              {toc.find((h) => h.anchor === active)?.text ?? toc[0].text}
+            </strong>
           </summary>
-          <ul>
+          <ul className="max-h-[50vh] overflow-y-auto m-0 pt-0 px-4 pb-3 list-none">
             {toc.map((h) => (
-              <li key={h.anchor} data-level={h.level}>
+              <li key={h.anchor} className={h.level === 3 ? "pl-3" : undefined} data-level={h.level}>
                 <a
                   href={`#${h.anchor}`}
+                  className="block py-1.5 px-0 text-body no-underline aria-[current=location]:text-accent aria-[current=location]:font-semibold"
                   aria-current={h.anchor === active ? "location" : undefined}
                   onClick={() => setTocOpen(false)}
                 >
@@ -354,14 +422,23 @@ export function SiteLayout({
           </ul>
         </details>
       )}
-      <div className="site-body">
+      <div className={`site-body grid ${columns}`}>
         {!embedded && (
-          <nav className="site-nav" id={navId} aria-label="Pages">
+          <nav
+            // Stays in view and fills the height under the header; on narrow screens it opens as a panel over the page.
+            className={`site-nav sticky top-13 self-start h-[calc(100vh-52px)] overflow-y-auto py-3 px-2 border-r border-border bg-side text-ui ${navOpen ? navPanel : "tablet:hidden"}`}
+            id={navId}
+            aria-label="Pages"
+          >
             {context.header.length > 0 && (
-              <ul className="site-nav-sections">
+              <ul className={`site-nav-sections ${navSections} font-semibold`}>
                 {context.header.map((item) => (
                   <li key={item.id}>
-                    <a href={item.href} aria-current={item.id === context.section ? "page" : undefined}>
+                    <a
+                      href={item.href}
+                      className={navLink()}
+                      aria-current={item.id === context.section ? "page" : undefined}
+                    >
                       {item.title}
                     </a>
                   </li>
@@ -370,10 +447,10 @@ export function SiteLayout({
             )}
             {context.site.headerLinks && context.site.headerLinks.length > 0 && (
               // The header has no room for its links on narrow screens: the menu panel carries them instead.
-              <ul className="site-nav-sections site-nav-links">
+              <ul className={`site-nav-sections site-nav-links ${navSections}`}>
                 {context.site.headerLinks.map((link) => (
                   <li key={link.url + link.label}>
-                    <a href={link.url}>
+                    <a href={link.url} className={navLink()}>
                       {link.label}
                       {isExternal(link.url) && <ExternalMark />}
                     </a>
@@ -383,7 +460,10 @@ export function SiteLayout({
             )}
             {context.sectionBack && (
               // A section's sidebar lists only that section: this is the way back to the rest of the site.
-              <a className="site-nav-back" href={context.sectionBack.href}>
+              <a
+                className="site-nav-back flex items-center gap-1.5 mt-0.5 mx-0 mb-2 pt-1 tablet:pt-1.75 pb-2 px-2.5 border-b border-border text-muted text-help no-underline hover:text-body"
+                href={context.sectionBack.href}
+              >
                 <svg
                   width="14"
                   height="14"
@@ -404,24 +484,47 @@ export function SiteLayout({
             <Slot name="SidebarFooter" slots={slots} context={context} />
           </nav>
         )}
-        <main className="doc" data-pagefind-body={context.page.id ? "" : undefined}>
+        <main
+          className={`doc w-full mx-auto ${api ? "max-w-none p-0" : "max-w-[808px] py-10 px-12 tablet:py-6 tablet:px-4"}`}
+          data-pagefind-body={context.page.id ? "" : undefined}
+        >
+          {/* Scalar has its own title, so an API reference hides both (the title is still indexed for search). */}
           {!embedded && context.breadcrumbs.length > 0 && (
-            <nav className="breadcrumbs" aria-label="Breadcrumb" data-pagefind-ignore="">
+            <nav
+              className={`breadcrumbs ${api ? "hidden" : "flex"} flex-wrap gap-x-1.5 mb-2 leading-[22px] text-muted text-ui`}
+              aria-label="Breadcrumb"
+              data-pagefind-ignore=""
+            >
               {context.breadcrumbs.map((crumb) => (
                 <span key={crumb.href}>
-                  <a href={crumb.href}>{crumb.title}</a>
+                  <a href={crumb.href} className="text-muted no-underline hover:text-text">
+                    {crumb.title}
+                  </a>
                   <span aria-hidden="true"> / </span>
                 </span>
               ))}
-              <span>{context.page.title}</span>
+              <span className="text-body">{context.page.title}</span>
             </nav>
           )}
-          {context.page.title ? <h1 className="doc-title">{context.page.title}</h1> : null}
+          {context.page.title ? (
+            <h1 className={`doc-title mt-0 mb-4 text-[40px] leading-[1.15] tracking-[-0.025em] ${api ? "hidden" : ""}`}>
+              {context.page.title}
+            </h1>
+          ) : null}
           {lead ?? (context.page.description ? <p className="doc-lead">{context.page.description}</p> : null)}
           {!embedded && (context.updated || context.markdown) && (
-            <div className="doc-meta" data-pagefind-ignore="">
+            // Whole-pixel line heights keep everything below at whole-pixel positions, so text is drawn the same wherever the page is
+            // compared.
+            <div
+              className="doc-meta flex flex-wrap items-center gap-x-4 gap-y-1 mb-2 pb-5 border-b border-border leading-[22px] text-muted text-[13.5px]"
+              data-pagefind-ignore=""
+            >
               {context.updated && <span>Last updated {longDate(context.updated)}</span>}
-              {context.markdown && <a href={context.markdown}>View as Markdown</a>}
+              {context.markdown && (
+                <a href={context.markdown} className="ml-auto text-muted">
+                  View as Markdown
+                </a>
+              )}
             </div>
           )}
           <div className="doc-content">
@@ -434,18 +537,27 @@ export function SiteLayout({
             )}
           </div>
           {!embedded && (context.previous || context.next) && (
-            <nav className="pager" aria-label="Previous and next page" data-pagefind-ignore="">
+            <nav
+              className="pager grid grid-cols-2 gap-3.5 mt-10"
+              aria-label="Previous and next page"
+              data-pagefind-ignore=""
+            >
               {context.previous ? (
-                <a href={context.previous.href} rel="prev">
-                  <span>Previous</span>
+                <a href={context.previous.href} rel="prev" className={pagerLink}>
+                  <span className={pagerLabel}>Previous</span>
                   {context.previous.title}
                 </a>
               ) : (
                 <span />
               )}
               {context.next ? (
-                <a href={context.next.href} rel="next" data-side="next">
-                  <span>Next</span>
+                <a
+                  href={context.next.href}
+                  rel="next"
+                  className={`${pagerLink} col-start-2 text-right`}
+                  data-side="next"
+                >
+                  <span className={pagerLabel}>Next</span>
                   {context.next.title}
                 </a>
               ) : (
@@ -455,12 +567,20 @@ export function SiteLayout({
           )}
           {!embedded && <Slot name="PageFooter" slots={slots} context={context} />}
         </main>
-        <aside className="site-toc" aria-label="On this page">
+        <aside
+          // Stays in view while the page scrolls under it.
+          className={`site-toc sticky top-13 self-start max-h-[calc(100vh-52px)] overflow-y-auto py-10 px-4 text-[13.5px] ${api ? "hidden" : "tablet:hidden"}`}
+          aria-label="On this page"
+        >
           {toc.length > 0 && (
-            <ul>
+            <ul className={navList}>
               {toc.map((h) => (
-                <li key={h.anchor} data-level={h.level}>
-                  <a href={`#${h.anchor}`} aria-current={h.anchor === active ? "location" : undefined}>
+                <li key={h.anchor} className={h.level === 3 ? "pl-3" : undefined} data-level={h.level}>
+                  <a
+                    href={`#${h.anchor}`}
+                    className="block py-0.5 px-0 text-muted no-underline aria-[current=location]:text-accent aria-[current=location]:font-semibold"
+                    aria-current={h.anchor === active ? "location" : undefined}
+                  >
                     {h.text}
                   </a>
                 </li>
