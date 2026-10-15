@@ -96,7 +96,7 @@ test("a link card shows the title and description of the page it points to", asy
 
   // Written in place, under the title, where readers see it as the lead.
   await page.getByRole("button", { name: target, exact: true }).click();
-  await page.locator(".canvas").getByLabel("Description").fill("What the target page is about");
+  await page.getByRole("main").first().getByLabel("Description").fill("What the target page is about");
   await page.keyboard.press("Enter");
 
   await page.getByRole("button", { name: host, exact: true }).click();

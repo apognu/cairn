@@ -193,7 +193,7 @@ function Banner({
   children: React.ReactNode;
 }) {
   return (
-    <output className="lock-banner">
+    <output className="lock-banner" data-testid="lock-banner">
       {avatar && (
         <span className="avatar" aria-hidden="true">
           {avatar}

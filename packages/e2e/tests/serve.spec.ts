@@ -16,7 +16,7 @@ test("sign in, write, publish, read anonymously, and sign out", async ({ page, b
   await page.locator("input[name=password]").fill("password");
   await page.locator("button[type=submit]").click();
 
-  await expect(page.locator(".user-menu summary")).toHaveText("alice");
+  await expect(page.getByLabel(/^Account: /)).toHaveText("alice");
   await page.getByRole("button", { name: "New page" }).click();
   await nameNewPage(page, slug);
   await page.getByRole("button", { name: slug, exact: true }).click();
@@ -82,7 +82,7 @@ test("sign in, write, publish, read anonymously, and sign out", async ({ page, b
   expect(forged.status()).toBe(403);
 
   // Signing out ends the session.
-  await page.locator(".user-menu summary").click();
+  await page.getByLabel(/^Account: /).click();
   await page.getByRole("button", { name: "Sign out" }).click();
   await expect(page.getByText("You are signed out")).toBeVisible();
   expect((await page.request.get(`${SERVER}/_editor/api/pages`)).status()).toBe(401);

@@ -168,7 +168,7 @@ function Editor() {
           <Icon name="logo" size={20} />
           <strong>{settings.data?.site_name ?? "Documentation"}</strong>
         </span>
-        <span className="crumbs">
+        <span className="crumbs" data-testid="crumbs">
           {section ? `Settings / ${sectionTitle[section]}` : trail.length > 0 ? trail.join(" / ") : "No page selected"}
         </span>
         {status && (

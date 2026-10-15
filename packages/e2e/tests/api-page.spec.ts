@@ -15,7 +15,7 @@ test("an API page is created, saved, moved, promoted and restored like a page", 
   await page.getByRole("button", { name: "New API reference" }).click();
   await page.getByLabel("New API reference title").fill(title);
   await page.keyboard.press("Enter");
-  await expect(page.locator(".crumbs")).toContainText(title);
+  await expect(page.getByTestId("crumbs")).toContainText(title);
 
   // The settings form replaces the canvas; sources are saved explicitly.
   await page.getByRole("button", { name: "+ Add URL source" }).click();

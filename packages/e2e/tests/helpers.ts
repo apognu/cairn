@@ -85,5 +85,5 @@ export async function publishFixture(request: APIRequestContext, name: string): 
 export async function nameNewPage(page: Page, title: string) {
   await page.getByLabel("New page title").fill(title);
   await page.keyboard.press("Enter");
-  await expect(page.locator(".crumbs")).toContainText(title);
+  await expect(page.getByTestId("crumbs")).toContainText(title);
 }
