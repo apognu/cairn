@@ -70,3 +70,18 @@ export const tinyButton =
 export const dialog =
   "w-120 p-6 border border-border rounded-[14px] shadow-dialog bg-bg text-text text-ui leading-[1.4] backdrop:bg-[rgb(0_0_0/40%)]";
 export const dialogTitle = "mt-0 mb-4.5 text-[20px] tracking-[-0.01em]";
+
+/** The dot of a page or section with unpublished changes. */
+export const dot = "flex-none w-1.5 h-1.5 ml-1 mr-2 rounded-full bg-accent";
+
+/**
+ * A `<details data-menu>` menu: its summary, and the panel (`data-menu-pop`) that opens under it. `menus.ts` closes it on a click
+ * elsewhere; `placeMenu` sets `data-up` to open the panel above.
+ */
+export const menu = "group/menu relative";
+export const menuSummary =
+  "flex items-center justify-center w-6 h-6 rounded-[5px] text-muted cursor-pointer list-none hover:bg-border hover:text-text [&::-webkit-details-marker]:hidden";
+export const menuPop =
+  "absolute z-10 top-7 right-0 flex flex-col min-w-35 p-1 border border-input rounded-lg bg-bg shadow-popover text-text font-normal group-data-up/menu:top-auto group-data-up/menu:bottom-7";
+export const menuItem = "py-1.5 px-2.5 border-0 rounded-[5px] bg-transparent text-left cursor-pointer hover:bg-hover";
+export const menuRule = "w-full mx-0 my-1 border-0 border-t border-border";

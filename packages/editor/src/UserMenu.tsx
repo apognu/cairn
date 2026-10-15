@@ -27,11 +27,11 @@ export function UserMenu() {
   };
 
   return (
-    <details className="menu user-menu">
+    <details data-menu className="menu user-menu">
       <summary aria-label={`Account: ${me.data.name}`} title={me.data.email || me.data.name}>
         {me.data.name}
       </summary>
-      <div className="menu-pop">
+      <div data-menu-pop className="menu-pop">
         {me.data.email && <p className="menu-note">{me.data.email}</p>}
         {me.data.email && <hr />}
         <button type="button" onClick={() => void signOut()}>

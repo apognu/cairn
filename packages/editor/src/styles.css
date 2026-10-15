@@ -6,7 +6,7 @@
 @reference "@cairn/renderer/tailwind.css";
 @source "./**/*.{ts,tsx}";
 
-/* The colors of change badges exist in the editor only, so they are not in the shared theme. */
+/* Colors that exist in the editor only, so they are not in the shared theme. */
 @theme inline {
   --color-badge-new: var(--badge-new);
   --color-badge-new-bg: var(--badge-new-bg);
@@ -16,6 +16,12 @@
   --color-badge-move-bg: var(--badge-move-bg);
   --color-badge-del: var(--badge-del);
   --color-badge-del-bg: var(--badge-del-bg);
+
+  /* The drag hint is dark in both modes. */
+  --color-toast: #16181a;
+  --color-toast-text: #f2f3f0;
+  --color-toast-muted: #b3bac1;
+  --color-toast-icon: #5fd3a6;
 }
 
 /* A select draws like the text fields beside it, with a chevron in the theme's color rather than the system's arrow. */
@@ -62,8 +68,7 @@
 }
 
 /* The document keeps the site's 16px; only the editor's own chrome is smaller. */
-.topbar,
-.sidebar {
+.topbar {
   font-size: 14px;
   line-height: 1.4;
 }
@@ -200,122 +205,6 @@
   color: var(--warn-icon);
 }
 
-.sidebar {
-  background: var(--bg-side);
-  border-right: 1px solid var(--border);
-  overflow-y: auto;
-  padding: 12px 8px;
-}
-
-.sidebar-head {
-  display: flex;
-  gap: 6px;
-  margin: 0 2px 6px;
-}
-
-.sidebar-head input {
-  flex: 1;
-  min-width: 0;
-  height: 32px;
-  padding: 0 10px;
-  border: 1px solid var(--border-input);
-  border-radius: 6px;
-  background: var(--bg);
-  font-size: 13.5px;
-}
-
-.new-page {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border: 1px solid var(--border-input);
-  border-radius: 6px;
-  background: var(--bg);
-  cursor: pointer;
-}
-
-.sidebar ul {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.row {
-  position: relative;
-  display: flex;
-  align-items: center;
-  min-height: 30px;
-  padding-right: 4px;
-  border-radius: 6px;
-}
-
-.row:hover,
-.row:focus-within,
-.row[data-selected="true"] {
-  background: var(--hover);
-}
-
-.row .title {
-  flex: 1;
-  min-width: 0;
-  text-align: left;
-  background: none;
-  border: 0;
-  padding: 4px 0;
-  cursor: pointer;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.row[data-selected="true"] {
-  background: var(--accent-soft);
-  color: var(--accent);
-}
-
-.row[data-selected="true"] .title {
-  font-weight: 600;
-}
-
-/* Top-level pages read as the sidebar's section headings. */
-.row[data-depth="0"] {
-  margin-top: 14px;
-}
-
-.row[data-depth="0"] .title {
-  font-size: 11.5px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-.row[data-depth="0"][data-selected="true"] .title {
-  color: var(--accent);
-}
-
-/* Floats over the end of the row so titles keep their width. Hidden by opacity, not display, so keyboard users can still tab to the buttons. */
-.actions {
-  position: absolute;
-  right: 4px;
-  display: flex;
-  gap: 2px;
-  padding-left: 4px;
-  background: var(--hover);
-  border-radius: 6px;
-  opacity: 0;
-  pointer-events: none;
-}
-
-.row:hover .actions,
-.row:focus-within .actions,
-.actions:has(.menu[open]) {
-  opacity: 1;
-  pointer-events: auto;
-}
-
 .menu {
   position: relative;
 }
@@ -431,27 +320,6 @@
 .icon:hover {
   background: var(--border);
   color: var(--text);
-}
-
-.title-form {
-  flex: 1;
-}
-
-.title-form input {
-  width: 100%;
-  height: 28px;
-  padding: 0 8px;
-  border: 1px solid var(--border-input);
-  border-radius: 6px;
-  background: var(--bg);
-}
-
-.error {
-  margin: 4px 8px;
-  padding: 6px 8px;
-  border: 1px solid var(--danger);
-  border-radius: 6px;
-  color: var(--danger);
 }
 
 /* Popovers anchored to text (menus, the link picker) are placed inside the pane, so they scroll with the text. */
@@ -1145,126 +1013,6 @@ button.primary:disabled {
   width: 100%;
 }
 
-/* Dragging a page in the tree: the old slot stays dashed, a line with a dot shows where it will land. */
-.row[data-dragging="true"] {
-  border: 1px dashed var(--border-input);
-  color: var(--muted);
-  background: none;
-}
-
-.row[data-drop="inside"] {
-  background: var(--accent-soft);
-  outline: 1px solid var(--accent);
-}
-
-.row[data-drop="before"]::before,
-.row[data-drop="after"]::before {
-  content: "";
-  position: absolute;
-  left: 18px;
-  right: 10px;
-  height: 2px;
-  border-radius: 1px;
-  background: var(--accent);
-  box-shadow:
-    -8px 0 0 -2px var(--bg-side),
-    -8px 0 0 0 var(--accent);
-}
-
-.row[data-drop="before"]::before {
-  top: -1px;
-}
-
-.row[data-drop="after"]::before {
-  bottom: -1px;
-}
-
-.row .title svg {
-  margin-left: 6px;
-  color: var(--muted);
-  vertical-align: -1px;
-}
-
-.title-form {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 2px 0;
-}
-
-.drag-card {
-  position: fixed;
-  top: -100px;
-  padding: 7px 12px;
-  border: 1px solid var(--border-input);
-  border-radius: 7px;
-  background: var(--bg);
-  box-shadow: 0 8px 20px rgba(16, 20, 22, 0.18);
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.drag-hint {
-  position: fixed;
-  bottom: 28px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 12px 16px;
-  border-radius: 10px;
-  background: #16181a;
-  color: #f2f3f0;
-  font-size: 14px;
-  box-shadow: 0 10px 30px rgba(16, 20, 22, 0.3);
-  pointer-events: none;
-}
-
-.drag-hint svg {
-  color: #5fd3a6;
-}
-
-.drag-hint span {
-  font-size: 12.5px;
-  color: #b3bac1;
-}
-
-.tree-lock {
-  display: flex;
-  flex: none;
-  margin: 0 4px;
-  color: var(--warn-icon);
-}
-
-.dot {
-  flex: none;
-  width: 6px;
-  height: 6px;
-  margin: 0 8px 0 4px;
-  border-radius: 50%;
-  background: var(--accent);
-}
-
-.drag-urls {
-  margin-top: 2px;
-  font-size: 13px;
-  color: #b3bac1;
-}
-
-.drag-urls code {
-  font-family: var(--font-mono);
-  font-size: 12.5px;
-}
-
-.keep-url {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12.5px;
-  color: var(--muted);
-}
-
 .settings.publish {
   width: 860px;
   max-width: calc(100vw - 32px);
@@ -1471,15 +1219,6 @@ button.primary:disabled {
   cursor: pointer;
 }
 
-.back {
-  margin: 0 2px 10px;
-  padding: 6px 8px;
-  border: 0;
-  background: none;
-  color: var(--muted);
-  cursor: pointer;
-}
-
 /* The page picker: a floating search with results, used by text links and component fields. */
 .picker {
   position: fixed;
@@ -1637,25 +1376,6 @@ button.primary:disabled {
   list-style: none;
 }
 
-.keep-url {
-  font-size: 12px;
-}
-
-.title-form input[type="checkbox"] {
-  width: auto;
-  height: auto;
-}
-
-.title-form input:not([type="checkbox"]) {
-  height: 26px;
-  font-size: 13px;
-}
-
-/* A row being renamed shows its form, not its buttons. */
-.row:has(.title-form) .actions {
-  display: none;
-}
-
 /* Section headings in the drawer: the same size and weight whether a legend or a heading. */
 .drawer legend,
 .drawer h3 {
@@ -1778,11 +1498,6 @@ button.primary:disabled {
   margin: 0 0 12px;
   padding: 0;
   list-style: none;
-}
-
-/* Settings sections reuse the tree's rows, at the inset of a top-level page. */
-.settings-nav .row {
-  padding-left: 10px;
 }
 
 /* A link to a page that was deleted: published as plain words, flagged here so the author fixes it. */
@@ -2039,21 +1754,6 @@ button.secondary:disabled {
 
 .editable:focus {
   outline: 2px solid var(--accent);
-}
-
-.new-menu summary {
-  width: 32px;
-  height: 32px;
-  border: 1px solid var(--border-input);
-  border-radius: 6px;
-  background: var(--bg);
-}
-
-.api-tag {
-  margin-right: 6px;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--accent);
 }
 
 .canvas[data-wide] {

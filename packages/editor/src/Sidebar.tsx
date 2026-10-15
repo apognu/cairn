@@ -2,7 +2,7 @@ import { useState } from "react";
 import { DeleteDialog } from "./DeleteDialog";
 import { Icon } from "./icons";
 import { useCreatePage, useDeletePage, useMovePage, usePending, useRenamePage } from "./queries";
-import { IconButton, MenuItem, placeMenu, TitleForm } from "./TreeParts";
+import { IconButton, MenuItem, placeMenu, rowClass, TitleForm, titleClass } from "./TreeParts";
 import {
   buildTree,
   type DropZone,
@@ -13,6 +13,7 @@ import {
   pageUrls,
   type TreeNode,
 } from "./tree";
+import * as ui from "./ui";
 import { markCreated, useLocks } from "./useLock";
 
 interface Props {
@@ -142,7 +143,12 @@ export function Sidebar({ pages, loading, selected, onSelect }: Props) {
       <li key={page.id}>
         {/* biome-ignore lint/a11y/noStaticElementInteractions: dragging is a pointer shortcut; the row menu has the same moves for the keyboard */}
         <div
-          className="row"
+          className={rowClass({
+            selected: selected === page.id,
+            depth,
+            dragging: drag?.id === page.id,
+            drop: drag?.over?.id === page.id && target ? drag.over.zone : undefined,
+          })}
           style={{ paddingLeft: rowIndent(depth) }}
           data-depth={Math.min(depth, 1)}
           data-selected={selected === page.id}
@@ -189,23 +195,23 @@ export function Sidebar({ pages, loading, selected, onSelect }: Props) {
           ) : (
             <button
               type="button"
-              className="title"
+              className={titleClass({ selected: selected === page.id, depth })}
               aria-current={selected === page.id}
               // A link has no content to edit: clicking it edits where it goes.
               onClick={() => (page.kind === "link" ? setEditing({ kind: "rename", id: page.id }) : onSelect(page.id))}
             >
               {page.kind === "api" && (
-                <span className="api-tag" aria-hidden="true">
+                <span className="mr-1.5 font-mono text-[11px] text-accent" aria-hidden="true">
                   API
                 </span>
               )}
               {page.title}
-              {page.kind === "link" && <Icon name="external" size={12} />}
+              {page.kind === "link" && <Icon name="external" size={12} className="ml-1.5 text-muted align-[-1px]" />}
             </button>
           )}
           {lockedBy.has(page.id) && (
             <span
-              className="tree-lock"
+              className="flex flex-none mx-1 text-warn-icon"
               role="img"
               aria-label={`Locked by ${lockedBy.get(page.id)}`}
               title={`${lockedBy.get(page.id)} is editing`}
@@ -213,8 +219,11 @@ export function Sidebar({ pages, loading, selected, onSelect }: Props) {
               <Icon name="lock" size={13} />
             </span>
           )}
-          {changed.has(page.id) && <span className="dot" role="img" aria-label="Unpublished changes" />}
-          <span className="actions">
+          {changed.has(page.id) && <span className={ui.dot} role="img" aria-label="Unpublished changes" />}
+          {/* Floats over the end of the row so titles keep their width. Hidden by opacity, not display, so keyboard users can tab to it. */}
+          <span
+            className={`absolute right-1 gap-0.5 pl-1 bg-hover rounded-md opacity-0 pointer-events-none group-hover/row:opacity-100 group-hover/row:pointer-events-auto group-focus-within/row:opacity-100 group-focus-within/row:pointer-events-auto has-[details[open]]:opacity-100 has-[details[open]]:pointer-events-auto ${isEditing && editing.kind === "rename" ? "hidden" : "flex"}`}
+          >
             {page.kind !== "link" && (
               <IconButton
                 label={`Add a subpage to ${page.title}`}
@@ -222,11 +231,11 @@ export function Sidebar({ pages, loading, selected, onSelect }: Props) {
                 onClick={() => setEditing({ kind: "create", parent: page.id })}
               />
             )}
-            <details className="menu" onToggle={placeMenu}>
-              <summary aria-label={`More actions for ${page.title}`} title="More actions">
+            <details data-menu className={ui.menu} onToggle={placeMenu}>
+              <summary className={ui.menuSummary} aria-label={`More actions for ${page.title}`} title="More actions">
                 ⋯
               </summary>
-              <div className="menu-pop">
+              <div data-menu-pop className={ui.menuPop}>
                 <MenuItem
                   label={`Rename ${page.title}`}
                   text={page.kind === "link" ? "Edit link" : "Rename"}
@@ -250,7 +259,7 @@ export function Sidebar({ pages, loading, selected, onSelect }: Props) {
                 <MenuItem label={`Move ${page.title} down`} text="Move down" onClick={() => doMove(page.id, "down")} />
                 <MenuItem label={`Indent ${page.title}`} text="Indent" onClick={() => doMove(page.id, "indent")} />
                 <MenuItem label={`Outdent ${page.title}`} text="Outdent" onClick={() => doMove(page.id, "outdent")} />
-                <hr />
+                <hr className={ui.menuRule} />
                 <MenuItem
                   danger
                   label={`Delete ${page.title}`}
@@ -262,7 +271,7 @@ export function Sidebar({ pages, loading, selected, onSelect }: Props) {
           </span>
         </div>
         {(node.children.length > 0 || (editing && "parent" in editing && editing.parent === page.id)) && (
-          <ul>
+          <ul className={list}>
             {node.children.map((child) => renderNode(child, depth + 1))}
             {editing?.kind === "create" && editing.parent === page.id && (
               <li style={{ paddingLeft: rowIndent(depth + 1) }}>
@@ -297,10 +306,11 @@ export function Sidebar({ pages, loading, selected, onSelect }: Props) {
   };
 
   return (
-    <nav className="sidebar" aria-label="Pages">
-      <div className="sidebar-head">
+    <nav className={sidebar} aria-label="Pages">
+      <div className="flex gap-1.5 mx-0.5 mt-0 mb-1.5">
         <input
           type="search"
+          className="flex-1 min-w-0 h-8 px-2.5 border border-input rounded-md bg-bg text-[13.5px]"
           aria-label="Find a page"
           placeholder="Find a page"
           value={query}
@@ -308,17 +318,21 @@ export function Sidebar({ pages, loading, selected, onSelect }: Props) {
         />
         <button
           type="button"
-          className="new-page"
+          className="flex items-center justify-center w-8 h-8 border border-input rounded-md bg-bg cursor-pointer"
           aria-label="New page"
           onClick={() => setEditing({ kind: "create", parent: null })}
         >
           <Icon name="plus" size={15} />
         </button>
-        <details className="menu new-menu">
-          <summary aria-label="More ways to add" title="More ways to add">
+        <details data-menu className={ui.menu}>
+          <summary
+            className="flex items-center justify-center w-8 h-8 border border-input rounded-md bg-bg text-muted cursor-pointer list-none hover:bg-border hover:text-text [&::-webkit-details-marker]:hidden"
+            aria-label="More ways to add"
+            title="More ways to add"
+          >
             <Icon name="chevron" size={15} />
           </summary>
-          <div className="menu-pop">
+          <div data-menu-pop className={ui.menuPop}>
             <MenuItem
               label="New API reference"
               text="API reference"
@@ -328,12 +342,12 @@ export function Sidebar({ pages, loading, selected, onSelect }: Props) {
         </details>
       </div>
       {error && (
-        <p role="alert" className="error">
+        <p role="alert" className="my-1 mx-2 py-1.5 px-2 border border-danger rounded-md text-danger">
           {error}
         </p>
       )}
-      {loading && <p className="muted pad">Loading…</p>}
-      <ul className="tree">
+      {loading && <p className="text-muted px-2.5">Loading…</p>}
+      <ul className={list}>
         {(search ? search.map((page) => ({ page, children: [] })) : buildTree(pages)).map((node) =>
           renderNode(node, search ? 1 : 0),
         )}
@@ -356,21 +370,26 @@ export function Sidebar({ pages, loading, selected, onSelect }: Props) {
         />
       )}
       {drag && target && dragged && (
-        <div className="drag-hint" aria-live="polite">
-          <Icon name="move" size={16} />
+        <div
+          className="fixed bottom-7 left-1/2 -translate-x-1/2 flex items-center gap-3.5 py-3 px-4 rounded-[10px] bg-toast text-toast-text text-ui shadow-[0_10px_30px_rgb(16_20_22/30%)] pointer-events-none"
+          aria-live="polite"
+        >
+          <Icon name="move" size={16} className="text-toast-icon" />
           <div>
             <strong>
               Drop to move “{dragged.title}” under {newParent}
             </strong>
             {urlChange && (
-              <div className="drag-urls">
+              <div className="mt-0.5 text-help text-toast-muted">
                 {drag.alt ? "No redirect: " : "A redirect will be added: "}
-                <code>{drag.alt ? urlChange.from : `${urlChange.from} → ${urlChange.to}`}</code>
+                <code className="font-mono text-[12.5px]">
+                  {drag.alt ? urlChange.from : `${urlChange.from} → ${urlChange.to}`}
+                </code>
                 {drag.alt && " will stop working"}
               </div>
             )}
           </div>
-          <span>
+          <span className="text-[12.5px] text-toast-muted">
             {drag.alt ? "Release ⌥ to keep a redirect" : "Hold ⌥ to move without a redirect"}
             <br />
             Esc to cancel
@@ -384,13 +403,18 @@ export function Sidebar({ pages, loading, selected, onSelect }: Props) {
 /** What follows the pointer while a page is dragged. The browser snapshots the element, so it can go right after. */
 function dragCard(title: string): HTMLElement {
   const card = document.createElement("div");
-  card.className = "drag-card";
+  card.className =
+    "fixed -top-25 py-1.75 px-3 border border-input rounded-[7px] bg-bg shadow-[0_8px_20px_rgb(16_20_22/18%)] text-ui font-semibold";
   card.textContent = title;
   document.body.append(card);
   setTimeout(() => card.remove(), 0);
 
   return card;
 }
+
+/** `sidebar` is what `placeMenu` measures a menu against. */
+export const sidebar = "sidebar bg-side border-r border-border overflow-y-auto py-3 px-2 text-ui leading-[1.4]";
+const list = "list-none m-0 p-0";
 
 /** Top-level pages are the section headings of the sidebar; everything below is indented under them. */
 const rowIndent = (depth: number) => (depth === 0 ? 10 : 26 + (depth - 1) * 16);

@@ -183,14 +183,18 @@ function Editor() {
           <ThemeToggle />
           <UserMenu />
           {narrow ? (
-            <details className="menu more-menu">
+            <details data-menu className="menu more-menu">
               <summary aria-label="More actions" title="More actions">
                 <Icon name="more" size={18} />
               </summary>
               {/* Every item leaves the menu: History and the settings open a panel, the reader view another tab. */}
               {/* biome-ignore lint/a11y/useKeyWithClickEvents: closes after the item's own click, which the keyboard triggers too */}
               {/* biome-ignore lint/a11y/noStaticElementInteractions: the items inside are the controls; this only closes the menu */}
-              <div className="menu-pop" onClick={(e) => e.currentTarget.closest("details")?.removeAttribute("open")}>
+              <div
+                data-menu-pop
+                className="menu-pop"
+                onClick={(e) => e.currentTarget.closest("details")?.removeAttribute("open")}
+              >
                 {pageActions && (
                   <>
                     {pageActions}
