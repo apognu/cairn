@@ -17,14 +17,16 @@ test("a folder of components becomes bundles and a manifest with schemas and the
   const manifest = JSON.parse(readFileSync(join(out, "manifest.json"), "utf8"));
   expect(manifest.sdk_version).toBe(1);
   expect(manifest.slots).toEqual(["Footer"]);
-  expect(manifest.components).toHaveLength(1);
-  expect(manifest.components[0]).toMatchObject({
+  expect(manifest.components).toHaveLength(2);
+  expect(manifest.components.find((c: { name: string }) => c.name === "acme/note")).toMatchObject({
     name: "acme/note",
     version: 1,
     schema: { properties: { title: { type: "string" } } },
   });
-  // The component's stylesheet is part of the site's.
-  expect(readFileSync(join(out, "site.css"), "utf8")).toContain("acme-note");
+  // A component's stylesheet is part of the site's, and so are the utilities its markup uses.
+  const css = readFileSync(join(out, "site.css"), "utf8");
+  expect(css).toContain("acme-note");
+  expect(css).toContain(".border-dashed");
 }, 120_000);
 
 test("a component that cannot render fails the build and is named", async () => {
@@ -33,9 +35,12 @@ test("a component that cannot render fails the build and is named", async () => 
   );
 }, 120_000);
 
-test("a fixed color in a component's markup fails the build", async () => {
+test("a fixed color in a component's markup fails the build, in a style or a utility", async () => {
   await expect(buildComponents(fixture("colored"), outDir())).rejects.toThrow(
     /red\.tsx: acme\/red writes a fixed color/,
+  );
+  await expect(buildComponents(fixture("arbitrary"), outDir())).rejects.toThrow(
+    /blue\.tsx: acme\/blue writes a fixed color/,
   );
 }, 120_000);
 

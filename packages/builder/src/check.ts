@@ -4,8 +4,9 @@ import { BuildError, type Collected } from "./collect";
 
 type Ssr = { render: (json: string) => string };
 
-// A color written into the markup stays the same in dark mode; components style themselves with the theme's custom properties.
-const FIXED_COLOR = /style="[^"]*(#[0-9a-f]{3,8}\b|rgba?\(|hsla?\()/i;
+// A color written into the markup stays the same in dark mode; components style themselves with the theme's custom properties, or with
+// the Tailwind utilities made from them. An inline style or an arbitrary utility (`text-[#00f]`) is a fixed color.
+const FIXED_COLOR = /(style="[^"]*|class="[^"]*\[)(#[0-9a-f]{3,8}\b|rgba?\(|hsla?\()/i;
 
 const SITE = {
   name: "Test site",
@@ -40,7 +41,7 @@ export function testRender(script: string, found: Collected): void {
 
     if (FIXED_COLOR.test(html))
       throw new BuildError(
-        `${label} writes a fixed color into its markup, which does not follow the theme in dark mode; use the theme's custom properties (var(--text), var(--accent), …) in a stylesheet`,
+        `${label} writes a fixed color into its markup, which does not follow the theme in dark mode; use the theme's custom properties (var(--text), var(--accent), …) in a stylesheet, or its utilities (text-text, bg-accent-soft, …)`,
       );
   }
 
