@@ -54,6 +54,19 @@ export function markCreated(pageId: string) {
   created.add(pageId);
 }
 
+/** The locks this tab holds, page to token, so signing out can give them back while the session still works. */
+const heldLocks = new Map<string, string>();
+
+/** Gives back every lock this tab holds; others can edit those pages at once instead of waiting for the leases to run out. */
+export async function releaseAllLocks(): Promise<void> {
+  await Promise.all(
+    [...heldLocks].map(([pageId, token]) =>
+      api.DELETE("/api/pages/{id}/lock", { params: { path: { id: pageId }, query: { token } } }).catch(() => undefined),
+    ),
+  );
+  heldLocks.clear();
+}
+
 /** Locks this tab is giving back. Coming straight back to a page must wait for its release, or the tab would find its own lock held. */
 const releasing = new Map<string, Promise<void>>();
 
@@ -85,13 +98,14 @@ export function usePageLock(pageId: string, title: string) {
   const holding = useCallback(
     (held: string) => {
       token.current = held;
+      heldLocks.set(pageId, held);
       openedAt.current = Date.now();
       // Before the render: the event this acquire sends can arrive first, and must not read as someone else's lock.
       kind.current = "mine";
       setState({ kind: "mine" });
       void queryClient.invalidateQueries({ queryKey: LOCKS });
     },
-    [queryClient],
+    [pageId, queryClient],
   );
 
   const acquire = useCallback(async () => {
@@ -162,6 +176,7 @@ export function usePageLock(pageId: string, title: string) {
     const done = new Promise((resolve) => window.setTimeout(resolve, 0))
       .then(() => {
         if (token.current === held) token.current = null;
+        if (heldLocks.get(pageId) === held) heldLocks.delete(pageId);
         return saveSettled(pageId);
       })
       .then(async () => {

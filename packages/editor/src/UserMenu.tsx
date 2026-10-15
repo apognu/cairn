@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { serverUrl } from "./api/base";
+import { signingOutNow } from "./api/client";
 import { useMe, useSignedIn } from "./queries";
+import { releaseAllLocks } from "./useLock";
 
 /** Who is signed in, and the way out. Absent in `cairn dev`, where nobody signs in. */
 export function UserMenu() {
@@ -12,12 +14,15 @@ export function UserMenu() {
 
   const signOut = async () => {
     setError(null);
+    await releaseAllLocks();
     // Only once the server ended the session: leaving for the signed-out page otherwise would say so while the session lives on.
     const response = await fetch(serverUrl("/auth/logout"), { method: "POST" }).catch(() => null);
     if (!response?.ok) {
       setError("Could not sign out. Try again.");
       return;
     }
+    // From here every request is refused, and that is expected.
+    signingOutNow();
     window.location.assign(serverUrl("/auth/signed-out"));
   };
 

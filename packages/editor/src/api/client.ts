@@ -10,10 +10,17 @@ export function signIn(): void {
 
 export const api = createClient<paths>({ baseUrl: BASE });
 
+let signingOut = false;
+
+/** The user is signing out: requests still on their way will be refused, and must not send the browser to sign in again. */
+export function signingOutNow(): void {
+  signingOut = true;
+}
+
 // A session that ended (idle, or past its lifetime) shows up as a 401 on whatever request comes next.
 api.use({
   onResponse({ response }) {
-    if (response.status === 401) signIn();
+    if (response.status === 401 && !signingOut) signIn();
     return undefined;
   },
 });
