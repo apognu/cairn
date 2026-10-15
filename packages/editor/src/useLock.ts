@@ -188,7 +188,12 @@ export function usePageLock(pageId: string, title: string) {
   }, [pageId, recheck]);
 
   useEffect(() => {
-    void acquire();
+    // Leaving the page before the lock arrived: the cleanup below had no token to give back, so the lock is given back on arrival, or it
+    // would stay held by an editor that is gone.
+    let gone = false;
+    void acquire().then(() => {
+      if (gone) release();
+    });
 
     // A closed tab runs no cleanup of React's; this is the last chance to free the page for others.
     const onHide = () => {
@@ -197,6 +202,7 @@ export function usePageLock(pageId: string, title: string) {
     window.addEventListener("pagehide", onHide);
 
     return () => {
+      gone = true;
       window.removeEventListener("pagehide", onHide);
       release();
     };
@@ -215,7 +221,8 @@ export function usePageLock(pageId: string, title: string) {
         void renew();
       }
     };
-    const events = ["keydown", "pointerdown", "input"] as const;
+    // Typing is working on the page; a click is often only looking at it.
+    const events = ["keydown", "input"] as const;
     for (const event of events) window.addEventListener(event, active, { capture: true });
 
     return () => {
