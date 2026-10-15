@@ -17,16 +17,19 @@ export type Collected = {
 const SOURCE = /\.(tsx?|jsx?)$/;
 const NAME = /^[a-z0-9][a-z0-9-]*\/[a-z0-9][a-z0-9-]*$/;
 
+// Sorted: the directory's own order depends on the filesystem, and the bundles and the slash menu should not.
 function sourceFiles(dir: string, base = dir): string[] {
-  return readdirSync(dir).flatMap((entry) => {
-    const path = join(dir, entry);
-    if (entry === "node_modules" || entry.startsWith(".")) return [];
-    if (statSync(path).isDirectory()) return sourceFiles(path, base);
+  return readdirSync(dir)
+    .sort()
+    .flatMap((entry) => {
+      const path = join(dir, entry);
+      if (entry === "node_modules" || entry.startsWith(".")) return [];
+      if (statSync(path).isDirectory()) return sourceFiles(path, base);
 
-    // `_helpers.tsx`, tests and type declarations are not entry points.
-    const skip = entry.startsWith("_") || entry.endsWith(".d.ts") || /\.(test|spec)\./.test(entry);
-    return SOURCE.test(entry) && !skip ? [relative(base, path)] : [];
-  });
+      // `_helpers.tsx`, tests and type declarations are not entry points.
+      const skip = entry.startsWith("_") || entry.endsWith(".d.ts") || /\.(test|spec)\./.test(entry);
+      return SOURCE.test(entry) && !skip ? [relative(base, path)] : [];
+    });
 }
 
 // Components import their styles; the check below only loads the modules, so a stylesheet is an empty one there. Vite bundles the real one.

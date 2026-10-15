@@ -17,7 +17,7 @@ test("a custom component appears in the slash menu, renders in the editor and on
 
   const editor = page.locator(".ProseMirror");
   await editor.click();
-  await page.keyboard.type("/acme");
+  await page.keyboard.type("/acme note");
   await expect(page.getByRole("option", { name: /Acme note/ })).toBeVisible();
   await page.keyboard.press("Enter");
 
