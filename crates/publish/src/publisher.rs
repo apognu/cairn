@@ -1,8 +1,8 @@
 use std::{
   collections::{HashMap, HashSet},
   sync::{
-    Arc,
-    atomic::{AtomicUsize, Ordering},
+    Arc, PoisonError,
+    atomic::{AtomicU64, AtomicUsize, Ordering},
   },
 };
 
@@ -104,6 +104,10 @@ pub struct Publisher<C: ContentStore, A: AssetStore, B: Broadcast> {
   broadcast: B,
   // Releases are built one at a time; a second publish waits for the first.
   running: tokio::sync::Mutex<()>,
+  /// How many builds have started; only counted while `running` is held.
+  started: AtomicU64,
+  /// The last full publish that succeeded, with the value of `started` it began at, for the publishes that were waiting for it.
+  last_full: std::sync::Mutex<Option<(u64, Release)>>,
   fetcher: SourceFetcher,
   /// How many pages went through V8 since startup; pages whose output could be reused are not counted.
   renders: Arc<AtomicUsize>,
@@ -139,6 +143,8 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
       bundles: parts.bundles,
       broadcast: parts.broadcast,
       running: tokio::sync::Mutex::new(()),
+      started: AtomicU64::new(0),
+      last_full: std::sync::Mutex::new(None),
       fetcher: SourceFetcher::new(parts.config.api_hosts.clone()).expect("the HTTP client for API sources must build"),
       config: parts.config,
       renders: Arc::new(AtomicUsize::new(0)),
@@ -170,8 +176,24 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
   }
 
   /// Publishes every page's latest saved draft as a new release and makes it live.
+  ///
+  /// Publishes asked for while a build runs are one build between them: the first to get its turn builds from staging as it is then,
+  /// which is newer than what any of them saw when asked, and the others return that release.
   pub async fn publish(&self, user: UserId) -> Result<Release, PublishError> {
-    self.build(user, true, None).await
+    let asked_at = self.started.load(Ordering::SeqCst);
+    let _turn = self.running.lock().await;
+
+    if let Some((started, release)) = self.last_full.lock().unwrap_or_else(PoisonError::into_inner).clone()
+      && started > asked_at
+    {
+      tracing::info!(release_id = %release.id, "publish joined the build made while it waited");
+      return Ok(release);
+    }
+
+    let release = self.build_locked(user, true, None).await?;
+    *self.last_full.lock().unwrap_or_else(PoisonError::into_inner) = Some((self.started.load(Ordering::SeqCst), release.clone()));
+
+    Ok(release)
   }
 
   /// Publishes a hotfix: the live site with `picked` (and what they need, see `hotfix_pages`) at their latest saved state. Every other
@@ -303,6 +325,13 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
 
   async fn build(&self, user: UserId, live: bool, picked: Option<&HashSet<PageId>>) -> Result<Release, PublishError> {
     let _turn = self.running.lock().await;
+
+    self.build_locked(user, live, picked).await
+  }
+
+  /// `build` for a caller that holds the turn (`running`).
+  async fn build_locked(&self, user: UserId, live: bool, picked: Option<&HashSet<PageId>>) -> Result<Release, PublishError> {
+    self.started.fetch_add(1, Ordering::SeqCst);
 
     // One snapshot for the checks and the build: a save or a tree change made meanwhile waits for the next publish instead of going out
     // unchecked.
@@ -1280,6 +1309,34 @@ mod tests {
     let error = f.publisher.promote(preview.id).await.expect_err("the live site moved on");
 
     assert!(matches!(error, PublishError::Stale { .. }), "{error}");
+  }
+
+  #[tokio::test]
+  async fn publishes_asked_for_during_a_build_become_one_build() {
+    let f = Arc::new(self_hosted_fixture().await);
+    let user = UserId::new();
+    create_page(&f.db, user, None, "Guide", Placement::Last).await.unwrap();
+
+    // A build is running: three people click Publish meanwhile.
+    let build = f.publisher.running.lock().await;
+    let waiting: Vec<_> = (0..3)
+      .map(|_| {
+        let f = f.clone();
+        tokio::spawn(async move { f.publisher.publish(user).await.unwrap() })
+      })
+      .collect();
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    drop(build);
+
+    let mut ids = HashSet::new();
+    for task in waiting {
+      ids.insert(task.await.unwrap().id);
+    }
+    assert_eq!(ids.len(), 1, "one release for the three of them");
+
+    // A publish asked for after that build is a build of its own.
+    let later = f.publisher.publish(user).await.unwrap();
+    assert!(!ids.contains(&later.id));
   }
 
   #[tokio::test]
