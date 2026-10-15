@@ -2033,11 +2033,43 @@ span[data-label] > .component-invalid {
     display: none;
   }
 
+  /* Shown while a block with settings is selected: it must stand out from the page without hiding much of it. */
   .props-open {
     position: fixed;
-    right: 16px;
-    bottom: 16px;
+    right: 20px;
+    bottom: 20px;
     z-index: 20;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 40px;
+    padding: 0 8px 0 14px;
+    border: 0;
+    border-radius: 20px;
+    background: var(--accent);
+    color: var(--bg);
+    font-size: 14px;
+    font-weight: 600;
+    box-shadow: 0 6px 18px rgba(16, 20, 22, 0.22);
+    cursor: pointer;
+  }
+
+  .props-open:hover {
+    filter: brightness(1.08);
+  }
+
+  .props-open:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+  }
+
+  .props-open .key {
+    padding: 2px 7px;
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--bg) 22%, transparent);
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 500;
   }
 
   .drawer {

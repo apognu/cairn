@@ -3,9 +3,10 @@ import { propsSchema } from "@cairn/sdk";
 import type { Editor } from "@tiptap/core";
 import { NodeSelection } from "@tiptap/pm/state";
 import { useEditorState } from "@tiptap/react";
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { CodeBlockFields } from "./CodeBlockFields";
+import { Icon } from "./icons";
 import { SchemaForm } from "./SchemaForm";
 import { useModal } from "./sidePanel";
 import { useNarrow } from "./useNarrow";
@@ -52,8 +53,21 @@ export function PropsPanel({ editor, host }: { editor: Editor; host: HTMLElement
       <CodeBlockFields editor={editor} attrs={active.attrs} />
     );
 
+  const label =
+    active.kind === "component"
+      ? `${componentsByName.get(active.name)?.title ?? "Block"} settings`
+      : active.kind === "image"
+        ? "Image settings"
+        : "Code block settings";
+
   // Too narrow for a column: the same fields open in a modal drawer instead.
-  return narrow ? <PanelDrawer key={active.at}>{body}</PanelDrawer> : createPortal(body, host);
+  return narrow ? (
+    <PanelDrawer key={active.at} label={label} editor={editor}>
+      {body}
+    </PanelDrawer>
+  ) : (
+    createPortal(body, host)
+  );
 }
 
 function ComponentFields({ editor, active }: { editor: Editor; active: Extract<Active, { kind: "component" }> }) {
@@ -127,30 +141,72 @@ function ImageFields({ editor, attrs }: { editor: Editor; attrs: Record<string, 
 }
 
 /**
- * A modal drawer from the right, opened from a floating button: opening it by itself would take the focus from the text being typed.
- * Selecting something else (a new `key`) closes it.
+ * A modal drawer from the right, opened from a floating button named after the selected block, with Alt+Enter from the text, or by
+ * double-clicking the block: opening it by itself would take the focus from the text being typed. Closing it puts the cursor back in the text. Selecting something else (a
+ * new `key`) closes it.
  */
-function PanelDrawer({ children }: { children: React.ReactNode }) {
+function PanelDrawer({ label, editor, children }: { label: string; editor: Editor; children: React.ReactNode }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const id = useId();
   const [open, setOpen] = useState(false);
 
   useModal(dialog, open);
 
+  useEffect(() => {
+    if (open) return;
+    const dom = editor.view.dom;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.altKey && event.key === "Enter" && !event.ctrlKey && !event.metaKey && !event.shiftKey) {
+        event.preventDefault();
+        setOpen(true);
+      }
+    };
+    // Double-clicking a component or an image opens its settings; inside a component's own text, a double click still selects a word.
+    const onDoubleClick = (event: MouseEvent) => {
+      const target = event.target instanceof Element ? event.target : null;
+      const onBlock = target?.closest("[data-node-view-wrapper]") && !target.closest("[data-node-view-content]");
+      if (onBlock || target?.tagName === "IMG") setOpen(true);
+    };
+    dom.addEventListener("keydown", onKey);
+    dom.addEventListener("dblclick", onDoubleClick);
+
+    return () => {
+      dom.removeEventListener("keydown", onKey);
+      dom.removeEventListener("dblclick", onDoubleClick);
+    };
+  }, [editor, open]);
+
   if (!open)
     return (
-      <button type="button" className="props-open" onClick={() => setOpen(true)}>
-        Block settings
+      <button type="button" className="props-open" aria-keyshortcuts="Alt+Enter" onClick={() => setOpen(true)}>
+        <Icon name="sliders" size={16} />
+        {label}
+        <span className="key" aria-hidden="true">
+          Alt ↵
+        </span>
       </button>
     );
 
   return createPortal(
-    <dialog ref={dialog} className="drawer props-drawer" aria-labelledby={`${id}-title`} onClose={() => setOpen(false)}>
+    <dialog
+      ref={dialog}
+      className="drawer props-drawer"
+      aria-labelledby={`${id}-title`}
+      onClose={() => {
+        setOpen(false);
+        editor.commands.focus();
+      }}
+    >
       <header className="drawer-head">
         <span id={`${id}-title`} className="sr-only">
-          Settings
+          {label}
         </span>
-        <button type="button" className="icon" aria-label="Close settings" onClick={() => dialog.current?.close()}>
+        <button
+          type="button"
+          className="icon"
+          aria-label={`Close ${label.toLowerCase()}`}
+          onClick={() => dialog.current?.close()}
+        >
           ×
         </button>
       </header>

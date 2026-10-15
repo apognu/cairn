@@ -139,3 +139,42 @@ test("a card title is written on the canvas and lands in the page settings", asy
   await editor.locator(".feature-grid").click();
   await expect(page.getByLabel("Title").first()).toHaveValue("Quick start");
 });
+
+test("on a narrower window, block settings open from their button, Alt+Enter or a double click", async ({
+  browser,
+}) => {
+  const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+  const title = `Drawer ${Math.random().toString(36).slice(2, 8)}`;
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "New page" }).click();
+  await nameNewPage(page, title);
+  await page.getByRole("button", { name: title, exact: true }).click();
+
+  const editor = page.locator(".ProseMirror");
+  await editor.click();
+  await page.keyboard.type("/feature tabs");
+  await page.keyboard.press("Enter");
+  await editor.locator(".feature-tabs").click();
+
+  // The button names the block, and the drawer gives the cursor back to the text when it closes.
+  const open = page.getByRole("button", { name: "Feature tabs settings" });
+  await expect(open).toHaveAttribute("aria-keyshortcuts", "Alt+Enter");
+  await page.screenshot({ path: "test-results/block-settings-light.png" });
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.screenshot({ path: "test-results/block-settings-dark.png" });
+  await page.emulateMedia({ colorScheme: "light" });
+  await open.click();
+  const drawer = page.getByRole("dialog", { name: "Feature tabs settings" });
+  await expect(drawer.getByRole("heading", { name: "Feature tabs" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(drawer).toBeHidden();
+
+  await editor.locator(".feature-tabs").click();
+  await page.keyboard.press("Alt+Enter");
+  await expect(drawer).toBeVisible();
+  await drawer.getByRole("button", { name: "Close feature tabs settings" }).click();
+
+  await editor.locator(".feature-tabs").dblclick();
+  await expect(drawer).toBeVisible();
+});
