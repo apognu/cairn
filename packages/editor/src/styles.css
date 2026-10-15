@@ -28,6 +28,52 @@
   --color-toast-icon: #5fd3a6;
 }
 
+/* The upload of a build: a thin bar in the accent color. With no value yet the pages are rendering, and a band of the accent color sweeps
+   across, as the browser's own busy bar would. */
+@utility progress-bar {
+  width: 100%;
+  height: 6px;
+  border: 0;
+  border-radius: 3px;
+  background: var(--border);
+  accent-color: var(--accent);
+  appearance: none;
+
+  &::-webkit-progress-bar {
+    border-radius: 3px;
+    background: var(--border);
+  }
+
+  &::-webkit-progress-value {
+    border-radius: 3px;
+    background: var(--accent);
+    transition: width 0.2s;
+  }
+
+  &::-moz-progress-bar {
+    border-radius: 3px;
+    background: var(--accent);
+  }
+
+  &:not([value]) {
+    background: linear-gradient(90deg, var(--border) 35%, var(--accent) 50%, var(--border) 65%) 0 0 / 300% 100%;
+    animation: progress-busy 1.4s linear infinite;
+
+    @media (prefers-reduced-motion: reduce) {
+      animation-duration: 3s;
+    }
+  }
+
+  /* Apart: a browser drops a rule whose selector list holds a pseudo-element it does not know. */
+  &:not([value])::-webkit-progress-bar {
+    background: transparent;
+  }
+
+  &:not([value])::-moz-progress-bar {
+    background: transparent;
+  }
+}
+
 /* A select draws like the text fields beside it, with a chevron in the theme's color rather than the system's arrow. */
 @utility select-chevron {
   appearance: none;
@@ -71,16 +117,6 @@
   }
 }
 
-/* Editor chrome outside the canvas shares one scale: 14px text, 13px help, 12px labels. The canvas keeps the site's 16px. */
-.settings {
-  font-size: 14px;
-  line-height: 1.4;
-}
-
-.muted {
-  color: var(--muted);
-}
-
 :root {
   --badge-new-bg: #dff3e9;
   --badge-new: #0b5c3d;
@@ -120,15 +156,6 @@
   outline: none;
 }
 
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
-
 .ProseMirror-selectednode {
   outline: 2px solid var(--accent);
   outline-offset: 6px;
@@ -155,216 +182,6 @@
   line-height: 16px;
 }
 
-.error-text {
-  color: var(--danger);
-}
-
-button.primary {
-  height: 32px;
-  padding: 0 14px;
-  border: 0;
-  border-radius: 7px;
-  background: var(--text);
-  color: var(--bg);
-  font-size: 13.5px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-button.primary:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
-
-.settings {
-  width: 480px;
-  padding: 24px;
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  box-shadow: 0 20px 50px rgba(16, 20, 22, 0.3);
-  background: var(--bg);
-  color: var(--text);
-}
-
-.settings::backdrop {
-  background: rgba(0, 0, 0, 0.4);
-}
-
-.settings h2 {
-  margin: 0 0 18px;
-  font-size: 20px;
-  letter-spacing: -0.01em;
-}
-
-.dialog-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.dialog-actions button:not(.primary) {
-  height: 32px;
-  padding: 0 12px;
-  border: 1px solid var(--border-input);
-  border-radius: 7px;
-  background: var(--bg);
-  cursor: pointer;
-}
-
-.settings.publish {
-  width: 860px;
-  max-width: calc(100vw - 32px);
-  max-height: calc(100vh - 64px);
-}
-
-.settings.publish h2 {
-  margin-bottom: 4px;
-}
-
-.publish-warning {
-  display: flex;
-  gap: 12px;
-  margin: 14px 0;
-  padding: 12px 14px;
-  border: 1px solid var(--warn-border);
-  border-radius: 8px;
-  background: var(--warn-bg);
-  color: var(--warn-text);
-}
-
-.publish-warning svg {
-  flex: none;
-  margin-top: 2px;
-  color: var(--warn-icon);
-}
-
-.publish-warning ul {
-  margin: 6px 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.publish-warning code,
-.url-note code {
-  font-family: var(--font-mono);
-  font-size: 12.5px;
-}
-
-.changes {
-  width: 100%;
-  margin: 14px 0 18px;
-  border-collapse: collapse;
-}
-
-.changes th {
-  padding: 0 12px 8px 0;
-  border-bottom: 1px solid var(--border-input);
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-align: left;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-.changes td {
-  padding: 10px 12px 10px 0;
-  border-bottom: 1px solid var(--border);
-  vertical-align: top;
-}
-
-.changes td:first-child {
-  width: 150px;
-}
-
-.badge {
-  display: inline-block;
-  margin-right: 4px;
-  padding: 2px 8px;
-  border-radius: 4px;
-  background: var(--hover);
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.badge[data-kind="new"] {
-  background: var(--badge-new-bg);
-  color: var(--badge-new);
-}
-
-.badge[data-kind="edited"] {
-  background: var(--badge-edit-bg);
-  color: var(--badge-edit);
-}
-
-.badge[data-kind="renamed"],
-.badge[data-kind="moved"],
-.badge[data-kind="header"] {
-  background: var(--badge-move-bg);
-  color: var(--badge-move);
-}
-
-.badge[data-kind="deleted"] {
-  background: var(--badge-del-bg);
-  color: var(--badge-del);
-}
-
-.url-note {
-  margin-top: 2px;
-  font-size: 13px;
-  color: var(--muted);
-}
-
-.url-note.lost {
-  color: var(--warn-icon);
-  font-weight: 600;
-}
-
-/* The page picker: a floating search with results, used by text links and component fields. */
-.picker {
-  position: fixed;
-  z-index: 30;
-  width: 440px;
-  max-width: calc(100vw - 32px);
-  border: 1px solid var(--border-input);
-  border-radius: 12px;
-  background: var(--bg);
-  box-shadow: 0 16px 40px rgba(16, 20, 22, 0.18);
-  font-size: 14px;
-  line-height: 1.4;
-  overflow: hidden;
-}
-
-.publish-problems {
-  display: flex;
-  gap: 12px;
-  margin: 14px 0;
-  padding: 12px 14px;
-  border: 1px solid var(--badge-del);
-  border-radius: 8px;
-  background: var(--badge-del-bg);
-  color: var(--badge-del);
-}
-
-.publish-problems svg {
-  flex: none;
-  margin-top: 2px;
-}
-
-.publish-problems ul {
-  margin: 6px 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.snippet-editor {
-  margin-top: 10px;
-  padding: 8px 12px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  font-size: 16px;
-}
-
 /* A snippet is edited in a box inside the settings page: no site margins, no table of contents. */
 .snippet-editor .site-body {
   grid-template-columns: minmax(0, 1fr);
@@ -377,36 +194,6 @@ button.primary:disabled {
 
 .snippet-editor .site-toc {
   display: none;
-}
-
-.diff {
-  margin-bottom: 12px;
-  border: 1px solid var(--border-input);
-  border-radius: 8px;
-  overflow: hidden;
-  font-family: var(--font-mono);
-  font-size: 12.5px;
-}
-
-.diff > div {
-  padding: 4px 10px;
-  white-space: pre-wrap;
-}
-
-.diff [data-kind="added"] {
-  background: var(--badge-new-bg);
-  color: var(--badge-new);
-}
-
-.diff [data-kind="removed"] {
-  background: var(--badge-del-bg);
-  color: var(--badge-del);
-}
-
-.diff {
-  margin: 0 0 12px;
-  padding: 0;
-  list-style: none;
 }
 
 /* A link to a page that was deleted: published as plain words, flagged here so the author fixes it. */
@@ -450,46 +237,6 @@ button.primary:disabled {
   cursor: default;
 }
 
-.segmented {
-  display: flex;
-  padding: 2px;
-  border-radius: 7px;
-  background: var(--hover);
-}
-
-.segmented button {
-  height: 26px;
-  padding: 0 10px;
-  border: 0;
-  border-radius: 5px;
-  background: transparent;
-  color: var(--muted);
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.segmented button[aria-selected="true"],
-.segmented button[aria-pressed="true"] {
-  background: var(--bg);
-  color: var(--text);
-  font-weight: 600;
-  box-shadow: 0 1px 2px rgb(16 20 22 / 12%);
-}
-
-button.secondary {
-  height: 32px;
-  padding: 0 12px;
-  border: 1px solid var(--border-input);
-  border-radius: 7px;
-  background: var(--bg);
-  cursor: pointer;
-}
-
-button.secondary:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
 /* Text of a component written on the canvas (`<Editable>`). */
 .editable {
   border-radius: 3px;
@@ -512,62 +259,6 @@ button.secondary:disabled {
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .publish-progress progress:not([value]) {
-    animation-duration: 3s;
-  }
-}
-
-/* The upload of a build: a thin bar in the accent color, with the count under it. */
-.publish-progress {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin: 16px 0;
-  color: var(--muted);
-  font-size: 13px;
-}
-
-.publish-progress progress {
-  width: 100%;
-  height: 6px;
-  border: 0;
-  border-radius: 3px;
-  background: var(--border);
-  accent-color: var(--accent);
-  appearance: none;
-}
-
-.publish-progress progress::-webkit-progress-bar {
-  border-radius: 3px;
-  background: var(--border);
-}
-
-.publish-progress progress::-webkit-progress-value {
-  border-radius: 3px;
-  background: var(--accent);
-  transition: width 0.2s;
-}
-
-.publish-progress progress::-moz-progress-bar {
-  border-radius: 3px;
-  background: var(--accent);
-}
-
-/* No value yet: the pages are rendering. A band of the accent color sweeps across, as the browser's own busy bar would. */
-.publish-progress progress:not([value]) {
-  background: linear-gradient(90deg, var(--border) 35%, var(--accent) 50%, var(--border) 65%) 0 0 / 300% 100%;
-  animation: progress-busy 1.4s linear infinite;
-}
-
-.publish-progress progress:not([value])::-webkit-progress-bar {
-  background: transparent;
-}
-
-.publish-progress progress:not([value])::-moz-progress-bar {
-  background: transparent;
-}
-
 @keyframes progress-busy {
   from {
     background-position: 100% 0;
@@ -576,155 +267,4 @@ button.secondary:disabled {
   to {
     background-position: 0 0;
   }
-}
-
-/* The preview's state is a line of its own above the buttons, which keep their row whatever it says. */
-.publish-preview {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 16px 0;
-  color: var(--muted);
-  font-size: 13px;
-}
-
-.publish-preview svg {
-  flex: none;
-  color: var(--accent);
-}
-
-.publish .dialog-actions {
-  flex-wrap: wrap;
-  align-items: center;
-}
-
-/* The publish dialog: who is editing, each change's author and size, and the checks that passed. */
-.publish-locks ul {
-  margin: 6px 0;
-}
-
-.lock-page {
-  font-weight: 600;
-}
-
-.being-edited {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin-left: 8px;
-  color: var(--warn-icon);
-  font-size: 12px;
-}
-
-.changes td.size {
-  font-family: var(--font-mono);
-  font-size: 12.5px;
-  white-space: nowrap;
-}
-
-.changes .added {
-  color: var(--badge-new);
-}
-
-.changes .removed {
-  color: var(--badge-del);
-}
-
-.changes td.muted {
-  font-size: 13px;
-}
-
-.changes button.small,
-.pick-bar button.small {
-  height: 28px;
-  padding: 0 10px;
-  border: 1px solid var(--border-input);
-  border-radius: 6px;
-  background: var(--bg);
-  font-size: 12.5px;
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.changes .diff-row td {
-  padding-top: 0;
-}
-
-.changes .diff-row .diff {
-  max-height: 280px;
-  overflow: auto;
-}
-
-.checks-strip {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 18px;
-  margin: 0 0 16px;
-  font-size: 13px;
-}
-
-.checks-strip .passed {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--badge-new);
-}
-
-.checks-strip .stats {
-  margin-left: auto;
-}
-
-/* Everything or a hotfix, and the picking tools of a hotfix. */
-fieldset.segmented {
-  margin: 0;
-  border: 0;
-}
-
-.publish-mode {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 14px;
-  margin: 14px 0 0;
-  font-size: 13px;
-}
-
-.pick-bar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  margin: 12px 0 0;
-  font-size: 13px;
-}
-
-.pick-bar > span:first-child {
-  margin-right: auto;
-}
-
-.pick-bar button.small:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-.changes td.select,
-.changes th:first-child:has(.sr-only) {
-  width: 28px;
-}
-
-.changes td.select input {
-  width: 16px;
-  height: 16px;
-  margin: 2px 0 0;
-}
-
-.dependency-notes ul {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.dependency-notes li + li {
-  margin-top: 6px;
 }

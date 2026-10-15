@@ -48,7 +48,8 @@ export const icon =
 export const table = "w-full mt-3.5 mb-4.5 border-collapse";
 export const th =
   "pt-0 pr-3 pb-2 pl-0 border-b border-input text-label font-semibold tracking-[0.06em] text-left uppercase text-muted";
-export const td = "py-2.5 pr-3 pl-0 border-b border-border align-top first:w-37.5";
+export const tdBase = "py-2.5 pr-3 pl-0 border-b border-border align-top";
+export const td = `${tdBase} first:w-37.5`;
 
 const badgeColors: Record<string, string> = {
   new: "bg-badge-new-bg text-badge-new",
@@ -68,8 +69,15 @@ export const tinyButton =
   "h-7 px-2.5 border border-input rounded-md bg-bg text-[12.5px] whitespace-nowrap cursor-pointer disabled:opacity-50 disabled:cursor-default";
 
 /** A modal dialog: confirmations, publishing, rolling back. */
-export const dialog =
-  "w-120 p-6 border border-border rounded-[14px] shadow-dialog bg-bg text-text text-ui leading-[1.4] backdrop:bg-[rgb(0_0_0/40%)]";
+export const dialogBase =
+  "p-6 border border-border rounded-[14px] shadow-dialog bg-bg text-text text-ui leading-[1.4] backdrop:bg-[rgb(0_0_0/40%)]";
+export const dialog = `${dialogBase} w-120`;
+/** A dialog's other buttons, beside its primary one. */
+export const dialogButton = "h-8 px-3 border border-input rounded-[7px] bg-bg cursor-pointer";
+/** A warning box in a dialog, its icon and its list. */
+export const warning = "flex gap-3 my-3.5 py-3 px-3.5 border border-warn-border rounded-lg bg-warn-bg text-warn-text";
+export const warningIcon = "flex-none mt-0.5 text-warn-icon";
+export const warningList = "mt-1.5 mb-0 p-0 list-none";
 export const dialogTitle = "mt-0 mb-4.5 text-[20px] tracking-[-0.01em]";
 
 /** The dot of a page or section with unpublished changes. */
@@ -115,3 +123,7 @@ export const drawerNote = "text-muted text-help";
 /** The block settings, in the side column or beside a snippet; empty until the cursor is in a component. */
 export const props =
   "props pt-4.5 px-4.5 pb-6 overflow-y-auto overflow-x-hidden bg-side text-ui leading-[1.4] empty:before:content-['Select_a_component_to_change_its_settings.'] empty:before:text-muted empty:before:text-help";
+
+/** The lines a change adds and removes, in a diff. */
+export const diffAdded = "bg-badge-new-bg text-badge-new";
+export const diffRemoved = "bg-badge-del-bg text-badge-del";

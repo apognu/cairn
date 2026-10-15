@@ -7,6 +7,7 @@ import { unwrap } from "./api/unwrap";
 import { blockLines, diffLines } from "./diff";
 import { Icon } from "./icons";
 import { ago } from "./LockBanner";
+import * as ui from "./ui";
 import type { LockView } from "./useLock";
 
 type Change = components["schemas"]["Change"];
@@ -22,6 +23,10 @@ export const badge: Record<Change["kinds"][number], string> = {
 };
 
 /** A saved version never changes, so it is read once. */
+/** What a change does to a URL, under its page's title. */
+export const urlNote = "mt-0.5 text-help";
+export const code = "font-mono text-[12.5px]";
+
 function useRevision(id: string | null | undefined) {
   return useQuery({
     queryKey: ["revision", id],
@@ -36,23 +41,23 @@ export function LockWarning({ locks }: { locks: LockView[] }) {
   if (locks.length === 0) return null;
 
   return (
-    <div className="publish-warning publish-locks" role="alert">
-      <Icon name="lock" size={18} />
+    <div className={ui.warning} role="alert">
+      <Icon name="lock" size={18} className={ui.warningIcon} />
       <div>
         <strong>
           {locks.length === 1 ? "1 page is being edited right now" : `${locks.length} pages are being edited right now`}
         </strong>
-        <ul aria-label="Pages being edited">
+        <ul className="my-1.5 p-0 list-none" aria-label="Pages being edited">
           {locks.map((l) => (
             <li key={l.page_id}>
-              <span className="lock-page">{l.page_title}</span>{" "}
-              <span className="muted">
+              <span className="font-semibold">{l.page_title}</span>{" "}
+              <span className="text-muted">
                 {l.user_name} · {l.last_saved_at ? `last saved ${ago(l.last_saved_at)}` : "nothing saved yet"}
               </span>
             </li>
           ))}
         </ul>
-        <p className="muted">
+        <p className="text-muted">
           Publishing now uses their last saved versions. Anything they haven't saved stays in their editor.
         </p>
       </div>
@@ -87,19 +92,22 @@ export function ChangeRow({
   return (
     <>
       <tr>
-        {select && <td className="select">{select}</td>}
-        <td>
+        {select && <td className={`${ui.tdBase} w-7`}>{select}</td>}
+        <td className={ui.td}>
           {change.kinds.map((k) => (
-            <span key={k} className="badge" data-kind={k}>
+            <span key={k} className={ui.badge(k)} data-kind={k}>
               {badge[k]}
             </span>
           ))}
         </td>
-        <td>
+        <td className={ui.td}>
           <strong>{change.title}</strong>
-          {change.old_title && <span className="muted"> · was “{change.old_title}”</span>}
+          {change.old_title && <span className="text-muted"> · was “{change.old_title}”</span>}
           {lockedBy && (
-            <span className="being-edited" title={`${lockedBy} is editing`}>
+            <span
+              className="inline-flex items-center gap-1 ml-2 text-warn-icon text-label"
+              title={`${lockedBy} is editing`}
+            >
               <Icon name="lock" size={12} /> being edited
             </span>
           )}
@@ -108,40 +116,43 @@ export function ChangeRow({
             change.kinds[0] === "edited" &&
             change.revision_id &&
             change.revision_id === change.live_revision_id && (
-              <div className="url-note">a page it links to or a snippet it uses changed</div>
+              <div className={`${urlNote} text-muted`}>a page it links to or a snippet it uses changed</div>
             )}
         </td>
-        <td className="muted">
+        <td className={`${ui.td} text-muted text-help`}>
           {current.data ? `${current.data.author_name} · ${ago(current.data.created_at)}` : "—"}
         </td>
-        <td className="size">
+        <td className={`${ui.td} font-mono text-[12.5px] whitespace-nowrap`}>
           {!lines ? (
             "—"
           ) : change.live_revision_id ? (
             <>
-              <span className="added">+{added}</span> <span className="removed">−{removed}</span>
+              <span className="text-badge-new">+{added}</span> <span className="text-badge-del">−{removed}</span>
             </>
           ) : (
             `${words.toLocaleString("en")} w`
           )}
         </td>
-        <td>
+        <td className={ui.td}>
           {lines && (
-            <button type="button" className="small" aria-expanded={open} onClick={() => setOpen(!open)}>
+            <button type="button" className={ui.tinyButton} aria-expanded={open} onClick={() => setOpen(!open)}>
               {open ? "Hide diff" : "View diff"}
             </button>
           )}
         </td>
       </tr>
       {open && lines && (
-        <tr className="diff-row">
-          <td colSpan={select ? 6 : 5}>
-            <ul className="diff" aria-label={`Changes to ${change.title}`}>
+        <tr>
+          <td colSpan={select ? 6 : 5} className="pt-0 pb-2.5 pr-3 pl-0 border-b border-border align-top">
+            <ul
+              className="mt-0 mb-3 p-0 list-none max-h-70 overflow-auto border border-input rounded-lg font-mono text-[12.5px]"
+              aria-label={`Changes to ${change.title}`}
+            >
               {lines
                 .filter((l) => l.kind !== "same")
                 .map((l, i) => (
                   // biome-ignore lint/suspicious/noArrayIndexKey: diff lines can repeat
-                  <li key={i} data-kind={l.kind}>
+                  <li key={i} className={l.kind === "added" ? ui.diffAdded : ui.diffRemoved} data-kind={l.kind}>
                     {l.kind === "added" ? "+ " : "− "}
                     {l.text || "(empty line)"}
                   </li>
@@ -178,20 +189,20 @@ export function ChecksStrip({
   ].filter((check) => !problems.some((p) => check.kinds.includes(p.kind)));
 
   return (
-    <div className="checks-strip">
+    <div className="flex flex-wrap items-center gap-x-4.5 gap-y-2 mt-0 mb-4 text-help">
       {passed.map((check) => (
-        <span key={check.text} className="passed">
+        <span key={check.text} className="inline-flex items-center gap-1.5 text-badge-new">
           <Icon name="check" size={14} />
           {check.text}
         </span>
       ))}
       {stayPending > 0 && (
-        <span className="muted">
+        <span className="text-muted">
           {stayPending === 1 ? "1 change stays pending" : `${stayPending} changes stay pending`}
         </span>
       )}
       {files != null && (
-        <span className="muted stats">
+        <span className="ml-auto text-muted">
           Last build {files.toLocaleString("en")} files{bytes != null && ` · ${mb(bytes)}`}
           {maxFiles != null && ` · limit ${maxFiles.toLocaleString("en")} files`}
         </span>

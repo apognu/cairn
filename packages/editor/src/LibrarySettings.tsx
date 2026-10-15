@@ -96,7 +96,7 @@ export function LibrarySettings() {
                 </td>
                 <td className={ui.td}>
                   {e.used_in.length === 0 ? (
-                    <span className="muted">no pages</span>
+                    <span className="text-muted">no pages</span>
                   ) : (
                     `${e.used_in.length} ${e.used_in.length === 1 ? "page" : "pages"}`
                   )}

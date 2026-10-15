@@ -10,8 +10,6 @@ import * as ui from "./ui";
 import { saveSettled } from "./useDraftSync";
 
 const version = "border-b border-border last:border-b-0";
-const added = "bg-badge-new-bg text-badge-new";
-const removed = "bg-badge-del-bg text-badge-del";
 /** A version's old title or description can be long: it wraps beside its checkbox instead of running out of the drawer. */
 const option = "flex items-start gap-2 mt-0 mb-1.5 text-ui font-normal";
 const optionText = "flex-1 min-w-0 wrap-anywhere";
@@ -132,7 +130,7 @@ export function HistoryDrawer({
               .filter((l) => l.kind !== "same")
               .map((l, i) => (
                 // biome-ignore lint/suspicious/noArrayIndexKey: diff lines can repeat
-                <li key={i} className={l.kind === "added" ? added : removed} data-kind={l.kind}>
+                <li key={i} className={l.kind === "added" ? ui.diffAdded : ui.diffRemoved} data-kind={l.kind}>
                   {l.kind === "added" ? "+ " : "− "}
                   {l.text || "(empty line)"}
                 </li>

@@ -5,6 +5,7 @@ import type { components } from "./api/schema";
 import { unwrap } from "./api/unwrap";
 import { Icon } from "./icons";
 import { useMe } from "./queries";
+import * as ui from "./ui";
 
 type Change = components["schemas"]["Change"];
 
@@ -67,17 +68,17 @@ export type Hotfix = ReturnType<typeof useHotfix>;
 /** "Everything pending" or "Selected pages (hotfix)". */
 export function ModeSwitch({ hotfix, count, base }: { hotfix: Hotfix; count: number; base: string | null }) {
   return (
-    <div className="publish-mode">
-      <fieldset className="segmented">
+    <div className="flex flex-wrap items-center gap-x-3.5 gap-y-2 mt-3.5 mb-0 text-help">
+      <fieldset className={`${ui.segmented} m-0 border-0`}>
         <legend className="sr-only">What to publish</legend>
-        <button type="button" aria-pressed={!hotfix.on} onClick={() => hotfix.setOn(false)}>
+        <button type="button" className={ui.segment} aria-pressed={!hotfix.on} onClick={() => hotfix.setOn(false)}>
           Everything pending ({count})
         </button>
-        <button type="button" aria-pressed={hotfix.on} onClick={() => hotfix.setOn(true)}>
+        <button type="button" className={ui.segment} aria-pressed={hotfix.on} onClick={() => hotfix.setOn(true)}>
           Selected pages (hotfix)
         </button>
       </fieldset>
-      <span className="muted">
+      <span className="text-muted">
         {hotfix.on
           ? base
             ? `Builds on the live release from ${base}`
@@ -91,13 +92,15 @@ export function ModeSwitch({ hotfix, count, base }: { hotfix: Hotfix; count: num
 /** How to pick, and the shortcuts. */
 export function PickBar({ hotfix }: { hotfix: Hotfix }) {
   return (
-    <div className="pick-bar">
-      <span className="muted">Only ticked pages go live, each as its latest saved draft. The rest stays pending.</span>
-      <span className="muted">Select:</span>
-      <button type="button" className="small" onClick={hotfix.pickMine} disabled={hotfix.mine.length === 0}>
+    <div className="flex flex-wrap items-center gap-2 mt-3 mb-0 text-help">
+      <span className="mr-auto text-muted">
+        Only ticked pages go live, each as its latest saved draft. The rest stays pending.
+      </span>
+      <span className="text-muted">Select:</span>
+      <button type="button" className={ui.tinyButton} onClick={hotfix.pickMine} disabled={hotfix.mine.length === 0}>
         My changes ({hotfix.mine.length})
       </button>
-      <button type="button" className="small" onClick={hotfix.pickNone} disabled={hotfix.picked.size === 0}>
+      <button type="button" className={ui.tinyButton} onClick={hotfix.pickNone} disabled={hotfix.picked.size === 0}>
         None
       </button>
     </div>
@@ -109,11 +112,11 @@ export function DependencyNotes({ hotfix }: { hotfix: Hotfix }) {
   if (hotfix.pulled.length === 0 && hotfix.plainLinks.length === 0) return null;
 
   return (
-    <div className="publish-warning dependency-notes">
-      <Icon name="info" size={18} />
-      <ul aria-label="Dependencies">
+    <div className={ui.warning}>
+      <Icon name="info" size={18} className={ui.warningIcon} />
+      <ul className="m-0 p-0 list-none" aria-label="Dependencies">
         {hotfix.pulled.map((p) => (
-          <li key={p.page_id}>
+          <li key={p.page_id} className="not-first:mt-1.5">
             <strong>{p.title}</strong> goes out too:{" "}
             {p.reason === "parent"
               ? "a selected page now lives under it."
@@ -121,13 +124,13 @@ export function DependencyNotes({ hotfix }: { hotfix: Hotfix }) {
           </li>
         ))}
         {hotfix.plainLinks.map((l) => (
-          <li key={`${l.source_title}-${l.target_id}`}>
+          <li key={`${l.source_title}-${l.target_id}`} className="not-first:mt-1.5">
             <strong>
               {l.source_title} links to {l.target_title}
             </strong>
             , which isn't selected and isn't live yet. That link shows as plain text until {l.target_title} is
             published.{" "}
-            <button type="button" className="link-button" onClick={() => hotfix.include(l.target_id)}>
+            <button type="button" className={ui.linkButton} onClick={() => hotfix.include(l.target_id)}>
               Include it
             </button>
           </li>
