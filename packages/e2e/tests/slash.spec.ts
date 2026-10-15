@@ -164,16 +164,22 @@ test("on a narrower window, block settings open from their button, Alt+Enter or 
   await page.emulateMedia({ colorScheme: "dark" });
   await page.screenshot({ path: "test-results/block-settings-dark.png" });
   await page.emulateMedia({ colorScheme: "light" });
+  // The column is out of the way until asked for, then it opens itself: the page actions on top, the block's settings under them.
+  await expect(page.locator(".side-drawer")).toBeHidden();
   await open.click();
-  const drawer = page.getByRole("dialog", { name: "Feature tabs settings" });
+  const drawer = page.getByRole("dialog", { name: "Page and block settings" });
+  await expect(
+    drawer.getByRole("navigation", { name: "Page actions" }).getByRole("button", { name: "History" }),
+  ).toBeVisible();
   await expect(drawer.getByRole("heading", { name: "Feature tabs" })).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(drawer).toBeHidden();
+  await expect(page.locator(".side-drawer")).toBeHidden();
 
   await editor.locator(".feature-tabs").click();
   await page.keyboard.press("Alt+Enter");
   await expect(drawer).toBeVisible();
-  await drawer.getByRole("button", { name: "Close feature tabs settings" }).click();
+  await page.keyboard.press("Escape");
 
   await editor.locator(".feature-tabs").dblclick();
   await expect(drawer).toBeVisible();

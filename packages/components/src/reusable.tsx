@@ -6,6 +6,7 @@ export const variable = defineComponent({
   name: "variable",
   version: 1,
   title: "Variable",
+  description: "A value kept in the library, such as the latest version, shown wherever it is used.",
   props: z.object({ key: z.string().default("").meta({ title: "Variable", "x-field": "variable" }) }),
   render: (props) => <Variable name={props.key} />,
 });
@@ -29,6 +30,7 @@ export const snippet = defineComponent({
   name: "snippet",
   version: 1,
   title: "Snippet",
+  description: "A passage kept in the library, the same everywhere it is used.",
   props: z.object({ key: z.string().default("").meta({ title: "Snippet", "x-field": "snippet" }) }),
   render: (props) => <Snippet name={props.key} />,
 });

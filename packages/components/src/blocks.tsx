@@ -2,13 +2,15 @@ import { defineComponent, icon, link, z } from "@cairn/sdk";
 import { FeatureCard } from "./features";
 import { upgradeIconNames } from "./icons";
 
-const card = z.object({
-  icon: icon().default("star"),
-  title: z.string().default("Card"),
-  description: z.string().default(""),
-  page: link(),
-  href: z.string().optional().meta({ title: "Web address" }),
-});
+const card = z
+  .object({
+    icon: icon().default("star"),
+    title: z.string().default("Card"),
+    description: z.string().default(""),
+    page: link(),
+    href: z.string().optional().meta({ title: "Web address", description: "Where it links when no page is chosen" }),
+  })
+  .meta({ title: "Card" });
 
 /** A grid of cards, each with an icon, a title, a description and an optional link to a page or a web address. */
 export const cards = defineComponent({
@@ -17,6 +19,7 @@ export const cards = defineComponent({
   // Version 1 had a dozen icons of its own; 2 uses Lucide, where three of them have other names.
   migrate: { 1: upgradeIconNames },
   title: "Cards",
+  description: "A grid of cards with icons, each linking to a page or an address.",
   props: z.object({
     columns: z.enum(["2", "3"]).default("2"),
     cards: z
@@ -76,6 +79,7 @@ export const fileTree = defineComponent({
   name: "fileTree",
   version: 1,
   title: "File tree",
+  description: "Folders and files, drawn as a tree.",
   props: z.object({
     tree: z
       .string()

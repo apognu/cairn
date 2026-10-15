@@ -742,7 +742,7 @@ fieldset.bubble {
 }
 
 /* The page's drawers open under its actions, which stay there to switch from one to the other or close them. */
-.shell:has(.page-actions) > .drawer {
+.shell:has(> div.side-column > .page-actions) > .drawer {
   top: calc(52px + var(--page-actions-height));
   height: calc(100vh - 52px - var(--page-actions-height));
 }
@@ -765,19 +765,42 @@ fieldset.bubble {
   font-size: 13px;
 }
 
-.props-drawer::backdrop {
+/* The side column as a drawer: the same column, from the right edge, over the top bar. */
+.side-drawer {
+  position: fixed;
+  inset: 0 0 0 auto;
+  width: var(--panel-width);
+  max-width: 100vw;
+  height: 100vh;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-left: 1px solid var(--border);
+  color: var(--text);
+  box-shadow: -12px 0 32px rgba(16, 20, 22, 0.16);
+}
+
+/* `.side-column` sets a display, which would beat the browser's hiding of a closed dialog. */
+.side-drawer:not([open]) {
+  display: none;
+}
+
+.side-drawer::backdrop {
   background: rgba(16, 20, 22, 0.35);
 }
 
-.props-drawer {
-  inset: 0 0 0 auto;
-  height: 100vh;
+.side-drawer .props {
+  flex: 1;
+  width: auto;
+  border-left: 0;
 }
 
+/* What the block is, set apart from its fields. */
 .props-head {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
+  margin: 0 0 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
 }
 
 .props h2 {
@@ -785,9 +808,62 @@ fieldset.bubble {
   font-size: 17px;
 }
 
+.props-head p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.props .form-field small {
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+/* The image being described, on a neutral ground so transparent pictures show their edges. */
+.props-preview {
+  display: flex;
+  justify-content: center;
+  margin: 0 0 18px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--hover);
+}
+
+.props-preview img {
+  max-width: 100%;
+  max-height: 180px;
+  object-fit: contain;
+  border-radius: 4px;
+}
+
+.props-warning {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--warn-border);
+  border-radius: 8px;
+  background: var(--warn-bg);
+  color: var(--warn-text);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.props-warning svg {
+  flex: none;
+  margin-top: 1px;
+  color: var(--warn-icon);
+}
+
 .mono {
   font-family: var(--font-mono);
   font-size: 12px;
+}
+
+.props-head .mono {
+  display: block;
+  margin-top: 6px;
 }
 
 .form-field {
@@ -810,6 +886,21 @@ fieldset.bubble {
   border: 1px solid var(--border-input);
   border-radius: 6px;
   background: var(--bg);
+}
+
+/* A select draws like the text fields beside it, with a chevron in the theme's color rather than the system's arrow. */
+.form-field select {
+  padding-right: 30px;
+  appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position:
+    calc(100% - 15px) 50%,
+    calc(100% - 10px) 50%;
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+  cursor: pointer;
 }
 
 .form-check {
@@ -1608,6 +1699,7 @@ button.primary:disabled {
 
 .form-field textarea {
   padding: 8px 10px;
+  line-height: 1.45;
   border: 1px solid var(--border-input);
   border-radius: 6px;
   background: var(--bg);
@@ -1969,12 +2061,20 @@ span[data-label] > .component-invalid {
 }
 
 /* Below 1380px the secondary actions fold into this menu. */
+/* An icon button, the size of its neighbours. */
 .more-menu summary {
-  width: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
   height: 32px;
-  padding: 0 12px;
+  padding: 0;
   border: 1px solid var(--border-input);
   border-radius: 7px;
+  color: var(--text);
+}
+
+.more-menu summary svg {
   color: var(--text);
 }
 
@@ -2027,9 +2127,9 @@ span[data-label] > .component-invalid {
     display: none;
   }
 
-  /* The fields open in a modal drawer (PropsPanel) instead of a column, and the page actions go to the top bar's menu. */
-  .props,
-  .side-column {
+  /* The side column becomes a modal drawer (App's SideColumnDrawer), opened from a button over the page; the page actions are also in the
+     top bar's menu. */
+  div.side-column {
     display: none;
   }
 

@@ -3,15 +3,17 @@ import { useEffect, useId, useState } from "react";
 import { useRenderEnv } from "./env";
 import { Icon, upgradeIconNames } from "./icons";
 
-const feature = z.object({
-  icon: icon().default("star"),
-  title: z.string().default("New feature"),
-  description: z.string().default(""),
-  page: link(),
-  /** A web address, for a card that leaves the site; a page link wins when both are set. */
-  href: z.string().optional().meta({ title: "Web address" }),
-  newUntil: date().meta({ title: "New until" }),
-});
+const feature = z
+  .object({
+    icon: icon().default("star"),
+    title: z.string().default("New feature"),
+    description: z.string().default(""),
+    page: link(),
+    /** A web address, for a card that leaves the site; a page link wins when both are set. */
+    href: z.string().optional().meta({ title: "Web address", description: "Where it links when no page is chosen" }),
+    newUntil: date().meta({ title: "New until", description: "A New tag shows on it until this day" }),
+  })
+  .meta({ title: "Feature" });
 
 type Feature = z.infer<typeof feature>;
 
@@ -64,7 +66,9 @@ function FeatureGrid({ features }: { features: Feature[] }) {
 }
 
 const families = z
-  .array(z.object({ label: z.string().default("Family"), features: z.array(feature).default([]) }))
+  .array(
+    z.object({ label: z.string().default("Family"), features: z.array(feature).default([]) }).meta({ title: "Family" }),
+  )
   .min(1)
   .default([{ label: "Family", features: [] }]);
 
@@ -74,6 +78,7 @@ export const featureTabs = defineComponent({
   // Version 1 had a dozen icons of its own; 2 uses Lucide, where three of them have other names.
   migrate: { 1: upgradeIconNames },
   title: "Feature tabs",
+  description: "Feature cards grouped into tabs, one tab per family.",
   props: z.object({ families }),
   render: (props) => <FeatureTabs families={props.families} />,
 });
@@ -128,6 +133,7 @@ export const whatsNew = defineComponent({
   // Version 1 had a dozen icons of its own; 2 uses Lucide, where three of them have other names.
   migrate: { 1: upgradeIconNames },
   title: "What's new",
+  description: "Recently added features, each with a New tag for a while.",
   props: z.object({
     title: z.string().default("What's new").meta({ title: "Heading" }),
     items: z.array(feature).default([]),

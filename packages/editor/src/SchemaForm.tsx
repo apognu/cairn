@@ -111,7 +111,9 @@ function Field({
       ) : schema.enum ? (
         <select id={id} value={String(value)} onChange={(e) => onChange(e.target.value)}>
           {schema.enum.map((option) => (
-            <option key={String(option)}>{String(option)}</option>
+            <option key={String(option)} value={String(option)}>
+              {readable(String(option))}
+            </option>
           ))}
         </select>
       ) : schema.type === "number" || schema.type === "integer" ? (
@@ -136,6 +138,8 @@ function ListField({
   onChange: (next: unknown[]) => void;
 }) {
   const item = schema.items ?? {};
+  // "Add card", not "Add cards": the item's own title, or the list's in the singular.
+  const one = (item.title ?? label.replace(/ies$/, "y").replace(/s$/, "")).toLowerCase();
   const replace = (index: number, next: unknown) => onChange(value.map((v, i) => (i === index ? next : v)));
   const move = (from: number, to: number) => {
     const next = [...value];
@@ -205,10 +209,16 @@ function ListField({
         </details>
       ))}
       <button type="button" className="form-add" onClick={() => onChange([...value, defaultFor(item)])}>
-        + Add item
+        + Add {one}
       </button>
     </fieldset>
   );
+}
+
+/** A schema value as authors read it: `warning` is Warning, `code-group` is Code group. */
+function readable(value: string): string {
+  const words = value.replace(/[-_]/g, " ");
+  return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
 /** What a collapsed list item is called: its label, title or name when it has one. */

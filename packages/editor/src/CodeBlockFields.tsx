@@ -1,4 +1,5 @@
 import type { Editor } from "@tiptap/core";
+import { PropsHead } from "./PropsHead";
 
 // Names the highlighter knows, as they are written in the document.
 const languages: [value: string, label: string][] = [
@@ -42,9 +43,7 @@ export function CodeBlockFields({ editor, attrs }: { editor: Editor; attrs: Reco
 
   return (
     <>
-      <div className="props-head">
-        <h2>Code block</h2>
-      </div>
+      <PropsHead title="Code block" description="Code shown as written, with colors for its language when published." />
       <div className="form-field">
         <label>
           Language
@@ -64,6 +63,7 @@ export function CodeBlockFields({ editor, attrs }: { editor: Editor; attrs: Reco
           File name
           <input value={fileName} placeholder="Optional" onChange={(e) => set("fileName", e.target.value)} />
         </label>
+        <small className="muted">Shown above the code, like a tab: config.toml, src/main.rs.</small>
       </div>
     </>
   );

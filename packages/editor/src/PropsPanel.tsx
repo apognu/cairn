@@ -3,13 +3,13 @@ import { propsSchema } from "@cairn/sdk";
 import type { Editor } from "@tiptap/core";
 import { NodeSelection } from "@tiptap/pm/state";
 import { useEditorState } from "@tiptap/react";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId } from "react";
 import { createPortal } from "react-dom";
 import { CodeBlockFields } from "./CodeBlockFields";
 import { Icon } from "./icons";
+import { PropsHead } from "./PropsHead";
 import { SchemaForm } from "./SchemaForm";
-import { useModal } from "./sidePanel";
-import { useNarrow } from "./useNarrow";
+import { useSideDrawer } from "./sidePanel";
 
 type Active =
   | { kind: "component"; name: string; attrs: Record<string, unknown>; at: number }
@@ -40,7 +40,7 @@ export function PropsPanel({ editor, host }: { editor: Editor; host: HTMLElement
       return null;
     },
   });
-  const narrow = useNarrow();
+  const drawer = useSideDrawer();
 
   if (!active) return null;
 
@@ -60,13 +60,12 @@ export function PropsPanel({ editor, host }: { editor: Editor; host: HTMLElement
         ? "Image settings"
         : "Code block settings";
 
-  // Too narrow for a column: the same fields open in a modal drawer instead.
-  return narrow ? (
-    <PanelDrawer key={active.at} label={label} editor={editor}>
-      {body}
-    </PanelDrawer>
-  ) : (
-    createPortal(body, host)
+  // The fields always go in the side column; when it is a drawer (narrow window), a button over the page opens it.
+  return (
+    <>
+      {createPortal(body, host)}
+      {drawer && <DrawerOpener label={label} editor={editor} open={drawer.open} />}
+    </>
   );
 }
 
@@ -76,15 +75,12 @@ function ComponentFields({ editor, active }: { editor: Editor; active: Extract<A
 
   return (
     <>
-      <div className="props-head">
-        <h2>{component.title}</h2>
-        <span className="mono muted">
-          {component.name} · v{component.version}
-        </span>
-      </div>
-      <p className="muted">
-        {component.name.includes("/") ? "Custom" : "Built-in"} component · form generated from its schema
-      </p>
+      <PropsHead
+        title={component.title}
+        description={component.description}
+        // Custom components are versioned by whoever wrote them, who may need to know which one a page uses.
+        detail={component.name.includes("/") ? `${component.name} · v${component.version}` : undefined}
+      />
       <SchemaForm
         schema={propsSchema(component)}
         value={active.attrs}
@@ -101,6 +97,7 @@ function ComponentFields({ editor, active }: { editor: Editor; active: Extract<A
 }
 
 function ImageFields({ editor, attrs }: { editor: Editor; attrs: Record<string, unknown> }) {
+  const id = useId();
   const alt = String(attrs.alt ?? "");
   const caption = String(attrs.caption ?? "");
   const decorative = attrs.decorative === true;
@@ -112,60 +109,64 @@ function ImageFields({ editor, attrs }: { editor: Editor; attrs: Record<string, 
 
   return (
     <>
-      <div className="props-head">
-        <h2>Image</h2>
+      <PropsHead title="Image" description="A picture in the page, resized for every screen when published." />
+      {typeof attrs.assetId === "string" && (
+        <div className="props-preview">
+          <img src={`/_a/${attrs.assetId}`} alt="" />
+        </div>
+      )}
+      <div className="form-field">
+        <label htmlFor={`${id}-alt`}>Alt text</label>
+        <textarea
+          id={`${id}-alt`}
+          rows={3}
+          value={alt}
+          disabled={decorative}
+          placeholder={decorative ? "Not needed for a decorative image" : "What the image shows"}
+          onChange={(e) => set("alt", e.target.value)}
+        />
+        <small className="muted">Read aloud by screen readers, and shown when the image cannot load.</small>
       </div>
       <div className="form-field">
-        <label>
-          Alt text
-          <input value={alt} disabled={decorative} onChange={(e) => set("alt", e.target.value)} />
-        </label>
         <label className="form-check">
           <input type="checkbox" checked={decorative} onChange={(e) => set("decorative", e.target.checked)} />
           Decorative
         </label>
-        {!alt.trim() && !decorative && (
-          <span role="alert" className="alt-warning">
-            Describe this image for people who cannot see it, or mark it decorative.
-          </span>
-        )}
+        <small className="muted">It adds nothing to the text, so screen readers skip it.</small>
       </div>
+      {!alt.trim() && !decorative && (
+        <p role="alert" className="props-warning">
+          <Icon name="info" size={16} />
+          Describe this image for people who cannot see it, or mark it decorative. Publishing waits until then.
+        </p>
+      )}
       <div className="form-field">
-        <label>
-          Caption
-          <input value={caption} onChange={(e) => set("caption", e.target.value)} />
-        </label>
+        <label htmlFor={`${id}-caption`}>Caption</label>
+        <textarea id={`${id}-caption`} rows={2} value={caption} onChange={(e) => set("caption", e.target.value)} />
+        <small className="muted">Shown under the image. Optional.</small>
       </div>
     </>
   );
 }
 
 /**
- * A modal drawer from the right, opened from a floating button named after the selected block, with Alt+Enter from the text, or by
- * double-clicking the block: opening it by itself would take the focus from the text being typed. Closing it puts the cursor back in the text. Selecting something else (a
- * new `key`) closes it.
+ * Opens the side column's drawer on a narrow window, for the selected block: a floating button named after it, Alt+Enter from the text,
+ * or a double click on the block. Nothing opens by itself: that would take the focus from the text being typed.
  */
-function PanelDrawer({ label, editor, children }: { label: string; editor: Editor; children: React.ReactNode }) {
-  const dialog = useRef<HTMLDialogElement>(null);
-  const id = useId();
-  const [open, setOpen] = useState(false);
-
-  useModal(dialog, open);
-
+function DrawerOpener({ label, editor, open }: { label: string; editor: Editor; open: () => void }) {
   useEffect(() => {
-    if (open) return;
     const dom = editor.view.dom;
     const onKey = (event: KeyboardEvent) => {
       if (event.altKey && event.key === "Enter" && !event.ctrlKey && !event.metaKey && !event.shiftKey) {
         event.preventDefault();
-        setOpen(true);
+        open();
       }
     };
     // Double-clicking a component or an image opens its settings; inside a component's own text, a double click still selects a word.
     const onDoubleClick = (event: MouseEvent) => {
       const target = event.target instanceof Element ? event.target : null;
       const onBlock = target?.closest("[data-node-view-wrapper]") && !target.closest("[data-node-view-content]");
-      if (onBlock || target?.tagName === "IMG") setOpen(true);
+      if (onBlock || target?.tagName === "IMG") open();
     };
     dom.addEventListener("keydown", onKey);
     dom.addEventListener("dblclick", onDoubleClick);
@@ -176,42 +177,13 @@ function PanelDrawer({ label, editor, children }: { label: string; editor: Edito
     };
   }, [editor, open]);
 
-  if (!open)
-    return (
-      <button type="button" className="props-open" aria-keyshortcuts="Alt+Enter" onClick={() => setOpen(true)}>
-        <Icon name="sliders" size={16} />
-        {label}
-        <span className="key" aria-hidden="true">
-          Alt ↵
-        </span>
-      </button>
-    );
-
-  return createPortal(
-    <dialog
-      ref={dialog}
-      className="drawer props-drawer"
-      aria-labelledby={`${id}-title`}
-      onClose={() => {
-        setOpen(false);
-        editor.commands.focus();
-      }}
-    >
-      <header className="drawer-head">
-        <span id={`${id}-title`} className="sr-only">
-          {label}
-        </span>
-        <button
-          type="button"
-          className="icon"
-          aria-label={`Close ${label.toLowerCase()}`}
-          onClick={() => dialog.current?.close()}
-        >
-          ×
-        </button>
-      </header>
-      {children}
-    </dialog>,
-    document.body,
+  return (
+    <button type="button" className="props-open" aria-keyshortcuts="Alt+Enter" onClick={open}>
+      <Icon name="sliders" size={16} />
+      {label}
+      <span className="key" aria-hidden="true">
+        Alt ↵
+      </span>
+    </button>
   );
 }

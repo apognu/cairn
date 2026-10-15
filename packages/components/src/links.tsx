@@ -50,6 +50,7 @@ export const linkCard = defineComponent({
   name: "linkCard",
   version: 1,
   title: "Link card",
+  description: "A card for one page, with its title and description.",
   props: z.object({ page: link() }),
   render: (props) => <PageCard id={props.page} />,
 });
@@ -58,6 +59,7 @@ export const relatedPages = defineComponent({
   name: "relatedPages",
   version: 1,
   title: "Related pages",
+  description: "Cards linking to other pages, at the end of this one.",
   props: z.object({ title: z.string().default("Related"), pages: pageList }),
   render: (props) => (
     <section className="related-pages">
@@ -94,6 +96,7 @@ export const seeAlso = defineComponent({
   name: "seeAlso",
   version: 1,
   title: "See also",
+  description: "Links to related pages, set apart from the text.",
   props: z.object({ pages: pageList }),
   render: (props) => <SeeAlsoLinks ids={props.pages} />,
 });

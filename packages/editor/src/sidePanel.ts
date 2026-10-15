@@ -1,4 +1,14 @@
-import { type RefObject, useEffect } from "react";
+import { createContext, type RefObject, useContext, useEffect } from "react";
+
+/**
+ * The side column (page actions and block settings) when the window is too narrow to show it: a modal from the right that the block
+ * settings button, Alt+Enter and a double click open. `null` while the column is shown in place.
+ */
+export const SideDrawer = createContext<{ open: () => void } | null>(null);
+
+export function useSideDrawer() {
+  return useContext(SideDrawer);
+}
 
 /**
  * Opens a `<dialog>` as a side panel beside the canvas: not modal, so the page stays readable and the top bar usable. A modal dialog

@@ -1,6 +1,6 @@
 import { ThemeToggle } from "@cairn/renderer";
 import { useQuery } from "@tanstack/react-query";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiSettings } from "./ApiSettings";
 import { serverUrl } from "./api/base";
 import { useEditorEvents } from "./events";
@@ -14,6 +14,7 @@ import { PublishDialog } from "./PublishDialog";
 import { pendingCount, usePages, usePending, useSettings, useSiteInfo } from "./queries";
 import { type SettingsSection, SettingsView, sectionTitle } from "./SettingsView";
 import { Sidebar } from "./Sidebar";
+import { SideDrawer, useModal } from "./sidePanel";
 import { firstPage, type Page, pageUrls } from "./tree";
 import { UserMenu } from "./UserMenu";
 import { useNarrow } from "./useNarrow";
@@ -61,7 +62,12 @@ function Editor() {
   const [showPublish, setShowPublish] = useState(false);
   // One side panel at a time; its button opens and closes it.
   const [panel, setPanel] = useState<"history" | "settings" | null>(null);
-  const toggle = (next: "history" | "settings") => setPanel((open) => (open === next ? null : next));
+  const [sideOpen, setSideOpen] = useState(false);
+  // A page panel opens beside the page, so the side column's drawer (which may hold the button) makes way for it.
+  const toggle = (next: "history" | "settings") => {
+    setSideOpen(false);
+    setPanel((open) => (open === next ? null : next));
+  };
   // Bumped when a version is restored, so the editor loads the new draft instead of keeping the old text.
   const [restores, setRestores] = useState(0);
   const settings = useSettings();
@@ -142,6 +148,7 @@ function Editor() {
     </>
   );
   const sideColumn = current?.kind !== "api";
+  const sideDrawer = useMemo(() => ({ open: () => setSideOpen(true) }), []);
   const actionsInColumn = sideColumn && !narrow && Boolean(pageActions);
   const siteSettings = (
     <button type="button" onClick={() => openSettings("site")}>
@@ -173,7 +180,9 @@ function Editor() {
           <UserMenu />
           {narrow ? (
             <details className="menu more-menu">
-              <summary>More</summary>
+              <summary aria-label="More actions" title="More actions">
+                <Icon name="more" size={18} />
+              </summary>
               {/* Every item leaves the menu: History and the settings open a panel, the reader view another tab. */}
               {/* biome-ignore lint/a11y/useKeyWithClickEvents: closes after the item's own click, which the keyboard triggers too */}
               {/* biome-ignore lint/a11y/noStaticElementInteractions: the items inside are the controls; this only closes the menu */}
@@ -210,39 +219,51 @@ function Editor() {
       ) : (
         <>
           <Sidebar pages={pages.data ?? []} loading={pages.isPending} selected={selected} onSelect={select} />
-          <main className="canvas" data-wide={current?.kind === "api" || undefined}>
-            {current?.kind === "api" ? (
-              <div className="settings-main">
-                <ApiSettings key={current.id} page={current} />
-              </div>
-            ) : current ? (
-              <PageEditor
-                key={`${current.id}-${restores}`}
-                page={current}
-                onStatus={setStatus}
-                panelHost={panelHost}
-                onOpen={select}
-              />
-            ) : (
-              !pages.isPending && (
-                <p className="muted pad">
-                  {pages.data?.length
-                    ? "Choose a page in the sidebar to edit it."
-                    : "Create a page in the sidebar to get started."}
-                </p>
-              )
-            )}
-          </main>
-          {sideColumn && (
-            <div className="side-column">
-              {actionsInColumn && (
-                <nav className="page-actions" aria-label="Page actions">
-                  {pageActions}
-                </nav>
+          <SideDrawer.Provider value={narrow ? sideDrawer : null}>
+            <main className="canvas" data-wide={current?.kind === "api" || undefined}>
+              {current?.kind === "api" ? (
+                <div className="settings-main">
+                  <ApiSettings key={current.id} page={current} />
+                </div>
+              ) : current ? (
+                <PageEditor
+                  key={`${current.id}-${restores}`}
+                  page={current}
+                  onStatus={setStatus}
+                  panelHost={panelHost}
+                  onOpen={select}
+                />
+              ) : (
+                !pages.isPending && (
+                  <p className="muted pad">
+                    {pages.data?.length
+                      ? "Choose a page in the sidebar to edit it."
+                      : "Create a page in the sidebar to get started."}
+                  </p>
+                )
               )}
-              <aside className="props" aria-label="Component settings" ref={setPanelHost} />
-            </div>
-          )}
+            </main>
+          </SideDrawer.Provider>
+          {sideColumn &&
+            (narrow ? (
+              <SideColumnDrawer open={sideOpen} onClose={() => setSideOpen(false)}>
+                {pageActions && (
+                  <nav className="page-actions" aria-label="Page actions">
+                    {pageActions}
+                  </nav>
+                )}
+                <aside className="props" aria-label="Component settings" ref={setPanelHost} />
+              </SideColumnDrawer>
+            ) : (
+              <div className="side-column">
+                {actionsInColumn && (
+                  <nav className="page-actions" aria-label="Page actions">
+                    {pageActions}
+                  </nav>
+                )}
+                <aside className="props" aria-label="Component settings" ref={setPanelHost} />
+              </div>
+            ))}
         </>
       )}
       {panel === "history" && current && !section && (
@@ -258,5 +279,41 @@ function Editor() {
       )}
       {showPublish && <PublishDialog onClose={() => setShowPublish(false)} onPublished={setPublished} />}
     </div>
+  );
+}
+
+/** The side column as a modal from the right, when the window has no room for it: the same actions and settings, the same layout. */
+function SideColumnDrawer({
+  open,
+  onClose,
+  children,
+}: {
+  open: boolean;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  const dialog = useRef<HTMLDialogElement>(null);
+
+  useModal(dialog, open);
+  useEffect(() => {
+    if (!open && dialog.current?.open) dialog.current.close();
+    // It opens for the block's settings: their first field takes the focus, not the page actions above them.
+    if (open)
+      dialog.current?.querySelector<HTMLElement>(".props :is(input, select, textarea, button, summary)")?.focus();
+  }, [open]);
+
+  return (
+    <dialog
+      ref={dialog}
+      className="side-column side-drawer"
+      aria-label="Page and block settings"
+      onClose={() => {
+        onClose();
+        // The drawer took the focus from the text; give it back where the cursor was.
+        document.querySelector<HTMLElement>("main.canvas .ProseMirror")?.focus();
+      }}
+    >
+      {children}
+    </dialog>
   );
 }
