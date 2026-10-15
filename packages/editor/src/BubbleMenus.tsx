@@ -5,6 +5,11 @@ import { useEffect, useState } from "react";
 import { PICKER_EVENT, type PickerRequest, pageUrlRegistry } from "./pageLink";
 import { useLibrary, usePages } from "./queries";
 
+/** The toolbars over selected text; each sets its own gap and padding. */
+const bubble = "flex items-center border border-input rounded-lg bg-bg shadow-popover text-ui leading-[1.4]";
+const bubbleButton =
+  "min-w-7 h-7 px-1.5 border-0 rounded-[5px] bg-transparent cursor-pointer hover:bg-hover aria-pressed:bg-hover aria-pressed:text-accent aria-pressed:font-bold";
+
 /** Floating tools: formatting for a text selection, a link the cursor is in. */
 export function BubbleMenus({ editor }: { editor: Editor }) {
   return (
@@ -61,7 +66,7 @@ function TextTools({ editor }: { editor: Editor }) {
 
     return (
       <form
-        className="bubble"
+        className={`${bubble} gap-1 p-1`}
         onKeyDown={(e) => {
           if (e.key !== "Escape") return;
           setMarking(false);
@@ -76,6 +81,7 @@ function TextTools({ editor }: { editor: Editor }) {
       >
         <select
           name="term"
+          className="h-7 px-1.5 border border-input rounded-[5px] bg-bg"
           aria-label="Glossary term"
           // The selected words preselect their term, written as the term or as one of its other words.
           defaultValue={entries.find((e) => [e.key, ...e.aliases].some((w) => w.toLowerCase() === words))?.key ?? ""}
@@ -87,8 +93,10 @@ function TextTools({ editor }: { editor: Editor }) {
             </option>
           ))}
         </select>
-        <button type="submit">Apply</button>
-        <button type="button" onClick={() => setMarking(false)}>
+        <button type="submit" className={bubbleButton}>
+          Apply
+        </button>
+        <button type="button" className={bubbleButton} onClick={() => setMarking(false)}>
           Cancel
         </button>
       </form>
@@ -96,13 +104,20 @@ function TextTools({ editor }: { editor: Editor }) {
   }
 
   const tool = (label: string, glyph: string, on: boolean, run: () => void) => (
-    <button type="button" aria-label={label} aria-pressed={on} onClick={run} onMouseDown={(e) => e.preventDefault()}>
+    <button
+      type="button"
+      className={bubbleButton}
+      aria-label={label}
+      aria-pressed={on}
+      onClick={run}
+      onMouseDown={(e) => e.preventDefault()}
+    >
       {glyph}
     </button>
   );
 
   return (
-    <div className="bubble" role="toolbar" aria-label="Text formatting">
+    <div className={`${bubble} gap-1 p-1`} role="toolbar" aria-label="Text formatting">
       {tool("Bold", "B", active.bold, () => editor.chain().focus().toggleBold().run())}
       {tool("Italic", "I", active.italic, () => editor.chain().focus().toggleItalic().run())}
       {tool("Strikethrough", "S", active.strike, () => editor.chain().focus().toggleStrike().run())}
@@ -152,15 +167,23 @@ function LinkTools({ editor }: { editor: Editor }) {
   };
 
   return (
-    <div className="bubble bubble-link" role="toolbar" aria-label="Link">
-      <span className="bubble-target" title={url ? `${url}${link.anchor ? `#${link.anchor}` : ""}` : undefined}>
+    <div className={`${bubble} gap-1.5 py-2 px-2.5`} role="toolbar" aria-label="Link">
+      {/* One line: the page, then its address, cut off with an ellipsis; the whole address is in the tooltip. */}
+      <span
+        className="flex items-baseline gap-2 max-w-95 px-1 whitespace-nowrap"
+        title={url ? `${url}${link.anchor ? `#${link.anchor}` : ""}` : undefined}
+      >
         {target === null ? (
-          <span className="bubble-broken">This page no longer exists</span>
+          <span className="text-danger">This page no longer exists</span>
         ) : (
           <>
-            <strong>{target}</strong>
+            <strong
+              className={`min-w-0 overflow-hidden text-ellipsis ${link.pageId && url ? "flex-none max-w-50" : ""}`}
+            >
+              {target}
+            </strong>
             {link.pageId && url && (
-              <span className="muted">
+              <span className="min-w-0 overflow-hidden text-ellipsis text-help text-muted">
                 {url}
                 {link.anchor ? `#${link.anchor}` : ""}
               </span>
@@ -168,16 +191,17 @@ function LinkTools({ editor }: { editor: Editor }) {
           </>
         )}
       </span>
-      <button type="button" onClick={change} onMouseDown={(e) => e.preventDefault()}>
+      <button type="button" className={bubbleButton} onClick={change} onMouseDown={(e) => e.preventDefault()}>
         Change
       </button>
       {target !== null && (
-        <button type="button" onClick={open} onMouseDown={(e) => e.preventDefault()}>
+        <button type="button" className={bubbleButton} onClick={open} onMouseDown={(e) => e.preventDefault()}>
           Open
         </button>
       )}
       <button
         type="button"
+        className={bubbleButton}
         onClick={() => editor.chain().focus().extendMarkRange("link").unsetMark("link").run()}
         onMouseDown={(e) => e.preventDefault()}
       >

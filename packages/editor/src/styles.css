@@ -6,6 +6,10 @@
 @reference "@cairn/renderer/tailwind.css";
 @source "./**/*.{ts,tsx}";
 
+/* Too narrow to keep a column aside: below this the tree (270px) and the side column (420px) would leave the page under 700px, as on
+   1280 and 1366 wide laptops. The page takes the width, and panels open over it. Keep in step with useNarrow.ts. */
+@custom-variant narrow (@media (max-width: 1380px));
+
 /* Colors that exist in the editor only, so they are not in the shared theme. */
 @theme inline {
   --color-badge-new: var(--badge-new);
@@ -67,12 +71,6 @@
   }
 }
 
-/* The document keeps the site's 16px; only the editor's own chrome is smaller. */
-.topbar {
-  font-size: 14px;
-  line-height: 1.4;
-}
-
 /* Editor chrome outside the canvas shares one scale: 14px text, 13px help, 12px labels. The canvas keeps the site's 16px. */
 .drawer,
 .settings,
@@ -106,10 +104,6 @@
 
 .muted {
   color: var(--muted);
-}
-
-.pad {
-  padding: 0 10px;
 }
 
 :root {
@@ -147,166 +141,6 @@
   --badge-del: #f0a8a0;
 }
 
-/* The right column is always there, so opening the settings of a block, Page settings or History never moves the page. */
-.shell {
-  --panel-width: 420px;
-  --page-actions-height: 53px;
-  display: grid;
-  grid-template: 52px 1fr / 270px minmax(0, 1fr) var(--panel-width);
-  height: 100vh;
-}
-
-.topbar {
-  grid-column: 1 / -1;
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 0 16px;
-  border-bottom: 1px solid var(--border);
-}
-
-.brand {
-  display: flex;
-  flex: none;
-  align-items: center;
-  gap: 10px;
-  font-size: 15px;
-}
-
-/* The breadcrumb is what gives way when the bar is short of room; the actions never wrap or shrink. */
-.crumbs {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--muted);
-  font-size: 13px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.save-status {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 12.5px;
-  color: var(--muted);
-}
-
-.save-status svg {
-  color: var(--accent);
-}
-
-.save-status[data-status="conflict"],
-.save-status[data-status="error"] {
-  color: var(--danger);
-}
-
-.save-status[data-status="read-only"],
-.save-status[data-status="read-only"] svg {
-  color: var(--warn-icon);
-}
-
-.menu {
-  position: relative;
-}
-
-.menu summary {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 5px;
-  color: var(--muted);
-  cursor: pointer;
-  list-style: none;
-}
-
-.menu summary::-webkit-details-marker {
-  display: none;
-}
-
-.menu summary:hover {
-  background: var(--border);
-  color: var(--text);
-}
-
-.menu-pop {
-  position: absolute;
-  z-index: 10;
-  top: 28px;
-  right: 0;
-  display: flex;
-  flex-direction: column;
-  min-width: 140px;
-  padding: 4px;
-  border: 1px solid var(--border-input);
-  border-radius: 8px;
-  background: var(--bg);
-  box-shadow: 0 8px 24px rgba(16, 20, 22, 0.18);
-  /* Not the color of the selected row the menu opens from. */
-  color: var(--text);
-  font-weight: 400;
-}
-
-.menu-note {
-  margin: 0;
-  padding: 6px 10px;
-  color: var(--muted);
-  font-size: 13px;
-  overflow-wrap: anywhere;
-}
-
-/* In the top bar the menu is a button like its neighbors, not the row-sized icon of the tree. */
-.user-menu summary {
-  width: auto;
-  max-width: 180px;
-  height: 32px;
-  padding: 0 12px;
-  border: 1px solid var(--border-input);
-  border-radius: 7px;
-  color: var(--text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: block;
-  line-height: 30px;
-}
-
-.user-menu .menu-pop {
-  top: 36px;
-  min-width: 200px;
-}
-
-/* Set by `placeMenu` when there is no room below the row. */
-.menu[data-up] .menu-pop {
-  top: auto;
-  bottom: 28px;
-}
-
-.menu-pop hr {
-  width: 100%;
-  margin: 4px 0;
-  border: 0;
-  border-top: 1px solid var(--border);
-}
-
-.menu-pop button.danger {
-  color: var(--danger);
-}
-
-.menu-pop button {
-  padding: 6px 10px;
-  border: 0;
-  border-radius: 5px;
-  background: none;
-  text-align: left;
-  cursor: pointer;
-}
-
-.menu-pop button:hover {
-  background: var(--hover);
-}
-
 .icon {
   width: 24px;
   height: 24px;
@@ -322,173 +156,8 @@
   color: var(--text);
 }
 
-/* Popovers anchored to text (menus, the link picker) are placed inside the pane, so they scroll with the text. */
-.canvas {
-  position: relative;
-  overflow-y: auto;
-}
-
 .ProseMirror:focus {
   outline: none;
-}
-
-.slash-popup {
-  position: fixed;
-  z-index: 20;
-}
-
-.bubble {
-  display: flex;
-  border: 1px solid var(--border-input);
-  border-radius: 8px;
-  background: var(--bg);
-  box-shadow: 0 8px 24px rgba(16, 20, 22, 0.18);
-  font-size: 14px;
-  line-height: 1.4;
-}
-
-.slash-menu {
-  display: flex;
-  flex-direction: column;
-  width: 393px;
-  max-height: 476px;
-  overflow-y: auto;
-  padding: 6px;
-  border: 1px solid var(--border-input);
-  border-radius: 12px;
-  background: var(--bg);
-  box-shadow: 0 12px 32px rgba(16, 20, 22, 0.18);
-  font-size: 14px;
-  line-height: 1.4;
-}
-
-.slash-group {
-  padding: 8px 10px 4px;
-  font-size: 11.5px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-.slash-foot {
-  position: sticky;
-  bottom: -6px;
-  background: var(--bg);
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: 4px;
-  padding: 8px 10px 2px;
-  border-top: 1px solid var(--border);
-  font-size: 12px;
-  color: var(--muted);
-}
-
-.slash-foot span:last-child {
-  margin-left: auto;
-}
-
-.slash-menu.muted {
-  padding: 8px 12px;
-}
-
-.slash-menu button {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 6px 8px;
-  border: 0;
-  border-radius: 8px;
-  background: none;
-  text-align: left;
-  cursor: pointer;
-}
-
-.slash-menu button[aria-selected="true"],
-.slash-menu button:hover {
-  background: var(--accent-soft);
-}
-
-.emoji-menu {
-  width: 260px;
-}
-
-.emoji-glyph {
-  flex: none;
-  width: 24px;
-  font-size: 18px;
-  text-align: center;
-}
-
-.slash-icon {
-  display: flex;
-  flex: none;
-  align-items: center;
-  justify-content: center;
-  width: 34px;
-  height: 34px;
-  border: 1px solid var(--border-input);
-  border-radius: 8px;
-  background: var(--bg);
-  color: var(--text-body);
-}
-
-button[aria-selected="true"] .slash-icon {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-.slash-text {
-  display: flex;
-  flex-direction: column;
-}
-
-.slash-text .muted {
-  font-size: 12.5px;
-}
-
-.bubble {
-  align-items: center;
-  gap: 4px;
-  padding: 4px;
-}
-
-.bubble button {
-  min-width: 28px;
-  height: 28px;
-  padding: 0 6px;
-  border: 0;
-  border-radius: 5px;
-  background: none;
-  cursor: pointer;
-}
-
-.bubble button:hover,
-.bubble button[aria-pressed="true"] {
-  background: var(--hover);
-}
-
-.bubble button[aria-pressed="true"] {
-  color: var(--accent);
-  font-weight: 700;
-}
-
-.bubble label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0 6px;
-  color: var(--muted);
-}
-
-.bubble input,
-.bubble select {
-  height: 28px;
-  padding: 0 6px;
-  border: 1px solid var(--border-input);
-  border-radius: 5px;
-  background: var(--bg);
 }
 
 .sr-only {
@@ -498,120 +167,6 @@ button[aria-selected="true"] .slash-icon {
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
-}
-
-fieldset.bubble {
-  margin: 0;
-}
-
-.bubble-link {
-  gap: 6px;
-  padding: 8px 10px;
-}
-
-/* One line: the page, then its address, cut off with an ellipsis; the whole address is in the tooltip. */
-.bubble-target {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  max-width: 380px;
-  padding: 0 4px;
-  white-space: nowrap;
-}
-
-.bubble-target strong {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.bubble-target strong:not(:only-child) {
-  flex: none;
-  max-width: 200px;
-}
-
-.bubble-target .muted {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-size: 13px;
-}
-
-.bubble-broken {
-  color: var(--danger);
-}
-
-.conflict {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 12px 48px 0;
-  padding: 8px 12px;
-  border: 1px solid var(--danger);
-  border-radius: 8px;
-}
-
-.conflict button {
-  border: 1px solid var(--border-input);
-  border-radius: 6px;
-  background: var(--bg);
-  padding: 3px 10px;
-  cursor: pointer;
-}
-
-/* The column beside the page: actions on the page itself on top, the settings of the selected block under them. */
-.side-column {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  border-left: 1px solid var(--border);
-  background: var(--bg-side);
-}
-
-.page-actions {
-  display: flex;
-  flex: none;
-  gap: 6px;
-  box-sizing: border-box;
-  height: var(--page-actions-height);
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--border);
-}
-
-.page-actions > a.button,
-.page-actions > button {
-  display: inline-flex;
-  flex: 1 1 0;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  min-width: 0;
-  height: 32px;
-  padding: 0 8px;
-  border: 1px solid var(--border-input);
-  border-radius: 7px;
-  background: var(--bg);
-  color: var(--text);
-  font-size: 13.5px;
-  text-decoration: none;
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.page-actions > a.button:hover,
-.page-actions > button:hover:not(:disabled),
-.page-actions > button[aria-pressed="true"] {
-  background: var(--hover);
-}
-
-.page-actions > button:disabled {
-  color: var(--muted);
-  cursor: default;
-}
-
-.page-actions svg {
-  flex: none;
-  color: var(--muted);
 }
 
 /* The page's drawers open under its actions, which stay there to switch from one to the other or close them. */
@@ -636,37 +191,6 @@ fieldset.bubble {
   content: "Select a component to change its settings.";
   color: var(--muted);
   font-size: 13px;
-}
-
-/* The side column as a drawer: the same column, from the right edge, over the top bar. */
-.side-drawer {
-  position: fixed;
-  inset: 0 0 0 auto;
-  width: var(--panel-width);
-  max-width: 100vw;
-  height: 100vh;
-  max-height: none;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  border-left: 1px solid var(--border);
-  color: var(--text);
-  box-shadow: -12px 0 32px rgba(16, 20, 22, 0.16);
-}
-
-/* `.side-column` sets a display, which would beat the browser's hiding of a closed dialog. */
-.side-drawer:not([open]) {
-  display: none;
-}
-
-.side-drawer::backdrop {
-  background: rgba(16, 20, 22, 0.35);
-}
-
-.side-drawer .props {
-  flex: 1;
-  width: auto;
-  border-left: 0;
 }
 
 /* What the block is, set apart from its fields. */
@@ -904,19 +428,6 @@ fieldset.bubble {
   line-height: 16px;
 }
 
-.topbar-actions {
-  display: flex;
-  flex: none;
-  align-items: center;
-  gap: 12px;
-  margin-left: auto;
-  white-space: nowrap;
-}
-
-.save-status {
-  flex: none;
-}
-
 .error-text {
   color: var(--danger);
 }
@@ -936,20 +447,6 @@ button.primary {
 button.primary:disabled {
   opacity: 0.6;
   cursor: default;
-}
-
-/* Direct children only: the buttons inside the account menu are menu items. */
-.topbar-actions > a.button,
-.topbar-actions > button:not(.primary):not(.theme-toggle) {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 32px;
-  padding: 0 12px;
-  border: 1px solid var(--border-input);
-  border-radius: 7px;
-  background: var(--bg);
-  cursor: pointer;
 }
 
 .settings {
@@ -981,11 +478,6 @@ button.primary:disabled {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-}
-
-/* A field that gets the focus scrolls into view above the sticky save buttons, not behind them. */
-.canvas:has(.sticky-actions) {
-  scroll-padding-bottom: 80px;
 }
 
 .dialog-actions button:not(.primary) {
@@ -1507,113 +999,21 @@ button.primary:disabled {
   text-underline-offset: 3px;
 }
 
-/* A component whose settings do not fit its schema: shown, so it can be selected and fixed. */
-.component-invalid {
-  display: block;
-  padding: 10px 14px;
-  border: 1px dashed var(--danger);
-  border-radius: 8px;
-  color: var(--danger);
-  font-size: 14px;
-}
-
-span[data-label] > .component-invalid {
-  display: inline;
-  padding: 0 4px;
-}
-
-/* Top bar: the theme toggle and links drawn as buttons match its 32px buttons. */
+/* The theme toggle matches the top bar's 32px buttons.
+   TODO(M6b.8): the renderer's theme toggle takes classes once the site moves to utilities. */
 .topbar .theme-toggle {
   width: 32px;
   height: 32px;
   margin-left: 0;
 }
 
-.topbar-actions a.button {
-  display: inline-flex;
-  align-items: center;
-  color: var(--text);
-  font-size: 14px;
-  text-decoration: none;
-}
-
-.topbar-actions button:disabled {
-  color: var(--muted);
-  cursor: default;
-}
-
-.topbar-actions button[aria-pressed="true"]:not(.primary) {
-  background: var(--hover);
-}
-
-/* Below 1380px the secondary actions fold into this menu. */
-/* An icon button, the size of its neighbours. */
-.more-menu summary {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  border: 1px solid var(--border-input);
-  border-radius: 7px;
-  color: var(--text);
-}
-
-.more-menu summary svg {
-  color: var(--text);
-}
-
-.more-menu .menu-pop {
-  top: 36px;
-  min-width: 180px;
-}
-
-/* A link in the menu reads as one of its items. */
-.more-menu .menu-pop a.button {
-  padding: 6px 10px;
-  border-radius: 5px;
-}
-
-.more-menu .menu-pop > a.button,
-.more-menu .menu-pop > button {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.topbar-actions svg {
+.topbar .theme-toggle svg {
   flex: none;
   color: var(--muted);
 }
 
-.more-menu .menu-pop a.button:hover {
-  background: var(--hover);
-}
-
-.more-menu .menu-pop button:disabled {
-  color: var(--muted);
-  cursor: default;
-}
-
-/* Too narrow to keep a column aside: below this the tree (270px) and the side column (420px) would leave the page under 700px, as on
-   1280 and 1366 wide laptops. The page takes the width, and panels open over it. Keep in step with useNarrow.ts. */
+/* Too narrow for the side column (see the `narrow` variant). */
 @media (max-width: 1380px) {
-  .shell {
-    grid-template-columns: 270px minmax(0, 1fr);
-  }
-
-  .published-count,
-  .brand strong {
-    display: none;
-  }
-
-  /* The side column becomes a modal drawer (App's SideColumnDrawer), opened from a button over the page; the page actions are also in the
-     top bar's menu. */
-  div.side-column {
-    display: none;
-  }
-
   /* Shown while a block with settings is selected: it must stand out from the page without hiding much of it. */
   .props-open {
     position: fixed;
@@ -1667,27 +1067,6 @@ span[data-label] > .component-invalid {
   .site[data-embedded] .site-toc {
     display: none;
   }
-}
-
-/* The description field reads as the published lead; only its placeholder and focus show it can be edited. */
-.lead-field {
-  display: block;
-  width: 100%;
-  padding: 0;
-  border: 0;
-  background: none;
-  font-family: inherit;
-  resize: none;
-  overflow: hidden;
-}
-
-.lead-field::placeholder {
-  color: var(--muted);
-  opacity: 0.6;
-}
-
-.lead-field:focus-visible {
-  outline: none;
 }
 
 /* Links in the canvas select what they belong to instead of leaving the page: no hand pointer promising otherwise. Linked words are
@@ -1756,43 +1135,12 @@ button.secondary:disabled {
   outline: 2px solid var(--accent);
 }
 
-.canvas[data-wide] {
-  grid-column: 2 / -1;
-}
-
 .row-inline button.primary[type="submit"] {
   height: 32px;
   border: 0;
   border-radius: 7px;
   background: var(--text);
   color: var(--bg);
-}
-
-.upload-status {
-  position: fixed;
-  z-index: 40;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 14px;
-  border: 1px solid var(--border-input);
-  border-radius: 8px;
-  background: var(--bg);
-  box-shadow: 0 8px 24px rgba(16, 20, 22, 0.18);
-  font-size: 14px;
-  line-height: 1.4;
-}
-
-.spinner {
-  width: 14px;
-  height: 14px;
-  border: 2px solid var(--border-input);
-  border-top-color: var(--accent);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
 }
 
 @keyframes spin {
@@ -1802,7 +1150,6 @@ button.secondary:disabled {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .spinner,
   .publish-progress progress:not([value]) {
     animation-duration: 3s;
   }
@@ -1980,74 +1327,6 @@ button.secondary:disabled {
 
 .restore-options .form-check input {
   margin-top: 2px;
-}
-
-/* The page is read-only: who holds it, and what can be done. */
-/* The buttons go to a line of their own when the canvas is too narrow for them beside the text. */
-.lock-banner {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px 14px;
-  padding: 12px 24px;
-  border-bottom: 1px solid var(--warn-border);
-  background: var(--warn-bg);
-  color: var(--warn-text);
-  font-size: 14px;
-}
-
-.lock-banner .avatar {
-  display: flex;
-  flex: none;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  background: var(--accent);
-  color: var(--bg);
-  font-size: 11.5px;
-  font-weight: 700;
-}
-
-.lock-text {
-  flex: 1 1 340px;
-  min-width: 0;
-}
-
-.lock-detail {
-  margin-top: 2px;
-  font-size: 13px;
-  opacity: 0.85;
-}
-
-.lock-actions {
-  display: flex;
-  flex: none;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-left: auto;
-}
-
-.lock-actions button.secondary {
-  border-color: var(--warn-border);
-  background: transparent;
-  color: inherit;
-}
-
-.lock-actions button.primary {
-  background: var(--warn-icon);
-  color: var(--bg);
-}
-
-.read-only {
-  opacity: 0.92;
-}
-
-@media (max-width: 700px) {
-  .lock-banner {
-    padding: 12px 16px;
-  }
 }
 
 /* The publish dialog: who is editing, each change's author and size, and the checks that passed. */

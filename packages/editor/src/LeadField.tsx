@@ -38,7 +38,8 @@ export function LeadField({ page }: { page: Page }) {
     <>
       <textarea
         ref={field}
-        className="doc-lead lead-field"
+        // `doc-lead` draws it as the published lead; only its placeholder and focus show it can be edited.
+        className="doc-lead block w-full p-0 border-0 bg-transparent font-[inherit] resize-none overflow-hidden placeholder:text-muted placeholder:opacity-60 focus-visible:outline-none"
         aria-label="Description"
         rows={1}
         maxLength={300}
@@ -56,7 +57,7 @@ export function LeadField({ page }: { page: Page }) {
         }}
       />
       {save.error && (
-        <p role="alert" className="error-text">
+        <p role="alert" className="text-danger">
           {save.error.message}
         </p>
       )}

@@ -5,6 +5,7 @@ import Suggestion, { type SuggestionKeyDownProps, type SuggestionProps } from "@
 import { forwardRef, useEffect, useImperativeHandle, useState } from "react";
 import { popoverHost } from "./popover";
 import { place } from "./slash";
+import * as ui from "./ui";
 
 interface Emoji {
   emoji: string;
@@ -107,7 +108,7 @@ const EmojiList = forwardRef<ListHandle, SuggestionProps<EmojiItem, EmojiItem>>(
 
   return (
     <div
-      className="slash-menu emoji-menu"
+      className={`${ui.cursorMenu} w-[260px] p-1.5`}
       role="listbox"
       aria-label="Insert an emoji"
       aria-activedescendant={`emoji-${active}`}
@@ -118,6 +119,7 @@ const EmojiList = forwardRef<ListHandle, SuggestionProps<EmojiItem, EmojiItem>>(
           key={it.shortcode}
           type="button"
           role="option"
+          className={ui.cursorOption}
           id={`emoji-${i}`}
           aria-selected={i === active}
           // Mouse down, not click: a click would first move focus out of the editor and close the menu.
@@ -126,7 +128,7 @@ const EmojiList = forwardRef<ListHandle, SuggestionProps<EmojiItem, EmojiItem>>(
             command(it);
           }}
         >
-          <span className="emoji-glyph">{it.emoji}</span>
+          <span className="flex-none w-6 text-[18px] text-center">{it.emoji}</span>
           <span>:{it.shortcode}:</span>
         </button>
       ))}
@@ -176,7 +178,7 @@ export const EmojiSuggestion = Extension.create({
           return {
             onStart(props) {
               renderer = new ReactRenderer(EmojiList, { props, editor: props.editor });
-              renderer.element.classList.add("slash-popup");
+              renderer.element.classList.add("fixed", "z-20");
               host = popoverHost(props.editor.view.dom);
               (host ?? document.body).append(renderer.element);
               place(renderer.element, props.clientRect?.(), MENU_HEIGHT, MENU_WIDTH, host);

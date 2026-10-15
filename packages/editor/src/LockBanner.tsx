@@ -127,7 +127,7 @@ function Held({ lock, actions }: { lock: LockView; actions: LockActions }) {
         }
       >
         Taking over stops {first}'s editor at once. Anything {first} has not saved stays in {first}'s browser.
-        {refusal && confirming && <span className="lock-refusal"> {refusal}</span>}
+        {refusal && confirming && <span> {refusal}</span>}
       </Banner>
     );
 
@@ -157,7 +157,11 @@ function Held({ lock, actions }: { lock: LockView; actions: LockActions }) {
 
 function Primary({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
   return (
-    <button type="button" className="primary" onClick={onClick}>
+    <button
+      type="button"
+      className="h-8 px-3.5 border-0 rounded-[7px] bg-warn-icon text-bg text-[13.5px] font-semibold cursor-pointer"
+      onClick={onClick}
+    >
       {children}
     </button>
   );
@@ -173,7 +177,12 @@ function Secondary({
   children: React.ReactNode;
 }) {
   return (
-    <button type="button" className="secondary" onClick={onClick} disabled={disabled}>
+    <button
+      type="button"
+      className="h-8 px-3 border border-warn-border rounded-[7px] bg-transparent text-inherit cursor-pointer disabled:opacity-50 disabled:cursor-default"
+      onClick={onClick}
+      disabled={disabled}
+    >
       {children}
     </button>
   );
@@ -193,20 +202,27 @@ function Banner({
   children: React.ReactNode;
 }) {
   return (
-    <output className="lock-banner" data-testid="lock-banner">
+    // The buttons go to a line of their own when the canvas is too narrow for them beside the text.
+    <output
+      className="flex flex-wrap items-center gap-x-3.5 gap-y-2.5 py-3 px-6 border-b border-warn-border bg-warn-bg text-warn-text text-ui [@media(max-width:700px)]:px-4"
+      data-testid="lock-banner"
+    >
       {avatar && (
-        <span className="avatar" aria-hidden="true">
+        <span
+          className="flex flex-none items-center justify-center w-7.5 h-7.5 rounded-full bg-accent text-bg text-[11.5px] font-bold"
+          aria-hidden="true"
+        >
           {avatar}
         </span>
       )}
-      <div className="lock-text">
+      <div className="flex-[1_1_340px] min-w-0">
         <div>
           <strong>{title}</strong>
           {lead && ` ${lead}`}
         </div>
-        <div className="lock-detail">{children}</div>
+        <div className="mt-0.5 text-help opacity-85">{children}</div>
       </div>
-      {buttons && <div className="lock-actions">{buttons}</div>}
+      {buttons && <div className="flex flex-none flex-wrap gap-2 ml-auto">{buttons}</div>}
     </output>
   );
 }

@@ -9,7 +9,10 @@ export function ComponentView({ node, updateAttributes }: NodeViewProps) {
 
   // Settings that do not fit the schema cannot render: an empty atom would be invisible and impossible to find, so the problem shows instead.
   const invalid = (problem: string) => (
-    <span className="component-invalid" role="alert">
+    <span
+      className={`border border-dashed border-danger rounded-lg text-danger text-ui ${node.isInline ? "inline py-0 px-1" : "block py-2.5 px-3.5"}`}
+      role="alert"
+    >
       {problem}
     </span>
   );

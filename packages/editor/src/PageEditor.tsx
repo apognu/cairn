@@ -9,6 +9,7 @@ import { type LockActions, LockBanner } from "./LockBanner";
 import { discardLocal, readLocal } from "./localDrafts";
 import { usePages } from "./queries";
 import { type Page, pageUrls } from "./tree";
+import * as ui from "./ui";
 import { type DraftLock, type InitialDraft, type SaveStatus, saveSettled, useDraftSync } from "./useDraftSync";
 import { markCreated, usePageLock } from "./useLock";
 
@@ -42,7 +43,7 @@ export function PageEditor({ page, onStatus, panelHost, onOpen }: Props) {
 
   switch (lock.state.kind) {
     case "loading":
-      return <p className="muted pad">Loading…</p>;
+      return <p className="text-muted px-2.5">Loading…</p>;
     case "mine":
       return <EditablePage page={page} onStatus={onStatus} panelHost={panelHost} lock={draftLock} />;
     default: {
@@ -131,10 +132,10 @@ function EditablePage({ page, onStatus, panelHost, lock }: Props & { lock: Draft
     },
   });
 
-  if (draft.isPending) return <p className="muted pad">Loading…</p>;
+  if (draft.isPending) return <p className="text-muted px-2.5">Loading…</p>;
   if (draft.isError)
     return (
-      <p role="alert" className="error">
+      <p role="alert" className={ui.errorBox}>
         {draft.error.message}
       </p>
     );
@@ -155,7 +156,7 @@ function ReadOnlyPage({ page, banner }: { page: Page; banner: React.ReactNode })
     <>
       {banner}
       {saved.data && (
-        <div className="read-only">
+        <div className="opacity-92">
           <Canvas
             // A new save shows as a new canvas: the editor reads its document once.
             key={saved.data.base_revision_id ?? "empty"}
@@ -184,6 +185,8 @@ function useCanvasContext(page: Page) {
   };
 }
 
+const conflictButton = "py-[3px] px-2.5 border border-input rounded-md bg-bg cursor-pointer";
+
 function Editing({
   page,
   initial,
@@ -205,12 +208,15 @@ function Editing({
   return (
     <>
       {status === "conflict" && (
-        <div role="alert" className="conflict">
+        <div
+          role="alert"
+          className="flex items-center gap-2.5 mt-3 mx-12 mb-0 py-2 px-3 border border-danger rounded-lg"
+        >
           This page was saved from somewhere else since you opened it.
-          <button type="button" onClick={() => void overwrite()}>
+          <button type="button" className={conflictButton} onClick={() => void overwrite()}>
             Keep my version
           </button>
-          <button type="button" onClick={() => void discard()}>
+          <button type="button" className={conflictButton} onClick={() => void discard()}>
             Reload the saved version
           </button>
         </div>

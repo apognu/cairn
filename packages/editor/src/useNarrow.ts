@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-// Keep in step with the 1380px breakpoint in styles.css, where the side columns give way to drawers and menus.
+// Keep in step with the `narrow` variant in styles.css, where the side columns give way to drawers and menus.
 const NARROW = "(max-width: 1380px)";
 
 /** Whether the window is too narrow for the editor's side columns. */

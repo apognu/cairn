@@ -81,7 +81,18 @@ export const dot = "flex-none w-1.5 h-1.5 ml-1 mr-2 rounded-full bg-accent";
 export const menu = "group/menu relative";
 export const menuSummary =
   "flex items-center justify-center w-6 h-6 rounded-[5px] text-muted cursor-pointer list-none hover:bg-border hover:text-text [&::-webkit-details-marker]:hidden";
-export const menuPop =
-  "absolute z-10 top-7 right-0 flex flex-col min-w-35 p-1 border border-input rounded-lg bg-bg shadow-popover text-text font-normal group-data-up/menu:top-auto group-data-up/menu:bottom-7";
+/** The panel without its place, for menus that open further down (the top bar's) or wider. */
+export const menuPopBase =
+  "absolute z-10 right-0 flex flex-col p-1 border border-input rounded-lg bg-bg shadow-popover text-text font-normal";
+export const menuPop = `${menuPopBase} top-7 min-w-35 group-data-up/menu:top-auto group-data-up/menu:bottom-7`;
 export const menuItem = "py-1.5 px-2.5 border-0 rounded-[5px] bg-transparent text-left cursor-pointer hover:bg-hover";
 export const menuRule = "w-full mx-0 my-1 border-0 border-t border-border";
+
+/** A failed request, said in a box. */
+export const errorBox = "my-1 mx-2 py-1.5 px-2 border border-danger rounded-md text-danger";
+
+/** The menus that open at the cursor (blocks, emojis): the box takes its width and padding from the menu. */
+export const cursorMenu =
+  "flex flex-col max-h-[476px] overflow-y-auto border border-input rounded-xl bg-bg shadow-[0_12px_32px_rgb(16_20_22/18%)] text-ui leading-[1.4]";
+export const cursorOption =
+  "group/option flex items-center gap-3 py-1.5 px-2 border-0 rounded-lg bg-transparent text-left cursor-pointer hover:bg-accent-soft aria-selected:bg-accent-soft";

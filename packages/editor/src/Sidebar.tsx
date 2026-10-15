@@ -342,7 +342,7 @@ export function Sidebar({ pages, loading, selected, onSelect }: Props) {
         </details>
       </div>
       {error && (
-        <p role="alert" className="my-1 mx-2 py-1.5 px-2 border border-danger rounded-md text-danger">
+        <p role="alert" className={ui.errorBox}>
           {error}
         </p>
       )}

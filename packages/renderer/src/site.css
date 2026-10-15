@@ -101,19 +101,22 @@
   color-scheme: dark;
 }
 
-* {
-  box-sizing: border-box;
-}
+/* Below every utility and rule, so a class always decides. */
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
 
-body {
-  margin: 0;
-  background: var(--bg);
-  color: var(--text);
-  font: 16px / 1.6 var(--font-sans);
-}
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px / 1.6 var(--font-sans);
+  }
 
-a {
-  color: var(--link);
+  a {
+    color: var(--link);
+  }
 }
 
 .site-header {

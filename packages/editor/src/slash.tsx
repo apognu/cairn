@@ -6,6 +6,7 @@ import Suggestion, { type SuggestionKeyDownProps, type SuggestionProps } from "@
 import { Fragment, forwardRef, useEffect, useImperativeHandle, useState } from "react";
 import { Icon, type IconName } from "./icons";
 import { inHost, popoverHost } from "./popover";
+import * as ui from "./ui";
 import { pickAndInsertImages } from "./upload";
 
 export interface SlashItem {
@@ -263,11 +264,12 @@ const SlashList = forwardRef<ListHandle, SuggestionProps<SlashItem, SlashItem>>(
     },
   }));
 
-  if (items.length === 0) return <div className="slash-menu muted">No matching block</div>;
+  if (items.length === 0)
+    return <div className={`${ui.cursorMenu} w-[393px] py-2 px-3 text-muted`}>No matching block</div>;
 
   return (
     <div
-      className="slash-menu"
+      className={`${ui.cursorMenu} w-[393px] p-1.5`}
       role="listbox"
       aria-label="Insert a block"
       aria-activedescendant={`slash-${active}`}
@@ -276,13 +278,17 @@ const SlashList = forwardRef<ListHandle, SuggestionProps<SlashItem, SlashItem>>(
       {items.map((it, i) => (
         <Fragment key={it.title}>
           {items[i - 1]?.group !== it.group && (
-            <div className="slash-group" role="presentation">
+            <div
+              className="pt-2 px-2.5 pb-1 text-[11.5px] font-semibold tracking-[0.06em] uppercase text-muted"
+              role="presentation"
+            >
               {it.group}
             </div>
           )}
           <button
             type="button"
             role="option"
+            className={ui.cursorOption}
             id={`slash-${i}`}
             aria-selected={i === active}
             // Mouse down, not click: a click would first move focus out of the editor and close the menu.
@@ -291,20 +297,23 @@ const SlashList = forwardRef<ListHandle, SuggestionProps<SlashItem, SlashItem>>(
               command(it);
             }}
           >
-            <span className="slash-icon">
+            <span className="flex flex-none items-center justify-center w-8.5 h-8.5 border border-input rounded-lg bg-bg text-body group-aria-selected/option:border-accent group-aria-selected/option:text-accent">
               <Icon name={it.icon} />
             </span>
-            <span className="slash-text">
+            <span className="flex flex-col">
               <strong>{it.title}</strong>
-              <span className="muted">{it.hint}</span>
+              <span className="text-muted text-[12.5px]">{it.hint}</span>
             </span>
           </button>
         </Fragment>
       ))}
-      <div className="slash-foot" aria-hidden="true">
+      <div
+        className="sticky -bottom-1.5 flex justify-between gap-3 mt-1 pt-2 px-2.5 pb-0.5 border-t border-border bg-bg text-label text-muted"
+        aria-hidden="true"
+      >
         <span>↑↓ to move</span>
         <span>↵ to insert</span>
-        <span>Type to filter</span>
+        <span className="ml-auto">Type to filter</span>
       </div>
     </div>
   );
@@ -366,7 +375,7 @@ export const SlashCommand = Extension.create({
           return {
             onStart(props) {
               renderer = new ReactRenderer(SlashList, { props, editor: props.editor });
-              renderer.element.classList.add("slash-popup");
+              renderer.element.classList.add("fixed", "z-20");
               host = popoverHost(props.editor.view.dom);
               (host ?? document.body).append(renderer.element);
               place(renderer.element, props.clientRect?.(), MENU_HEIGHT, MENU_WIDTH, host);

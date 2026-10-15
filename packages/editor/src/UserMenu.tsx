@@ -2,7 +2,10 @@ import { useState } from "react";
 import { serverUrl } from "./api/base";
 import { signingOutNow } from "./api/client";
 import { useMe, useSignedIn } from "./queries";
+import * as ui from "./ui";
 import { releaseAllLocks } from "./useLock";
+
+const note = "m-0 py-1.5 px-2.5 text-help wrap-anywhere";
 
 /** Who is signed in, and the way out. Absent in `cairn dev`, where nobody signs in. */
 export function UserMenu() {
@@ -27,18 +30,22 @@ export function UserMenu() {
   };
 
   return (
-    <details data-menu className="menu user-menu">
-      <summary aria-label={`Account: ${me.data.name}`} title={me.data.email || me.data.name}>
+    <details data-menu className={ui.menu}>
+      <summary
+        className="block w-auto max-w-45 h-8 px-3 border border-input rounded-[7px] text-text leading-[30px] whitespace-nowrap overflow-hidden text-ellipsis cursor-pointer list-none hover:bg-border [&::-webkit-details-marker]:hidden"
+        aria-label={`Account: ${me.data.name}`}
+        title={me.data.email || me.data.name}
+      >
         {me.data.name}
       </summary>
-      <div data-menu-pop className="menu-pop">
-        {me.data.email && <p className="menu-note">{me.data.email}</p>}
-        {me.data.email && <hr />}
-        <button type="button" onClick={() => void signOut()}>
+      <div data-menu-pop className={`${ui.menuPopBase} top-9 min-w-50`}>
+        {me.data.email && <p className={`${note} text-muted`}>{me.data.email}</p>}
+        {me.data.email && <hr className={ui.menuRule} />}
+        <button type="button" className={ui.menuItem} onClick={() => void signOut()}>
           Sign out
         </button>
         {error && (
-          <p role="alert" className="menu-note error-text">
+          <p role="alert" className={`${note} text-danger`}>
             {error}
           </p>
         )}
