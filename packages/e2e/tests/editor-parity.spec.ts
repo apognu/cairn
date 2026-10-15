@@ -22,7 +22,7 @@ function differingShare(a: Buffer, b: Buffer): number {
 for (const scheme of ["light", "dark"] as const) {
   for (const fixture of ["tabs", "article", "features", "steps", "cards", "filetree", "codegroup"]) {
     test(`${fixture} looks the same in the editor and when published (${scheme})`, async ({ browser, request }) => {
-      const options = { viewport: { width: 1280, height: 900 }, colorScheme: scheme } as const;
+      const options = { viewport: { width: 1440, height: 900 }, colorScheme: scheme } as const;
       const published = await browser.newPage(options);
       const editor = await browser.newPage(options);
       const problems: string[] = [];

@@ -34,7 +34,8 @@ export default defineConfig({
     // A page with a problem blocks every publish, so this runs alone, last, and removes the page again.
     { name: "checks", testMatch: /checks\.spec/, dependencies: ["pending-changes"] },
   ],
-  use: { baseURL: "http://127.0.0.1:3000" },
+  // Wide enough for the editor's side column (it folds into drawers at 1380px and below).
+  use: { baseURL: "http://127.0.0.1:3000", viewport: { width: 1440, height: 900 } },
   // The binary is built by `cargo build` beforehand; Playwright only starts it, on an empty database.
   webServer: [
     {
