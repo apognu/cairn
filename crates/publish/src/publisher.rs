@@ -1621,14 +1621,14 @@ mod tests {
     // The page list only: on narrow screens the sidebar also repeats the header sections above it, and a section's sidebar opens
     // with a link back to the rest of the site.
     let sidebar = |html: &str| {
-      let start = html.find("class=\"site-nav\"").unwrap();
+      let start = html.find("class=\"site-nav ").unwrap();
       let end = html[start..].find("</nav>").unwrap();
       let nav = &html[start..start + end];
-      let nav = match nav.find("class=\"site-nav-sections\"") {
+      let nav = match nav.find("class=\"site-nav-sections ") {
         Some(sections) => &nav[sections + nav[sections..].find("</ul>").unwrap()..],
         None => nav,
       };
-      match nav.find("class=\"site-nav-back\"") {
+      match nav.find("class=\"site-nav-back ") {
         Some(back) => nav[back + nav[back..].find("</a>").unwrap()..].to_string(),
         None => nav.to_string(),
       }
@@ -1644,7 +1644,8 @@ mod tests {
     }
     assert!(install.contains("aria-current=\"page\">Guides"), "the section is marked in the header");
     // The section's sidebar leads back to the rest of the site, named after it; the rest of the site needs no way back.
-    assert!(install.contains("class=\"site-nav-back\" href=\"/about/\""), "{install}");
+    let back = &install[install.find("class=\"site-nav-back ").expect("a link back")..];
+    assert!(back[..back.find('>').unwrap()].contains("href=\"/about/\""), "{install}");
     assert!(!about.contains("site-nav-back"));
   }
 

@@ -497,7 +497,7 @@ export function SiteLayout({
             >
               {context.breadcrumbs.map((crumb) => (
                 <span key={crumb.href}>
-                  <a href={crumb.href} className="text-muted no-underline hover:text-text">
+                  <a className="text-muted no-underline hover:text-text" href={crumb.href}>
                     {crumb.title}
                   </a>
                   <span aria-hidden="true"> / </span>
@@ -521,7 +521,7 @@ export function SiteLayout({
             >
               {context.updated && <span>Last updated {longDate(context.updated)}</span>}
               {context.markdown && (
-                <a href={context.markdown} className="ml-auto text-muted">
+                <a className="ml-auto text-muted" href={context.markdown}>
                   View as Markdown
                 </a>
               )}
