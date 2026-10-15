@@ -26,7 +26,7 @@ test("rolling back brings the earlier site back, and what followed is pending ag
 
   await page.goto("/#settings=releases");
   const releases = page.getByRole("table", { name: "Releases" });
-  await expect(releases.getByText("Live")).toHaveCount(1);
+  await expect(releases.getByText("Live", { exact: true })).toHaveCount(1);
   await expect(releases).toContainText(title);
 
   // The newest row is the live one; the row under it is the release to go back to.

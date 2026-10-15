@@ -62,6 +62,19 @@ test("sign in, write, publish, read anonymously, and sign out", async ({ page, b
   expect((await page.request.get(`${SERVER}/_preview/${id}/${renamed}/`)).status()).toBe(200);
   expect((await reader.request.get(`${SERVER}/_preview/${id}/${renamed}/`, { maxRedirects: 0 })).status()).toBe(303);
 
+  // A preview is not made live over what changed after it: promoting says which pages differ, and publishing builds from staging.
+  const later = `Later ${Math.random().toString(36).slice(2, 8)}`;
+  const created = await page.request.post(`${SERVER}/_editor/api/pages`, {
+    headers: { origin: SERVER },
+    data: { parent_id: null, title: later },
+  });
+  expect(created.ok()).toBe(true);
+  const stale = await page.request.post(`${SERVER}/_editor/api/releases/${id}/promote`, {
+    headers: { origin: SERVER },
+  });
+  expect(stale.status()).toBe(409);
+  expect(((await stale.json()) as { message: string }).message).toContain(later);
+
   // A request from another origin is refused even with the session cookie.
   const forged = await page.request.post(`${SERVER}/_editor/api/publish`, {
     headers: { origin: "https://evil.example" },
