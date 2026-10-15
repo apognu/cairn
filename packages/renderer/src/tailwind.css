@@ -18,6 +18,7 @@
   --text-help: 13px;
   --text-label: 12px;
 
+  --shadow-segment: 0 1px 2px rgb(16 20 22 / 12%);
   --shadow-popover: 0 8px 24px rgb(16 20 22 / 18%);
   --shadow-drawer: -12px 0 32px rgb(16 20 22 / 16%);
   --shadow-dialog: 0 20px 50px rgb(16 20 22 / 30%);

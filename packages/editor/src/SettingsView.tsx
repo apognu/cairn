@@ -59,7 +59,7 @@ export function SettingsView({
             ))}
         </ul>
       </nav>
-      <main className="canvas settings-main">
+      <main className="canvas relative overflow-y-auto col-[2/-1] py-6.5 px-8 text-ui leading-[1.4] has-[.sticky-actions]:pb-0 has-[.sticky-actions]:scroll-pb-20">
         {section === "site" ? (
           <SiteSettings />
         ) : section === "library" ? (

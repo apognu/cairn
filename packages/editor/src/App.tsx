@@ -226,7 +226,7 @@ function Editor() {
           <SideDrawer.Provider value={narrow ? sideDrawer : null}>
             <main className="canvas" data-wide={current?.kind === "api" || undefined}>
               {current?.kind === "api" ? (
-                <div className="settings-main">
+                <div className="py-6.5 px-8 text-ui leading-[1.4] has-[.sticky-actions]:pb-0">
                   <ApiSettings key={current.id} page={current} />
                 </div>
               ) : current ? (

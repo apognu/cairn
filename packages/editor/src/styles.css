@@ -6,6 +6,61 @@
 @reference "@cairn/renderer/tailwind.css";
 @source "./**/*.{ts,tsx}";
 
+/* The colors of change badges exist in the editor only, so they are not in the shared theme. */
+@theme inline {
+  --color-badge-new: var(--badge-new);
+  --color-badge-new-bg: var(--badge-new-bg);
+  --color-badge-edit: var(--badge-edit);
+  --color-badge-edit-bg: var(--badge-edit-bg);
+  --color-badge-move: var(--badge-move);
+  --color-badge-move-bg: var(--badge-move-bg);
+  --color-badge-del: var(--badge-del);
+  --color-badge-del-bg: var(--badge-del-bg);
+}
+
+/* A select draws like the text fields beside it, with a chevron in the theme's color rather than the system's arrow. */
+@utility select-chevron {
+  appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position:
+    calc(100% - 15px) 50%,
+    calc(100% - 10px) 50%;
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+}
+
+@layer base {
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+    color: inherit;
+  }
+
+  /* Checkboxes and radios are controls with a label beside them, never text-field sized. */
+  input[type="checkbox"],
+  input[type="radio"] {
+    flex: none;
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    padding: 0;
+    accent-color: var(--accent);
+  }
+
+  small {
+    font-size: 13px;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+}
+
 /* The document keeps the site's 16px; only the editor's own chrome is smaller. */
 .topbar,
 .sidebar {
@@ -13,32 +68,12 @@
   line-height: 1.4;
 }
 
-button,
-input,
-textarea,
-select {
-  font: inherit;
-  color: inherit;
-}
-
 /* Editor chrome outside the canvas shares one scale: 14px text, 13px help, 12px labels. The canvas keeps the site's 16px. */
 .drawer,
-.settings-main,
 .settings,
 .picker {
   font-size: 14px;
   line-height: 1.4;
-}
-
-/* Checkboxes and radios are controls with a label beside them, never text-field sized. */
-input[type="checkbox"],
-input[type="radio"] {
-  flex: none;
-  width: 16px;
-  height: 16px;
-  margin: 0;
-  padding: 0;
-  accent-color: var(--accent);
 }
 
 .form-field label.form-check,
@@ -62,16 +97,6 @@ input[type="radio"] {
 
 .form-check > span {
   flex: none;
-}
-
-small,
-.form-field small {
-  font-size: 13px;
-}
-
-:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
 }
 
 .muted {
@@ -406,21 +431,6 @@ small,
 .icon:hover {
   background: var(--border);
   color: var(--text);
-}
-
-.confirm {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12.5px;
-}
-
-.confirm button {
-  border: 1px solid var(--border-input);
-  border-radius: 5px;
-  background: var(--bg);
-  padding: 2px 8px;
-  cursor: pointer;
 }
 
 .title-form {
@@ -1099,68 +1109,14 @@ button.primary:disabled {
   gap: 8px;
 }
 
-.logo-field {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 56px;
-  padding: 10px 12px;
-  border: 1px solid var(--border-input);
-  border-radius: 8px;
-}
-
-.logo-field > :first-child {
-  margin-right: auto;
-}
-
-.logo-preview {
-  max-height: 36px;
-  max-width: 200px;
-}
-
-.logo-field button,
-.logo-field label.button {
-  display: inline-flex;
-  align-items: center;
-  height: 32px;
-  padding: 0 12px;
-  border: 1px solid var(--border-input);
-  border-radius: 7px;
-  background: var(--bg);
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.logo-field input:focus-visible + label {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
 .dialog-actions {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
 }
 
-/* The save buttons of a long settings form stay in reach while it scrolls. */
-.sticky-actions {
-  position: sticky;
-  bottom: 0;
-  z-index: 1;
-  margin-top: 20px;
-  padding: 12px 0 20px;
-  border-top: 1px solid var(--border);
-  background: var(--bg);
-}
-
-/* Its own bottom padding replaces the screen's, which would leave a strip of scrolling content under it. A field that gets the focus
-   scrolls into view above it, not behind it. */
-.settings-main:has(.sticky-actions) {
-  padding-bottom: 0;
-}
-
-:is(.canvas, .settings-main):has(.sticky-actions) {
+/* A field that gets the focus scrolls into view above the sticky save buttons, not behind them. */
+.canvas:has(.sticky-actions) {
   scroll-padding-bottom: 80px;
 }
 
@@ -1524,53 +1480,6 @@ button.primary:disabled {
   cursor: pointer;
 }
 
-.settings-main {
-  padding: 26px 32px;
-}
-
-.settings-form {
-  max-width: 520px;
-}
-
-.settings-form.wide {
-  max-width: 820px;
-}
-
-/* The releases table has five columns of text, as wide as the screen allows. */
-.settings-form.releases {
-  max-width: 1120px;
-}
-
-.settings-form h1 {
-  margin: 0 0 18px;
-  font-size: 24px;
-  letter-spacing: -0.015em;
-}
-
-.settings-form h2 {
-  margin: 26px 0 10px;
-  font-size: 17px;
-}
-
-.redirects td code {
-  font-family: var(--font-mono);
-  font-size: 12.5px;
-}
-
-.redirects tr[data-inactive] td {
-  opacity: 0.65;
-}
-
-.redirect-form {
-  display: grid;
-  gap: 4px;
-  max-width: 520px;
-}
-
-.redirect-form .primary {
-  justify-self: start;
-}
-
 /* The page picker: a floating search with results, used by text links and component fields. */
 .picker {
   position: fixed;
@@ -1706,12 +1615,6 @@ button.primary:disabled {
   resize: vertical;
 }
 
-.alt-warning {
-  padding: 0;
-  color: var(--warn-icon);
-  font-size: 12.5px;
-}
-
 .publish-problems {
   display: flex;
   gap: 12px;
@@ -1774,42 +1677,6 @@ button.primary:disabled {
   font-size: 13px;
 }
 
-.snippet-list {
-  margin: 0 0 10px;
-  padding: 0;
-  list-style: none;
-  border: 1px solid var(--border-input);
-  border-radius: 8px;
-}
-
-.snippet-list > li {
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--border);
-}
-
-.snippet-list > li:last-child {
-  border-bottom: 0;
-}
-
-.snippet-head {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.snippet-head .muted {
-  margin-right: auto;
-}
-
-.snippet-head button:not(.icon) {
-  height: 28px;
-  padding: 0 10px;
-  border: 1px solid var(--border-input);
-  border-radius: 6px;
-  background: var(--bg);
-  cursor: pointer;
-}
-
 .snippet-editor {
   margin-top: 10px;
   padding: 8px 12px;
@@ -1826,79 +1693,6 @@ button.primary:disabled {
   border: 1px solid var(--border-input);
   border-radius: 6px;
   background: var(--bg);
-}
-
-/* A glossary term: its words, a one-line summary of the definition, and its form when open. */
-.term-summary {
-  overflow: hidden;
-  flex: 1;
-  min-width: 0;
-  font-size: 13px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.term-form {
-  margin-top: 10px;
-  padding: 12px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-}
-
-.term-form .form-label {
-  font-size: 12.5px;
-  font-weight: 600;
-}
-
-.definition-field {
-  border: 1px solid var(--border-input);
-  border-radius: 6px;
-  background: var(--bg);
-}
-
-.definition-field:focus-within {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
-}
-
-.definition-tools {
-  display: flex;
-  gap: 2px;
-  padding: 3px;
-  border-bottom: 1px solid var(--border);
-}
-
-.definition-tools button {
-  min-width: 28px;
-  height: 24px;
-  padding: 0 6px;
-  border: 0;
-  border-radius: 5px;
-  background: none;
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.definition-tools button:hover,
-.definition-tools button[aria-pressed="true"] {
-  background: var(--hover);
-}
-
-.definition-tools button[aria-pressed="true"] {
-  color: var(--accent);
-  font-weight: 700;
-}
-
-.definition-field .ProseMirror {
-  min-height: 34px;
-  padding: 7px 10px;
-  font-size: 14px;
-  line-height: 1.45;
-  outline: none;
-}
-
-.definition-field p {
-  margin: 0;
 }
 
 /* A snippet is edited in a box inside the settings page: no site margins, no table of contents. */
@@ -1984,29 +1778,6 @@ button.primary:disabled {
   margin: 0 0 12px;
   padding: 0;
   list-style: none;
-}
-
-/* The accent color: a swatch, its hex value and a note, after the generic field rules they narrow. */
-.color-field {
-  align-items: center;
-}
-
-.form-field .color-field input[type="color"] {
-  flex: none;
-  width: 34px;
-  height: 34px;
-  padding: 2px;
-  cursor: pointer;
-}
-
-.form-field .color-field input:not([type="color"]) {
-  flex: none;
-  width: 110px;
-  font-family: var(--font-mono);
-}
-
-.color-field small {
-  flex: 1;
 }
 
 /* Settings sections reuse the tree's rows, at the inset of a top-level page. */
@@ -2108,11 +1879,6 @@ span[data-label] > .component-invalid {
 .more-menu .menu-pop button:disabled {
   color: var(--muted);
   cursor: default;
-}
-
-/* Settings screens have no side panel: they take its column too. */
-.settings-main {
-  grid-column: 2 / -1;
 }
 
 /* Too narrow to keep a column aside: below this the tree (270px) and the side column (420px) would leave the page under 700px, as on
@@ -2219,120 +1985,6 @@ span[data-label] > .component-invalid {
   cursor: default;
 }
 
-/* Site and theme settings: the form on the left, the site in both modes on the right. */
-.theme-settings {
-  display: flex;
-  align-items: flex-start;
-  gap: 32px;
-}
-
-.theme-settings .settings-form {
-  flex: none;
-  width: 520px;
-  max-width: none;
-}
-
-.theme-previews {
-  position: sticky;
-  top: 0;
-  flex: 1;
-  min-width: 320px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.theme-previews h2 {
-  margin: 0;
-  color: var(--muted);
-  font-size: 12px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.theme-previews p {
-  margin: 0;
-  font-size: 13px;
-}
-
-.theme-preview {
-  overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--bg);
-  color: var(--text);
-  font-size: 13.5px;
-}
-
-.theme-preview-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  height: 40px;
-  padding: 0 16px;
-  border-bottom: 1px solid var(--border);
-  font-size: 13px;
-}
-
-.theme-preview-section {
-  box-shadow: inset 0 -2px 0 var(--accent);
-  padding: 11px 0;
-  font-weight: 600;
-}
-
-.theme-preview-body {
-  display: flex;
-  gap: 16px;
-  padding: 16px;
-}
-
-.theme-preview-body aside {
-  flex: none;
-  align-self: stretch;
-  width: 90px;
-  padding: 8px;
-  border-radius: 6px;
-  background: var(--bg-side);
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.theme-preview h3 {
-  margin: 0;
-  font-size: 20px;
-}
-
-.theme-preview p {
-  margin: 6px 0 10px;
-  color: var(--text-body);
-  line-height: 1.6;
-}
-
-.theme-preview-link {
-  color: var(--link);
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-
-.theme-preview pre {
-  margin: 0;
-  padding: 8px 10px;
-  border-radius: 6px;
-  background: var(--code-bg);
-  font: 12.5px var(--font-mono);
-}
-
-.section-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin: 26px 0 10px;
-}
-
-.section-head h2 {
-  margin: 0;
-}
-
 .segmented {
   display: flex;
   padding: 2px;
@@ -2359,116 +2011,6 @@ span[data-label] > .component-invalid {
   box-shadow: 0 1px 2px rgb(16 20 22 / 12%);
 }
 
-.color-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px 16px;
-}
-
-.color-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-}
-
-.color-grid .color-row input[type="color"] {
-  flex: none;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border: 1px solid var(--border-input);
-  border-radius: 5px;
-  background: none;
-}
-
-.color-row input.mono {
-  width: 0;
-  flex: 1;
-  height: 28px;
-  padding: 0 8px;
-  border: 1px solid var(--border-input);
-  border-radius: 6px;
-  background: var(--bg);
-  color: var(--text);
-  font: 12.5px var(--font-mono);
-}
-
-.color-row label {
-  flex: none;
-  min-width: 70px;
-}
-
-.contrast-ok {
-  margin: 10px 0 0;
-  color: var(--accent);
-  font-size: 13px;
-}
-
-.contrast-problems {
-  margin: 10px 0 0;
-  padding-left: 18px;
-  color: var(--danger);
-  font-size: 13px;
-}
-
-.link-list {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 8px;
-}
-
-.link-list .row-inline {
-  width: 100%;
-}
-
-.link-list .row-inline input {
-  flex: 1;
-  min-width: 0;
-  height: 34px;
-  padding: 0 10px;
-  border: 1px solid var(--border-input);
-  border-radius: 6px;
-  background: var(--bg);
-  color: var(--text);
-  font-size: 14px;
-}
-
-.footer-column {
-  margin: 12px 0;
-  padding: 10px 12px 12px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-}
-
-.footer-column legend {
-  padding: 0 4px;
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.footer-column > .row-inline {
-  margin-bottom: 8px;
-}
-
-.footer-column > .row-inline input {
-  flex: 1;
-  min-width: 0;
-  height: 34px;
-  padding: 0 10px;
-  border: 1px solid var(--border-input);
-  border-radius: 6px;
-  background: var(--bg);
-  color: var(--text);
-  font-size: 14px;
-}
-
-.logo-field[data-theme] {
-  background: var(--bg);
-  color: var(--text);
-}
-
 button.secondary {
   height: 32px;
   padding: 0 12px;
@@ -2481,21 +2023,6 @@ button.secondary {
 button.secondary:disabled {
   opacity: 0.5;
   cursor: default;
-}
-
-.color-row label {
-  width: 84px;
-}
-
-.form-field textarea.code-input {
-  width: 100%;
-  padding: 8px 10px;
-  border: 1px solid var(--border-input);
-  border-radius: 6px;
-  background: var(--bg);
-  color: var(--text);
-  font: 12.5px / 1.5 var(--font-mono);
-  resize: vertical;
 }
 
 /* Text of a component written on the canvas (`<Editable>`). */
@@ -2529,119 +2056,8 @@ button.secondary:disabled {
   color: var(--accent);
 }
 
-.api-source {
-  margin: 0 0 10px;
-  padding: 12px 14px;
-  border: 1px solid var(--border-input);
-  border-radius: 10px;
-}
-
-.api-source legend {
-  padding: 0 6px;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.api-source .row-inline {
-  align-items: flex-end;
-}
-
-.api-source .source-foot .form-field {
-  flex: 1;
-  margin-bottom: 0;
-}
-
-.api-source .row-inline .form-field {
-  flex: 1;
-}
-
-.api-check {
-  box-sizing: border-box;
-  width: 100%;
-  display: block;
-  margin: 20px 0;
-  padding: 12px 14px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg-side);
-}
-
-.api-check-head {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.api-check-head button {
-  margin-left: auto;
-}
-
-.api-check[data-state="ok"] {
-  border-color: var(--accent);
-}
-
-.api-check[data-state="error"] {
-  border-color: var(--danger);
-}
-
-.api-errors,
-.api-resolved {
-  margin: 10px 0 0;
-  padding: 0;
-  list-style: none;
-  font-size: 13px;
-}
-
-.api-errors {
-  color: var(--danger);
-}
-
-.api-resolved li {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 4px 0;
-  border-top: 1px solid var(--border);
-}
-
-.api-source .form-field input:not([type="checkbox"]) {
-  flex: none;
-  box-sizing: border-box;
-  width: 100%;
-  height: 34px;
-}
-
 .canvas[data-wide] {
   grid-column: 2 / -1;
-}
-
-.api-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 640px) minmax(320px, 1fr);
-  gap: 32px;
-  align-items: start;
-}
-
-.api-preview {
-  position: sticky;
-  top: 0;
-  max-height: calc(100vh - 100px);
-  overflow: auto;
-  padding: 16px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--bg-side);
-}
-
-.api-preview .section-head {
-  margin: 0 0 10px;
-}
-
-.api-preview h2 {
-  margin: 0;
-  font-size: 12px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
 }
 
 .row-inline button.primary[type="submit"] {
@@ -2690,33 +2106,6 @@ button.secondary:disabled {
   .publish-progress progress:not([value]) {
     animation-duration: 3s;
   }
-}
-
-.token-secret {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 8px;
-  margin-top: 16px;
-  padding: 12px 14px;
-  border: 1px solid var(--border-input);
-  border-radius: 8px;
-  font-size: 13px;
-}
-
-.token-secret code {
-  max-width: 100%;
-  overflow-wrap: anywhere;
-  font-size: 13px;
-}
-
-.token-secret button {
-  height: 32px;
-  padding: 0 12px;
-  border: 1px solid var(--border-input);
-  border-radius: 7px;
-  background: var(--bg);
-  cursor: pointer;
 }
 
 /* The upload of a build: a thin bar in the accent color, with the count under it. */
@@ -2995,10 +2384,6 @@ button.secondary:disabled {
 
 .changes td.muted {
   font-size: 13px;
-}
-
-.releases .changes td.muted {
-  white-space: nowrap;
 }
 
 .changes button.small,

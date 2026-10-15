@@ -2,6 +2,7 @@ import { useId, useRef, useState } from "react";
 import type { components } from "./api/schema";
 import { useCreateToken, useRevokeToken, useTokens } from "./queries";
 import { useModal } from "./sidePanel";
+import * as ui from "./ui";
 
 type ApiToken = components["schemas"]["ApiToken"];
 
@@ -23,21 +24,27 @@ export function TokensSettings() {
   const created = create.data;
 
   return (
-    <div className="settings-form wide">
-      <h1>API tokens</h1>
-      <p className="muted">
+    <div className="max-w-205">
+      <h1 className={ui.settingsTitle}>API tokens</h1>
+      <p className="text-muted">
         A token lets a script, such as a CI job, call this server as you: send it as{" "}
         <code>Authorization: Bearer &lt;token&gt;</code>. It can do everything you can, so keep it secret and delete it
         when it is no longer used.
       </p>
 
-      <table className="changes" aria-label="API tokens">
+      <table className={ui.table} aria-label="API tokens">
         <thead>
           <tr>
-            <th scope="col">Name</th>
-            <th scope="col">Created</th>
-            <th scope="col">Last used</th>
-            <th scope="col">
+            <th scope="col" className={ui.th}>
+              Name
+            </th>
+            <th scope="col" className={ui.th}>
+              Created
+            </th>
+            <th scope="col" className={ui.th}>
+              Last used
+            </th>
+            <th scope="col" className={ui.th}>
               <span className="sr-only">Actions</span>
             </th>
           </tr>
@@ -45,22 +52,24 @@ export function TokensSettings() {
         <tbody>
           {tokens.data?.length === 0 && (
             <tr>
-              <td colSpan={4} className="muted">
+              <td colSpan={4} className={`${ui.td} text-muted text-help`}>
                 No tokens yet.
               </td>
             </tr>
           )}
           {tokens.data?.map((t) => (
             <tr key={t.id}>
-              <td>
+              <td className={ui.td}>
                 <strong>{t.name}</strong>
               </td>
-              <td>{date(t.created_at)}</td>
-              <td>{t.last_used_at ? date(t.last_used_at) : <span className="muted">never</span>}</td>
-              <td>
+              <td className={ui.td}>{date(t.created_at)}</td>
+              <td className={ui.td}>
+                {t.last_used_at ? date(t.last_used_at) : <span className="text-muted">never</span>}
+              </td>
+              <td className={ui.td}>
                 <button
                   type="button"
-                  className="icon"
+                  className={ui.icon}
                   aria-label={`Delete token ${t.name}`}
                   disabled={revoke.isPending}
                   onClick={() => setRevoking(t)}
@@ -73,9 +82,9 @@ export function TokensSettings() {
         </tbody>
       </table>
 
-      <h2>Make a token</h2>
+      <h2 className={ui.settingsHeading}>Make a token</h2>
       <form
-        className="redirect-form"
+        className="grid gap-1 max-w-130"
         onSubmit={(e) => {
           e.preventDefault();
           setCopied(false);
@@ -87,10 +96,13 @@ export function TokensSettings() {
           });
         }}
       >
-        <div className="form-field">
-          <label htmlFor={`${id}-name`}>Name</label>
+        <div className={ui.field}>
+          <label htmlFor={`${id}-name`} className={ui.fieldLabel}>
+            Name
+          </label>
           <input
             id={`${id}-name`}
+            className={ui.input}
             ref={field}
             placeholder="CI"
             maxLength={80}
@@ -98,17 +110,22 @@ export function TokensSettings() {
             onChange={(e) => setName(e.target.value)}
           />
         </div>
-        <button type="submit" className="primary" disabled={create.isPending || name.trim() === ""}>
+        <button
+          type="submit"
+          className={`${ui.primary} justify-self-start`}
+          disabled={create.isPending || name.trim() === ""}
+        >
           Make token
         </button>
       </form>
 
       {created && (
-        <output className="token-secret">
+        <output className="flex flex-col items-start gap-2 mt-4 py-3 px-3.5 border border-input rounded-lg text-help">
           <span>Copy “{created.token.name}” now: it is not shown again.</span>
-          <code>{created.secret}</code>
+          <code className="max-w-full wrap-anywhere text-help">{created.secret}</code>
           <button
             type="button"
+            className={ui.secondary}
             onClick={() => {
               void navigator.clipboard.writeText(created.secret).then(() => setCopied(true));
             }}
@@ -118,7 +135,7 @@ export function TokensSettings() {
         </output>
       )}
       {error && (
-        <p role="alert" className="error-text">
+        <p role="alert" className="text-danger">
           {error.message}
         </p>
       )}
@@ -147,14 +164,16 @@ function RevokeDialog({ token, onConfirm, onClose }: { token: ApiToken; onConfir
   useModal(dialog);
 
   return (
-    <dialog ref={dialog} className="settings" aria-labelledby={`${id}-title`} onClose={onClose}>
-      <h2 id={`${id}-title`}>Delete “{token.name}”?</h2>
-      <p className="muted">Scripts and CI jobs that use this token stop working at once. This cannot be undone.</p>
-      <div className="dialog-actions">
-        <button type="button" onClick={() => dialog.current?.close()}>
+    <dialog ref={dialog} className={ui.dialog} aria-labelledby={`${id}-title`} onClose={onClose}>
+      <h2 id={`${id}-title`} className={ui.dialogTitle}>
+        Delete “{token.name}”?
+      </h2>
+      <p className="text-muted">Scripts and CI jobs that use this token stop working at once. This cannot be undone.</p>
+      <div className={ui.actions}>
+        <button type="button" className={ui.secondary} onClick={() => dialog.current?.close()}>
           Cancel
         </button>
-        <button type="button" className="primary" onClick={onConfirm}>
+        <button type="button" className={ui.primary} onClick={onConfirm}>
           Delete
         </button>
       </div>

@@ -4,6 +4,7 @@
  * Rules written here are unlayered, so they win over utilities on the same element: a rule moves to utilities whole, or not at all.
  * Sources: the site layout, the built-in components and the copy of a deployer's components that `build-components` makes.
  */
+@layer theme, base, components, utilities;
 @import "./tailwind.css";
 @import "tailwindcss/utilities.css" layer(utilities) source(none);
 @source "./**/*.{ts,tsx}";

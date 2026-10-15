@@ -5,6 +5,7 @@ import { LogoField } from "./LogoField";
 import { useSaveSettings, useSettings, useThemeCheck } from "./queries";
 import { ThemeColors } from "./ThemeColors";
 import { ThemePreview } from "./ThemePreview";
+import * as ui from "./ui";
 
 type Settings = components["schemas"]["Settings"];
 
@@ -42,12 +43,19 @@ export function SiteSettings() {
   };
 
   return (
-    <div className="theme-settings">
-      <form onSubmit={submit} className="settings-form">
-        <h1>Site and theme</h1>
-        <div className="form-field">
-          <label htmlFor={`${id}-name`}>Site name</label>
-          <input id={`${id}-name`} value={draft.site_name} onChange={(e) => change({ site_name: e.target.value })} />
+    <div className="flex items-start gap-8">
+      <form onSubmit={submit} className="flex-none w-130">
+        <h1 className={ui.settingsTitle}>Site and theme</h1>
+        <div className={ui.field}>
+          <label htmlFor={`${id}-name`} className={ui.fieldLabel}>
+            Site name
+          </label>
+          <input
+            id={`${id}-name`}
+            className={ui.input}
+            value={draft.site_name}
+            onChange={(e) => change({ site_name: e.target.value })}
+          />
         </div>
         <LogoField
           label="Logo"
@@ -62,30 +70,41 @@ export function SiteSettings() {
           onChange={(logo_dark_asset_id) => change({ logo_dark_asset_id })}
           onError={setError}
         />
-        <div className="form-field">
-          <label htmlFor={`${id}-accent`}>Accent color</label>
-          <div className="row-inline color-field">
+        <div className={ui.field}>
+          <label htmlFor={`${id}-accent`} className={ui.fieldLabel}>
+            Accent color
+          </label>
+          <div className={`${ui.inline} items-center`}>
             <input
               type="color"
+              className="flex-none w-8.5 h-8.5 p-0.5 border border-input rounded-md bg-bg cursor-pointer"
               aria-label="Accent color picker"
               value={draft.accent}
               onChange={(e) => change({ accent: e.target.value })}
             />
             <input
               id={`${id}-accent`}
+              className="flex-none w-27.5 min-w-0 h-8.5 px-2.5 border border-input rounded-md bg-bg font-mono"
               aria-label="Accent color (hex)"
               value={draft.accent}
               onChange={(e) => change({ accent: e.target.value })}
             />
           </div>
-          <small className="muted">The dark-mode shade is derived from it.</small>
+          <small className="text-muted">The dark-mode shade is derived from it.</small>
         </div>
 
-        <div className="section-head">
-          <h2>Colors</h2>
-          <div role="tablist" aria-label="Mode" className="segmented">
+        <div className={ui.sectionHead}>
+          <h2 className="m-0 text-[17px]">Colors</h2>
+          <div role="tablist" aria-label="Mode" className={ui.segmented}>
             {(["light", "dark"] as const).map((m) => (
-              <button key={m} type="button" role="tab" aria-selected={mode === m} onClick={() => setMode(m)}>
+              <button
+                key={m}
+                type="button"
+                role="tab"
+                className={ui.segment}
+                aria-selected={mode === m}
+                onClick={() => setMode(m)}
+              >
                 {m === "light" ? "Light" : "Dark"}
               </button>
             ))}
@@ -98,37 +117,41 @@ export function SiteSettings() {
           onChange={(colors) => change({ [mode]: colors })}
         />
         {invalid ? (
-          <p role="alert" className="error-text">
+          <p role="alert" className="text-danger">
             {invalid}
           </p>
         ) : problems.length > 0 ? (
-          <ul role="alert" className="contrast-problems">
+          <ul role="alert" className="mt-2.5 mb-0 pl-4.5 text-danger text-help">
             {problems.map((problem) => (
               <li key={problem}>{problem}</li>
             ))}
           </ul>
         ) : (
-          <p className="contrast-ok">Text contrast passes WCAG AA in light and dark mode</p>
+          <p className="mt-2.5 mb-0 text-accent text-help">Text contrast passes WCAG AA in light and dark mode</p>
         )}
 
-        <h2>Header links</h2>
+        <h2 className={ui.settingsHeading}>Header links</h2>
         <LinkList label="Header" links={draft.header_links} onChange={(header_links) => change({ header_links })} />
 
-        <h2>Footer</h2>
-        <div className="form-field">
-          <label htmlFor={`${id}-footer`}>Footer text</label>
+        <h2 className={ui.settingsHeading}>Footer</h2>
+        <div className={ui.field}>
+          <label htmlFor={`${id}-footer`} className={ui.fieldLabel}>
+            Footer text
+          </label>
           <input
             id={`${id}-footer`}
+            className={ui.input}
             value={draft.footer.text}
             onChange={(e) => change({ footer: { ...draft.footer, text: e.target.value } })}
           />
         </div>
         {draft.footer.columns.map((column, index) => (
           // biome-ignore lint/suspicious/noArrayIndexKey: columns have no identity besides their place
-          <fieldset className="footer-column" key={index}>
-            <legend>Column {index + 1}</legend>
-            <div className="row-inline">
+          <fieldset className="mx-0 my-3 pt-2.5 px-3 pb-3 border border-border rounded-lg" key={index}>
+            <legend className="px-1 text-muted text-label">Column {index + 1}</legend>
+            <div className={`${ui.inline} mb-2`}>
               <input
+                className="flex-1 min-w-0 h-8.5 px-2.5 border border-input rounded-md bg-bg text-text text-ui"
                 aria-label={`Column ${index + 1} title`}
                 placeholder="Title"
                 value={column.title}
@@ -143,7 +166,7 @@ export function SiteSettings() {
               />
               <button
                 type="button"
-                className="secondary"
+                className={ui.secondary}
                 onClick={() =>
                   change({ footer: { ...draft.footer, columns: draft.footer.columns.filter((_, i) => i !== index) } })
                 }
@@ -167,7 +190,7 @@ export function SiteSettings() {
         ))}
         <button
           type="button"
-          className="secondary"
+          className={ui.secondary}
           onClick={() =>
             change({ footer: { ...draft.footer, columns: [...draft.footer.columns, { title: "", links: [] }] } })
           }
@@ -175,30 +198,32 @@ export function SiteSettings() {
           Add a column
         </button>
 
-        <h2>Custom CSS</h2>
-        <div className="form-field">
-          <label htmlFor={`${id}-css`}>Stylesheet, loaded after the theme</label>
+        <h2 className={ui.settingsHeading}>Custom CSS</h2>
+        <div className={ui.field}>
+          <label htmlFor={`${id}-css`} className={ui.fieldLabel}>
+            Stylesheet, loaded after the theme
+          </label>
           <textarea
             id={`${id}-css`}
-            className="code-input"
+            className={ui.codeInput}
             rows={8}
             spellCheck={false}
             value={draft.custom_css}
             onChange={(e) => change({ custom_css: e.target.value })}
           />
-          <small className="muted">Documented class names are in docs/CUSTOM_CSS.md.</small>
+          <small className="text-muted">Documented class names are in docs/CUSTOM_CSS.md.</small>
         </div>
 
         {error && (
-          <p role="alert" className="error-text">
+          <p role="alert" className="text-danger">
             {error}
           </p>
         )}
-        <div className="dialog-actions sticky-actions">
-          {saved && <output className="muted">Saved. It goes live with the next publish.</output>}
+        <div className={`${ui.actions} ${ui.stickyActions}`}>
+          {saved && <output className="text-muted">Saved. It goes live with the next publish.</output>}
           <button
             type="button"
-            className="secondary"
+            className={ui.secondary}
             disabled={!dirty}
             onClick={() => {
               setDraft(settings.data ?? null);
@@ -209,7 +234,7 @@ export function SiteSettings() {
           </button>
           <button
             type="submit"
-            className="primary"
+            className={ui.primary}
             disabled={save.isPending || !dirty || problems.length > 0 || invalid !== null}
           >
             Save theme
@@ -217,8 +242,8 @@ export function SiteSettings() {
         </div>
       </form>
 
-      <aside className="theme-previews" aria-label="Live preview">
-        <h2>Live preview</h2>
+      <aside className="sticky top-0 flex-1 min-w-80 flex flex-col gap-4" aria-label="Live preview">
+        <h2 className="m-0 text-muted text-label tracking-[0.06em] uppercase">Live preview</h2>
         {(["light", "dark"] as const).map((m) => (
           <ThemePreview
             key={m}
@@ -231,7 +256,9 @@ export function SiteSettings() {
             links={draft.header_links.map((l) => l.label).filter(Boolean)}
           />
         ))}
-        <p className="muted">The saved theme goes live with the next publish, which renders every page again.</p>
+        <p className="m-0 text-muted text-help">
+          The saved theme goes live with the next publish, which renders every page again.
+        </p>
       </aside>
     </div>
   );

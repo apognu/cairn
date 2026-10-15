@@ -15,26 +15,31 @@ export function ThemePreview({
   links: string[];
 }) {
   return (
-    <section className="theme-preview" data-theme={mode} style={vars as CSSProperties} aria-label={`${mode} preview`}>
-      <div className="theme-preview-header">
+    <section
+      className="overflow-hidden border border-border rounded-[10px] bg-bg text-text text-[13.5px]"
+      data-theme={mode}
+      style={vars as CSSProperties}
+      aria-label={`${mode} preview`}
+    >
+      <div className="flex items-center gap-2.5 h-10 px-4 border-b border-border text-help">
         {logo && <img src={`/_a/${logo}`} alt="" height={16} />}
         <strong>{name}</strong>
-        <span className="theme-preview-section">Guides</span>
+        <span className="py-2.75 font-semibold shadow-[inset_0_-2px_0_var(--accent)]">Guides</span>
         {links.map((link) => (
-          <span key={link} className="muted">
+          <span key={link} className="text-muted">
             {link}
           </span>
         ))}
       </div>
-      <div className="theme-preview-body">
-        <aside>Surface</aside>
+      <div className="flex gap-4 p-4">
+        <aside className="flex-none self-stretch w-22.5 p-2 rounded-md bg-side text-muted text-label">Surface</aside>
         <div>
-          <h3>Webhooks</h3>
-          <p>
+          <h3 className="m-0 text-[20px]">Webhooks</h3>
+          <p className="mt-1.5 mb-2.5 text-body text-help leading-[1.6]">
             Get an HTTPS request every time a deploy starts or finishes. See{" "}
-            <span className="theme-preview-link">retries</span>.
+            <span className="text-link underline underline-offset-2">retries</span>.
           </p>
-          <pre>
+          <pre className="m-0 py-2 px-2.5 rounded-md bg-code font-mono text-[12.5px] leading-[normal]">
             <code>POST /hooks</code>
           </pre>
         </div>

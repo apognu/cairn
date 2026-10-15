@@ -34,7 +34,7 @@ export function ThemeColors({
   const validAccent = /^#[0-9a-f]{6}$/i.test(accent) ? accent.toLowerCase() : null;
 
   return (
-    <div className="color-grid">
+    <div className="grid grid-cols-2 gap-x-4 gap-y-2.5">
       {FIELDS.map(({ key, label, fallback }) => {
         const value = colors[key];
         // The swatch of a color left alone shows what readers get: for links, the accent of this mode.
@@ -42,17 +42,20 @@ export function ThemeColors({
           key === "link" && validAccent ? (mode === "light" ? validAccent : darkAccent(validAccent)) : fallback[mode];
 
         return (
-          <div className="color-row" key={key}>
+          <div className="flex items-center gap-2 text-ui" key={key}>
             <input
               type="color"
+              className="flex-none w-7 h-7 p-0 border border-input rounded-[5px] bg-transparent"
               aria-label={`${label} (${mode}) picker`}
               value={value ?? shown}
               onChange={(e) => onChange({ ...colors, [key]: e.target.value })}
             />
-            <label htmlFor={`${id}-${key}`}>{label}</label>
+            <label htmlFor={`${id}-${key}`} className="flex-none w-21">
+              {label}
+            </label>
             <input
               id={`${id}-${key}`}
-              className="mono"
+              className="w-0 flex-1 h-7 px-2 border border-input rounded-md bg-bg text-text font-mono text-[12.5px]"
               placeholder={key === "link" ? "accent" : "default"}
               value={value ?? ""}
               onChange={(e) =>

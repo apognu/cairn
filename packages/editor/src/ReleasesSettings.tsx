@@ -2,6 +2,7 @@ import { useId, useRef, useState } from "react";
 import type { components } from "./api/schema";
 import { useMe, useReleases, useRollback, useSiteInfo } from "./queries";
 import { useModal } from "./sidePanel";
+import * as ui from "./ui";
 
 type Row = components["schemas"]["ReleaseRow"];
 
@@ -31,6 +32,8 @@ function changesText(row: Row): string {
 }
 
 /** Every release that was the site, newest first, with a way back to an earlier one. */
+const quiet = `${ui.td} text-muted text-help whitespace-nowrap`;
+
 export function ReleasesSettings() {
   const releases = useReleases();
   const site = useSiteInfo();
@@ -39,27 +42,37 @@ export function ReleasesSettings() {
 
   return (
     <>
-      <div className="settings-form wide releases">
-        <h1>Releases</h1>
-        <p className="muted">
+      <div className="max-w-280">
+        <h1 className={ui.settingsTitle}>Releases</h1>
+        <p className="text-muted">
           Every publish creates a release. Rolling back makes an earlier one the live site again; drafts are never
           touched.
         </p>
         {site.data && (
-          <p className="muted">
+          <p className="text-muted">
             Target: <strong>{site.data.target}</strong> · {site.data.url.replace(/^https?:\/\//, "")}
           </p>
         )}
 
-        <table className="changes" aria-label="Releases">
+        <table className={ui.table} aria-label="Releases">
           <thead>
             <tr>
-              <th scope="col">Release</th>
-              <th scope="col">Published</th>
-              <th scope="col">Changes</th>
-              <th scope="col">By</th>
-              <th scope="col">Status</th>
-              <th scope="col">
+              <th scope="col" className={ui.th}>
+                Release
+              </th>
+              <th scope="col" className={ui.th}>
+                Published
+              </th>
+              <th scope="col" className={ui.th}>
+                Changes
+              </th>
+              <th scope="col" className={ui.th}>
+                By
+              </th>
+              <th scope="col" className={ui.th}>
+                Status
+              </th>
+              <th scope="col" className={ui.th}>
                 <span className="sr-only">Actions</span>
               </th>
             </tr>
@@ -67,31 +80,31 @@ export function ReleasesSettings() {
           <tbody>
             {releases.data?.length === 0 && (
               <tr>
-                <td colSpan={6} className="muted">
+                <td colSpan={6} className={quiet}>
                   Nothing has been published yet.
                 </td>
               </tr>
             )}
             {releases.data?.map((row) => (
               <tr key={row.release.id}>
-                <td>
+                <td className={ui.td}>
                   <strong>#{row.number}</strong>
                 </td>
-                <td className="muted">{when(row.release.created_at)}</td>
-                <td>{changesText(row)}</td>
-                <td className="muted">{row.release.created_by === me.data?.id ? "You" : row.published_by}</td>
-                <td>
+                <td className={quiet}>{when(row.release.created_at)}</td>
+                <td className={ui.td}>{changesText(row)}</td>
+                <td className={quiet}>{row.release.created_by === me.data?.id ? "You" : row.published_by}</td>
+                <td className={ui.td}>
                   {row.release.status === "live" && (
-                    <span className="badge" data-kind="new">
+                    <span className={ui.badge("new")} data-kind="new">
                       Live
                     </span>
                   )}
                 </td>
-                <td>
+                <td className={ui.td}>
                   {row.can_roll_back && (
                     <button
                       type="button"
-                      className="small"
+                      className={ui.tinyButton}
                       onClick={() => setAsking(row)}
                       aria-label={`Roll back to #${row.number}`}
                     >
@@ -105,7 +118,7 @@ export function ReleasesSettings() {
         </table>
 
         {releases.isError && (
-          <p role="alert" className="error-text">
+          <p role="alert" className="text-danger">
             {releases.error.message}
           </p>
         )}
@@ -124,8 +137,10 @@ function RollbackDialog({ row, onClose }: { row: Row; onClose: () => void }) {
   useModal(dialog);
 
   return (
-    <dialog ref={dialog} className="settings" aria-labelledby={`${id}-title`} onClose={onClose}>
-      <h2 id={`${id}-title`}>Roll back to release #{row.number}?</h2>
+    <dialog ref={dialog} className={ui.dialog} aria-labelledby={`${id}-title`} onClose={onClose}>
+      <h2 id={`${id}-title`} className={ui.dialogTitle}>
+        Roll back to release #{row.number}?
+      </h2>
       <ul>
         <li>The live site will match #{row.number} within a few seconds, its redirects and search index included.</li>
         <li>What was published after it shows as pending again; no draft is lost.</li>
@@ -137,17 +152,17 @@ function RollbackDialog({ row, onClose }: { row: Row; onClose: () => void }) {
         )}
       </ul>
       {rollback.isError && (
-        <p role="alert" className="error-text">
+        <p role="alert" className="text-danger">
           {rollback.error.message}
         </p>
       )}
-      <div className="dialog-actions">
-        <button type="button" onClick={() => dialog.current?.close()}>
+      <div className={ui.actions}>
+        <button type="button" className={ui.secondary} onClick={() => dialog.current?.close()}>
           Cancel
         </button>
         <button
           type="button"
-          className="primary"
+          className={ui.primary}
           disabled={rollback.isPending}
           onClick={() => rollback.mutate(row.release.id, { onSuccess: () => dialog.current?.close() })}
         >
