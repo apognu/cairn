@@ -36,6 +36,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/highlight": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Colors code the way publishing does, for the editor's canvas. */
+        post: operations["highlightCode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/library": {
         parameters: {
             query?: never;
@@ -1012,6 +1029,18 @@ export interface components {
          * @enum {string}
          */
         ChangeKind: "new" | "edited" | "renamed" | "moved" | "header" | "deleted";
+        CodeToken: {
+            dark?: components["schemas"]["CodeTokenStyle"] | null;
+            /** @description Offsets in UTF-16 code units, as JavaScript counts them. */
+            from: number;
+            light?: components["schemas"]["CodeTokenStyle"] | null;
+            to: number;
+        };
+        CodeTokenStyle: {
+            bold: boolean;
+            color: string;
+            italic: boolean;
+        };
         CreatePage: {
             before?: components["schemas"]["PageId"] | null;
             /** @description Makes the new node an external link to this URL instead of a page. */
@@ -1090,6 +1119,15 @@ export interface components {
         };
         HeaderBody: {
             in_header: boolean;
+        };
+        HighlightRequest: {
+            code: string;
+            /** @description As written in the code block, like `rust` or `tsx`. */
+            language: string;
+        };
+        Highlighted: {
+            /** @description Runs of styled code, in order; text between them is plain. Empty for a language the highlighter does not know. */
+            tokens: components["schemas"]["CodeToken"][];
         };
         HotfixPlan: {
             /** @description Links from the hotfix to pages it leaves out, which show as plain text. */
@@ -1667,6 +1705,37 @@ export interface operations {
                 };
                 content: {
                     "text/event-stream": components["schemas"]["EditorEvent"];
+                };
+            };
+        };
+    };
+    highlightCode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HighlightRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Highlighted"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };

@@ -15,7 +15,7 @@ use cairn_render::Pool;
 use cairn_store::SqlContentStore;
 use sea_orm::DatabaseConnection;
 
-use crate::{api_pages, drafts, history, library, links, locks, me, pages, publish, redirects, settings, tokens, uploads, urls};
+use crate::{api_pages, drafts, highlight, history, library, links, locks, me, pages, publish, redirects, settings, tokens, uploads, urls};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -95,6 +95,7 @@ pub fn api() -> (Router<AppState>, utoipa::openapi::OpenApi) {
     .merge(urls::routes())
     .merge(redirects::routes())
     .merge(links::routes())
+    .merge(highlight::routes())
     .merge(library::routes())
     .merge(history::routes())
     .merge(me::routes())

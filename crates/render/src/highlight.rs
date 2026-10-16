@@ -1,8 +1,9 @@
 use std::sync::LazyLock;
 
 use syntect::{
+  highlighting::{FontStyle, Highlighter, Style},
   html::{ClassStyle, ClassedHTMLGenerator, css_for_theme_with_class_style},
-  parsing::{SyntaxReference, SyntaxSet},
+  parsing::{ParseState, ScopeStack, SyntaxReference, SyntaxSet},
   util::LinesWithEndings,
 };
 use two_face::theme::{EmbeddedLazyThemeSet, EmbeddedThemeName};
@@ -36,6 +37,9 @@ const ALIASES: &[(&str, &str)] = &[
   ("shell", "sh"),
   ("text", "txt"),
 ];
+
+const LIGHT: EmbeddedThemeName = EmbeddedThemeName::OneHalfLight;
+const DARK: EmbeddedThemeName = EmbeddedThemeName::OneHalfDark;
 
 // Classes instead of inline colors, so one stylesheet serves light and dark mode.
 const STYLE: ClassStyle = ClassStyle::SpacedPrefixed { prefix: "hl-" };
@@ -83,6 +87,81 @@ fn highlight(language: &str, code: &str) -> Option<String> {
   Some(generator.finalize())
 }
 
+/// A run of code drawn in one style, for the editor's canvas. Offsets count UTF-16 code units, as JavaScript strings do.
+#[derive(Debug, PartialEq)]
+pub struct Token {
+  pub from: usize,
+  pub to: usize,
+  /// None where the theme draws the text in its default style, which the site's own text color stands in for.
+  pub light: Option<TokenStyle>,
+  pub dark: Option<TokenStyle>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct TokenStyle {
+  /// `#rrggbb`.
+  pub color: String,
+  pub italic: bool,
+  pub bold: bool,
+}
+
+/// The styled runs of `code`, in the themes the published stylesheet uses. None for a language the highlighter does not know.
+///
+/// The published page nests one span per scope and lets the stylesheet's descendant selectors pick a color; the editor's decorations
+/// cannot nest like that, so each run's style is resolved here instead.
+pub fn highlight_tokens(language: &str, code: &str) -> Option<Vec<Token>> {
+  let syntax = syntax(language)?;
+  let themes = [Highlighter::new(THEMES.get(LIGHT)), Highlighter::new(THEMES.get(DARK))];
+  let plain = themes.each_ref().map(Highlighter::get_default);
+
+  let mut parser = ParseState::new(syntax);
+  let mut stack = ScopeStack::new();
+  let mut tokens: Vec<Token> = Vec::new();
+  let mut offset = 0;
+
+  for line in LinesWithEndings::from(code) {
+    let ops = parser.parse_line(line, &SYNTAXES).ok()?;
+    let mut start = 0;
+
+    // Each op changes the scopes from its byte index on; the text between two ops has the scopes of the first.
+    for (end, op) in ops.iter().map(|(index, op)| (*index, Some(op))).chain([(line.len(), None)]) {
+      let text = &line[start..end];
+      let from = offset;
+      offset += text.encode_utf16().count();
+
+      if !text.is_empty() {
+        let [light, dark] = [0, 1].map(|i| token_style(themes[i].style_for_stack(stack.as_slice()), plain[i]));
+
+        match tokens.last_mut() {
+          Some(last) if last.to == from && last.light == light && last.dark == dark => last.to = offset,
+          _ if light.is_none() && dark.is_none() => {}
+          _ => tokens.push(Token { from, to: offset, light, dark }),
+        }
+      }
+
+      if let Some(op) = op {
+        stack.apply(op).ok()?;
+      }
+      start = end;
+    }
+  }
+
+  Some(tokens)
+}
+
+fn token_style(style: Style, plain: Style) -> Option<TokenStyle> {
+  if style.foreground == plain.foreground && style.font_style == plain.font_style {
+    return None;
+  }
+
+  let c = style.foreground;
+  Some(TokenStyle {
+    color: format!("#{:02x}{:02x}{:02x}", c.r, c.g, c.b),
+    italic: style.font_style.contains(FontStyle::ITALIC),
+    bold: style.font_style.contains(FontStyle::BOLD),
+  })
+}
+
 fn syntax(language: &str) -> Option<&'static SyntaxReference> {
   let language = language.to_lowercase();
   let token = ALIASES.iter().find(|(alias, _)| *alias == language).map_or(language.as_str(), |(_, token)| token);
@@ -97,8 +176,8 @@ fn unescape(text: &str) -> String {
 
 /// The stylesheet for the classes above: a light theme by default, a dark one under the system setting or an explicit `data-theme="dark"`.
 pub fn highlight_css() -> String {
-  let light = theme_rules(EmbeddedThemeName::OneHalfLight);
-  let dark = theme_rules(EmbeddedThemeName::OneHalfDark);
+  let light = theme_rules(LIGHT);
+  let dark = theme_rules(DARK);
 
   // Each theme applies only in its own mode. Scoping one and not the other lets the unscoped theme win wherever its selector has more
   // classes, so light colors leaked into dark mode.
@@ -150,6 +229,27 @@ mod tests {
     assert!(out.contains("<span class=\"hl-"), "{out}");
     assert!(out.contains("language-json\"><span"), "{out}");
     assert!(out.ends_with("<code class=\"language-nope\">a &lt; b</code></pre>"), "{out}");
+  }
+
+  #[test]
+  fn tokens_count_utf16_and_skip_plain_text() {
+    // The emoji is two UTF-16 units: the string after it starts at 13, not 12.
+    let tokens = highlight_tokens("rust", "let a = \"😀\"; // hi\nlet b = 1;").expect("rust is known");
+    let at = |from: usize| tokens.iter().find(|t| t.from == from);
+
+    let keyword = at(0).expect("`let` is colored");
+    assert_eq!(keyword.to, 3);
+    assert!(keyword.light.is_some() && keyword.dark.is_some());
+    // `a` is plain text and gets no token.
+    assert!(tokens.iter().all(|t| !(t.from <= 4 && t.to > 4)), "{tokens:?}");
+    let string = at(8).expect("the string is colored");
+    assert_eq!(string.to, 12);
+    let comment = at(14).expect("the comment is colored");
+    // A line comment's scope takes in the line's end.
+    assert_eq!(comment.to, 20);
+    assert!(at(20).is_some(), "second line's `let`: {tokens:?}");
+
+    assert_eq!(highlight_tokens("nope", "x"), None);
   }
 
   /// Every language the editor offers is one the highlighter knows.

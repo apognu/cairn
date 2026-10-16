@@ -80,6 +80,42 @@
         }
       }
     },
+    "/api/highlight": {
+      "post": {
+        "summary": "Colors code the way publishing does, for the editor's canvas.",
+        "operationId": "highlightCode",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HighlightRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Highlighted"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/library": {
       "get": {
         "summary": "Every variable, snippet and glossary term.",
@@ -2863,6 +2899,63 @@
           "deleted"
         ]
       },
+      "CodeToken": {
+        "type": "object",
+        "required": [
+          "from",
+          "to"
+        ],
+        "properties": {
+          "dark": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/CodeTokenStyle"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "from": {
+            "type": "integer",
+            "description": "Offsets in UTF-16 code units, as JavaScript counts them.",
+            "minimum": 0
+          },
+          "light": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/CodeTokenStyle"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "to": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "CodeTokenStyle": {
+        "type": "object",
+        "required": [
+          "color",
+          "italic",
+          "bold"
+        ],
+        "properties": {
+          "bold": {
+            "type": "boolean"
+          },
+          "color": {
+            "type": "string"
+          },
+          "italic": {
+            "type": "boolean"
+          }
+        }
+      },
       "CreatePage": {
         "type": "object",
         "required": [
@@ -3159,6 +3252,37 @@
         "properties": {
           "in_header": {
             "type": "boolean"
+          }
+        }
+      },
+      "HighlightRequest": {
+        "type": "object",
+        "required": [
+          "language",
+          "code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string",
+            "description": "As written in the code block, like `rust` or `tsx`."
+          }
+        }
+      },
+      "Highlighted": {
+        "type": "object",
+        "required": [
+          "tokens"
+        ],
+        "properties": {
+          "tokens": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CodeToken"
+            },
+            "description": "Runs of styled code, in order; text between them is plain. Empty for a language the highlighter does not know."
           }
         }
       },

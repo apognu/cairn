@@ -10,6 +10,7 @@ mod config;
 mod drafts;
 mod editor;
 mod error;
+mod highlight;
 mod history;
 mod library;
 mod links;

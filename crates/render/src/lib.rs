@@ -8,7 +8,7 @@ mod platform;
 mod pool;
 mod shell;
 
-pub use highlight::highlight_css;
+pub use highlight::{Token, TokenStyle, highlight_css, highlight_tokens};
 pub use pool::Pool;
 pub use shell::{Shell, document};
 
