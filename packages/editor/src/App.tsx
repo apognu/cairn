@@ -18,7 +18,7 @@ import { SideDrawer, useModal } from "./sidePanel";
 import { firstPage, type Page, pageUrls } from "./tree";
 import { UserMenu } from "./UserMenu";
 import * as ui from "./ui";
-import { useNarrow } from "./useNarrow";
+import { useMobile, useNarrow } from "./useNarrow";
 
 const statusText: Record<PageStatus, string> = {
   saved: "Saved",
@@ -81,6 +81,9 @@ function Editor() {
   // One side panel at a time; its button opens and closes it.
   const [panel, setPanel] = useState<"history" | "settings" | null>(null);
   const [sideOpen, setSideOpen] = useState(false);
+  // On a phone the page tree is a drawer: open from its button in the top bar, closed once something is picked in it.
+  const [navOpen, setNavOpen] = useState(false);
+  const navButton = useRef<HTMLButtonElement>(null);
   // A page panel opens beside the page, so the side column's drawer (which may hold the button) makes way for it.
   const toggle = (next: "history" | "settings") => {
     setSideOpen(false);
@@ -140,9 +143,32 @@ function Editor() {
       next ? `#settings=${next}` : selected ? `#page=${selected}` : window.location.pathname,
     );
     setSection(next);
+    if (next) setNavOpen(false);
   };
 
   const narrow = useNarrow();
+  const mobile = useMobile();
+  const nav = mobile && navOpen;
+  const pick = useCallback(
+    (id: string | null) => {
+      setNavOpen(false);
+      select(id);
+    },
+    [select],
+  );
+  useEffect(() => {
+    if (!nav) return;
+    document.querySelector<HTMLElement>(".sidebar :is(input, button)")?.focus();
+
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      setNavOpen(false);
+      navButton.current?.focus();
+    };
+    document.addEventListener("keydown", onKey);
+
+    return () => document.removeEventListener("keydown", onKey);
+  }, [nav]);
   // Actions on the open page: a header over the settings column when it is shown, the top bar (or its menu) otherwise.
   const pageActions = (at: ActionsAt) =>
     !section &&
@@ -201,9 +227,23 @@ function Editor() {
   return (
     // `topbar` is a hook: the side panels find the top bar. Drawers open under `--drawer-top`.
     <div
-      className={`shell grid grid-rows-[52px_1fr] grid-cols-[270px_minmax(0,1fr)_var(--panel-width)] h-screen [--page-actions-height:53px] [--panel-width:420px] narrow:grid-cols-[270px_minmax(0,1fr)] ${actionsInColumn ? "[--drawer-top:calc(52px+var(--page-actions-height))]" : "[--drawer-top:52px]"}`}
+      className={`shell grid grid-rows-[52px_1fr] grid-cols-[270px_minmax(0,1fr)_var(--panel-width)] h-screen [--page-actions-height:53px] [--panel-width:420px] narrow:grid-cols-[270px_minmax(0,1fr)] mobile:grid-cols-[minmax(0,1fr)] ${actionsInColumn ? "[--drawer-top:calc(52px+var(--page-actions-height))]" : "[--drawer-top:52px]"}`}
+      data-nav-open={nav || undefined}
     >
-      <header className="topbar col-span-full flex items-center gap-3.5 px-4 border-b border-border text-ui leading-[1.4]">
+      <header className="topbar col-span-full flex items-center gap-3.5 px-4 border-b border-border text-ui leading-[1.4] mobile:gap-2.5 mobile:px-3">
+        {mobile && (
+          <button
+            ref={navButton}
+            type="button"
+            className="flex flex-none items-center justify-center w-8 h-8 p-0 border border-input rounded-[7px] bg-bg text-text cursor-pointer hover:bg-border aria-expanded:bg-hover"
+            aria-label={section ? "Settings sections" : "Pages"}
+            title={section ? "Settings sections" : "Pages"}
+            aria-expanded={navOpen}
+            onClick={() => setNavOpen((open) => !open)}
+          >
+            <Icon name="menu" size={18} className="flex-none" />
+          </button>
+        )}
         <span className="flex flex-none items-center gap-2.5 text-[15px]">
           <Icon name="logo" size={20} />
           <strong className="narrow:hidden">{settings.data?.site_name ?? "Documentation"}</strong>
@@ -280,15 +320,15 @@ function Editor() {
           onClose={() => openSettings(null)}
           onOpenPage={(id) => {
             setSection(null);
-            select(id);
+            pick(id);
           }}
         />
       ) : (
         <>
-          <Sidebar pages={pages.data ?? []} loading={pages.isPending} selected={selected} onSelect={select} />
+          <Sidebar pages={pages.data ?? []} loading={pages.isPending} selected={selected} onSelect={pick} />
           <SideDrawer.Provider value={narrow ? sideDrawer : null}>
             <main
-              className={`canvas relative overflow-y-auto has-[.sticky-actions]:scroll-pb-20 ${current?.kind === "api" ? "col-[2/-1]" : ""}`}
+              className={`canvas relative overflow-y-auto has-[.sticky-actions]:scroll-pb-20 ${current?.kind === "api" ? "col-[2/-1] mobile:col-[1/-1]" : ""}`}
             >
               {current?.kind === "api" ? (
                 <div className="py-6.5 px-8 text-ui leading-[1.4] has-[.sticky-actions]:pb-0">
@@ -334,6 +374,16 @@ function Editor() {
               </div>
             ))}
         </>
+      )}
+      {nav && (
+        // Above the page, under the drawer: a tap beside the drawer closes it.
+        <button
+          type="button"
+          className="fixed inset-x-0 top-13 bottom-0 z-29 p-0 border-0 bg-[rgb(16_20_22/35%)] cursor-default"
+          aria-label="Close"
+          tabIndex={-1}
+          onClick={() => setNavOpen(false)}
+        />
       )}
       {panel === "history" && current && !section && (
         <HistoryDrawer

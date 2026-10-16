@@ -9,6 +9,9 @@
 /* Too narrow to keep a column aside: below this the tree (270px) and the side column (420px) would leave the page under 700px, as on
    1280 and 1366 wide laptops. The page takes the width, and panels open over it. Keep in step with useNarrow.ts. */
 @custom-variant narrow (@media (max-width: 1380px));
+/* A phone: the page tree alone would take most of the screen, so it becomes a drawer opened from the top bar. Keep in step with
+   useNarrow.ts. */
+@custom-variant mobile (@media (max-width: 760px));
 
 /* Colors that exist in the editor only, so they are not in the shared theme. */
 @theme inline {

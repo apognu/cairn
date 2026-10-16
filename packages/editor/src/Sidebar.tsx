@@ -413,7 +413,9 @@ function dragCard(title: string): HTMLElement {
 }
 
 /** `sidebar` is what `placeMenu` measures a menu against. */
-export const sidebar = "sidebar bg-side border-r border-border overflow-y-auto py-3 px-2 text-ui leading-[1.4]";
+/** On a phone it opens over the page, under the top bar, while the shell carries `data-nav-open`. */
+export const sidebar =
+  "sidebar bg-side border-r border-border overflow-y-auto py-3 px-2 text-ui leading-[1.4] mobile:fixed mobile:top-13 mobile:bottom-0 mobile:left-0 mobile:z-30 mobile:w-[min(300px,85vw)] mobile:shadow-[12px_0_32px_rgb(16_20_22/16%)] mobile:not-in-data-nav-open:hidden";
 const list = "list-none m-0 p-0";
 
 /** Top-level pages are the section headings of the sidebar; everything below is indented under them. */
