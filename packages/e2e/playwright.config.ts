@@ -20,16 +20,25 @@ const CLEAN = `env ${[
 
 export default defineConfig({
   testDir: "tests",
+  // The default is half the CPUs, two on the CI runner; the tests mostly wait on the servers, so one per CPU is quicker.
+  workers: process.env.CI ? 4 : undefined,
   // Publishing takes everything pending, whoever made it. Tests that read the list of pending changes run after the others finish,
   // so no other test's publish can swallow their changes in between.
   projects: [
-    { name: "main", testIgnore: /(redirects|checks|releases|custom|api-reference|serve|team)\.spec/ },
+    { name: "landing", testMatch: /landing\.setup\.ts/ },
+    {
+      name: "main",
+      testIgnore: /(redirects|checks|releases|custom|api-reference|serve|team)\.spec/,
+      dependencies: ["landing"],
+    },
     // A third server whose GitHub is `stand-in.ts`, so API pages read specs the tests control.
     { name: "api", testMatch: /api-reference\.spec/, use: { baseURL: "http://127.0.0.1:3300" } },
     // A second server running with bundles `build-components` made from `examples/components`.
     { name: "custom", testMatch: /custom\.spec/, use: { baseURL: "http://127.0.0.1:3200" } },
     // `serve` with a login, against a local Dex on :5556 (`examples/dex`).
-    { name: "serve", testMatch: /(serve|team)\.spec/, use: { baseURL: "http://127.0.0.1:3400" } },
+    { name: "serve", testMatch: /serve\.spec/, use: { baseURL: "http://127.0.0.1:3400" } },
+    // After `serve`, not beside it: both open the first page of the tree and publish everything pending on the same server.
+    { name: "team", testMatch: /team\.spec/, dependencies: ["serve"], use: { baseURL: "http://127.0.0.1:3400" } },
     { name: "pending-changes", testMatch: /redirects\.spec/, dependencies: ["main"] },
     // A page with a problem blocks every publish, so this runs alone, last, and removes the page again.
     { name: "checks", testMatch: /checks\.spec/, dependencies: ["pending-changes"] },
