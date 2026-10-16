@@ -1,0 +1,55 @@
+import { Extension } from "@tiptap/core";
+import { Plugin, PluginKey, TextSelection } from "@tiptap/pm/state";
+import { Decoration, DecorationSet, type EditorView } from "@tiptap/pm/view";
+
+const TEXT = "Write content here…";
+
+/**
+ * A dimmed "Write content here…" line at the end of the page, so authors see where to click. Only decorations: the document is left as
+ * it is, since an empty paragraph would publish as a blank line. A page that already ends in an empty paragraph (the one kept after a
+ * final table or tabs) shows the text in it; any other page gets a line after its last block that adds that paragraph when clicked.
+ */
+export const PhantomLine = Extension.create({
+  name: "phantomLine",
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        key: new PluginKey("phantomLine"),
+        props: {
+          decorations: (state) => {
+            const { doc } = state;
+            const last = doc.lastChild;
+            if (!last) return null;
+
+            if (last.type.name === "paragraph" && last.content.size === 0) {
+              const from = doc.content.size - last.nodeSize;
+              return DecorationSet.create(doc, [
+                Decoration.node(from, doc.content.size, { class: "phantom-line", "data-placeholder": TEXT }),
+              ]);
+            }
+
+            const widget = (view: EditorView) => {
+              const line = document.createElement("p");
+              line.className = "phantom-line";
+              line.dataset.placeholder = TEXT;
+              line.contentEditable = "false";
+              // Mouse down, not click: by the click the editor would already have put the cursor somewhere else.
+              line.addEventListener("mousedown", (event) => {
+                event.preventDefault();
+                const end = view.state.doc.content.size;
+                const tr = view.state.tr.insert(end, view.state.schema.nodes.paragraph.create());
+                view.dispatch(tr.setSelection(TextSelection.create(tr.doc, end + 1)).scrollIntoView());
+                view.focus();
+              });
+              return line;
+            };
+
+            return DecorationSet.create(doc, [
+              Decoration.widget(doc.content.size, widget, { side: 1, key: "phantom-line", ignoreSelection: true }),
+            ]);
+          },
+        },
+      }),
+    ];
+  },
+});

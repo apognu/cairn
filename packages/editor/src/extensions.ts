@@ -21,6 +21,7 @@ import { ComponentView } from "./ComponentView";
 import { codeHighlight } from "./codeHighlight";
 import { EmojiSuggestion } from "./emoji";
 import { PageLink, PagePickerTriggers } from "./pageLink";
+import { PhantomLine } from "./phantom";
 import { SlashCommand } from "./slash";
 import { TermSuggestion } from "./termSuggestion";
 
@@ -324,5 +325,5 @@ export const buildExtensions = (editable: boolean) => [
   atomComponent(snippet as unknown as AnyComponent),
   ...customComponents.map((component) => atomComponent(component)),
   UniqueID.configure({ types: blockTypes }),
-  ...(editable ? [SlashCommand, EmojiSuggestion, TermSuggestion, PagePickerTriggers] : []),
+  ...(editable ? [SlashCommand, EmojiSuggestion, TermSuggestion, PagePickerTriggers, PhantomLine] : []),
 ];

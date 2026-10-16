@@ -182,6 +182,18 @@
   line-height: 16px;
 }
 
+/* The dimmed line at the end of the canvas that shows where to write (`phantom.ts`). */
+.ProseMirror .phantom-line::before {
+  content: attr(data-placeholder);
+  color: var(--muted);
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.ProseMirror p.phantom-line[contenteditable="false"] {
+  cursor: text;
+}
+
 /* A snippet is edited in a box inside the settings page: no site margins, no table of contents. */
 .snippet-editor .site-body {
   grid-template-columns: minmax(0, 1fr);
