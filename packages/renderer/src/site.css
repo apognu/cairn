@@ -838,14 +838,21 @@ dfn.term:not(:has(a)) {
 }
 
 /* Narrow screens, after the rules they override. */
-/* On a phone the results take the width of the screen under the header. */
-@media (max-width: 600px) {
+/* On a narrow screen the search is a panel over the whole page: the results follow the field instead of floating under it, and the
+   field is larger for a finger. */
+@media (max-width: 900px) {
+  .site-search {
+    --pagefind-ui-scale: 0.8;
+  }
+
   .site-search .pagefind-ui__drawer {
-    position: fixed;
-    top: 56px;
-    left: 8px;
-    right: 8px;
+    position: static;
     width: auto;
+    max-height: none;
+    margin-top: 12px;
+    padding: 0;
+    border: 0;
+    box-shadow: none;
   }
 }
 

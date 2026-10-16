@@ -1,29 +1,10 @@
 import { customSlots } from "@cairn/components";
 import type { SlotDefinition, SlotName } from "@cairn/sdk";
 import { createElement, type ReactNode, useEffect, useId, useRef, useState } from "react";
+import { ExternalMark, HeaderMenu, headerButton, isExternal, SearchBox } from "./header";
 import type { Heading } from "./headings";
 import { ThemeToggle } from "./ThemeToggle";
 import type { NavNode, RenderContext, SiteImage } from "./types";
-
-/** The arrow after a link that leaves the site. */
-function ExternalMark() {
-  return (
-    <svg
-      className="ml-1.5 text-muted"
-      width="12"
-      height="12"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.2"
-      strokeLinecap="round"
-      role="img"
-      aria-label="External link"
-    >
-      <path d="M7 17L17 7M8 7h9v9" />
-    </svg>
-  );
-}
 
 type Slots = Partial<Record<SlotName, SlotDefinition>>;
 
@@ -58,10 +39,6 @@ function SiteLogo({ image, mode }: { image: SiteImage; mode?: "light" | "dark" }
       alt=""
     />
   );
-}
-
-function isExternal(url: string): boolean {
-  return /^(https?:)?\/\//.test(url);
 }
 
 /** A short, stable name for an announcement, so dismissing one does not hide the next. */
@@ -200,48 +177,6 @@ function longDate(iso: string): string {
   return month >= 1 && month <= 12 ? `${day} ${months[month - 1]} ${year}` : iso;
 }
 
-type PagefindUI = new (options: { element: HTMLElement; showSubResults: boolean; showImages: boolean }) => unknown;
-
-function load(tag: "script" | "link", url: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const element = document.createElement(tag);
-    if (element instanceof HTMLScriptElement) element.src = url;
-    else if (element instanceof HTMLLinkElement) {
-      element.rel = "stylesheet";
-      element.href = url;
-    }
-    element.onload = () => resolve();
-    element.onerror = () => reject(new Error(`cannot load ${url}`));
-    document.head.append(element);
-  });
-}
-
-/** Search over the Pagefind index of the published site. Loaded after hydration, so it never disturbs the server-rendered markup. */
-function SearchBox({ afterLinks }: { afterLinks: boolean }) {
-  const container = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const element = container.current;
-    if (!element) return;
-
-    Promise.all([load("link", "/pagefind/pagefind-ui.css"), load("script", "/pagefind/pagefind-ui.js")])
-      .then(() => {
-        const UI = (window as unknown as { PagefindUI?: PagefindUI }).PagefindUI;
-        if (UI && element.childElementCount === 0) new UI({ element, showSubResults: true, showImages: false });
-      })
-      // No index (the editor, a fixture): there is simply no search box.
-      .catch(() => {});
-  }, []);
-
-  // Both want the free space of the header: the links take it, and the search follows them.
-  return (
-    <div
-      className={`site-search relative w-[min(260px,40vw)] ${afterLinks ? "ml-0" : "ml-auto"} phone:flex-1 phone:w-auto phone:min-w-0 phone:ml-3`}
-      ref={container}
-    />
-  );
-}
-
 /** The section being read: the last heading scrolled past the top of the window, or the first one. */
 function useActiveHeading(anchors: string[]): string | undefined {
   const [active, setActive] = useState<string | undefined>(undefined);
@@ -294,8 +229,6 @@ function ImageZoom({ image, onClose }: { image: { src: string; alt: string }; on
  */
 const navPanel =
   "tablet:block tablet:fixed tablet:self-stretch tablet:inset-x-0 tablet:top-13 tablet:bottom-0 tablet:z-15 tablet:h-auto tablet:pt-3 tablet:px-4 tablet:pb-8 tablet:border-r-0 tablet:text-[15px]";
-/** The sections and header links, which the header has no room for on a phone: the menu panel carries them instead. */
-const navSections = "hidden phone:block mt-0 mx-0 mb-3 pt-0 px-0 pb-3 border-b border-border list-none";
 const pagerLink =
   "block py-3.5 px-4.5 border border-border rounded-[10px] text-text font-semibold no-underline hover:border-accent";
 const pagerLabel = "block text-muted text-help font-normal";
@@ -328,6 +261,8 @@ export function SiteLayout({
   const toc = headings.filter((h) => h.level >= 2 && h.level <= 3);
   // On narrow screens the navigation is a panel opened from the header; wide screens always show it.
   const [navOpen, setNavOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchToggle = useRef<HTMLButtonElement>(null);
   const navId = useId();
   const navToggle = useRef<HTMLButtonElement>(null);
   const active = useActiveHeading(embedded ? [] : toc.map((h) => h.anchor));
@@ -359,6 +294,27 @@ export function SiteLayout({
     };
   }, [navOpen]);
 
+  const closeSearch = () => {
+    setSearchOpen(false);
+    searchToggle.current?.focus();
+  };
+  useEffect(() => {
+    if (!searchOpen) return;
+
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setSearchOpen(false);
+      searchToggle.current?.focus();
+    };
+    document.addEventListener("keydown", onKey);
+    document.documentElement.style.overflow = "hidden";
+
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.documentElement.style.overflow = "";
+    };
+  }, [searchOpen]);
+
   // One listener for every image of the body, so the rendered markup stays the same with or without script. The original file, not
   // the copy sized for the column, is the one worth enlarging.
   useEffect(() => {
@@ -376,6 +332,13 @@ export function SiteLayout({
 
   const api = Boolean(context.api);
   const headerLinks = (context.site.headerLinks ?? []).length > 0;
+  const brand = (
+    <>
+      {context.site.logo && <SiteLogo image={context.site.logo} mode={context.site.logoDark ? "light" : undefined} />}
+      {context.site.logoDark && <SiteLogo image={context.site.logoDark} mode="dark" />}
+      {context.site.name}
+    </>
+  );
   // The page tree and the table of contents beside the reading column; an API reference uses the whole width beside the navigation.
   // In the editor (embedded) there is no tree, and the editor narrows it further itself.
   const columns = embedded
@@ -401,7 +364,10 @@ export function SiteLayout({
               aria-label="Menu"
               aria-expanded={navOpen}
               aria-controls={navId}
-              onClick={() => setNavOpen(!navOpen)}
+              onClick={() => {
+                setSearchOpen(false);
+                setNavOpen(!navOpen);
+              }}
             >
               <svg
                 width="20"
@@ -415,16 +381,12 @@ export function SiteLayout({
                 <path d={navOpen ? "M6 6l12 12M18 6L6 18" : "M4 7h16M4 12h16M4 17h16"} strokeLinecap="round" />
               </svg>
             </button>
-            <a href="/" className="site-name flex items-center gap-2 font-bold text-text no-underline phone:flex-none">
-              {context.site.logo && (
-                <SiteLogo image={context.site.logo} mode={context.site.logoDark ? "light" : undefined} />
-              )}
-              {context.site.logoDark && <SiteLogo image={context.site.logoDark} mode="dark" />}
-              {context.site.name}
+            {/* On a narrow screen the name moves to the top of the navigation panel, and the sections and links into a menu. */}
+            <a href="/" className="site-name flex items-center gap-2 font-bold text-text no-underline tablet:hidden">
+              {brand}
             </a>
             {context.header.length > 0 && (
-              // On a phone the sections move into the menu panel.
-              <nav className="site-sections flex self-stretch gap-1 ml-6 phone:hidden" aria-label="Sections">
+              <nav className="site-sections flex self-stretch gap-1 ml-6 tablet:hidden" aria-label="Sections">
                 {context.header.map((item) => (
                   <a
                     key={item.id}
@@ -438,7 +400,7 @@ export function SiteLayout({
               </nav>
             )}
             {context.site.headerLinks && headerLinks && (
-              <nav className="site-links flex gap-1 ml-auto pr-2 phone:hidden" aria-label="Links">
+              <nav className="site-links flex gap-1 ml-auto pr-2 tablet:hidden" aria-label="Links">
                 {context.site.headerLinks.map((link) => (
                   <a
                     key={link.url + link.label}
@@ -451,8 +413,34 @@ export function SiteLayout({
                 ))}
               </nav>
             )}
-            <SearchBox afterLinks={headerLinks} />
-            <ThemeToggle />
+            <SearchBox afterLinks={headerLinks} open={searchOpen} onClose={closeSearch} />
+            <button
+              ref={searchToggle}
+              type="button"
+              className={`search-toggle ${headerButton} hidden tablet:flex ml-auto`}
+              aria-label="Search"
+              aria-expanded={searchOpen}
+              onClick={() => {
+                setNavOpen(false);
+                setSearchOpen(true);
+              }}
+            >
+              <svg
+                width="17"
+                height="17"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                aria-hidden="true"
+              >
+                <circle cx="11" cy="11" r="7" />
+                <path d="M20 20l-3.5-3.5" />
+              </svg>
+            </button>
+            {(context.header.length > 0 || headerLinks) && <HeaderMenu context={context} />}
+            <ThemeToggle className="w-8.5 h-8.5 ml-3 tablet:ml-2" />
           </header>
         </Slot>
       )}
@@ -494,33 +482,15 @@ export function SiteLayout({
             id={navId}
             aria-label="Pages"
           >
-            {context.header.length > 0 && (
-              <ul className={`site-nav-sections ${navSections} font-semibold`}>
-                {context.header.map((item) => (
-                  <li key={item.id}>
-                    <a
-                      href={item.href}
-                      className={navLink()}
-                      aria-current={item.id === context.section ? "page" : undefined}
-                    >
-                      {item.title}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {context.site.headerLinks && context.site.headerLinks.length > 0 && (
-              // The header has no room for its links on narrow screens: the menu panel carries them instead.
-              <ul className={`site-nav-sections site-nav-links ${navSections}`}>
-                {context.site.headerLinks.map((link) => (
-                  <li key={link.url + link.label}>
-                    <a href={link.url} className={navLink()}>
-                      {link.label}
-                      {isExternal(link.url) && <ExternalMark />}
-                    </a>
-                  </li>
-                ))}
-              </ul>
+            {/* The header has no room for the site's name on a narrow screen: the panel opens with it, unless the way back from a
+                section already names the site. */}
+            {context.sectionBack?.title !== context.site.name && (
+              <a
+                href="/"
+                className="site-nav-brand hidden tablet:flex items-center gap-2 mb-3 pt-1 pb-3 px-2.5 border-b border-border font-bold text-text text-[17px] no-underline"
+              >
+                {brand}
+              </a>
             )}
             {context.sectionBack && (
               // A section's sidebar lists only that section: this is the way back to the rest of the site.
