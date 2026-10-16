@@ -129,9 +129,19 @@ export function Canvas({
     };
     dom.addEventListener(PICKER_EVENT, onRequest);
 
+    return () => {
+      dom.removeEventListener(PICKER_EVENT, onRequest);
+    };
+  }, [editor, editable]);
+
+  useEffect(() => {
+    if (!editor) return;
+
+    const dom = editor.view.dom;
     // In the canvas a link card, a feature card or a linked word is something to select and edit, not to follow: a plain click only
     // selects it (and opens its settings). Cmd/Ctrl-click or the middle button opens the target in a new tab: a page of the site in
-    // the editor, since its address only exists on the published site, and any other address as it is.
+    // the editor, since its address only exists on the published site, and any other address as it is. This holds read-only too: the
+    // editor's own address serves the site only with the self-hosted target.
     const onLink = (event: MouseEvent) => {
       const link = event.target instanceof Element ? event.target.closest("a[href]") : null;
       if (!link || event.button === 2) return;
@@ -151,11 +161,10 @@ export function Canvas({
     dom.addEventListener("auxclick", onLink, true);
 
     return () => {
-      dom.removeEventListener(PICKER_EVENT, onRequest);
       dom.removeEventListener("click", onLink, true);
       dom.removeEventListener("auxclick", onLink, true);
     };
-  }, [editor, editable]);
+  }, [editor]);
 
   // The editor shows "new until" dates against today's date, as the publish render does with its own.
   const full = { ...defaultContext, today: new Date().toISOString().slice(0, 10), ...context };
