@@ -18,6 +18,7 @@ import { PropsPanel } from "./PropsPanel";
 import { PICKER_EVENT, type PickerRequest, pageUrlRegistry } from "./pageLink";
 import { inHost, popoverHost } from "./popover";
 import { useLibrary } from "./queries";
+import { setGlossary } from "./termSuggestion";
 import { insertImages, useUploads } from "./upload";
 
 interface Props {
@@ -99,6 +100,10 @@ export function Canvas({
   const library = useLibrary();
   const uploads = useUploads();
   const [headings, setHeadings] = useState(() => collectHeadings(doc).list);
+
+  useEffect(() => {
+    setGlossary((library.data ?? []).filter((e) => e.kind === "term").map((e) => ({ key: e.key, aliases: e.aliases })));
+  }, [library.data]);
 
   useEffect(() => {
     if (!editor) return;

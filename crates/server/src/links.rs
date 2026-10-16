@@ -4,7 +4,7 @@ use axum::{
   Json,
   extract::{Path, State},
 };
-use cairn_core::{LinkKind, Page, PageId};
+use cairn_core::{EntryKind, LinkKind, Page, PageId};
 use serde::Serialize;
 use tracing::instrument;
 use utoipa::ToSchema;
@@ -29,9 +29,19 @@ struct Backlink {
   kind: LinkKind,
 }
 
+/// A glossary term whose full explanation is the page.
+#[derive(Serialize, ToSchema)]
+struct TermLink {
+  term: String,
+  /// The page it points to (one of the pages below the one asked about, for a delete).
+  target_title: String,
+}
+
 #[derive(Serialize, ToSchema)]
 struct Backlinks {
   linked_from: Vec<Backlink>,
+  /// Glossary terms that send readers to the page for the full explanation.
+  terms: Vec<TermLink>,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -40,6 +50,8 @@ struct Impact {
   subpages: usize,
   /// Pages outside the deleted ones that link to any of them.
   linked_from: Vec<Backlink>,
+  /// Glossary terms that lose their link to the full explanation.
+  terms: Vec<TermLink>,
 }
 
 /// The pages `id` and everything below it.
@@ -77,6 +89,25 @@ async fn links_to(state: &AppState, targets: &HashSet<PageId>, pages: &[Page]) -
   )
 }
 
+async fn terms_pointing_to(state: &AppState, targets: &HashSet<PageId>, pages: &[Page]) -> Result<Vec<TermLink>, AppError> {
+  let title = |id: PageId| pages.iter().find(|p| p.id == id).map(|p| p.title.clone());
+
+  Ok(
+    cairn_store::list_entries(&state.db)
+      .await?
+      .into_iter()
+      .filter(|e| e.kind == EntryKind::Term)
+      .filter_map(|e| {
+        let target = e.link_page_id.filter(|id| targets.contains(id))?;
+        Some(TermLink {
+          term: e.key,
+          target_title: title(target)?,
+        })
+      })
+      .collect(),
+  )
+}
+
 /// The pages that link to this one.
 #[utoipa::path(get, path = "/api/pages/{id}/backlinks", operation_id = "getBacklinks", params(("id" = PageId, Path)), responses(
   (status = 200, body = Backlinks),
@@ -89,8 +120,11 @@ async fn backlinks(State(state): State<AppState>, Path(id): Path<PageId>) -> Res
     return Err(AppError::NotFound);
   }
 
+  let target = HashSet::from([id]);
+
   Ok(Json(Backlinks {
-    linked_from: links_to(&state, &HashSet::from([id]), &pages).await?,
+    linked_from: links_to(&state, &target, &pages).await?,
+    terms: terms_pointing_to(&state, &target, &pages).await?,
   }))
 }
 
@@ -107,10 +141,9 @@ async fn impact(State(state): State<AppState>, Path(id): Path<PageId>) -> Result
   }
 
   let doomed = subtree(&pages, id);
-  let linked_from = links_to(&state, &doomed, &pages).await?;
-
   Ok(Json(Impact {
     subpages: doomed.len() - 1,
-    linked_from,
+    linked_from: links_to(&state, &doomed, &pages).await?,
+    terms: terms_pointing_to(&state, &doomed, &pages).await?,
   }))
 }

@@ -2924,7 +2924,8 @@
       "Backlinks": {
         "type": "object",
         "required": [
-          "linked_from"
+          "linked_from",
+          "terms"
         ],
         "properties": {
           "linked_from": {
@@ -2932,6 +2933,13 @@
             "items": {
               "$ref": "#/components/schemas/Backlink"
             }
+          },
+          "terms": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TermLink"
+            },
+            "description": "Glossary terms that send readers to the page for the full explanation."
           }
         }
       },
@@ -3467,7 +3475,8 @@
         "type": "object",
         "required": [
           "subpages",
-          "linked_from"
+          "linked_from",
+          "terms"
         ],
         "properties": {
           "linked_from": {
@@ -3481,6 +3490,13 @@
             "type": "integer",
             "description": "How many pages go with it.",
             "minimum": 0
+          },
+          "terms": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TermLink"
+            },
+            "description": "Glossary terms that lose their link to the full explanation."
           }
         }
       },
@@ -4827,6 +4843,23 @@
                 "type": "null"
               }
             ]
+          },
+          "term": {
+            "type": "string"
+          }
+        }
+      },
+      "TermLink": {
+        "type": "object",
+        "description": "A glossary term whose full explanation is the page.",
+        "required": [
+          "term",
+          "target_title"
+        ],
+        "properties": {
+          "target_title": {
+            "type": "string",
+            "description": "The page it points to (one of the pages below the one asked about, for a delete)."
           },
           "term": {
             "type": "string"

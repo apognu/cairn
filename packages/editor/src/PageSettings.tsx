@@ -226,12 +226,24 @@ export function PageSettings({ page, onClose }: { page: Page; onClose: () => voi
 
           <section className={ui.drawerSection}>
             <h3 className={ui.drawerHeading}>Linked from</h3>
-            {backlinks.data?.linked_from.length === 0 && <p className={empty}>No page links here yet.</p>}
-            <ul className={list} aria-label="Linked from" hidden={!backlinks.data?.linked_from.length}>
+            {backlinks.data?.linked_from.length === 0 && backlinks.data.terms.length === 0 && (
+              <p className={empty}>No page links here yet.</p>
+            )}
+            <ul
+              className={list}
+              aria-label="Linked from"
+              hidden={!backlinks.data?.linked_from.length && !backlinks.data?.terms.length}
+            >
               {backlinks.data?.linked_from.map((l) => (
                 <li key={`${l.source_id}-${l.kind}`} className={item}>
                   <span>{l.source_title}</span>
                   <span className={ui.badge(undefined, "mr-auto")}>{l.kind}</span>
+                </li>
+              ))}
+              {backlinks.data?.terms.map((t) => (
+                <li key={`term-${t.term}`} className={item}>
+                  <span>{t.term}</span>
+                  <span className={ui.badge(undefined, "mr-auto")}>glossary term</span>
                 </li>
               ))}
             </ul>

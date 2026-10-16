@@ -1070,6 +1070,8 @@ export interface components {
         };
         Backlinks: {
             linked_from: components["schemas"]["Backlink"][];
+            /** @description Glossary terms that send readers to the page for the full explanation. */
+            terms: components["schemas"]["TermLink"][];
         };
         /** @description A message at the top of every page, which readers can dismiss. Off while `text` is empty. */
         Banner: {
@@ -1219,6 +1221,8 @@ export interface components {
             linked_from: components["schemas"]["Backlink"][];
             /** @description How many pages go with it. */
             subpages: number;
+            /** @description Glossary terms that lose their link to the full explanation. */
+            terms: components["schemas"]["TermLink"][];
         };
         /**
          * @description Why a redirect is not written, if it is not: a page now lives at its path, its page is gone, or it is part of a loop.
@@ -1677,6 +1681,12 @@ export interface components {
             /** @description Paragraphs of text with inline marks, at most 400 characters. */
             definition: components["schemas"]["Document"];
             page_id?: components["schemas"]["PageId"] | null;
+            term: string;
+        };
+        /** @description A glossary term whose full explanation is the page. */
+        TermLink: {
+            /** @description The page it points to (one of the pages below the one asked about, for a delete). */
+            target_title: string;
             term: string;
         };
         /** @description What the settings form shows while the palette is being edited. */

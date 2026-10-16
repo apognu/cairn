@@ -22,6 +22,7 @@ import { codeHighlight } from "./codeHighlight";
 import { EmojiSuggestion } from "./emoji";
 import { PageLink, PagePickerTriggers } from "./pageLink";
 import { SlashCommand } from "./slash";
+import { TermSuggestion } from "./termSuggestion";
 
 // Built-in nodes must produce the same tags and classes as `renderNode` in @cairn/renderer.
 
@@ -323,5 +324,5 @@ export const buildExtensions = (editable: boolean) => [
   atomComponent(snippet as unknown as AnyComponent),
   ...customComponents.map((component) => atomComponent(component)),
   UniqueID.configure({ types: blockTypes }),
-  ...(editable ? [SlashCommand, EmojiSuggestion, PagePickerTriggers] : []),
+  ...(editable ? [SlashCommand, EmojiSuggestion, TermSuggestion, PagePickerTriggers] : []),
 ];

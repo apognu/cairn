@@ -13,6 +13,8 @@ export function DeleteDialog({ page, onConfirm, onClose }: { page: Page; onConfi
   useModal(dialog);
 
   const linked = impact.data?.linked_from ?? [];
+  const terms = impact.data?.terms ?? [];
+  const broken = linked.length + terms.length;
 
   return (
     <dialog ref={dialog} className={ui.dialog} aria-labelledby={`${id}-title`} onClose={onClose}>
@@ -23,14 +25,20 @@ export function DeleteDialog({ page, onConfirm, onClose }: { page: Page; onConfi
         <p>Its {impact.data.subpages === 1 ? "subpage goes" : `${impact.data.subpages} subpages go`} with it.</p>
       )}
       {impact.isPending && <p className="text-muted">Checking links…</p>}
-      {linked.length > 0 && (
+      {broken > 0 && (
         <div className={ui.warning} role="alert">
           <div>
-            <strong>{linked.length === 1 ? "1 link" : `${linked.length} links`} will stop working</strong>
+            <strong>{broken === 1 ? "1 link" : `${broken} links`} will stop working</strong>
             <ul className={ui.warningList} aria-label="Linked from">
               {linked.map((l) => (
                 <li key={`${l.source_id}-${l.target_title}-${l.kind}`}>
                   {l.source_title} <span className="text-muted">links to {l.target_title}</span>
+                </li>
+              ))}
+              {terms.map((t) => (
+                <li key={`term-${t.term}`}>
+                  Glossary term “{t.term}”{" "}
+                  <span className="text-muted">links to {t.target_title} for its full explanation</span>
                 </li>
               ))}
             </ul>
