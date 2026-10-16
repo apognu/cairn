@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Icon } from "./icons";
 import list from "./languages.json";
+import { showInList } from "./popover";
 import * as ui from "./ui";
 
 interface Language {
@@ -72,9 +73,8 @@ export function LanguagePicker({
   const opening = useRef(false);
   useEffect(() => {
     if (!open) return;
-    listbox.current
-      ?.querySelector(`[data-index="${choice}"]`)
-      ?.scrollIntoView({ block: opening.current ? "center" : "nearest" });
+    const option = listbox.current?.querySelector(`[data-index="${choice}"]`);
+    if (listbox.current && option) showInList(listbox.current, option, opening.current);
     opening.current = false;
   }, [open, choice]);
 

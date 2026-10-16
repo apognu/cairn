@@ -3,9 +3,9 @@ import { sampleProps } from "@cairn/sdk";
 import { type Editor, Extension, type Range } from "@tiptap/core";
 import { ReactRenderer } from "@tiptap/react";
 import Suggestion, { type SuggestionKeyDownProps, type SuggestionProps } from "@tiptap/suggestion";
-import { Fragment, forwardRef, useEffect, useImperativeHandle, useState } from "react";
+import { Fragment, forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { Icon, type IconName } from "./icons";
-import { inHost, popoverHost } from "./popover";
+import { inHost, popoverHost, showInList } from "./popover";
 import * as ui from "./ui";
 import { pickAndInsertImages } from "./upload";
 
@@ -247,11 +247,15 @@ const SlashList = forwardRef<ListHandle, SuggestionProps<SlashItem, SlashItem>>(
   ref,
 ) {
   const [active, setActive] = useState(0);
+  const list = useRef<HTMLDivElement>(null);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: the highlighted row restarts at the top whenever the list changes
   useEffect(() => setActive(0), [items]);
   // The list scrolls: the option the arrows reach stays in view.
-  useEffect(() => document.getElementById(`slash-${active}`)?.scrollIntoView({ block: "nearest" }), [active]);
+  useEffect(() => {
+    const option = list.current?.querySelector(`#slash-${active}`);
+    if (list.current && option) showInList(list.current, option);
+  }, [active]);
 
   useImperativeHandle(ref, () => ({
     onKeyDown(event) {
@@ -269,6 +273,7 @@ const SlashList = forwardRef<ListHandle, SuggestionProps<SlashItem, SlashItem>>(
 
   return (
     <div
+      ref={list}
       className={`${ui.cursorMenu} w-[393px] p-1.5`}
       role="listbox"
       aria-label="Insert a block"
