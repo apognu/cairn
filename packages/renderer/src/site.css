@@ -56,6 +56,7 @@
   --warn-border: #eed9a2;
   --warn-text: #3a2c08;
   --warn-icon: #8a5a00;
+  --tip: #2f855a;
   color-scheme: light;
 }
 
@@ -77,6 +78,7 @@
     --warn-border: #5c4a1c;
     --warn-text: #f1e2b5;
     --warn-icon: #e0b050;
+    --tip: #6cc490;
     color-scheme: dark;
   }
 }
@@ -98,6 +100,7 @@
   --warn-border: #5c4a1c;
   --warn-text: #f1e2b5;
   --warn-icon: #e0b050;
+  --tip: #6cc490;
   color-scheme: dark;
 }
 
@@ -322,21 +325,49 @@
   font-size: 14px;
 }
 
+/* Each tone sets one colour (`--tone`) for the border, the tint and the icon. */
 .callout {
+  --tone: var(--accent);
+  --tone-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='M12 16v-4M12 8h.01'/%3E%3C/svg%3E");
+  position: relative;
   margin: 0 0 var(--gap-block);
-  padding: 16px 20px;
+  padding: 16px 20px 16px 50px;
   border: 1px solid var(--border);
-  border-left: 4px solid var(--accent);
+  border-left: 4px solid var(--tone);
   border-radius: 8px;
-  background: var(--bg-side);
-}
-
-.callout[data-tone="warning"] {
-  border-left-color: #b7791f;
+  background: color-mix(in srgb, var(--tone) 5%, var(--bg-side));
 }
 
 .callout[data-tone="tip"] {
-  border-left-color: #2f855a;
+  --tone: var(--tip);
+  --tone-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5M9 18h6M10 22h4'/%3E%3C/svg%3E");
+}
+
+.callout[data-tone="warning"] {
+  --tone: var(--warn-icon);
+  --tone-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3M12 9v4M12 17h.01'/%3E%3C/svg%3E");
+}
+
+.callout[data-tone="error"] {
+  --tone: var(--danger);
+  --tone-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='m15 9-6 6M9 9l6 6'/%3E%3C/svg%3E");
+}
+
+.callout[data-tone="neutral"] {
+  --tone: var(--muted);
+  --tone-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 9a2.4 2.4 0 0 0-.706-1.706l-3.588-3.588A2.4 2.4 0 0 0 15 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2zM15 3v5a1 1 0 0 0 1 1h5'/%3E%3C/svg%3E");
+}
+
+/* Drawn by CSS, not markup, so the editor's callout (a plain node) and the published one show the same icon. Centred on the first line. */
+.callout::before {
+  content: "";
+  position: absolute;
+  top: calc(16px + (1.6em - 18px) / 2);
+  left: 18px;
+  width: 18px;
+  height: 18px;
+  background: var(--tone);
+  mask: var(--tone-icon) center / contain no-repeat;
 }
 
 .callout > :first-child {

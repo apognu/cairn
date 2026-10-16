@@ -5,9 +5,9 @@ export const callout = defineComponent({
   name: "callout",
   version: 1,
   title: "Callout",
-  description: "A note, tip or warning set apart from the text.",
+  description: "A note, tip, warning or error set apart from the text.",
   props: z.object({
-    tone: z.enum(["note", "tip", "warning"]).default("note").meta({ title: "Type" }),
+    tone: z.enum(["note", "tip", "warning", "error", "neutral"]).default("note").meta({ title: "Type" }),
   }),
   render: ({ tone }, children) => <Callout tone={tone}>{children}</Callout>,
 });

@@ -59,7 +59,7 @@ export const slashItems: SlashItem[] = [
     "info",
     "Callout",
     "A highlighted note, tip or warning",
-    "callout note tip warning aside admonition",
+    "callout note tip warning error danger neutral aside admonition",
     (e, r) =>
       e
         .chain()

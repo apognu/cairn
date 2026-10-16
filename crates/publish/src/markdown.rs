@@ -74,16 +74,21 @@ fn block(node: &Node, site: &Site) -> String {
     }
     "table" => table(children, site),
     "callout" => {
-      let tone = attr_str(node, "tone");
-      let label = match tone {
-        "warning" => "Warning",
-        "tip" => "Tip",
-        "danger" => "Danger",
-        _ => "Note",
+      let label = match attr_str(node, "tone") {
+        "warning" => Some("Warning"),
+        "tip" => Some("Tip"),
+        "error" => Some("Error"),
+        "danger" => Some("Danger"),
+        // A neutral aside has nothing to announce: just the quote.
+        "neutral" => None,
+        _ => Some("Note"),
       };
       let body = blocks(children, site, "> ");
 
-      format!("> **{label}**\n>\n{body}")
+      match label {
+        Some(label) => format!("> **{label}**\n>\n{body}"),
+        None => body,
+      }
     }
     "tabs" => children
       .iter()
