@@ -199,11 +199,6 @@
   margin-top: 0;
 }
 
-/* The "Add step" button under the last step (`steps.ts`): lined up with the steps' titles, and no number of its own. */
-.ProseMirror .steps-add {
-  padding-left: 44px;
-}
-
 /* A snippet is edited in a box inside the settings page: no site margins, no table of contents. */
 .snippet-editor .site-body {
   grid-template-columns: minmax(0, 1fr);

@@ -1,8 +1,6 @@
 import { Extension } from "@tiptap/core";
-import type { Node as PmNode } from "@tiptap/pm/model";
-import { Plugin, PluginKey, TextSelection } from "@tiptap/pm/state";
-import { Decoration, DecorationSet, type EditorView } from "@tiptap/pm/view";
-import * as ui from "./ui";
+import { TextSelection } from "@tiptap/pm/state";
+import type { EditorView } from "@tiptap/pm/view";
 
 /** The step around the cursor, when the cursor is in one of its paragraphs (not deeper, in a list or a callout of its body). */
 function stepAt(view: { state: EditorView["state"] }) {
@@ -20,7 +18,7 @@ const newStep = (view: EditorView) =>
 /**
  * Adding and removing steps. Enter at the end of a step's title starts the next step, and on an empty last line (or an empty step)
  * leaves the block, as in a list, so a body can still hold several paragraphs; Backspace at the start of a step's title merges it into
- * the step before. Editing only: the button is not part of the page.
+ * the step before.
  */
 export const StepsEditing = Extension.create({
   name: "stepsEditing",
@@ -78,51 +76,4 @@ export const StepsEditing = Extension.create({
       },
     };
   },
-
-  addProseMirrorPlugins() {
-    return [
-      new Plugin({
-        key: new PluginKey("stepsEditing"),
-        props: {
-          // An "Add step" button under the last step of every steps block.
-          decorations: (state) => {
-            const widgets: Decoration[] = [];
-            state.doc.descendants((node: PmNode, pos: number) => {
-              if (node.type.name !== "steps") return true;
-              const end = pos + node.nodeSize - 1;
-              widgets.push(
-                Decoration.widget(end, addButton, { side: 1, key: `add-step-${pos}`, ignoreSelection: true }),
-              );
-              return false;
-            });
-
-            return DecorationSet.create(state.doc, widgets);
-          },
-        },
-      }),
-    ];
-  },
 });
-
-function addButton(view: EditorView, getPos: () => number | undefined) {
-  const item = document.createElement("li");
-  item.className = "steps-add";
-  item.contentEditable = "false";
-
-  const button = document.createElement("button");
-  button.type = "button";
-  button.className = `${ui.smallButton} text-ui text-muted hover:text-text`;
-  button.textContent = "+ Add step";
-  // Mouse down, not click: the click would first move the cursor out of the step the new one follows.
-  button.addEventListener("mousedown", (event) => event.preventDefault());
-  button.addEventListener("click", () => {
-    const end = getPos();
-    if (end === undefined) return;
-    const tr = view.state.tr.insert(end, newStep(view));
-    view.dispatch(tr.setSelection(TextSelection.create(tr.doc, end + 2)).scrollIntoView());
-    view.focus();
-  });
-  item.append(button);
-
-  return item;
-}

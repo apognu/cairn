@@ -193,7 +193,7 @@ test("on a narrower window, block settings open from their button, Alt+Enter or 
   await expect(drawer).toBeVisible();
 });
 
-test("steps are added with Enter or the button, and removed or merged with Backspace", async ({ page }) => {
+test("steps are added with Enter, and removed or merged with Backspace", async ({ page }) => {
   const title = `Steps ${Math.random().toString(36).slice(2, 8)}`;
 
   await page.goto("/");
@@ -240,16 +240,22 @@ test("steps are added with Enter or the button, and removed or merged with Backs
     ["Second step", "Body", "Third"],
   ]);
 
-  // The button adds an empty step; Backspace removes it again.
-  await page.getByRole("button", { name: "+ Add step" }).click();
+  // Backspace removes an empty step again.
+  await editor.getByText("First step").click();
+  await page.keyboard.press("End");
+  await page.waitForTimeout(100);
+  await page.keyboard.press("Enter");
   await expect(steps).toHaveCount(3);
   await page.keyboard.press("Backspace");
   await expect(steps).toHaveCount(2);
 
   // Enter on an empty step leaves the block, as in a list.
-  await page.getByRole("button", { name: "+ Add step" }).click();
+  await editor.getByText("Second step").click();
+  await page.keyboard.press("End");
+  await page.waitForTimeout(100);
   await page.keyboard.press("Enter");
-  await page.keyboard.type("After the button");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("After an empty step");
   await expect(steps).toHaveCount(2);
-  await expect(editor.locator("ol.steps + p")).toHaveText("After the button");
+  await expect(editor.locator("ol.steps + p")).toHaveText("After an empty step");
 });
