@@ -211,7 +211,8 @@ export function Canvas({
       value={{ urls: full.urls, pages: full.pages, variables, snippets, editing: editable, today: full.today }}
     >
       <SiteLayout context={full} headings={headings} embedded={embedded} lead={lead}>
-        <EditorContent editor={editor} />
+        {/* Positioned: the block handle is placed against it. */}
+        <EditorContent editor={editor} className="relative" />
         {editor && editable && <BubbleMenus editor={editor} />}
         {editable && uploads > 0 && (
           <output className="fixed z-40 bottom-5 left-1/2 -translate-x-1/2 flex items-center gap-2 py-2 px-3.5 border border-input rounded-lg bg-bg shadow-popover text-ui leading-[1.4]">

@@ -17,6 +17,7 @@ import { Table, TableCell, TableHeader, TableRow } from "@tiptap/extension-table
 import UniqueID from "@tiptap/extension-unique-id";
 import { ReactNodeViewRenderer } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
+import { BlockHandle } from "./blockHandle";
 import { ComponentView } from "./ComponentView";
 import { codeHighlight } from "./codeHighlight";
 import { EmojiSuggestion } from "./emoji";
@@ -301,7 +302,12 @@ const blockTypes = [
 
 // While editing, a trailing paragraph keeps a place to click after a final block (a table, tabs…); read-only it would add a blank line the published page lacks.
 export const buildExtensions = (editable: boolean) => [
-  StarterKit.configure({ codeBlock: false, link: false, trailingNode: editable ? undefined : false }),
+  StarterKit.configure({
+    codeBlock: false,
+    link: false,
+    trailingNode: editable ? undefined : false,
+    dropcursor: { color: "var(--accent)", width: 2 },
+  }),
   PageLink,
   Term,
   CodeWithFileName,
@@ -328,6 +334,15 @@ export const buildExtensions = (editable: boolean) => [
   ...customComponents.map((component) => atomComponent(component)),
   UniqueID.configure({ types: blockTypes }),
   ...(editable
-    ? [SlashCommand, EmojiSuggestion, TermSuggestion, PagePickerTriggers, PhantomLine, StepsEditing, TabsEditing]
+    ? [
+        SlashCommand,
+        EmojiSuggestion,
+        TermSuggestion,
+        PagePickerTriggers,
+        PhantomLine,
+        StepsEditing,
+        TabsEditing,
+        BlockHandle,
+      ]
     : []),
 ];
