@@ -185,7 +185,7 @@ function useCanvasContext(page: Page) {
   };
 }
 
-const conflictButton = "py-[3px] px-2.5 border border-input rounded-md bg-bg cursor-pointer";
+const conflictButton = `py-[3px] px-2.5 rounded-md ${ui.button}`;
 
 function Editing({
   page,

@@ -17,10 +17,16 @@ export const check = "flex items-center gap-2 mb-3.5 text-ui font-normal";
 export const checkInField = "flex items-center gap-2 mt-0 mb-1.5 text-ui font-normal";
 export const inline = "flex gap-2";
 
+/**
+ * The surface of every secondary button: raised off the page in both modes, lighter on hover, tinted with the accent while pressed
+ * (a panel's button with its panel open) or open (a menu's). The caller adds its size, corners and text.
+ */
+export const button =
+  "border border-button-border bg-button text-text shadow-button cursor-pointer transition-colors duration-100 hover:not-disabled:bg-button-hover aria-pressed:border-button-pressed aria-pressed:bg-accent-soft aria-expanded:bg-button-hover group-open/menu:bg-button-hover disabled:opacity-55 disabled:shadow-none disabled:cursor-default";
+
 export const primary =
-  "h-8 px-3.5 border-0 rounded-[7px] bg-text text-bg text-[13.5px] font-semibold cursor-pointer disabled:opacity-60 disabled:cursor-default";
-export const secondary =
-  "h-8 px-3 border border-input rounded-[7px] bg-bg cursor-pointer disabled:opacity-50 disabled:cursor-default";
+  "h-8 px-3.5 border-0 rounded-[7px] bg-text text-bg text-[13.5px] font-semibold shadow-button cursor-pointer transition-opacity duration-100 hover:not-disabled:opacity-88 disabled:opacity-60 disabled:cursor-default";
+export const secondary = `h-8 px-3 rounded-[7px] ${button}`;
 export const linkButton = "border-0 bg-transparent text-accent underline cursor-pointer";
 export const actions = "flex justify-end gap-2";
 /** The save buttons of a long settings form stay in reach while it scrolls; the screen around them looks for `sticky-actions`. */
@@ -39,8 +45,8 @@ export const sectionHead = "flex items-center justify-between mt-6.5 mb-2.5";
 
 /** A text field and its button on one line, as in the "add" forms under a list. */
 export const rowInput = "flex-1 min-w-0 h-8.5 px-2.5 border border-input rounded-md bg-bg";
-export const rowSubmit = "h-8.5 px-3 border border-input rounded-md bg-bg cursor-pointer";
-export const smallButton = "h-7 px-2.5 border border-input rounded-md bg-bg cursor-pointer";
+export const rowSubmit = `h-8.5 px-3 rounded-md ${button}`;
+export const smallButton = `h-7 px-2.5 rounded-md ${button}`;
 export const icon =
   "w-6 h-6 border-0 rounded-[5px] bg-transparent text-muted cursor-pointer hover:bg-border hover:text-text";
 
@@ -65,15 +71,14 @@ export function badge(kind?: string, margin = "mr-1"): string {
   return `inline-block ${margin} py-0.5 px-2 rounded-sm text-label font-semibold ${(kind && badgeColors[kind]) || "bg-hover"}`;
 }
 
-export const tinyButton =
-  "h-7 px-2.5 border border-input rounded-md bg-bg text-[12.5px] whitespace-nowrap cursor-pointer disabled:opacity-50 disabled:cursor-default";
+export const tinyButton = `h-7 px-2.5 rounded-md text-[12.5px] whitespace-nowrap ${button}`;
 
 /** A modal dialog: confirmations, publishing, rolling back. */
 export const dialogBase =
   "p-6 border border-border rounded-[14px] shadow-dialog bg-bg text-text text-ui leading-[1.4] backdrop:bg-[rgb(0_0_0/40%)]";
 export const dialog = `${dialogBase} w-120`;
 /** A dialog's other buttons, beside its primary one. */
-export const dialogButton = "h-8 px-3 border border-input rounded-[7px] bg-bg cursor-pointer";
+export const dialogButton = `h-8 px-3 rounded-[7px] ${button}`;
 /** A warning box in a dialog, its icon and its list. */
 export const warning = "flex gap-3 my-3.5 py-3 px-3.5 border border-warn-border rounded-lg bg-warn-bg text-warn-text";
 export const warningIcon = "flex-none mt-0.5 text-warn-icon";

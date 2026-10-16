@@ -13,9 +13,15 @@ const glyphs: Record<ThemeChoice, string> = {
 
 /**
  * Cycles system, light and dark. The server renders "system"; the saved choice shows once the page is running. `className` replaces its
- * size and spacing in the site header, for a place that sets its own (the editor's top bar).
+ * size and spacing in the site header, for a place that sets its own (the editor's top bar); `look` replaces its border and colors.
  */
-export function ThemeToggle({ className = "w-8.5 h-8.5 ml-3 phone:ml-2" }: { className?: string }) {
+export function ThemeToggle({
+  className = "w-8.5 h-8.5 ml-3 phone:ml-2",
+  look = "border border-input rounded-lg bg-bg text-text cursor-pointer hover:bg-hover",
+}: {
+  className?: string;
+  look?: string;
+}) {
   const [choice, setChoice] = useState<ThemeChoice>("system");
   useEffect(() => setChoice(readTheme()), []);
   const label = `Theme: ${labels[choice]}. Change theme`;
@@ -23,7 +29,7 @@ export function ThemeToggle({ className = "w-8.5 h-8.5 ml-3 phone:ml-2" }: { cla
   return (
     <button
       type="button"
-      className={`theme-toggle flex flex-none items-center justify-center p-0 border border-input rounded-lg bg-bg text-text cursor-pointer hover:bg-hover ${className}`}
+      className={`theme-toggle flex flex-none items-center justify-center p-0 ${look} ${className}`}
       aria-label={label}
       title={label}
       onClick={() => {

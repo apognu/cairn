@@ -2,8 +2,7 @@ import { useId } from "react";
 import * as ui from "./ui";
 import { uploadImage } from "./upload";
 
-const logoButton =
-  "inline-flex items-center h-8 px-3 border border-input rounded-[7px] bg-bg text-ui font-medium cursor-pointer";
+const logoButton = `inline-flex items-center h-8 px-3 rounded-[7px] text-ui font-medium ${ui.button}`;
 
 /** One logo: the current image, and buttons to replace or remove it. */
 export function LogoField({

@@ -40,9 +40,8 @@ const statusColor: Partial<Record<PageStatus, string>> = {
 type ActionsAt = "bar" | "column" | "menu";
 
 const actionLook: Record<ActionsAt, string> = {
-  bar: "inline-flex items-center gap-1.5 h-8 px-3 border border-input rounded-[7px] bg-bg text-text text-ui no-underline cursor-pointer aria-pressed:bg-hover disabled:text-muted disabled:cursor-default",
-  column:
-    "inline-flex flex-[1_1_0] items-center justify-center gap-1.5 min-w-0 h-8 px-2 border border-input rounded-[7px] bg-bg text-text text-[13.5px] no-underline whitespace-nowrap cursor-pointer enabled:hover:bg-hover aria-pressed:bg-hover disabled:text-muted disabled:cursor-default",
+  bar: `inline-flex items-center gap-1.5 h-8 px-3 rounded-[7px] text-ui font-medium no-underline ${ui.button}`,
+  column: `inline-flex flex-[1_1_0] items-center justify-center gap-1.5 min-w-0 h-8 px-2 rounded-[7px] text-[13.5px] font-medium no-underline whitespace-nowrap ${ui.button}`,
   menu: "flex items-center gap-2 py-1.5 px-2.5 border-0 rounded-[5px] bg-transparent text-text text-ui text-left no-underline cursor-pointer hover:bg-hover aria-pressed:bg-hover disabled:text-muted disabled:cursor-default",
 };
 const actionIcon = "flex-none text-muted";
@@ -235,7 +234,7 @@ function Editor() {
           <button
             ref={navButton}
             type="button"
-            className="flex flex-none items-center justify-center w-8 h-8 p-0 border border-input rounded-[7px] bg-bg text-text cursor-pointer hover:bg-border aria-expanded:bg-hover"
+            className={`flex flex-none items-center justify-center w-8 h-8 p-0 rounded-[7px] ${ui.button}`}
             aria-label={section ? "Settings sections" : "Pages"}
             title={section ? "Settings sections" : "Pages"}
             aria-expanded={navOpen}
@@ -267,12 +266,15 @@ function Editor() {
         )}
         <div className="flex flex-none items-center gap-3 ml-auto whitespace-nowrap">
           {published !== null && <span className="text-muted narrow:hidden">Published {published} pages</span>}
-          <ThemeToggle className="w-8 h-8 ml-0 [&_svg]:flex-none [&_svg]:text-muted" />
+          <ThemeToggle
+            className="w-8 h-8 ml-0 [&_svg]:flex-none [&_svg]:text-muted"
+            look={`rounded-[7px] ${ui.button}`}
+          />
           <UserMenu />
           {narrow ? (
             <details data-menu className={ui.menu}>
               <summary
-                className="flex items-center justify-center w-8 h-8 p-0 border border-input rounded-[7px] text-text cursor-pointer list-none hover:bg-border [&::-webkit-details-marker]:hidden"
+                className={`flex items-center justify-center w-8 h-8 p-0 rounded-[7px] list-none [&::-webkit-details-marker]:hidden ${ui.button}`}
                 aria-label="More actions"
                 title="More actions"
               >

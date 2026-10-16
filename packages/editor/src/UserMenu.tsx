@@ -32,7 +32,7 @@ export function UserMenu() {
   return (
     <details data-menu className={ui.menu}>
       <summary
-        className="block w-auto max-w-45 h-8 px-3 border border-input rounded-[7px] text-text leading-[30px] whitespace-nowrap overflow-hidden text-ellipsis cursor-pointer list-none hover:bg-border [&::-webkit-details-marker]:hidden"
+        className={`block w-auto max-w-45 h-8 px-3 rounded-[7px] font-medium leading-[30px] whitespace-nowrap overflow-hidden text-ellipsis list-none [&::-webkit-details-marker]:hidden ${ui.button}`}
         aria-label={`Account: ${me.data.name}`}
         title={me.data.email || me.data.name}
       >

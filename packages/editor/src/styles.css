@@ -15,6 +15,12 @@
 
 /* Colors that exist in the editor only, so they are not in the shared theme. */
 @theme inline {
+  --color-button: var(--button-bg);
+  --color-button-hover: var(--button-hover);
+  --color-button-border: var(--button-border);
+  --color-button-pressed: var(--button-pressed-border);
+  --shadow-button: var(--button-shadow);
+
   --color-badge-new: var(--badge-new);
   --color-badge-new-bg: var(--badge-new-bg);
   --color-badge-edit: var(--badge-edit);
@@ -121,6 +127,14 @@
 }
 
 :root {
+  /* Buttons stand off the page: in dark mode a surface a step lighter than the page, with a faint top edge. Mixed from the theme's own
+     colors, so a saved background or text color carries into them. */
+  --button-bg: var(--bg);
+  --button-hover: var(--hover);
+  --button-border: var(--border-input);
+  --button-pressed-border: color-mix(in srgb, var(--accent) 35%, var(--bg));
+  --button-shadow: 0 1px 2px rgb(16 20 22 / 7%);
+
   --badge-new-bg: #dff3e9;
   --badge-new: #0b5c3d;
   --badge-edit-bg: #e3edf8;
@@ -133,6 +147,12 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
+    --button-bg: color-mix(in srgb, var(--text) 6%, var(--bg));
+    --button-hover: color-mix(in srgb, var(--text) 11%, var(--bg));
+    --button-border: color-mix(in srgb, var(--text) 15%, var(--bg));
+    --button-pressed-border: color-mix(in srgb, var(--accent) 45%, var(--bg));
+    --button-shadow: inset 0 1px 0 rgb(255 255 255 / 5%), 0 1px 2px rgb(0 0 0 / 35%);
+
     --badge-new-bg: #12362a;
     --badge-new: #7fd6ae;
     --badge-edit-bg: #1b2d44;
@@ -145,6 +165,12 @@
 }
 
 :root[data-theme="dark"] {
+  --button-bg: color-mix(in srgb, var(--text) 6%, var(--bg));
+  --button-hover: color-mix(in srgb, var(--text) 11%, var(--bg));
+  --button-border: color-mix(in srgb, var(--text) 15%, var(--bg));
+  --button-pressed-border: color-mix(in srgb, var(--accent) 45%, var(--bg));
+  --button-shadow: inset 0 1px 0 rgb(255 255 255 / 5%), 0 1px 2px rgb(0 0 0 / 35%);
+
   --badge-new-bg: #12362a;
   --badge-new: #7fd6ae;
   --badge-edit-bg: #1b2d44;

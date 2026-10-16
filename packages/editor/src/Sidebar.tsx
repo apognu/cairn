@@ -318,7 +318,7 @@ export function Sidebar({ pages, loading, selected, onSelect }: Props) {
         />
         <button
           type="button"
-          className="flex items-center justify-center w-8 h-8 border border-input rounded-md bg-bg cursor-pointer"
+          className={`flex items-center justify-center w-8 h-8 rounded-md ${ui.button}`}
           aria-label="New page"
           onClick={() => setEditing({ kind: "create", parent: null })}
         >
@@ -326,7 +326,7 @@ export function Sidebar({ pages, loading, selected, onSelect }: Props) {
         </button>
         <details data-menu className={ui.menu}>
           <summary
-            className="flex items-center justify-center w-8 h-8 border border-input rounded-md bg-bg text-muted cursor-pointer list-none hover:bg-border hover:text-text [&::-webkit-details-marker]:hidden"
+            className={`flex items-center justify-center w-8 h-8 rounded-md list-none [&::-webkit-details-marker]:hidden ${ui.button}`}
             aria-label="More ways to add"
             title="More ways to add"
           >
