@@ -106,7 +106,7 @@ export function SearchBox({ afterLinks, open, onClose }: { afterLinks: boolean; 
 
 /** The header's square buttons beside the theme switch: search and the menu of sections and links on a narrow screen. */
 export const headerButton =
-  "items-center justify-center w-8.5 h-8.5 p-0 border border-input rounded-lg bg-bg text-text cursor-pointer hover:bg-hover";
+  "flex-none items-center justify-center w-8.5 h-8.5 p-0 border border-input rounded-lg bg-bg text-text cursor-pointer hover:bg-hover";
 
 /**
  * The header's sections and links on a narrow screen, where they have no room in it: a menu under a button. It closes on a click

@@ -31,7 +31,7 @@ function SiteLogo({ image, mode }: { image: SiteImage; mode?: "light" | "dark" }
   return (
     <img
       // With both logos, each shows only in its own mode.
-      className={`site-logo h-6 w-auto ${mode === "dark" ? "hidden dark:block" : mode === "light" ? "dark:hidden" : ""}`}
+      className={`site-logo flex-none h-6 w-auto ${mode === "dark" ? "hidden dark:block" : mode === "light" ? "dark:hidden" : ""}`}
       data-mode={mode}
       src={image.src}
       width={image.width}
@@ -332,13 +332,6 @@ export function SiteLayout({
 
   const api = Boolean(context.api);
   const headerLinks = (context.site.headerLinks ?? []).length > 0;
-  const brand = (
-    <>
-      {context.site.logo && <SiteLogo image={context.site.logo} mode={context.site.logoDark ? "light" : undefined} />}
-      {context.site.logoDark && <SiteLogo image={context.site.logoDark} mode="dark" />}
-      {context.site.name}
-    </>
-  );
   // The page tree and the table of contents beside the reading column; an API reference uses the whole width beside the navigation.
   // In the editor (embedded) there is no tree, and the editor narrows it further itself.
   const columns = embedded
@@ -360,7 +353,7 @@ export function SiteLayout({
             <button
               ref={navToggle}
               type="button"
-              className="nav-toggle hidden tablet:flex items-center justify-center w-9 h-9 mr-2 -ml-2 p-0 border-0 rounded-lg bg-transparent text-text cursor-pointer hover:bg-hover"
+              className="nav-toggle hidden tablet:flex flex-none items-center justify-center w-9 h-9 mr-2 -ml-2 p-0 border-0 rounded-lg bg-transparent text-text cursor-pointer hover:bg-hover"
               aria-label="Menu"
               aria-expanded={navOpen}
               aria-controls={navId}
@@ -381,9 +374,16 @@ export function SiteLayout({
                 <path d={navOpen ? "M6 6l12 12M18 6L6 18" : "M4 7h16M4 12h16M4 17h16"} strokeLinecap="round" />
               </svg>
             </button>
-            {/* On a narrow screen the name moves to the top of the navigation panel, and the sections and links into a menu. */}
-            <a href="/" className="site-name flex items-center gap-2 font-bold text-text no-underline tablet:hidden">
-              {brand}
+            {/* On a narrow screen the sections and links go into a menu; the name stays on one line, cut short if it must. */}
+            <a
+              href="/"
+              className="site-name flex items-center gap-2 min-w-0 font-bold text-text no-underline tablet:mr-3"
+            >
+              {context.site.logo && (
+                <SiteLogo image={context.site.logo} mode={context.site.logoDark ? "light" : undefined} />
+              )}
+              {context.site.logoDark && <SiteLogo image={context.site.logoDark} mode="dark" />}
+              <span className="min-w-0 truncate">{context.site.name}</span>
             </a>
             {context.header.length > 0 && (
               <nav className="site-sections flex self-stretch gap-1 ml-6 tablet:hidden" aria-label="Sections">
@@ -482,16 +482,6 @@ export function SiteLayout({
             id={navId}
             aria-label="Pages"
           >
-            {/* The header has no room for the site's name on a narrow screen: the panel opens with it, unless the way back from a
-                section already names the site. */}
-            {context.sectionBack?.title !== context.site.name && (
-              <a
-                href="/"
-                className="site-nav-brand hidden tablet:flex items-center gap-2 mb-3 pt-1 pb-3 px-2.5 border-b border-border font-bold text-text text-[17px] no-underline"
-              >
-                {brand}
-              </a>
-            )}
             {context.sectionBack && (
               // A section's sidebar lists only that section: this is the way back to the rest of the site.
               <a
