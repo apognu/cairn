@@ -1,0 +1,475 @@
+[
+  {
+    "value": "ada",
+    "label": "Ada"
+  },
+  {
+    "value": "apache",
+    "label": "Apache config",
+    "aliases": ["htaccess"]
+  },
+  {
+    "value": "applescript",
+    "label": "AppleScript"
+  },
+  {
+    "value": "asciidoc",
+    "label": "AsciiDoc",
+    "aliases": ["adoc"]
+  },
+  {
+    "value": "asm",
+    "label": "Assembly (x86-64)",
+    "aliases": ["nasm", "x86"]
+  },
+  {
+    "value": "awk",
+    "label": "AWK"
+  },
+  {
+    "value": "bash",
+    "label": "Bash",
+    "aliases": ["sh", "shell", "zsh", "terminal"]
+  },
+  {
+    "value": "bat",
+    "label": "Batch file",
+    "aliases": ["cmd", "windows"]
+  },
+  {
+    "value": "c",
+    "label": "C"
+  },
+  {
+    "value": "cpp",
+    "label": "C++",
+    "aliases": ["cxx"]
+  },
+  {
+    "value": "csharp",
+    "label": "C#",
+    "aliases": ["cs", "dotnet"]
+  },
+  {
+    "value": "clojure",
+    "label": "Clojure",
+    "aliases": ["clj"]
+  },
+  {
+    "value": "cmake",
+    "label": "CMake"
+  },
+  {
+    "value": "coffee",
+    "label": "CoffeeScript"
+  },
+  {
+    "value": "crystal",
+    "label": "Crystal"
+  },
+  {
+    "value": "css",
+    "label": "CSS"
+  },
+  {
+    "value": "csv",
+    "label": "CSV"
+  },
+  {
+    "value": "d",
+    "label": "D"
+  },
+  {
+    "value": "dart",
+    "label": "Dart",
+    "aliases": ["flutter"]
+  },
+  {
+    "value": "diff",
+    "label": "Diff",
+    "aliases": ["patch"]
+  },
+  {
+    "value": "dockerfile",
+    "label": "Dockerfile",
+    "aliases": ["docker", "container"]
+  },
+  {
+    "value": "dotenv",
+    "label": "Dotenv",
+    "aliases": ["env"]
+  },
+  {
+    "value": "elixir",
+    "label": "Elixir",
+    "aliases": ["ex"]
+  },
+  {
+    "value": "elm",
+    "label": "Elm"
+  },
+  {
+    "value": "erlang",
+    "label": "Erlang",
+    "aliases": ["erl"]
+  },
+  {
+    "value": "fsharp",
+    "label": "F#",
+    "aliases": ["fs"]
+  },
+  {
+    "value": "fish",
+    "label": "Fish"
+  },
+  {
+    "value": "fortran",
+    "label": "Fortran"
+  },
+  {
+    "value": "gdscript",
+    "label": "GDScript",
+    "aliases": ["godot"]
+  },
+  {
+    "value": "gitignore",
+    "label": "Git ignore"
+  },
+  {
+    "value": "gitconfig",
+    "label": "Git config"
+  },
+  {
+    "value": "glsl",
+    "label": "GLSL",
+    "aliases": ["shader"]
+  },
+  {
+    "value": "go",
+    "label": "Go",
+    "aliases": ["golang"]
+  },
+  {
+    "value": "gomod",
+    "label": "Go module",
+    "aliases": ["go.mod"]
+  },
+  {
+    "value": "graphql",
+    "label": "GraphQL",
+    "aliases": ["gql"]
+  },
+  {
+    "value": "dot",
+    "label": "Graphviz",
+    "aliases": ["graphviz"]
+  },
+  {
+    "value": "groovy",
+    "label": "Groovy",
+    "aliases": ["gradle", "jenkins"]
+  },
+  {
+    "value": "haskell",
+    "label": "Haskell",
+    "aliases": ["hs"]
+  },
+  {
+    "value": "hcl",
+    "label": "HCL",
+    "aliases": ["terraform", "tf"]
+  },
+  {
+    "value": "html",
+    "label": "HTML",
+    "aliases": ["xhtml"]
+  },
+  {
+    "value": "http",
+    "label": "HTTP",
+    "aliases": ["request"]
+  },
+  {
+    "value": "ini",
+    "label": "INI",
+    "aliases": ["cfg", "editorconfig"]
+  },
+  {
+    "value": "java",
+    "label": "Java"
+  },
+  {
+    "value": "javascript",
+    "label": "JavaScript",
+    "aliases": ["js", "node"]
+  },
+  {
+    "value": "jinja",
+    "label": "Jinja",
+    "aliases": ["jinja2", "django"]
+  },
+  {
+    "value": "jq",
+    "label": "jq"
+  },
+  {
+    "value": "json",
+    "label": "JSON"
+  },
+  {
+    "value": "jsonnet",
+    "label": "Jsonnet"
+  },
+  {
+    "value": "jsx",
+    "label": "JSX",
+    "aliases": ["react"]
+  },
+  {
+    "value": "julia",
+    "label": "Julia",
+    "aliases": ["jl"]
+  },
+  {
+    "value": "kotlin",
+    "label": "Kotlin",
+    "aliases": ["kt"]
+  },
+  {
+    "value": "latex",
+    "label": "LaTeX",
+    "aliases": ["tex"]
+  },
+  {
+    "value": "lean",
+    "label": "Lean"
+  },
+  {
+    "value": "less",
+    "label": "Less"
+  },
+  {
+    "value": "lisp",
+    "label": "Lisp",
+    "aliases": ["scheme", "elisp"]
+  },
+  {
+    "value": "lua",
+    "label": "Lua"
+  },
+  {
+    "value": "makefile",
+    "label": "Makefile",
+    "aliases": ["make"]
+  },
+  {
+    "value": "markdown",
+    "label": "Markdown",
+    "aliases": ["md"]
+  },
+  {
+    "value": "matlab",
+    "label": "MATLAB"
+  },
+  {
+    "value": "nginx",
+    "label": "nginx"
+  },
+  {
+    "value": "nim",
+    "label": "Nim"
+  },
+  {
+    "value": "nix",
+    "label": "Nix"
+  },
+  {
+    "value": "objc",
+    "label": "Objective-C",
+    "aliases": ["objective-c"]
+  },
+  {
+    "value": "ocaml",
+    "label": "OCaml",
+    "aliases": ["ml"]
+  },
+  {
+    "value": "odin",
+    "label": "Odin"
+  },
+  {
+    "value": "pascal",
+    "label": "Pascal",
+    "aliases": ["delphi"]
+  },
+  {
+    "value": "perl",
+    "label": "Perl",
+    "aliases": ["pl"]
+  },
+  {
+    "value": "php",
+    "label": "PHP"
+  },
+  {
+    "value": "properties",
+    "label": "Java properties"
+  },
+  {
+    "value": "protobuf",
+    "label": "Protocol Buffers",
+    "aliases": ["proto"]
+  },
+  {
+    "value": "puppet",
+    "label": "Puppet"
+  },
+  {
+    "value": "purescript",
+    "label": "PureScript"
+  },
+  {
+    "value": "python",
+    "label": "Python",
+    "aliases": ["py"]
+  },
+  {
+    "value": "r",
+    "label": "R"
+  },
+  {
+    "value": "racket",
+    "label": "Racket"
+  },
+  {
+    "value": "rego",
+    "label": "Rego",
+    "aliases": ["opa"]
+  },
+  {
+    "value": "regex",
+    "label": "Regular expression",
+    "aliases": ["regexp"]
+  },
+  {
+    "value": "requirements",
+    "label": "requirements.txt",
+    "aliases": ["pip"]
+  },
+  {
+    "value": "rst",
+    "label": "reStructuredText",
+    "aliases": ["rest"]
+  },
+  {
+    "value": "ruby",
+    "label": "Ruby",
+    "aliases": ["rb", "rails"]
+  },
+  {
+    "value": "rust",
+    "label": "Rust",
+    "aliases": ["rs"]
+  },
+  {
+    "value": "sass",
+    "label": "Sass"
+  },
+  {
+    "value": "scala",
+    "label": "Scala",
+    "aliases": ["sbt"]
+  },
+  {
+    "value": "scss",
+    "label": "SCSS"
+  },
+  {
+    "value": "solidity",
+    "label": "Solidity",
+    "aliases": ["sol"]
+  },
+  {
+    "value": "sql",
+    "label": "SQL",
+    "aliases": ["postgres", "mysql", "sqlite"]
+  },
+  {
+    "value": "ssh_config",
+    "label": "SSH config"
+  },
+  {
+    "value": "svelte",
+    "label": "Svelte"
+  },
+  {
+    "value": "swift",
+    "label": "Swift"
+  },
+  {
+    "value": "systemverilog",
+    "label": "SystemVerilog"
+  },
+  {
+    "value": "tcl",
+    "label": "Tcl"
+  },
+  {
+    "value": "toml",
+    "label": "TOML"
+  },
+  {
+    "value": "tsv",
+    "label": "TSV"
+  },
+  {
+    "value": "tsx",
+    "label": "TSX",
+    "aliases": ["react"]
+  },
+  {
+    "value": "typescript",
+    "label": "TypeScript",
+    "aliases": ["ts"]
+  },
+  {
+    "value": "typst",
+    "label": "Typst"
+  },
+  {
+    "value": "verilog",
+    "label": "Verilog"
+  },
+  {
+    "value": "vhdl",
+    "label": "VHDL"
+  },
+  {
+    "value": "vim",
+    "label": "Vim script",
+    "aliases": ["viml"]
+  },
+  {
+    "value": "vue",
+    "label": "Vue"
+  },
+  {
+    "value": "wgsl",
+    "label": "WGSL",
+    "aliases": ["webgpu"]
+  },
+  {
+    "value": "xml",
+    "label": "XML",
+    "aliases": ["svg", "xsd"]
+  },
+  {
+    "value": "yaml",
+    "label": "YAML",
+    "aliases": ["yml"]
+  },
+  {
+    "value": "zig",
+    "label": "Zig"
+  }
+]

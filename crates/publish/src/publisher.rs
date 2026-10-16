@@ -1001,7 +1001,7 @@ const RENDERS_FOLDER: &str = "renders";
 /// Part of every render cache key. The JS bundles are in the key by their hashed names, but the page shell and code highlighting are Rust:
 /// a release changes the version, and the number is bumped when either changes between releases. Otherwise unchanged pages would keep
 /// the old output for good.
-const RENDER_FORMAT: &str = concat!(env!("CARGO_PKG_VERSION"), "/1");
+const RENDER_FORMAT: &str = concat!(env!("CARGO_PKG_VERSION"), "/2");
 
 /// A rendered page, the hash of its HTML, and the render cache entry it came from.
 struct Rendered {

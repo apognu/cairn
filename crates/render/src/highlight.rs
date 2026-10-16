@@ -1,14 +1,41 @@
 use std::sync::LazyLock;
 
 use syntect::{
-  highlighting::ThemeSet,
   html::{ClassStyle, ClassedHTMLGenerator, css_for_theme_with_class_style},
-  parsing::SyntaxSet,
+  parsing::{SyntaxReference, SyntaxSet},
   util::LinesWithEndings,
 };
+use two_face::theme::{EmbeddedLazyThemeSet, EmbeddedThemeName};
 
-static SYNTAXES: LazyLock<SyntaxSet> = LazyLock::new(SyntaxSet::load_defaults_newlines);
-static THEMES: LazyLock<ThemeSet> = LazyLock::new(ThemeSet::load_defaults);
+// bat's collection: about 200 languages, where syntect's own defaults lack TypeScript, TOML, Dockerfile, Kotlin and Swift.
+static SYNTAXES: LazyLock<SyntaxSet> = LazyLock::new(two_face::syntax::extra_newlines);
+static THEMES: LazyLock<EmbeddedLazyThemeSet> = LazyLock::new(two_face::theme::extra);
+
+/// Names written in documents (by the editor, or by other tools in imported pages) that are neither a syntax's name nor one of its file
+/// extensions, with a token that finds it.
+const ALIASES: &[(&str, &str)] = &[
+  ("apache", ".htaccess"),
+  ("csharp", "cs"),
+  ("dotenv", ".env"),
+  ("fsharp", "fs"),
+  ("fortran", "f90"),
+  ("gdscript", "gd"),
+  ("gitconfig", ".gitconfig"),
+  ("gitignore", ".gitignore"),
+  ("golang", "go"),
+  ("gomod", "go.mod"),
+  ("graphviz", "dot"),
+  ("jinja", "j2"),
+  // The TypeScript grammar for JSX reads plain JavaScript JSX too; the JavaScript one does not know JSX.
+  ("jsx", "tsx"),
+  ("objc", "m"),
+  ("objective-c", "m"),
+  ("plaintext", "txt"),
+  ("regex", "re"),
+  ("requirements", "requirements.txt"),
+  ("shell", "sh"),
+  ("text", "txt"),
+];
 
 // Classes instead of inline colors, so one stylesheet serves light and dark mode.
 const STYLE: ClassStyle = ClassStyle::SpacedPrefixed { prefix: "hl-" };
@@ -46,7 +73,7 @@ pub fn highlight_code_blocks(html: &str) -> String {
 }
 
 fn highlight(language: &str, code: &str) -> Option<String> {
-  let syntax = SYNTAXES.find_syntax_by_token(language)?;
+  let syntax = syntax(language)?;
   let mut generator = ClassedHTMLGenerator::new_with_class_style(syntax, &SYNTAXES, STYLE);
 
   for line in LinesWithEndings::from(code) {
@@ -56,6 +83,13 @@ fn highlight(language: &str, code: &str) -> Option<String> {
   Some(generator.finalize())
 }
 
+fn syntax(language: &str) -> Option<&'static SyntaxReference> {
+  let language = language.to_lowercase();
+  let token = ALIASES.iter().find(|(alias, _)| *alias == language).map_or(language.as_str(), |(_, token)| token);
+
+  SYNTAXES.find_syntax_by_token(token)
+}
+
 /// Reverses the escaping React applies to text children.
 fn unescape(text: &str) -> String {
   text.replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", "\"").replace("&#x27;", "'").replace("&amp;", "&")
@@ -63,8 +97,8 @@ fn unescape(text: &str) -> String {
 
 /// The stylesheet for the classes above: a light theme by default, a dark one under the system setting or an explicit `data-theme="dark"`.
 pub fn highlight_css() -> String {
-  let light = theme_rules("InspiredGitHub");
-  let dark = theme_rules("base16-ocean.dark");
+  let light = theme_rules(EmbeddedThemeName::OneHalfLight);
+  let dark = theme_rules(EmbeddedThemeName::OneHalfDark);
 
   // Each theme applies only in its own mode. Scoping one and not the other lets the unscoped theme win wherever its selector has more
   // classes, so light colors leaked into dark mode.
@@ -77,8 +111,8 @@ pub fn highlight_css() -> String {
   )
 }
 
-fn theme_rules(name: &str) -> String {
-  let theme = &THEMES.themes[name];
+fn theme_rules(name: EmbeddedThemeName) -> String {
+  let theme = THEMES.get(name);
 
   css_for_theme_with_class_style(theme, STYLE)
     .unwrap_or_default()
@@ -116,6 +150,15 @@ mod tests {
     assert!(out.contains("<span class=\"hl-"), "{out}");
     assert!(out.contains("language-json\"><span"), "{out}");
     assert!(out.ends_with("<code class=\"language-nope\">a &lt; b</code></pre>"), "{out}");
+  }
+
+  /// Every language the editor offers is one the highlighter knows.
+  #[test]
+  fn knows_the_editor_languages() {
+    let languages: Vec<serde_json::Value> = serde_json::from_str(include_str!("../../../packages/editor/src/languages.json")).expect("languages.json is JSON");
+    let unknown: Vec<_> = languages.iter().filter_map(|l| l["value"].as_str()).filter(|value| syntax(value).is_none()).collect();
+
+    assert!(unknown.is_empty(), "no syntax for {unknown:?}");
   }
 
   #[test]
