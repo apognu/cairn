@@ -1,61 +1,111 @@
-import { expect, type Page, test } from "@playwright/test";
+import { type APIRequestContext, expect, type Locator, type Page, test } from "@playwright/test";
 import { saveDraft } from "./helpers";
 
 const text = (value: string) => [{ type: "text", text: value }];
+const paragraph = (value: string, id?: string) => ({ type: "paragraph", attrs: { id }, content: text(value) });
 
-async function openPage(page: Page, request: import("@playwright/test").APIRequestContext) {
-  const created = await (
-    await request.post("/api/pages", {
-      data: { parent_id: null, title: `Blocks ${Math.random().toString(36).slice(2, 8)}` },
-    })
-  ).json();
+async function openPage(page: Page, request: APIRequestContext) {
+  const title = `Blocks ${Math.random().toString(36).slice(2, 8)}`;
+  const created = await (await request.post("/api/pages", { data: { parent_id: null, title } })).json();
   const doc = {
     type: "doc",
     content: [
       { type: "heading", attrs: { level: 2, id: "alpha-id" }, content: text("Alpha") },
-      { type: "paragraph", attrs: { id: "one-id" }, content: text("First paragraph") },
-      { type: "paragraph", attrs: { id: "two-id" }, content: text("Second paragraph") },
+      paragraph("First paragraph", "one-id"),
+      {
+        type: "cards",
+        attrs: { columns: "2", cards: [{ icon: "rocket", title: "Quickstart", description: "Start here" }] },
+      },
+      {
+        type: "tabs",
+        content: [
+          { type: "tabPanel", attrs: { label: "Linux" }, content: [paragraph("Use the package manager.")] },
+          { type: "tabPanel", attrs: { label: "macOS" }, content: [paragraph("Use Homebrew.")] },
+        ],
+      },
+      paragraph("Last paragraph", "last-id"),
     ],
   };
   await saveDraft(request, created.id, doc, null);
   await page.goto(`/#page=${created.id}`);
   // Read-only until the page's lock is taken; then the editor puts the cursor at the start, which would undo a click made before.
   const editor = page.locator('.ProseMirror[contenteditable="true"]');
-  await expect(editor).toContainText("Second paragraph");
+  await expect(editor).toContainText("Last paragraph");
   await expect(editor).toBeFocused();
   return created.id as string;
 }
 
-const order = (page: Page) => page.locator(".ProseMirror > :is(h2, p):not(.phantom-line)").allInnerTexts();
+/** The top-level blocks as the editor holds them: a textblock by its text, anything else by its type. Empty lines are left out. */
+function blocks(page: Page) {
+  return page.evaluate(() => {
+    const { editor } = document.querySelector(".ProseMirror") as unknown as {
+      editor: { getJSON: () => { content: { type: string; content?: { text?: string }[] }[] } };
+    };
+    return editor
+      .getJSON()
+      .content.filter((node) => node.type !== "paragraph" || node.content?.length)
+      .map((node) =>
+        node.type === "paragraph" || node.type === "heading" ? (node.content?.[0]?.text ?? "") : node.type,
+      );
+  });
+}
 
-test("a block dragged by its handle moves, keeping its ID", async ({ page, request }) => {
-  const id = await openPage(page, request);
-
-  await page.locator(".ProseMirror > h2").hover();
+/** Drags `block` by its handle and lets go at `y`, in steps as a hand would: `dragTo` jumps there and the browser loses the drop. */
+async function drag(page: Page, block: Locator, y: number) {
+  await block.hover();
   const handle = page.locator(".block-handle");
   await expect(handle).toBeVisible();
   const from = await handle.boundingBox();
-  const last = await page.getByText("Second paragraph").boundingBox();
-  if (!from || !last) throw new Error("blocks not laid out");
+  const editor = await page.locator(".ProseMirror").boundingBox();
+  if (!from || !editor) throw new Error("not laid out");
 
-  // Dropped on the right half of the last paragraph: ProseMirror puts the block after it. In steps, as a hand would: `dragTo` jumps
-  // there and the drop is lost.
   await page.mouse.move(from.x + 10, from.y + 12);
   await page.mouse.down();
-  await page.mouse.move(last.x + last.width - 10, last.y + last.height / 2, { steps: 10 });
+  await page.mouse.move(editor.x + editor.width / 2, y, { steps: 10 });
+  await expect(page.locator(".block-drop-line")).toBeVisible();
   await page.mouse.up();
+  await expect(page.locator(".block-drop-line")).toBeHidden();
+}
 
-  await expect.poll(() => order(page)).toEqual(["First paragraph", "Second paragraph", "Alpha"]);
+test("a component dragged by its handle moves, and is not copied", async ({ page, request }) => {
+  await openPage(page, request);
+
+  const last = await page.getByText("Last paragraph").boundingBox();
+  if (!last) throw new Error("not laid out");
+  // On the lower half of the last block: after it.
+  await drag(page, page.locator(".ProseMirror > .react-renderer").first(), last.y + last.height - 2);
+
+  await expect.poll(() => blocks(page)).toEqual(["Alpha", "First paragraph", "tabs", "Last paragraph", "cards"]);
+});
+
+test("a block with content inside moves whole, to the top", async ({ page, request }) => {
+  await openPage(page, request);
+
+  const alpha = await page.locator(".ProseMirror > h2").boundingBox();
+  if (!alpha) throw new Error("not laid out");
+  await drag(page, page.getByText("Use the package manager."), alpha.y + 2);
+
+  await expect.poll(() => blocks(page)).toEqual(["tabs", "Alpha", "First paragraph", "cards", "Last paragraph"]);
+});
+
+test("a heading keeps its ID when moved", async ({ page, request }) => {
+  const id = await openPage(page, request);
+
+  const first = await page.getByText("First paragraph").boundingBox();
+  if (!first) throw new Error("not laid out");
+  await drag(page, page.locator(".ProseMirror > h2"), first.y + first.height - 2);
+
+  await expect.poll(() => blocks(page)).toEqual(["First paragraph", "Alpha", "cards", "tabs", "Last paragraph"]);
   await expect(page.getByRole("status")).toHaveText("Saved");
   const draft = await (await request.get(`/api/pages/${id}/draft`)).json();
-  const blocks = draft.doc.content.filter((node: { content?: unknown }) => node.content);
-  expect(blocks.map((node: { attrs: { id: string } }) => node.attrs.id)).toEqual(["one-id", "two-id", "alpha-id"]);
+  const heading = draft.doc.content.find((node: { type: string }) => node.type === "heading");
+  expect(heading.attrs.id).toBe("alpha-id");
 });
 
 test("Alt+Shift+Up and Down move the block at the cursor", async ({ page, request }) => {
   await openPage(page, request);
 
-  await page.getByText("Second paragraph").click();
+  await page.getByText("Last paragraph").click();
   await page.keyboard.press("End");
   // ProseMirror reads the caret the browser placed a moment later; a shortcut pressed before would move the block it was in before.
   await expect
@@ -69,13 +119,13 @@ test("Alt+Shift+Up and Down move the block at the cursor", async ({ page, reques
           ).editor.state.selection.$from.parent.textContent,
       ),
     )
-    .toBe("Second paragraph");
+    .toBe("Last paragraph");
   await page.keyboard.press("Alt+Shift+ArrowUp");
   await page.keyboard.press("Alt+Shift+ArrowUp");
-  await expect.poll(() => order(page)).toEqual(["Second paragraph", "Alpha", "First paragraph"]);
+  await expect.poll(() => blocks(page)).toEqual(["Alpha", "First paragraph", "Last paragraph", "cards", "tabs"]);
 
   // The cursor went with the block: typing lands in it.
   await page.keyboard.type("!");
   await page.keyboard.press("Alt+Shift+ArrowDown");
-  await expect.poll(() => order(page)).toEqual(["Alpha", "Second paragraph!", "First paragraph"]);
+  await expect.poll(() => blocks(page)).toEqual(["Alpha", "First paragraph", "cards", "Last paragraph!", "tabs"]);
 });

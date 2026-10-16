@@ -95,7 +95,8 @@ function atomComponent(definition: AnyComponent, inline = false) {
     group: inline ? "inline" : "block",
     inline,
     atom: true,
-    draggable: true,
+    // Blocks move by the handle in the margin (`blockHandle.ts`); an inline one (a variable) is dragged within its text.
+    draggable: inline,
     addAttributes() {
       return {
         ...Object.fromEntries(Object.keys(properties).map((key) => [key, { default: properties[key].default }])),

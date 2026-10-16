@@ -1,23 +1,25 @@
 import { Extension } from "@tiptap/core";
-import { type EditorState, NodeSelection, Plugin, PluginKey, TextSelection } from "@tiptap/pm/state";
+import type { Node as PMNode } from "@tiptap/pm/model";
+import { NodeSelection, Plugin, PluginKey, type Selection, TextSelection } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
 
 const GRIP =
   '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="5" r="1.6"/><circle cx="15" cy="5" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="19" r="1.6"/><circle cx="15" cy="19" r="1.6"/></svg>';
 const SIZE = 24;
-// How far left of the text the pointer may go and still reach the handle.
+// How far left of the text the pointer may go and still reach the handle, or drop.
 const REACH = 56;
 
 /**
- * A handle in the margin of the top-level block under the pointer, dragged to move the block elsewhere in the page. ProseMirror does the
- * drop itself, as for any dragged selection. Alt+Shift+Up and Down move the block at the cursor for the keyboard. Not on phones.
+ * A handle in the margin of the top-level block under the pointer, dragged to move the block between two others; a line shows where it
+ * will land. The drag is ours from start to end: ProseMirror's own drop would put a caret anywhere, inside other blocks too, and remove
+ * the original only if the selection still held it. Alt+Shift+Up and Down move the block at the cursor for the keyboard. Not on phones.
  */
 export const BlockHandle = Extension.create({
   name: "blockHandle",
   addKeyboardShortcuts() {
     return {
-      "Alt-Shift-ArrowUp": () => moveBlock(this.editor.view, -1),
-      "Alt-Shift-ArrowDown": () => moveBlock(this.editor.view, 1),
+      "Alt-Shift-ArrowUp": () => moveByKey(this.editor.view, -1),
+      "Alt-Shift-ArrowDown": () => moveByKey(this.editor.view, 1),
     };
   },
   addProseMirrorPlugins() {
@@ -25,8 +27,14 @@ export const BlockHandle = Extension.create({
   },
 });
 
+interface Block {
+  index: number;
+  node: PMNode;
+  dom: HTMLElement;
+  rect: DOMRect;
+}
+
 function handleView(view: EditorView) {
-  // The handle sits beside the editor, inside its wrapper: UniqueID only keeps the IDs of blocks dragged from within that wrapper.
   const host = view.dom.parentElement;
   const handle = document.createElement("div");
   handle.className =
@@ -34,110 +42,189 @@ function handleView(view: EditorView) {
   handle.draggable = true;
   handle.title = "Drag to move";
   handle.innerHTML = GRIP;
-  host?.appendChild(handle);
+  const line = document.createElement("div");
+  line.className = "block-drop-line absolute z-10 h-0.5 rounded-full bg-accent pointer-events-none hidden";
+  host?.append(handle, line);
 
-  let block: number | null = null;
-  const hide = () => {
-    block = null;
+  // The block under the pointer, and while dragging, the one being moved and the gap it would go into (an index between blocks).
+  let hovered: number | null = null;
+  let dragged: number | null = null;
+  let gap: number | null = null;
+  // Held still from the press until the drag starts: moved under the pointer to another block, the browser would start no drag at all.
+  let pressed = false;
+
+  const hideHandle = () => {
+    hovered = null;
     handle.classList.add("invisible");
+  };
+  const near = (event: MouseEvent) => {
+    if (!host) return false;
+    const area = host.getBoundingClientRect();
+    return (
+      event.clientX >= area.left - REACH &&
+      event.clientX <= area.right &&
+      event.clientY >= area.top - 16 &&
+      event.clientY <= area.bottom + 16
+    );
   };
 
   const onMove = (event: MouseEvent) => {
-    if (!host || view.dragging) return;
+    if (!host || dragged !== null || pressed) return;
+    if (!near(event)) return hideHandle();
+
+    const block = blocks(view)
+      .filter((b) => b.rect.top <= event.clientY + 4)
+      .at(-1);
+    if (!block) return hideHandle();
+
     const area = host.getBoundingClientRect();
-    if (
-      event.clientX < area.left - REACH ||
-      event.clientX > area.right ||
-      event.clientY < area.top ||
-      event.clientY > area.bottom
-    )
-      return hide();
-
-    const found = blockAt(view, event.clientY);
-    if (!found) return hide();
-
-    const rect = found.dom.getBoundingClientRect();
     // Centered on the first line of text; other blocks (tables, components) get it at their top edge.
-    const lineHeight = found.textblock ? Number.parseFloat(getComputedStyle(found.dom).lineHeight) : Number.NaN;
+    const lineHeight = block.node.isTextblock ? Number.parseFloat(getComputedStyle(block.dom).lineHeight) : Number.NaN;
     const offset = Number.isFinite(lineHeight) ? (lineHeight - SIZE) / 2 : 0;
-    handle.style.left = `${rect.left - area.left - 28}px`;
-    handle.style.top = `${rect.top - area.top + offset}px`;
+    handle.style.left = `${block.rect.left - area.left - 28}px`;
+    handle.style.top = `${block.rect.top - area.top + offset}px`;
     handle.classList.remove("invisible");
-    block = found.pos;
+    hovered = block.index;
+  };
+
+  const endDrag = () => {
+    pressed = false;
+    dragged = null;
+    gap = null;
+    line.classList.add("hidden");
+    hideHandle();
   };
 
   handle.addEventListener("dragstart", (event) => {
-    if (block === null || !event.dataTransfer) return;
-
-    const selection = NodeSelection.create(view.state.doc, block);
-    view.dispatch(view.state.tr.setSelection(selection));
-    const slice = selection.content();
-    const { dom, text } = view.serializeForClipboard(slice);
-    event.dataTransfer.clearData();
-    event.dataTransfer.setData("text/html", dom.innerHTML);
-    event.dataTransfer.setData("text/plain", text);
-    // "move", not "copyMove": UniqueID gives a copied block new IDs, and anchors and links to a heading rely on its ID.
+    if (hovered === null || !event.dataTransfer) return;
+    dragged = hovered;
+    const block = blocks(view)[dragged];
+    // Some browsers start no drag without data. Plain text only: dropped in another field it is the block's words, not a copy of it.
+    event.dataTransfer.setData("text/plain", block?.node.textContent ?? "");
     event.dataTransfer.effectAllowed = "move";
-    const node = view.nodeDOM(block);
-    if (node instanceof HTMLElement) event.dataTransfer.setDragImage(node, 0, 0);
-    view.dragging = { slice, move: true };
+    if (block) event.dataTransfer.setDragImage(block.dom, 0, 0);
   });
-  handle.addEventListener("dragend", hide);
+  handle.addEventListener("dragend", endDrag);
+  handle.addEventListener("mousedown", () => {
+    pressed = true;
+  });
+  // A click without a drag lets go of it too.
+  handle.addEventListener("mouseup", () => {
+    pressed = false;
+  });
+
+  // Caught before they reach the editor, so neither ProseMirror's drop nor its drop caret ever see this drag.
+  const onDragOver = (event: DragEvent) => {
+    if (dragged === null || !host) return;
+    event.stopPropagation();
+    if (!near(event)) {
+      gap = null;
+      line.classList.add("hidden");
+      return;
+    }
+    event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+
+    const all = blocks(view);
+    const at = all.filter((b) => (b.rect.top + b.rect.bottom) / 2 < event.clientY).length;
+    // Before or after itself: nowhere to go.
+    if (at === dragged || at === dragged + 1) {
+      gap = null;
+      line.classList.add("hidden");
+      return;
+    }
+    gap = at;
+
+    const area = host.getBoundingClientRect();
+    const above = all[at - 1]?.rect;
+    const below = all[at]?.rect;
+    const y = above && below ? (above.bottom + below.top) / 2 : below ? below.top - 4 : (above?.bottom ?? 0) + 4;
+    const editor = view.dom.getBoundingClientRect();
+    line.style.top = `${y - area.top - 1}px`;
+    line.style.left = `${editor.left - area.left}px`;
+    line.style.width = `${editor.width}px`;
+    line.classList.remove("hidden");
+  };
+  const onDrop = (event: DragEvent) => {
+    if (dragged === null) return;
+    event.stopPropagation();
+    event.preventDefault();
+    if (gap !== null) moveBlock(view, dragged, gap);
+    endDrag();
+  };
 
   document.addEventListener("mousemove", onMove);
+  document.addEventListener("dragover", onDragOver, true);
+  document.addEventListener("drop", onDrop, true);
   // Typing hides it until the pointer moves again: it would cover the start of the line.
-  view.dom.addEventListener("keydown", hide);
+  view.dom.addEventListener("keydown", hideHandle);
 
   return {
     destroy() {
       document.removeEventListener("mousemove", onMove);
-      view.dom.removeEventListener("keydown", hide);
+      document.removeEventListener("dragover", onDragOver, true);
+      document.removeEventListener("drop", onDrop, true);
+      view.dom.removeEventListener("keydown", hideHandle);
       handle.remove();
+      line.remove();
     },
   };
 }
 
-/** The top-level block at a height of the page: the last one starting above it. */
-function blockAt(view: EditorView, y: number): { pos: number; dom: HTMLElement; textblock: boolean } | null {
-  let found: { pos: number; dom: HTMLElement; textblock: boolean } | null = null;
+/** The top-level blocks, top to bottom, with where they are on screen. */
+function blocks(view: EditorView): Block[] {
+  const list: Block[] = [];
 
-  view.state.doc.forEach((node, pos) => {
+  view.state.doc.forEach((node, pos, index) => {
     const dom = view.nodeDOM(pos);
-    if (!(dom instanceof HTMLElement)) return;
-    if (dom.getBoundingClientRect().top <= y + 4) found = { pos, dom, textblock: node.isTextblock };
+    if (dom instanceof HTMLElement) list.push({ index, node, dom, rect: dom.getBoundingClientRect() });
   });
-  return found;
+  return list;
 }
 
-/** Swaps the top-level block holding the selection with the one above or below it, keeping the selection on it. */
-function moveBlock(view: EditorView, direction: -1 | 1): boolean {
-  const { state } = view;
-  const { doc, selection } = state;
+/** Where the top-level block at `index` starts. */
+function startOf(doc: PMNode, index: number): number {
+  let pos = 0;
+  for (let i = 0; i < index; i++) pos += doc.child(i).nodeSize;
+  return pos;
+}
+
+/**
+ * Moves the top-level block at `from` into the gap before the block now at `gap` (the end for the last gap), in one transaction: the
+ * same node is put back, IDs included, so links to a heading keep working. `select` places the selection in the moved block; by default
+ * it goes to its start, or onto it when it holds no text.
+ */
+function moveBlock(view: EditorView, from: number, gap: number, select?: (after: PMNode, shift: number) => Selection) {
+  const { doc } = view.state;
+  const node = doc.child(from);
+  const start = startOf(doc, from);
+  // Counted in the document without the block, once it is taken out.
+  const moved = startOf(doc, gap) - (gap > from ? node.nodeSize : 0);
+
+  const tr = view.state.tr.delete(start, start + node.nodeSize).insert(moved, node);
+  tr.setSelection(
+    select?.(tr.doc, moved - start) ??
+      (node.isTextblock ? TextSelection.near(tr.doc.resolve(moved + 1)) : NodeSelection.create(tr.doc, moved)),
+  );
+  view.dispatch(tr.scrollIntoView());
+  view.focus();
+}
+
+/** Swaps the top-level block holding the selection with the one above or below it, keeping the selection where it was in it. */
+function moveByKey(view: EditorView, direction: -1 | 1): boolean {
+  const { doc, selection } = view.state;
   const index = selection.$from.index(0);
   // A selection over several blocks, or table cells, has no one block to move.
   const within =
     selection instanceof NodeSelection || (selection instanceof TextSelection && selection.$to.index(0) === index);
   if (!within) return false;
-  const target = index + direction;
   // Consumed even at the ends, so the keys never fall through to the browser's own selection change.
-  if (target < 0 || target >= doc.childCount) return true;
+  if (index + direction < 0 || index + direction >= doc.childCount) return true;
 
-  const start = blockStart(state, index);
-  const node = doc.child(index);
-  const moved = direction < 0 ? start - doc.child(target).nodeSize : start + doc.child(target).nodeSize;
-  const tr = state.tr.delete(start, start + node.nodeSize).insert(moved, node);
-  const shift = moved - start;
-  tr.setSelection(
+  moveBlock(view, index, direction < 0 ? index - 1 : index + 2, (after, shift) =>
     selection instanceof NodeSelection
-      ? NodeSelection.create(tr.doc, moved)
-      : TextSelection.create(tr.doc, selection.anchor + shift, selection.head + shift),
+      ? NodeSelection.create(after, selection.from + shift)
+      : TextSelection.create(after, selection.anchor + shift, selection.head + shift),
   );
-  view.dispatch(tr.scrollIntoView());
   return true;
-}
-
-function blockStart(state: EditorState, index: number): number {
-  let pos = 0;
-  for (let i = 0; i < index; i++) pos += state.doc.child(i).nodeSize;
-  return pos;
 }
