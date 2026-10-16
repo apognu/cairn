@@ -34,6 +34,9 @@ use crate::{
   target::{Deployed, OutputFile, Progress, PublishTarget},
 };
 
+mod cleanup;
+pub use cleanup::Cleanup;
+
 /// The browser-side files every page links to; embedded in the binary and written into each release.
 pub struct Bundles {
   pub client_js: Vec<u8>,

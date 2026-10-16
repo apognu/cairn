@@ -137,8 +137,28 @@ impl AssetStore for ObjectAssetStore {
   }
 
   async fn list(&self, folder: &str) -> Result<Vec<String>, CoreError> {
+    Ok(self.listed(folder).await?.into_iter().map(|o| o.location.to_string()).collect())
+  }
+
+  async fn list_older(&self, folder: &str, before: jiff::Timestamp) -> Result<Vec<String>, CoreError> {
+    let before = before.as_millisecond();
+
+    Ok(
+      self
+        .listed(folder)
+        .await?
+        .into_iter()
+        .filter(|o| o.last_modified.timestamp_millis() < before)
+        .map(|o| o.location.to_string())
+        .collect(),
+    )
+  }
+}
+
+impl ObjectAssetStore {
+  async fn listed(&self, folder: &str) -> Result<Vec<object_store::ObjectMeta>, CoreError> {
     match self.store.list_with_delimiter(Some(&StorePath::from(folder))).await {
-      Ok(listed) => Ok(listed.objects.into_iter().map(|o| o.location.to_string()).collect()),
+      Ok(listed) => Ok(listed.objects),
       Err(object_store::Error::NotFound { .. }) => Ok(Vec::new()),
       Err(error) => Err(other(error)),
     }

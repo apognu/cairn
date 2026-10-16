@@ -59,6 +59,9 @@ pub trait AssetStore: Send + Sync {
 
   /// The keys of the files directly inside `folder` (`renders`), as `put` took them; none when the folder does not exist.
   fn list(&self, folder: &str) -> impl Future<Output = Result<Vec<String>, CoreError>> + Send;
+
+  /// Like `list`, only the files last written before `before`.
+  fn list_older(&self, folder: &str, before: jiff::Timestamp) -> impl Future<Output = Result<Vec<String>, CoreError>> + Send;
 }
 
 /// Where the WebP copy of an image, `width` pixels wide, lives in the `AssetStore`.

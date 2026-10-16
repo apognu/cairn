@@ -71,7 +71,7 @@ async fn by_hash(db: &DatabaseConnection, sha256: &str) -> Result<Option<Asset>,
   row.map(into_asset).transpose()
 }
 
-fn into_asset(row: asset::Model) -> Result<Asset, StoreError> {
+pub(crate) fn into_asset(row: asset::Model) -> Result<Asset, StoreError> {
   Ok(Asset {
     id: row.id.into(),
     sha256: row.sha256,

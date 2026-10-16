@@ -4,6 +4,7 @@
 
 mod api;
 mod assets;
+mod cleanup;
 mod connect;
 mod content;
 mod entity;
@@ -24,6 +25,7 @@ mod users;
 
 pub use api::{ReleaseSpec, get_api_config, list_api_configs, record_release_specs, release_specs, save_api_config};
 pub use assets::{NewAsset, asset_by_hash, asset_by_id, assets_by_ids, get_or_create_asset};
+pub use cleanup::{asset_hashes, delete_assets, unused_assets};
 #[cfg(any(test, feature = "testing"))]
 pub use connect::connect_for_tests;
 pub use connect::{StoreError, connect, connect_url};

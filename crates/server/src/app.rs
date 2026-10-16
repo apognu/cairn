@@ -15,7 +15,7 @@ use cairn_render::Pool;
 use cairn_store::SqlContentStore;
 use sea_orm::DatabaseConnection;
 
-use crate::{api_pages, drafts, highlight, history, library, links, locks, me, pages, publish, redirects, settings, tokens, uploads, urls};
+use crate::{api_pages, drafts, highlight, history, jobs, library, links, locks, me, pages, publish, redirects, settings, tokens, uploads, urls};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -33,6 +33,8 @@ pub struct AppState {
   pub scalar_js: Arc<Vec<u8>>,
   /// Turns true when the server is asked to stop.
   pub stopping: tokio::sync::watch::Receiver<bool>,
+  /// How long unused uploads are kept before the jobs endpoint deletes them.
+  pub asset_grace: jiff::SignedDuration,
 }
 
 impl AppState {
@@ -100,6 +102,7 @@ pub fn api() -> (Router<AppState>, utoipa::openapi::OpenApi) {
     .merge(history::routes())
     .merge(me::routes())
     .merge(tokens::routes())
+    .merge(jobs::routes())
     .split_for_parts();
   // The router's default info describes utoipa-axum itself.
   spec.info = utoipa::openapi::InfoBuilder::new().title("cairn").version(env!("CARGO_PKG_VERSION")).build();
@@ -193,6 +196,7 @@ pub(crate) async fn test_state_serving(target: impl FnOnce(&std::path::Path) -> 
     )
     .unwrap(),
     stopping: tokio::sync::watch::channel(false).1,
+    asset_grace: crate::jobs::DEFAULT_ASSET_GRACE,
     pool,
     content,
     assets,

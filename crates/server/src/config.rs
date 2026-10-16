@@ -27,6 +27,8 @@ pub(crate) struct Config {
   // Assets
   /// Where uploads, the render cache and API specs are kept (`ASSET_STORE`): the data directory unless a bucket is named.
   pub(crate) assets: cairn_assets::AssetBackend,
+  /// How long uploads nothing uses are kept (`ASSET_GRACE`).
+  pub(crate) asset_grace: SignedDuration,
 
   // OIDC
   pub(crate) oidc: OidcSettings,
@@ -229,6 +231,7 @@ impl Config {
       database_url: var("DATABASE_URL").map(|url| validate_database_url(&url)).transpose()?,
       data_dir,
       assets,
+      asset_grace: duration("ASSET_GRACE", "720h")?,
       site_url: var("SITE_URL").map_or_else(|| public_url.clone(), |url| url.trim_end_matches('/').to_string()),
       public_url,
       trusted_proxies: crate::proxy::TrustedProxies::parse(&var("TRUSTED_PROXIES").unwrap_or_default()).map_err(|e| anyhow::anyhow!("TRUSTED_PROXIES: {e}"))?,

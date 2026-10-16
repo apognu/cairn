@@ -53,6 +53,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/jobs/run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Runs the periodic jobs: deletes the uploads nothing uses any more. Meant for a scheduler (cron, Cloud Scheduler) with an API token. */
+        post: operations["runJobs"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/library": {
         parameters: {
             query?: never;
@@ -1146,6 +1163,13 @@ export interface components {
          * @enum {string}
          */
         Inactive: "page_at_path" | "target_gone" | "loop";
+        /** @description What one run did. */
+        JobsReport: {
+            /** @description Uploads that no draft, setting, published release or recent version used any more. */
+            assets_deleted: number;
+            /** @description Stored files deleted: those of the uploads above, and files no upload owns. */
+            files_deleted: number;
+        };
         /** @description A variable, snippet or glossary term of the library, with the pages that use it. */
         LibraryEntry: {
             /** @description Other words for a term. */
@@ -1731,6 +1755,34 @@ export interface operations {
                 };
             };
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    runJobs: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobsReport"];
+                };
+            };
+            /** @description not signed in and no API token */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

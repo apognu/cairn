@@ -649,6 +649,7 @@ dependencies = [
  "futures-util",
  "image",
  "imagesize",
+ "jiff",
  "object_store",
  "reqwest 0.13.5",
  "rustls",

@@ -116,6 +116,33 @@
         }
       }
     },
+    "/api/jobs/run": {
+      "post": {
+        "summary": "Runs the periodic jobs: deletes the uploads nothing uses any more. Meant for a scheduler (cron, Cloud Scheduler) with an API token.",
+        "operationId": "runJobs",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobsReport"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "not signed in and no API token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/library": {
       "get": {
         "summary": "Every variable, snippet and glossary term.",
@@ -3338,6 +3365,26 @@
           "target_gone",
           "loop"
         ]
+      },
+      "JobsReport": {
+        "type": "object",
+        "description": "What one run did.",
+        "required": [
+          "assets_deleted",
+          "files_deleted"
+        ],
+        "properties": {
+          "assets_deleted": {
+            "type": "integer",
+            "description": "Uploads that no draft, setting, published release or recent version used any more.",
+            "minimum": 0
+          },
+          "files_deleted": {
+            "type": "integer",
+            "description": "Stored files deleted: those of the uploads above, and files no upload owns.",
+            "minimum": 0
+          }
+        }
       },
       "LibraryEntry": {
         "type": "object",

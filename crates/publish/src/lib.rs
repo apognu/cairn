@@ -22,6 +22,6 @@ pub use changes::{HotfixPlan, OperationAnchors, PlainLink, check, hotfix_plan, p
 pub use cloudflare::{CloudflareConfig, CloudflareTarget, Version};
 pub use error::{ApiProblem, PublishError};
 pub use pages::{PagesConfig, PagesTarget};
-pub use publisher::{Bundles, PublishConfig, Publisher, PublisherParts};
+pub use publisher::{Bundles, Cleanup, PublishConfig, Publisher, PublisherParts};
 pub use s3::{S3Config, S3Target};
 pub use target::{Capabilities, Deployed, FolderTarget, OutputFile, Progress, PublishTarget};
