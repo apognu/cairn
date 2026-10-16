@@ -2935,6 +2935,21 @@
           }
         }
       },
+      "Banner": {
+        "type": "object",
+        "description": "A message at the top of every page, which readers can dismiss. Off while `text` is empty.",
+        "properties": {
+          "text": {
+            "type": "string",
+            "default": ""
+          },
+          "url": {
+            "type": "string",
+            "description": "Where the message leads: `https://…`, `mailto:…` or a path on the site; empty for none.",
+            "default": ""
+          }
+        }
+      },
       "BrokenLink": {
         "type": "object",
         "description": "A link from a page that stays to a page that is going away.",
@@ -4581,6 +4596,13 @@
             "type": "string",
             "description": "`#rrggbb`.",
             "default": "#0b6e4f"
+          },
+          "banner": {
+            "$ref": "#/components/schemas/Banner",
+            "default": {
+              "text": "",
+              "url": ""
+            }
           },
           "custom_css": {
             "type": "string",

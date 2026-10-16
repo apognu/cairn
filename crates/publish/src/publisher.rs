@@ -671,7 +671,11 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
     let (asset_files, asset_meta) = self.asset_files(sources, [settings.logo_asset_id, settings.logo_dark_asset_id].into_iter().flatten()).await?;
     let logo = settings.logo_asset_id.and_then(|id| asset_meta.get(&id.to_string()).cloned());
     let logo_dark = settings.logo_dark_asset_id.and_then(|id| asset_meta.get(&id.to_string()).cloned());
-    let site_ctx = json!({ "name": site_name, "logo": logo, "logoDark": logo_dark, "headerLinks": settings.header_links, "footer": settings.footer });
+    let mut site_ctx = json!({ "name": site_name, "logo": logo, "logoDark": logo_dark, "headerLinks": settings.header_links, "footer": settings.footer });
+    // Absent while off, so turning the feature on in a release did not change the render cache key of every page.
+    if !settings.banner.text.trim().is_empty() {
+      site_ctx["banner"] = json!(settings.banner);
+    }
     let theme_css = settings.theme_css();
 
     let mut bundle_files = bundle_files(&self.bundles);

@@ -44,6 +44,8 @@ export type RenderContext = {
     /** External links after the sections in the header. */
     headerLinks?: SiteLink[];
     footer?: { text: string; columns: { title: string; links: SiteLink[] }[] };
+    /** A message at the top of every page; `url` is empty when it leads nowhere. */
+    banner?: { text: string; url: string };
   };
   /** The description is shown as the page's lead, under its title. */
   page: { id?: string; title: string; description?: string | null };

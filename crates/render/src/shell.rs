@@ -16,8 +16,9 @@ pub struct Shell<'a> {
   pub theme_css: &'a str,
 }
 
-// Applies the saved theme before the first paint, so a reader who chose dark never sees a light flash.
-const THEME_INIT: &str = "try{var t=localStorage.getItem('cairn-theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}";
+// Applies the saved theme and the dismissed announcement before the first paint, so a reader who chose dark never sees a light flash and
+// a dismissed banner never shows for a moment.
+const THEME_INIT: &str = "try{var t=localStorage.getItem('cairn-theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t;var b=localStorage.getItem('cairn-banner');if(b)document.documentElement.dataset.bannerDismissed=b}catch(e){}";
 
 // Loads a page into the cache when the pointer rests on a link (and on keyboard focus), for browsers without speculation rules.
 const PREFETCH: &str = "(function(){var seen={};function go(e){var a=e.target.closest&&e.target.closest('a[href]');if(!a||a.origin!==location.origin||a.pathname===location.pathname||seen[a.href])return;seen[a.href]=1;var l=document.createElement('link');l.rel='prefetch';l.href=a.href;document.head.append(l)}document.addEventListener('pointerover',go,{passive:true});document.addEventListener('focusin',go)})()";

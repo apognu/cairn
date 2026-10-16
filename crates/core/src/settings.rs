@@ -19,6 +19,7 @@ pub struct Settings {
   /// External links shown in the header, after the sections.
   pub header_links: Vec<SiteLink>,
   pub footer: Footer,
+  pub banner: Banner,
   /// A stylesheet written after the theme, on the published site and in the editor.
   pub custom_css: String,
 }
@@ -33,6 +34,16 @@ pub struct ModeColors {
   pub surface: Option<String>,
   pub link: Option<String>,
   pub code_background: Option<String>,
+}
+
+/// A message at the top of every page, which readers can dismiss. Off while `text` is empty.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[serde(default)]
+pub struct Banner {
+  pub text: String,
+  /// Where the message leads: `https://…`, `mailto:…` or a path on the site; empty for none.
+  pub url: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -76,6 +87,7 @@ impl Default for Settings {
       dark: ModeColors::default(),
       header_links: Vec::new(),
       footer: Footer::default(),
+      banner: Banner::default(),
       custom_css: String::new(),
     }
   }
@@ -242,6 +254,13 @@ impl Settings {
       return Err("the custom CSS cannot contain </style".into());
     }
 
+    if self.banner.text.chars().count() > 200 {
+      return Err("the announcement can have at most 200 characters".into());
+    }
+    if !self.banner.url.is_empty() && !valid_url(&self.banner.url) {
+      return Err("the announcement link must start with https://, http://, mailto: or /".into());
+    }
+
     if self.footer.text.chars().count() > 300 {
       return Err("the footer text can have at most 300 characters".into());
     }
@@ -338,6 +357,13 @@ mod tests {
           label: "x".into(),
           url: "javascript:alert(1)".into(),
         }],
+        ..ok.clone()
+      },
+      Settings {
+        banner: Banner {
+          text: "New".into(),
+          url: "javascript:alert(1)".into(),
+        },
         ..ok.clone()
       },
     ] {

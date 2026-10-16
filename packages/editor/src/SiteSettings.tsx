@@ -198,6 +198,34 @@ export function SiteSettings() {
           Add a column
         </button>
 
+        <h2 className={ui.settingsHeading}>Announcement banner</h2>
+        <div className={ui.field}>
+          <label htmlFor={`${id}-banner`} className={ui.fieldLabel}>
+            Message
+          </label>
+          <input
+            id={`${id}-banner`}
+            className={ui.input}
+            maxLength={200}
+            placeholder="Shown at the top of every page; empty for none"
+            value={draft.banner.text}
+            onChange={(e) => change({ banner: { ...draft.banner, text: e.target.value } })}
+          />
+        </div>
+        <div className={ui.field}>
+          <label htmlFor={`${id}-banner-url`} className={ui.fieldLabel}>
+            Link
+          </label>
+          <input
+            id={`${id}-banner-url`}
+            className={ui.input}
+            placeholder="https://… or /path, optional"
+            value={draft.banner.url}
+            onChange={(e) => change({ banner: { ...draft.banner, url: e.target.value } })}
+          />
+          <small className="text-muted">Readers can dismiss it; a new message shows again.</small>
+        </div>
+
         <h2 className={ui.settingsHeading}>Custom CSS</h2>
         <div className={ui.field}>
           <label htmlFor={`${id}-css`} className={ui.fieldLabel}>

@@ -1071,6 +1071,16 @@ export interface components {
         Backlinks: {
             linked_from: components["schemas"]["Backlink"][];
         };
+        /** @description A message at the top of every page, which readers can dismiss. Off while `text` is empty. */
+        Banner: {
+            /** @default  */
+            text: string;
+            /**
+             * @description Where the message leads: `https://…`, `mailto:…` or a path on the site; empty for none.
+             * @default
+             */
+            url: string;
+        };
         /** @description A link from a page that stays to a page that is going away. */
         BrokenLink: {
             source_id: components["schemas"]["PageId"];
@@ -1571,6 +1581,13 @@ export interface components {
              * @default #0b6e4f
              */
             accent: string;
+            /**
+             * @default {
+             *       "text": "",
+             *       "url": ""
+             *     }
+             */
+            banner: components["schemas"]["Banner"];
             /**
              * @description A stylesheet written after the theme, on the published site and in the editor.
              * @default

@@ -40,6 +40,6 @@ pub use page::{Page, PageKind, Placement, page_urls, slugify};
 pub use redirect::{BrokenLink, Change, ChangeKind, Current, Inactive, Live, LostUrl, OldUrls, Pending, Redirect, RedirectOrigin, effective_redirects, pending_changes, resolve_redirect};
 pub use release::{Release, ReleaseStatus};
 pub use review::{PageReview, StalePage};
-pub use settings::{Footer, FooterColumn, Mode, ModeColors, Settings, SiteLink, contrast_ratio};
+pub use settings::{Banner, Footer, FooterColumn, Mode, ModeColors, Settings, SiteLink, contrast_ratio};
 pub use storage::{AssetStore, ContentStore, Draft, Revision, original_key, variant_key};
 pub use user::{ApiToken, User};

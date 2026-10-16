@@ -64,6 +64,63 @@ function isExternal(url: string): boolean {
   return /^(https?:)?\/\//.test(url);
 }
 
+/** A short, stable name for an announcement, so dismissing one does not hide the next. */
+function bannerId(banner: { text: string; url: string }): string {
+  let hash = 5381;
+  for (const char of `${banner.text}\n${banner.url}`) hash = ((hash * 33) ^ char.charCodeAt(0)) >>> 0;
+  return hash.toString(36);
+}
+
+function SiteBanner({ banner }: { banner: NonNullable<RenderContext["site"]["banner"]> }) {
+  const id = bannerId(banner);
+
+  return (
+    <div
+      // The open menu hangs under the header at a fixed height: the banner steps aside while it is open.
+      className="site-banner flex items-center gap-3 py-2 px-4 bg-accent-soft text-text text-ui in-data-nav-open:hidden"
+      data-pagefind-ignore=""
+    >
+      {/* The head script marks a dismissed announcement on <html> before the first paint; this rule hides it then, with no flash. */}
+      <style>{`html[data-banner-dismissed="${id}"] .site-banner{display:none}`}</style>
+      <p className="flex-1 m-0 text-center">
+        {banner.url ? (
+          <a href={banner.url} className="text-text underline">
+            {banner.text}
+          </a>
+        ) : (
+          banner.text
+        )}
+      </p>
+      <button
+        type="button"
+        className="flex items-center justify-center w-7 h-7 p-0 border-0 rounded-md bg-transparent text-muted cursor-pointer hover:bg-hover hover:text-text"
+        aria-label="Dismiss the announcement"
+        onClick={() => {
+          document.documentElement.dataset.bannerDismissed = id;
+          try {
+            localStorage.setItem("cairn-banner", id);
+          } catch {
+            // Storage can be blocked: the banner then only stays hidden on this page.
+          }
+        }}
+      >
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          aria-hidden="true"
+        >
+          <path d="M6 6l12 12M18 6L6 18" />
+        </svg>
+      </button>
+    </div>
+  );
+}
+
 function SiteFooter({ footer }: { footer: NonNullable<RenderContext["site"]["footer"]> }) {
   if (!footer.text && footer.columns.length === 0) return null;
 
@@ -327,6 +384,7 @@ export function SiteLayout({
       data-api={context.api ? "" : undefined}
       data-nav-open={navOpen || undefined}
     >
+      {!embedded && context.site.banner && <SiteBanner banner={context.site.banner} />}
       {!embedded && (
         <Slot name="Header" slots={slots} context={context}>
           <header className="site-header sticky top-0 z-20 flex items-center h-13 px-4 border-b border-border bg-bg">
