@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { nameNewPage, publishFixture, quiet, slashCommand } from "./helpers";
+import { nameNewPage, publishFixture, quiet, saveDraft, slashCommand } from "./helpers";
 
 test("a callout and a code block can be inserted from the slash menu", async ({ page }) => {
   const title = `Slash ${Math.random().toString(36).slice(2, 8)}`;
@@ -252,4 +252,50 @@ test("steps are added with Enter, and removed or merged with Backspace", async (
   await page.keyboard.type("After an empty step");
   await expect(steps).toHaveCount(2);
   await expect(editor.locator("ol.steps + p")).toHaveText("After an empty step");
+});
+
+test("an empty last line in a tab leaves the tabs, even with a block right below them", async ({ page, request }) => {
+  const title = `Tabs exit ${Math.random().toString(36).slice(2, 8)}`;
+  const created = await (await request.post("/api/pages", { data: { parent_id: null, title } })).json();
+  const text = (value: string) => [{ type: "text", text: value }];
+  await saveDraft(
+    request,
+    created.id,
+    {
+      type: "doc",
+      content: [
+        {
+          type: "tabs",
+          content: [
+            {
+              type: "tabPanel",
+              attrs: { label: "Linux" },
+              content: [{ type: "paragraph", content: text("Use apt.") }],
+            },
+            {
+              type: "tabPanel",
+              attrs: { label: "macOS" },
+              content: [{ type: "paragraph", content: text("Use Homebrew.") }],
+            },
+          ],
+        },
+        { type: "callout", attrs: { tone: "note" }, content: [{ type: "paragraph", content: text("Right below.") }] },
+      ],
+    },
+    null,
+  );
+
+  await page.goto(`/#page=${created.id}`);
+  const editor = page.locator(".ProseMirror");
+  await editor.getByText("Use apt.").click();
+  // ProseMirror reads the cursor moved by End a moment later, as it does for a person's keys.
+  await page.keyboard.press("End");
+  await page.waitForTimeout(100);
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("Between the blocks");
+
+  await expect(editor.locator(".tabs-panel").first().locator("p")).toHaveText(["Use apt."]);
+  await expect(editor.locator(".tabs + p")).toHaveText("Between the blocks");
+  await expect(editor.locator(".tabs + p + aside.callout")).toContainText("Right below.");
 });
