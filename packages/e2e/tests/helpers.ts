@@ -108,3 +108,28 @@ export async function editablePage(page: Page): Promise<Locator> {
   await expect(editor).toBeVisible();
   return editor;
 }
+
+/**
+ * Drags the tree row `title` onto the middle of `parent`'s row, which makes it a subpage, and waits until the server has the move. The
+ * tree redraws as pages load, which can interrupt a drag, and the move is saved by a request that ends after the drop: the drag is
+ * repeated until the move is there. With `alt`, the drop moves without keeping a redirect.
+ */
+export async function dragUnder(
+  page: Page,
+  request: APIRequestContext,
+  title: string,
+  parent: string,
+  { alt = false }: { alt?: boolean } = {},
+) {
+  const byTitle = async (wanted: string) =>
+    (await (await request.get("/api/pages")).json()).find((p: { title: string }) => p.title === wanted);
+  const row = (name: string) => page.getByRole("button", { name, exact: true });
+
+  await expect(async () => {
+    if (alt) await page.keyboard.down("Alt");
+    await row(title).dragTo(row(parent));
+    if (alt) await page.keyboard.up("Alt");
+    const parentId = (await byTitle(parent)).id;
+    await expect.poll(async () => (await byTitle(title)).parent_id, { timeout: 3_000 }).toBe(parentId);
+  }).toPass();
+}

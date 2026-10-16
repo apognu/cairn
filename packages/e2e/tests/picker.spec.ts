@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
-import { editablePage, nameNewPage, publishAll, slashCommand } from "./helpers";
+import { dragUnder, editablePage, nameNewPage, publishAll, slashCommand } from "./helpers";
 
 test("a page created from the picker is in the tree and its link survives a move", async ({ page, request }) => {
   const suffix = Math.random().toString(36).slice(2, 8);
@@ -30,13 +30,7 @@ test("a page created from the picker is in the tree and its link survives a move
   await expect(page.getByRole("status")).toHaveText("Saved");
 
   // Moving the page under another one changes its URL, not the link.
-  await page
-    .getByRole("button", { name: topic, exact: true })
-    .dragTo(page.getByRole("button", { name: section, exact: true }));
-  const pages = await (await request.get("/api/pages")).json();
-  expect(pages.find((p: { title: string }) => p.title === topic).parent_id).toBe(
-    pages.find((p: { title: string }) => p.title === section).id,
-  );
+  await dragUnder(page, request, topic, section);
 
   await publishAll(page);
   const html = readFileSync(`.e2e-data/site/${slug(home)}/index.html`, "utf8");

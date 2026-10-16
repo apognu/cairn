@@ -7,7 +7,9 @@ const SERVER = "http://127.0.0.1:3400";
 async function signedIn(browser: Browser, login: string): Promise<Page> {
   const page = await (await browser.newContext({ viewport: { width: 1440, height: 900 } })).newPage();
   await page.goto(`${SERVER}/_editor/`);
-  await page.waitForURL(/127\.0\.0\.1:5556/);
+  // Reached through a chain of redirects, any of which can cut short the load of the one before: waiting for the URL alone, then for
+  // the form, cannot see an aborted navigation.
+  await page.waitForURL(/127\.0\.0\.1:5556/, { waitUntil: "commit" });
   await page.locator("input[name=login]").fill(`${login}@example.com`);
   await page.locator("input[name=password]").fill("password");
   await page.locator("button[type=submit]").click();

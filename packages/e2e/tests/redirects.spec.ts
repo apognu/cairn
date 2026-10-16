@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { nameNewPage, publishAll } from "./helpers";
+import { dragUnder, nameNewPage, publishAll } from "./helpers";
 
 const SITE = "http://127.0.0.1:3001";
 
@@ -19,13 +19,9 @@ test("a move adds a redirect, an Alt-drop does not, and the publish dialog flags
   }
   await publishAll(page);
 
-  const row = (title: string) => page.getByRole("button", { name: title, exact: true });
-  await row(kept).dragTo(row(section));
+  await dragUnder(page, request, kept, section);
   await expect(page.getByRole("img", { name: "Unpublished changes" }).first()).toBeVisible();
-
-  await page.keyboard.down("Alt");
-  await row(dropped).dragTo(row(section));
-  await page.keyboard.up("Alt");
+  await dragUnder(page, request, dropped, section, { alt: true });
 
   // The dialog says which old URL will 404, and which one is only redirected.
   await page

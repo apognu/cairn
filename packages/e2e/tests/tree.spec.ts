@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { nameNewPage } from "./helpers";
+import { dragUnder, nameNewPage } from "./helpers";
 
 test("nested pages survive a reload", async ({ page }) => {
   const suffix = Math.random().toString(36).slice(2, 8);
@@ -38,16 +38,10 @@ test("a page can be dragged under a new parent and an external link added", asyn
     await expect(page.getByRole("button", { name: title, exact: true })).toBeVisible();
   }
 
-  // Dropped on the middle of a row, the page becomes its child. The tree redraws as the pages load, which can interrupt a drag, so it is
-  // repeated until the server has the move.
+  // Dropped on the middle of a row, the page becomes its child.
   const byTitle = async (title: string) =>
     (await (await request.get("/api/pages")).json()).find((p: { title: string }) => p.title === title);
-  await expect(async () => {
-    await page
-      .getByRole("button", { name: mover, exact: true })
-      .dragTo(page.getByRole("button", { name: section, exact: true }));
-    expect((await byTitle(mover)).parent_id).toBe((await byTitle(section)).id);
-  }).toPass();
+  await dragUnder(page, request, mover, section);
   expect((await byTitle(other)).parent_id).toBeNull();
 
   // The link is added from the section's menu and lives under it.

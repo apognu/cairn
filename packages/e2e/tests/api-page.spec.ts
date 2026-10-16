@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { nameNewPage } from "./helpers";
+import { dragUnder, nameNewPage } from "./helpers";
 
 test("an API page is created, saved, moved, promoted and restored like a page", async ({ page, request }) => {
   const suffix = Math.random().toString(36).slice(2, 8);
@@ -39,12 +39,7 @@ test("an API page is created, saved, moved, promoted and restored like a page", 
   await expect(page.getByRole("alert")).toContainText("https");
 
   // Dragged under the section, it takes its place in the tree.
-  await expect(async () => {
-    await page
-      .getByRole("button", { name: title, exact: true })
-      .dragTo(page.getByRole("button", { name: section, exact: true }));
-    expect((await byTitle(title)).parent_id).toBe((await byTitle(section)).id);
-  }).toPass();
+  await dragUnder(page, request, title, section);
 
   await page.getByRole("button", { name: "Page settings" }).click();
   const toggle = page.getByRole("dialog", { name: "Page settings" }).getByLabel("Show in header");

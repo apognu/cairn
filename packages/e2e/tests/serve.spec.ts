@@ -11,7 +11,9 @@ test("sign in, write, publish, read anonymously, and sign out", async ({ page, b
   // The editor needs a login: an anonymous visit goes to the provider, and the API refuses.
   expect((await page.request.get(`${SERVER}/_editor/api/pages`)).status()).toBe(401);
   await page.goto(`${SERVER}/_editor/`);
-  await page.waitForURL(/127\.0\.0\.1:5556/);
+  // Reached through a chain of redirects, any of which can cut short the load of the one before: waiting for the URL alone, then for
+  // the form, cannot see an aborted navigation.
+  await page.waitForURL(/127\.0\.0\.1:5556/, { waitUntil: "commit" });
   await page.locator("input[name=login]").fill("alice@example.com");
   await page.locator("input[name=password]").fill("password");
   await page.locator("button[type=submit]").click();
