@@ -18,6 +18,7 @@ import UniqueID from "@tiptap/extension-unique-id";
 import { ReactNodeViewRenderer } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { ComponentView } from "./ComponentView";
+import { codeHighlight } from "./codeHighlight";
 import { EmojiSuggestion } from "./emoji";
 import { PageLink, PagePickerTriggers } from "./pageLink";
 import { SlashCommand } from "./slash";
@@ -74,6 +75,9 @@ const CodeWithFileName = CodeBlock.extend({
         renderHTML: (attrs) => (attrs.fileName ? { "data-file-name": attrs.fileName } : {}),
       },
     };
+  },
+  addProseMirrorPlugins() {
+    return [...(this.parent?.() ?? []), codeHighlight()];
   },
 });
 

@@ -30,6 +30,11 @@ test("a callout and a code block can be inserted from the slash menu", async ({ 
   await expect(page.getByLabel("Language")).toHaveText("JSON");
   await page.getByLabel("File name").fill("config.json");
   await expect(editor.locator("pre[data-file-name='config.json'] code.language-json")).toHaveCount(1);
+
+  // The canvas colors code like the published page, once the server has highlighted it.
+  await editor.locator("pre").click();
+  await page.keyboard.type('{ "ok": true }');
+  await expect(editor.locator("pre .code-token", { hasText: '"ok"' })).toBeVisible();
 });
 
 test("published code is highlighted", async ({ page, request }) => {

@@ -255,3 +255,24 @@
     background-position: 0 0;
   }
 }
+
+/* Colors of code in the canvas, from `codeHighlight.ts`: each token carries both modes' colors, and the mode picks one. */
+.code-token {
+  color: var(--code-light, inherit);
+  font-style: var(--code-light-style, normal);
+  font-weight: var(--code-light-weight, inherit);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .code-token {
+    color: var(--code-dark, inherit);
+    font-style: var(--code-dark-style, normal);
+    font-weight: var(--code-dark-weight, inherit);
+  }
+}
+
+:root[data-theme="dark"] .code-token {
+  color: var(--code-dark, inherit);
+  font-style: var(--code-dark-style, normal);
+  font-weight: var(--code-dark-weight, inherit);
+}
