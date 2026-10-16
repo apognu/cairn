@@ -429,7 +429,7 @@ function SideColumnDrawer({
   return (
     <dialog
       ref={dialog}
-      className={`${sideColumnLook} fixed inset-y-0 right-0 left-auto w-(--panel-width) max-w-screen h-screen max-h-none m-0 p-0 border-0 border-l border-border text-text shadow-drawer backdrop:bg-[rgb(16_20_22/35%)] [&:not([open])]:hidden`}
+      className={`${sideColumnLook} fixed inset-y-0 right-0 left-auto w-(--panel-width) max-w-screen h-screen max-h-none m-0 p-0 border-0 border-l border-border text-text shadow-drawer mobile:w-screen mobile:border-l-0 backdrop:bg-[rgb(16_20_22/35%)] [&:not([open])]:hidden`}
       aria-label="Page and block settings"
       onClose={() => {
         onClose();
@@ -437,6 +437,13 @@ function SideColumnDrawer({
         document.querySelector<HTMLElement>("main.canvas .ProseMirror")?.focus();
       }}
     >
+      {/* On a phone it covers the whole screen: no backdrop to tap and no Escape key, so it needs its own way out. */}
+      <header className="hidden mobile:flex flex-none items-center justify-between h-13 px-4 border-b border-border">
+        <h2 className={ui.drawerTitle}>Page and block settings</h2>
+        <button type="button" className={ui.icon} aria-label="Close" onClick={() => dialog.current?.close()}>
+          ×
+        </button>
+      </header>
       {children}
     </dialog>
   );

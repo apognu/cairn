@@ -43,8 +43,9 @@ export function SiteSettings() {
   };
 
   return (
-    <div className="flex items-start gap-8">
-      <form onSubmit={submit} className="flex-none w-130">
+    // The preview goes under the form when the screen has no room for it beside.
+    <div className="flex flex-wrap items-start gap-8">
+      <form onSubmit={submit} className="flex-none w-130 max-w-full">
         <h1 className={ui.settingsTitle}>Site and theme</h1>
         <div className={ui.field}>
           <label htmlFor={`${id}-name`} className={ui.fieldLabel}>

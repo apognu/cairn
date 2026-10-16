@@ -107,11 +107,11 @@ export const cursorOption =
   "group/option flex items-center gap-3 py-1.5 px-2 border-0 rounded-lg bg-transparent text-left cursor-pointer hover:bg-accent-soft aria-selected:bg-accent-soft";
 
 /**
- * A panel from the right, under the top bar (and under the page actions when the side column shows them: the shell sets
+ * A panel from the right, under the top bar (the whole width on a phone) (and under the page actions when the side column shows them: the shell sets
  * `--drawer-top`): page settings and history.
  */
 export const drawer =
-  "fixed top-(--drawer-top) right-0 bottom-0 left-auto z-30 w-(--panel-width) max-w-screen h-[calc(100vh-var(--drawer-top))] max-h-none m-0 py-5 px-6 border-0 border-l border-border bg-side text-text text-ui leading-[1.4] overflow-y-auto narrow:shadow-drawer";
+  "fixed top-(--drawer-top) right-0 bottom-0 left-auto z-30 w-(--panel-width) max-w-screen h-[calc(100vh-var(--drawer-top))] max-h-none m-0 py-5 px-6 border-0 border-l border-border bg-side text-text text-ui leading-[1.4] overflow-y-auto narrow:shadow-drawer mobile:w-screen mobile:px-4 mobile:border-l-0";
 export const drawerHead = "flex items-center justify-between mb-4";
 export const drawerTitle = "m-0 text-[20px]";
 /** A section of a drawer, and its heading, the same whether a legend or a heading. */

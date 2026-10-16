@@ -178,7 +178,7 @@ export function LibrarySettings() {
                     panelHost={panelHost}
                   />
                   <aside
-                    className={`${ui.props} w-(--panel-width) border-l border-border`}
+                    className={`${ui.props} w-(--panel-width) max-w-full border-l border-border`}
                     aria-label="Component settings"
                     ref={setPanelHost}
                   />
