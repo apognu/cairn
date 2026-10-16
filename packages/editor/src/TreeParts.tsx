@@ -116,7 +116,7 @@ export function TitleForm({
 
   return (
     <form
-      className="flex-1 flex flex-col gap-1 py-0.5 px-0"
+      className="flex-1 flex flex-col gap-1 my-2 py-0.5 px-0"
       onSubmit={(e) => {
         e.preventDefault();
         if (value.trim() && (!isLink || url.trim()))

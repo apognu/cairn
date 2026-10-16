@@ -98,7 +98,10 @@ export const menuSummary =
 /** The panel without its place, for menus that open further down (the top bar's) or wider. */
 export const menuPopBase =
   "absolute z-10 right-0 flex flex-col p-1 border border-input rounded-lg bg-bg shadow-popover text-text font-normal";
-export const menuPop = `${menuPopBase} top-7 min-w-35 group-data-up/menu:top-auto group-data-up/menu:bottom-7`;
+const menuPlace = "top-7 group-data-up/menu:top-auto group-data-up/menu:bottom-7";
+export const menuPop = `${menuPopBase} ${menuPlace} min-w-35`;
+/** The page tree's menus: wide enough for "Add API reference" and the like on one line. */
+export const treeMenuPop = `${menuPopBase} ${menuPlace} min-w-52 whitespace-nowrap`;
 export const menuItem = "py-1.5 px-2.5 border-0 rounded-[5px] bg-transparent text-left cursor-pointer hover:bg-hover";
 export const menuRule = "w-full mx-0 my-1 border-0 border-t border-border";
 

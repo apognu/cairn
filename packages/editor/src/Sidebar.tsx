@@ -235,7 +235,7 @@ export function Sidebar({ pages, loading, selected, onSelect }: Props) {
               <summary className={ui.menuSummary} aria-label={`More actions for ${page.title}`} title="More actions">
                 ⋯
               </summary>
-              <div data-menu-pop className={ui.menuPop}>
+              <div data-menu-pop className={ui.treeMenuPop}>
                 <MenuItem
                   label={`Rename ${page.title}`}
                   text={page.kind === "link" ? "Edit link" : "Rename"}
@@ -332,7 +332,7 @@ export function Sidebar({ pages, loading, selected, onSelect }: Props) {
           >
             <Icon name="chevron" size={15} />
           </summary>
-          <div data-menu-pop className={ui.menuPop}>
+          <div data-menu-pop className={ui.treeMenuPop}>
             <MenuItem
               label="New API reference"
               text="API reference"
