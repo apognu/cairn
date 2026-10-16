@@ -274,7 +274,15 @@ function Editor() {
         </div>
       </header>
       {section ? (
-        <SettingsView section={section} onSection={openSettings} onClose={() => openSettings(null)} />
+        <SettingsView
+          section={section}
+          onSection={openSettings}
+          onClose={() => openSettings(null)}
+          onOpenPage={(id) => {
+            setSection(null);
+            select(id);
+          }}
+        />
       ) : (
         <>
           <Sidebar pages={pages.data ?? []} loading={pages.isPending} selected={selected} onSelect={select} />

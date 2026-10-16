@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 use crate::{
   StoreError,
-  entity::{api_config, draft, entry_usage, library_entry, page, page_link, page_lock, redirect, release, release_api_spec, release_page, revision},
+  entity::{api_config, draft, entry_usage, library_entry, page, page_link, page_lock, page_review, redirect, release, release_api_spec, release_page, revision},
 };
 
 /// How many IDs go in one statement, well under the bound-parameter limits of both databases.
@@ -81,6 +81,7 @@ pub async fn purge_trash(db: &DatabaseConnection, before: Timestamp) -> Result<u
     release_api_spec::Entity::delete_many().filter(release_api_spec::Column::PageId.is_in(chunk.clone())).exec(&tx).await?;
     api_config::Entity::delete_many().filter(api_config::Column::PageId.is_in(chunk.clone())).exec(&tx).await?;
     page_lock::Entity::delete_many().filter(page_lock::Column::PageId.is_in(chunk.clone())).exec(&tx).await?;
+    page_review::Entity::delete_many().filter(page_review::Column::PageId.is_in(chunk.clone())).exec(&tx).await?;
     revision::Entity::delete_many().filter(revision::Column::PageId.is_in(chunk)).exec(&tx).await?;
   }
   for chunk in ids.chunks(CHUNK) {

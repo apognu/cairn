@@ -21,6 +21,7 @@ mod pages;
 mod proxy;
 mod publish;
 mod redirects;
+mod reviews;
 mod serving;
 mod settings;
 mod site;

@@ -463,3 +463,37 @@ export function useRevokeToken() {
     onSuccess: () => client.invalidateQueries({ queryKey: TOKENS }),
   });
 }
+
+export type PageReview = components["schemas"]["PageReview"];
+
+/** Who looks after a page and when it should be checked again. */
+export function usePageReview(id: string) {
+  return useQuery({
+    queryKey: ["review", id],
+    queryFn: async () => unwrap(await api.GET("/api/pages/{id}/review", { params: { path: { id } } })),
+  });
+}
+
+/** Saves a page's owner and review date at once; they are never published. */
+export function useSetPageReview(id: string) {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (review: PageReview) =>
+      unwrap(await api.PUT("/api/pages/{id}/review", { params: { path: { id } }, body: review })),
+    onSuccess: (saved) => {
+      client.setQueryData(["review", id], saved);
+      void client.invalidateQueries({ queryKey: ["stale"] });
+    },
+  });
+}
+
+/** The people who can own a page. */
+export function useUsers() {
+  return useQuery({ queryKey: ["users"], queryFn: async () => unwrap(await api.GET("/api/users")) });
+}
+
+/** The pages whose review date has come. */
+export function useStalePages() {
+  return useQuery({ queryKey: ["stale"], queryFn: async () => unwrap(await api.GET("/api/reports/stale")) });
+}

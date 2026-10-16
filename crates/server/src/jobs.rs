@@ -2,6 +2,7 @@
 
 use axum::{Json, extract::State};
 use cairn_auth::CurrentUser;
+use cairn_core::StalePage;
 use jiff::{SignedDuration, Timestamp};
 use serde::Serialize;
 use tracing::instrument;
@@ -27,9 +28,11 @@ struct JobsReport {
   assets_deleted: usize,
   /// Stored files deleted: those of the uploads above, and files no upload owns.
   files_deleted: usize,
+  /// The pages whose review date has come, the most overdue first.
+  stale_pages: Vec<StalePage>,
 }
 
-/// Runs the periodic jobs: deletes the uploads nothing uses any more. Meant for a scheduler (cron, Cloud Scheduler) with an API token.
+/// Runs the periodic jobs: deletes the uploads nothing uses any more, and reports the pages due for a review. Meant for a scheduler (cron, Cloud Scheduler) with an API token.
 #[utoipa::path(post, path = "/api/jobs/run", operation_id = "runJobs", responses(
   (status = 200, body = JobsReport),
   (status = 401, body = ErrorBody, description = "not signed in and no API token"),
@@ -41,5 +44,6 @@ async fn run(State(state): State<AppState>, CurrentUser(_): CurrentUser) -> Resu
   Ok(Json(JobsReport {
     assets_deleted: cleanup.assets,
     files_deleted: cleanup.files,
+    stale_pages: crate::reviews::due(&state).await?,
   }))
 }

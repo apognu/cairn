@@ -23,14 +23,19 @@ pub(crate) fn routes() -> OpenApiRouter<AppState> {
 async fn me(State(state): State<AppState>, CurrentUser(user): CurrentUser) -> Result<Json<User>, AppError> {
   // `dev` has no login and no row for its one user.
   if user == local_user_id() {
-    return Ok(Json(User {
-      id: user,
-      email: String::new(),
-      name: "Local user".into(),
-    }));
+    return Ok(Json(local_user()));
   }
 
   Ok(Json(get_user(&state.db, user).await?))
+}
+
+/// The one user of `dev`, who has no row.
+pub(crate) fn local_user() -> User {
+  User {
+    id: local_user_id(),
+    email: String::new(),
+    name: "Local user".into(),
+  }
 }
 
 /// The name to show for someone: users who never signed in through `serve` (the local user, or one whose row is gone) still get one.

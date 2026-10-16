@@ -1,12 +1,16 @@
 import { useEffect, useId, useRef, useState } from "react";
 import {
+  type PageReview,
   useAddAlias,
   useBacklinks,
+  usePageReview,
   usePageUrl,
   useRemoveAlias,
   useSetCustomUrl,
   useSetDescription,
   useSetHeader,
+  useSetPageReview,
+  useUsers,
 } from "./queries";
 import { useSidePanel } from "./sidePanel";
 import type { Page } from "./tree";
@@ -217,6 +221,7 @@ export function PageSettings({ page, onClose }: { page: Page; onClose: () => voi
               onChange={(e) => setDescriptionText(e.target.value)}
               onBlur={saveDescription}
             />
+            <ReviewFields pageId={page.id} />
           </section>
 
           <section className={ui.drawerSection}>
@@ -241,5 +246,72 @@ export function PageSettings({ page, onClose }: { page: Page; onClose: () => voi
         </>
       )}
     </dialog>
+  );
+}
+
+/** Who looks after the page and when to check it again: saved as soon as they change, and never published. */
+function ReviewFields({ pageId }: { pageId: string }) {
+  const id = useId();
+  const review = usePageReview(pageId);
+  const users = useUsers();
+  const save = useSetPageReview(pageId);
+  const current = review.data ?? { owner_id: null, review_by: null };
+  // Both fields are sent on every save: start from what was last sent, so a save made before the previous one answered keeps it.
+  const sent = useRef<PageReview | null>(null);
+  const update = (change: Partial<PageReview>) => {
+    sent.current = { ...(sent.current ?? current), ...change };
+    save.mutate(sent.current);
+  };
+  // Typing a year changes the value at every digit: the date is saved when the field is left, not while it is typed.
+  const [date, setDate] = useState<string | null>(null);
+  const saveDate = () => {
+    if (date === null || date === (current.review_by ?? "")) return;
+    update({ review_by: date || null });
+  };
+
+  return (
+    <>
+      <div className="grid grid-cols-2 gap-3 mt-3">
+        <div className={ui.fieldBase}>
+          <label htmlFor={`${id}-owner`} className={ui.fieldLabel}>
+            Owner
+          </label>
+          <select
+            id={`${id}-owner`}
+            className={ui.select}
+            value={current.owner_id ?? ""}
+            disabled={!review.data}
+            onChange={(e) => update({ owner_id: e.target.value || null })}
+          >
+            <option value="">Nobody</option>
+            {users.data?.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className={ui.fieldBase}>
+          <label htmlFor={`${id}-review`} className={ui.fieldLabel}>
+            Review by
+          </label>
+          <input
+            id={`${id}-review`}
+            type="date"
+            className={ui.input}
+            value={date ?? current.review_by ?? ""}
+            disabled={!review.data}
+            onChange={(e) => setDate(e.target.value)}
+            onBlur={saveDate}
+            onKeyDown={(e) => e.key === "Enter" && saveDate()}
+          />
+        </div>
+      </div>
+      {save.isError && (
+        <p role="alert" className="text-danger">
+          {save.error.message}
+        </p>
+      )}
+    </>
   );
 }

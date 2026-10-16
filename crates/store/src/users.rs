@@ -19,7 +19,7 @@ pub struct LoginState {
   pub next: String,
 }
 
-fn into_user(row: user::Model) -> User {
+pub(crate) fn into_user(row: user::Model) -> User {
   User {
     id: row.id.into(),
     email: row.email,

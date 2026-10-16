@@ -2,6 +2,7 @@ import { LibrarySettings } from "./LibrarySettings";
 import { usePending, useSignedIn } from "./queries";
 import { RedirectsSettings } from "./RedirectsSettings";
 import { ReleasesSettings } from "./ReleasesSettings";
+import { ReviewSettings } from "./ReviewSettings";
 import { sidebar } from "./Sidebar";
 import { SiteSettings } from "./SiteSettings";
 import { TokensSettings } from "./TokensSettings";
@@ -9,13 +10,14 @@ import { TrashSettings } from "./TrashSettings";
 import { rowClass, titleClass } from "./TreeParts";
 import * as ui from "./ui";
 
-export type SettingsSection = "site" | "library" | "redirects" | "releases" | "trash" | "tokens";
+export type SettingsSection = "site" | "library" | "redirects" | "releases" | "review" | "trash" | "tokens";
 
 export const sectionTitle: Record<SettingsSection, string> = {
   site: "Site and theme",
   library: "Library",
   redirects: "Redirects",
   releases: "Releases",
+  review: "Pages to review",
   trash: "Trash",
   tokens: "API tokens",
 };
@@ -25,10 +27,12 @@ export function SettingsView({
   section,
   onSection,
   onClose,
+  onOpenPage,
 }: {
   section: SettingsSection;
   onSection: (section: SettingsSection) => void;
   onClose: () => void;
+  onOpenPage: (id: string) => void;
 }) {
   const pending = usePending();
   // Tokens belong to signed-in users; `dev` has none.
@@ -73,6 +77,8 @@ export function SettingsView({
           <LibrarySettings />
         ) : section === "releases" ? (
           <ReleasesSettings />
+        ) : section === "review" ? (
+          <ReviewSettings onOpenPage={onOpenPage} />
         ) : section === "trash" ? (
           <TrashSettings />
         ) : section === "tokens" ? (

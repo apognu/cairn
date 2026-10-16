@@ -15,7 +15,7 @@ use cairn_render::Pool;
 use cairn_store::SqlContentStore;
 use sea_orm::DatabaseConnection;
 
-use crate::{api_pages, drafts, highlight, history, jobs, library, links, locks, me, pages, publish, redirects, settings, tokens, uploads, urls};
+use crate::{api_pages, drafts, highlight, history, jobs, library, links, locks, me, pages, publish, redirects, reviews, settings, tokens, uploads, urls};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -103,6 +103,7 @@ pub fn api() -> (Router<AppState>, utoipa::openapi::OpenApi) {
     .merge(me::routes())
     .merge(tokens::routes())
     .merge(jobs::routes())
+    .merge(reviews::routes())
     .split_for_parts();
   // The router's default info describes utoipa-axum itself.
   spec.info = utoipa::openapi::InfoBuilder::new().title("cairn").version(env!("CARGO_PKG_VERSION")).build();

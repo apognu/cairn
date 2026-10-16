@@ -62,7 +62,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Runs the periodic jobs: deletes the uploads nothing uses any more. Meant for a scheduler (cron, Cloud Scheduler) with an API token. */
+        /** Runs the periodic jobs: deletes the uploads nothing uses any more, and reports the pages due for a review. Meant for a scheduler (cron, Cloud Scheduler) with an API token. */
         post: operations["runJobs"];
         delete?: never;
         options?: never;
@@ -504,6 +504,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/pages/{id}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A page's owner and review date. */
+        get: operations["getPageReview"];
+        /** Sets a page's owner and review date. Saved at once: it is bookkeeping for the team, not content, and is never published. */
+        put: operations["setPageReview"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/pages/{id}/url": {
         parameters: {
             query?: never;
@@ -700,6 +718,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/reports/stale": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The pages whose review date has come, the most overdue first. */
+        get: operations["stalePages"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/revisions/{id}": {
         parameters: {
             query?: never;
@@ -866,6 +901,23 @@ export interface paths {
         put?: never;
         /** Brings a page back from the trash, with the pages deleted with it. */
         post: operations["restoreFromTrash"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Everyone who can own a page: the people who signed in, by name. */
+        get: operations["listUsers"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1169,6 +1221,8 @@ export interface components {
             assets_deleted: number;
             /** @description Stored files deleted: those of the uploads above, and files no upload owns. */
             files_deleted: number;
+            /** @description The pages whose review date has come, the most overdue first. */
+            stale_pages: components["schemas"]["StalePage"][];
         };
         /** @description A variable, snippet or glossary term of the library, with the pages that use it. */
         LibraryEntry: {
@@ -1325,6 +1379,15 @@ export interface components {
          * @enum {string}
          */
         PageKind: "page" | "link" | "api";
+        /** @description Who looks after a page and when it should be checked again. Not content: it is saved at once and never published. */
+        PageReview: {
+            owner_id?: components["schemas"]["UserId"] | null;
+            /**
+             * Format: date
+             * @description The day the page should be checked by, `YYYY-MM-DD`.
+             */
+            review_by?: string | null;
+        };
         /** @description Where a page lives and which old URLs lead to it. */
         PageUrl: {
             aliases: components["schemas"]["Alias"][];
@@ -1579,6 +1642,14 @@ export interface components {
         };
         SnippetBody: {
             doc: components["schemas"]["Document"];
+        };
+        /** @description A page whose review date has come. */
+        StalePage: {
+            owner?: components["schemas"]["User"] | null;
+            page_id: components["schemas"]["PageId"];
+            /** Format: date */
+            review_by: string;
+            title: string;
         };
         TakeOver: {
             /** @description Take the page even though its holder is still active. */
@@ -2959,6 +3030,61 @@ export interface operations {
             };
         };
     };
+    getPageReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["PageId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageReview"];
+                };
+            };
+        };
+    };
+    setPageReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["PageId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PageReview"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageReview"];
+                };
+            };
+            /** @description no such page, or it is in the trash */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     getPageUrl: {
         parameters: {
             query?: never;
@@ -3373,6 +3499,25 @@ export interface operations {
             };
         };
     };
+    stalePages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StalePage"][];
+                };
+            };
+        };
+    };
     getRevision: {
         parameters: {
             query?: never;
@@ -3681,6 +3826,25 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    listUsers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"][];
                 };
             };
         };

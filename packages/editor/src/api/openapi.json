@@ -118,7 +118,7 @@
     },
     "/api/jobs/run": {
       "post": {
-        "summary": "Runs the periodic jobs: deletes the uploads nothing uses any more. Meant for a scheduler (cron, Cloud Scheduler) with an API token.",
+        "summary": "Runs the periodic jobs: deletes the uploads nothing uses any more, and reports the pages due for a review. Meant for a scheduler (cron, Cloud Scheduler) with an API token.",
         "operationId": "runJobs",
         "responses": {
           "200": {
@@ -1626,6 +1626,78 @@
         }
       }
     },
+    "/api/pages/{id}/review": {
+      "get": {
+        "summary": "A page's owner and review date.",
+        "operationId": "getPageReview",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/PageId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageReview"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Sets a page's owner and review date. Saved at once: it is bookkeeping for the team, not content, and is never published.",
+        "operationId": "setPageReview",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/PageId"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PageReview"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageReview"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "no such page, or it is in the trash",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/pages/{id}/url": {
       "get": {
         "summary": "The page's URL, custom URL and aliases.",
@@ -2105,6 +2177,26 @@
         }
       }
     },
+    "/api/reports/stale": {
+      "get": {
+        "summary": "The pages whose review date has come, the most overdue first.",
+        "operationId": "stalePages",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StalePage"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/revisions/{id}": {
       "get": {
         "summary": "The content of one saved version.",
@@ -2433,6 +2525,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/users": {
+      "get": {
+        "summary": "Everyone who can own a page: the people who signed in, by name.",
+        "operationId": "listUsers",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/User"
+                  }
                 }
               }
             }
@@ -3371,7 +3483,8 @@
         "description": "What one run did.",
         "required": [
           "assets_deleted",
-          "files_deleted"
+          "files_deleted",
+          "stale_pages"
         ],
         "properties": {
           "assets_deleted": {
@@ -3383,6 +3496,13 @@
             "type": "integer",
             "description": "Stored files deleted: those of the uploads above, and files no upload owns.",
             "minimum": 0
+          },
+          "stale_pages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StalePage"
+            },
+            "description": "The pages whose review date has come, the most overdue first."
           }
         }
       },
@@ -3885,6 +4005,30 @@
           "link",
           "api"
         ]
+      },
+      "PageReview": {
+        "type": "object",
+        "description": "Who looks after a page and when it should be checked again. Not content: it is saved at once and never published.",
+        "properties": {
+          "owner_id": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/UserId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "review_by": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "The day the page should be checked by, `YYYY-MM-DD`."
+          }
+        }
       },
       "PageUrl": {
         "type": "object",
@@ -4591,6 +4735,38 @@
         "properties": {
           "doc": {
             "$ref": "#/components/schemas/Document"
+          }
+        }
+      },
+      "StalePage": {
+        "type": "object",
+        "description": "A page whose review date has come.",
+        "required": [
+          "page_id",
+          "title",
+          "review_by"
+        ],
+        "properties": {
+          "owner": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/User",
+                "description": "`None` when nobody owns the page, or the owner's account is gone."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "page_id": {
+            "$ref": "#/components/schemas/PageId"
+          },
+          "review_by": {
+            "type": "string",
+            "format": "date"
+          },
+          "title": {
+            "type": "string"
           }
         }
       },

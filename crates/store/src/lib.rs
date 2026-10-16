@@ -17,6 +17,7 @@ mod purge;
 mod redirects;
 mod release_log;
 mod releases;
+mod reviews;
 mod sessions;
 mod staging;
 mod tree;
@@ -42,6 +43,7 @@ pub use releases::{
   LiveRelease, ReleasePage, add_release_pages, create_release, get_release, get_setting, kept_render_keys, latest_live_release, live_release, load_settings, make_release_live, release_state_of,
   save_settings, set_release_deployment, set_release_render_keys, set_release_stats, set_release_status, set_setting,
 };
+pub use reviews::{StaleRow, list_users, page_review, set_page_review, stale_pages};
 pub use sea_orm::DatabaseConnection;
 pub use sessions::{api_token_user, create_api_token, create_session, delete_api_token, delete_session, list_api_tokens, session_user};
 pub use staging::{Staging, staging};
