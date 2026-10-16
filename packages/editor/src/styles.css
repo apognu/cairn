@@ -194,6 +194,11 @@
   cursor: text;
 }
 
+/* A component's node view wraps it twice, and its top margin passes through the wrappers: cleared as on the site (`site.css`). */
+.ProseMirror :is(h2, h3) + .react-renderer > * > :first-child {
+  margin-top: 0;
+}
+
 /* The "Add step" button under the last step (`steps.ts`): lined up with the steps' titles, and no number of its own. */
 .ProseMirror .steps-add {
   padding-left: 44px;

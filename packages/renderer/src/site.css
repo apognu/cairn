@@ -159,13 +159,14 @@
   letter-spacing: -0.015em;
 }
 
+/* A heading belongs to what follows it: about two and a half times more room above than below. */
 .doc-content h2 {
-  margin: 1.9em 0 0.5em;
+  margin: 2.1em 0 0.8em;
   font-size: 24px;
 }
 
 .doc-content h3 {
-  margin: 1.6em 0 0.4em;
+  margin: 1.9em 0 0.7em;
   font-size: 19px;
 }
 
@@ -232,6 +233,12 @@
   margin: 2em 0;
   border: 0;
   border-top: 1px solid var(--border);
+}
+
+/* The heading's bottom margin alone sets the gap under it, whatever the block: some blocks (tabs, file tree, a rule, a subheading) bring
+   a top margin that would otherwise win over it. After `.doc-content hr`, which has the same specificity. */
+.doc-content :is(h2, h3) + * {
+  margin-top: 0;
 }
 
 /* A wide table scrolls inside its own box instead of pushing the page sideways. The editor's table has the same wrapper. */
@@ -439,7 +446,8 @@ a.feature-card:hover {
   text-transform: uppercase;
 }
 
-.feature-family {
+/* Under `.doc-content`, or the page's own heading margins win over a component's heading. */
+.doc-content .feature-family {
   margin: 0 0 8px;
   font-size: 15px;
 }
@@ -588,7 +596,7 @@ a.link-card:hover {
   line-height: 1.5;
 }
 
-.related-title {
+.doc-content .related-title {
   margin: 2em 0 14px;
   font-size: 18px;
 }
