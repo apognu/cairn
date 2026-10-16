@@ -11,7 +11,7 @@ env:
 
 jobs:
   lint:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -30,7 +30,7 @@ jobs:
   # The Rust tests on SQLite, and again with every test database on Postgres (see `connect_for_tests`), which also runs the migrations
   # there. The end-to-end tests stay on SQLite: the server code is the same.
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     strategy:
       fail-fast: false
       matrix:
@@ -61,7 +61,7 @@ jobs:
       - run: cargo test
 
   e2e:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
