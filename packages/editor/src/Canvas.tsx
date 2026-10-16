@@ -78,7 +78,9 @@ export function Canvas({
     },
   });
   // Opening a page puts the cursor at the start of it, ready to type, unless the user has already moved on to a field of their own
-  // (the editor loads a moment after the click that opened the page).
+  // (the editor loads a moment after the click that opened the page). `data-ready` says it is done, for the end-to-end tests: a click
+  // made before would be moved back to the start.
+  const [ready, setReady] = useState(false);
   useEffect(() => {
     if (!editor || !editable) return;
     const active = document.activeElement;
@@ -89,6 +91,7 @@ export function Canvas({
     // The caret starts at the top too: from the end, the first arrow key would scroll the whole page down to it.
     if (!typing) editor.commands.focus("start", { scrollIntoView: false });
     editor.view.dom.closest(".canvas")?.scrollTo({ top: 0 });
+    setReady(true);
   }, [editor, editable]);
 
   const editorRef = useRef(editor);
@@ -215,7 +218,7 @@ export function Canvas({
     >
       <SiteLayout context={full} headings={headings} embedded={embedded} title={title} lead={lead}>
         {/* Positioned: the block handle is placed against it. */}
-        <EditorContent editor={editor} className="relative" />
+        <EditorContent editor={editor} className="relative" data-ready={ready || undefined} />
         {editor && editable && <BubbleMenus editor={editor} />}
         {editable && uploads > 0 && (
           <output className="fixed z-40 bottom-5 left-1/2 -translate-x-1/2 flex items-center gap-2 py-2 px-3.5 border border-input rounded-lg bg-bg shadow-popover text-ui leading-[1.4]">

@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { nameNewPage, publishFixture, quiet, saveDraft, slashCommand } from "./helpers";
+import { editablePage, nameNewPage, publishFixture, quiet, saveDraft, slashCommand } from "./helpers";
 
 test("a callout and a code block can be inserted from the slash menu", async ({ page }) => {
   const title = `Slash ${Math.random().toString(36).slice(2, 8)}`;
@@ -9,7 +9,7 @@ test("a callout and a code block can be inserted from the slash menu", async ({ 
   await nameNewPage(page, title);
   await page.getByRole("button", { name: title, exact: true }).click();
 
-  const editor = page.locator(".ProseMirror");
+  const editor = await editablePage(page);
   await editor.click();
 
   await page.keyboard.type("/callout");
@@ -51,7 +51,7 @@ test("the bubble menu formats a selection", async ({ page }) => {
   await nameNewPage(page, title);
   await page.getByRole("button", { name: title, exact: true }).click();
 
-  const editor = page.locator(".ProseMirror");
+  const editor = await editablePage(page);
   await editor.click();
   await page.keyboard.type("Make this bold");
   await expect(editor).toContainText("Make this bold");
@@ -76,7 +76,7 @@ test("a component's settings form edits the document", async ({ page, request })
   await page.getByRole("button", { name: title, exact: true }).click();
   const id = new URL(page.url()).hash.replace("#page=", "");
 
-  const editor = page.locator(".ProseMirror");
+  const editor = await editablePage(page);
   await editor.click();
   await slashCommand(page, "callout", "Callout");
   await page.keyboard.type("Settings test");
@@ -100,7 +100,7 @@ test("feature tabs are edited through their settings form", async ({ page }) => 
   await nameNewPage(page, title);
   await page.getByRole("button", { name: title, exact: true }).click();
 
-  const editor = page.locator(".ProseMirror");
+  const editor = await editablePage(page);
   await editor.click();
   await slashCommand(page, "feature tabs", "Feature tabs");
 
@@ -127,7 +127,7 @@ test("a card title is written on the canvas and lands in the page settings", asy
   await nameNewPage(page, title);
   await page.getByRole("button", { name: title, exact: true }).click();
 
-  const editor = page.locator(".ProseMirror");
+  const editor = await editablePage(page);
   await editor.click();
   await slashCommand(page, "cards", "Cards");
 
@@ -141,7 +141,7 @@ test("a card title is written on the canvas and lands in the page settings", asy
 
   // The same props the settings form edits.
   await editor.locator(".feature-grid").click();
-  await expect(page.getByLabel("Title").first()).toHaveValue("Quick start");
+  await expect(page.getByLabel("Title", { exact: true }).first()).toHaveValue("Quick start");
 });
 
 test("on a narrower window, block settings open from their button, Alt+Enter or a double click", async ({
@@ -155,7 +155,7 @@ test("on a narrower window, block settings open from their button, Alt+Enter or 
   await nameNewPage(page, title);
   await page.getByRole("button", { name: title, exact: true }).click();
 
-  const editor = page.locator(".ProseMirror");
+  const editor = await editablePage(page);
   await editor.click();
   await slashCommand(page, "feature tabs", "Feature tabs");
   await editor.locator(".feature-tabs").click();
@@ -196,7 +196,7 @@ test("steps are added with Enter, and removed or merged with Backspace", async (
   await nameNewPage(page, title);
   await page.getByRole("button", { name: title, exact: true }).click();
 
-  const editor = page.locator(".ProseMirror");
+  const editor = await editablePage(page);
   await editor.click();
   await slashCommand(page, "steps", "Steps");
 
@@ -286,7 +286,7 @@ test("an empty last line in a tab leaves the tabs, even with a block right below
   );
 
   await page.goto(`/#page=${created.id}`);
-  const editor = page.locator(".ProseMirror");
+  const editor = await editablePage(page);
   await editor.getByText("Use apt.").click();
   // ProseMirror reads the cursor moved by End a moment later, as it does for a person's keys.
   await page.keyboard.press("End");

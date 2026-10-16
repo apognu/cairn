@@ -1,5 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
-import { nameNewPage, publishAll, quiet } from "./helpers";
+import { editablePage, nameNewPage, publishAll, quiet } from "./helpers";
 
 const SITE = "http://127.0.0.1:3001";
 
@@ -8,7 +8,7 @@ async function newPage(page: Page, title: string, text: string) {
   await page.getByRole("button", { name: "New page" }).click();
   await nameNewPage(page, title);
   await page.getByRole("button", { name: title, exact: true }).click();
-  await page.locator(".ProseMirror").click();
+  await (await editablePage(page)).click();
   await page.keyboard.type(text);
   await expect(page.getByRole("status")).toHaveText("Saved");
 }
@@ -70,7 +70,7 @@ test("an open tab of the site reloads after a publish", async ({ page, browser }
   await connected;
   await reader.waitForTimeout(300);
 
-  await page.locator(".ProseMirror").click();
+  await (await editablePage(page)).click();
   await page.keyboard.press("ControlOrMeta+a");
   await page.keyboard.type("Version two");
   await expect(page.getByRole("status")).toHaveText("Saved");

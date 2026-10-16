@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { nameNewPage, publishAll, quiet } from "./helpers";
+import { editablePage, nameNewPage, publishAll, quiet } from "./helpers";
 
 // `cairn serve` on :3400 against a local Dex (`examples/dex`, user alice@example.com / password): the editor under /_editor behind a
 // sign-in, and the published site at the root of the same address.
@@ -20,7 +20,7 @@ test("sign in, write, publish, read anonymously, and sign out", async ({ page, b
   await page.getByRole("button", { name: "New page" }).click();
   await nameNewPage(page, slug);
   await page.getByRole("button", { name: slug, exact: true }).click();
-  await page.locator(".ProseMirror").click();
+  await (await editablePage(page)).click();
   await page.keyboard.type("Written behind a login");
   await expect(page.getByRole("status")).toHaveText("Saved");
   await publishAll(page);

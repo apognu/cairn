@@ -1,4 +1,5 @@
 import { type APIRequestContext, expect, test } from "@playwright/test";
+import { editablePage } from "./helpers";
 
 const GITHUB = "http://127.0.0.1:3390";
 const SITE = "http://127.0.0.1:3301";
@@ -90,7 +91,7 @@ test("a link to one operation of an API page is checked against the build's spec
   expect(operations.map((o: { anchor: string }) => o.anchor)).toContain("tag/orders/POST/orders");
 
   await page.goto(`/#page=${guide.id}`);
-  const editor = page.locator(".ProseMirror").first();
+  const editor = await editablePage(page);
   await editor.click();
   await page.keyboard.type("create an order");
   await page.keyboard.press("ControlOrMeta+a");

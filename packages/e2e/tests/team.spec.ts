@@ -1,5 +1,5 @@
 import { type Browser, expect, type Page, test } from "@playwright/test";
-import { nameNewPage } from "./helpers";
+import { editablePage, nameNewPage } from "./helpers";
 
 // Two editors on `cairn serve` (:3400), signed in as alice and bob through the local Dex.
 const SERVER = "http://127.0.0.1:3400";
@@ -23,7 +23,7 @@ test("a page someone edits is read-only for others, and free again when they lea
 
   await alice.getByRole("button", { name: "New page" }).click();
   await nameNewPage(alice, title);
-  await alice.locator(".ProseMirror").click();
+  await (await editablePage(alice)).click();
   await alice.keyboard.type("Alice was here");
   await expect(alice.getByRole("status").first()).toHaveText("Saved");
 
@@ -66,7 +66,7 @@ test("taking over stops the holder's editor at once, and their unsaved work can 
 
   await alice.getByRole("button", { name: "New page" }).click();
   await nameNewPage(alice, title);
-  await alice.locator(".ProseMirror").click();
+  await (await editablePage(alice)).click();
   await alice.keyboard.type("Saved part.");
   await expect(alice.getByRole("status").first()).toHaveText("Saved");
   // Alice's next words never reach the server.
@@ -102,7 +102,7 @@ test("publishing while someone edits a page names them first", async ({ browser 
 
   await alice.getByRole("button", { name: "New page" }).click();
   await nameNewPage(alice, title);
-  await alice.locator(".ProseMirror").click();
+  await (await editablePage(alice)).click();
   await alice.keyboard.type("Half of a sentence");
   await expect(alice.getByRole("status").first()).toHaveText("Saved");
 
@@ -139,7 +139,7 @@ test("a hotfix of my changes leaves everyone else's drafts pending", async ({ br
   ] as const) {
     await page.getByRole("button", { name: "New page" }).click();
     await nameNewPage(page, title);
-    await page.locator(".ProseMirror").click();
+    await (await editablePage(page)).click();
     await page.keyboard.type(text);
     await expect(page.getByRole("status").first()).toHaveText("Saved");
   }

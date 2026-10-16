@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { nameNewPage, PNG, slashCommand } from "./helpers";
+import { editablePage, nameNewPage, PNG, slashCommand } from "./helpers";
 
 test("uploading the same file twice stores it once", async ({ request }) => {
   // A file unique to this run, so the first upload really creates an asset.
@@ -33,7 +33,7 @@ test("an image can be inserted from the slash menu and given alt text", async ({
   await page.getByRole("button", { name: title, exact: true }).click();
   const id = new URL(page.url()).hash.replace("#page=", "");
 
-  const editor = page.locator(".ProseMirror");
+  const editor = await editablePage(page);
   await editor.click();
   const chooser = page.waitForEvent("filechooser");
   await slashCommand(page, "image", "Image");

@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { nameNewPage } from "./helpers";
+import { editablePage, nameNewPage } from "./helpers";
 
 const suffix = () => Math.random().toString(36).slice(2, 8);
 
@@ -18,7 +18,7 @@ test("unsaved text comes back after a reload", async ({ page }) => {
   );
 
   await newPage(page, `Autosave ${suffix()}`);
-  await page.locator(".ProseMirror").click();
+  await (await editablePage(page)).click();
   await page.keyboard.type("Typed but never saved");
   await expect(page.getByRole("status")).toContainText("Not saved");
   await page.waitForTimeout(500);
@@ -33,7 +33,7 @@ test("unsaved text comes back after a reload", async ({ page }) => {
 
 test("saved text survives a reload", async ({ page }) => {
   await newPage(page, `Saved ${suffix()}`);
-  await page.locator(".ProseMirror").click();
+  await (await editablePage(page)).click();
   await page.keyboard.type("Kept on the server");
   await expect(page.getByRole("status")).toHaveText("Saved");
 

@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { nameNewPage, PNG, saveDraft } from "./helpers";
+import { editablePage, nameNewPage, PNG, saveDraft } from "./helpers";
 
 test("a page with a problem blocks publishing, naming the page, until it is fixed", async ({ page, request }) => {
   const title = `Checked ${Math.random().toString(36).slice(2, 8)}`;
@@ -19,7 +19,7 @@ test("a page with a problem blocks publishing, naming the page, until it is fixe
         headers: { "content-type": "application/octet-stream" },
       })
     ).json();
-    await page.locator(".ProseMirror").click();
+    await (await editablePage(page)).click();
     await page.keyboard.type("Before the picture");
     await expect(page.getByRole("status")).toHaveText("Saved");
     const draft = await (await request.get(`/api/pages/${pageId}/draft`)).json();

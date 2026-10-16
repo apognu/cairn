@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
-import { nameNewPage, publishAll } from "./helpers";
+import { editablePage, nameNewPage, publishAll } from "./helpers";
 
 test("publishing writes one page per page, with its text", async ({ page }) => {
   const slug = `pub-${Math.random().toString(36).slice(2, 8)}`;
@@ -9,7 +9,7 @@ test("publishing writes one page per page, with its text", async ({ page }) => {
   await page.getByRole("button", { name: "New page" }).click();
   await nameNewPage(page, slug);
   await page.getByRole("button", { name: slug, exact: true }).click();
-  await page.locator(".ProseMirror").click();
+  await (await editablePage(page)).click();
   await page.keyboard.type("Hello from the editor");
   await expect(page.getByRole("status")).toHaveText("Saved");
 

@@ -3,7 +3,7 @@ import { cpSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, type Locator, test } from "@playwright/test";
-import { nameNewPage, publishAll } from "./helpers";
+import { editablePage, nameNewPage, publishAll } from "./helpers";
 
 test("a custom component appears in the slash menu, renders in the editor and on the published site", async ({
   page,
@@ -15,7 +15,7 @@ test("a custom component appears in the slash menu, renders in the editor and on
   await nameNewPage(page, slug);
   await page.getByRole("button", { name: slug, exact: true }).click();
 
-  const editor = page.locator(".ProseMirror");
+  const editor = await editablePage(page);
   await editor.click();
   await page.keyboard.type("/acme note");
   await expect(page.getByRole("option", { name: /Acme note/ })).toBeVisible();
@@ -56,7 +56,7 @@ test("a custom component styled with utilities alone is styled in the editor and
   await nameNewPage(page, slug);
   await page.getByRole("button", { name: slug, exact: true }).click();
 
-  await page.locator(".ProseMirror").click();
+  await (await editablePage(page)).click();
   await page.keyboard.type("/acme tip");
   await expect(page.getByRole("option", { name: /Acme tip/ })).toBeVisible();
   await page.keyboard.press("Enter");

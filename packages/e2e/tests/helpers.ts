@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { type APIRequestContext, expect, type Page } from "@playwright/test";
+import { type APIRequestContext, expect, type Locator, type Page } from "@playwright/test";
 
 /**
  * Opens the publish dialog and confirms it, then waits for the "Published N pages" note. Every test shares one site, and a page another
@@ -96,4 +96,15 @@ export async function slashCommand(page: Page, query: string, title: string) {
   await page.keyboard.type(`/${query}`);
   await expect(page.getByRole("option", { selected: true }).locator("strong")).toHaveText(title);
   await page.keyboard.press("Enter");
+}
+
+/**
+ * The open page's editor, once it can be typed in. Until the page's lock is taken the page shows read-only, and once it is the editor
+ * replaces that view and puts the cursor at the start (`data-ready` then): a click, a key or a slash command before then lands in the
+ * read-only view or is moved back to the start.
+ */
+export async function editablePage(page: Page): Promise<Locator> {
+  const editor = page.locator('[data-ready] > .ProseMirror[contenteditable="true"]');
+  await expect(editor).toBeVisible();
+  return editor;
 }

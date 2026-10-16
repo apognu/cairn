@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { nameNewPage, publishAll } from "./helpers";
+import { editablePage, nameNewPage, publishAll } from "./helpers";
 
 test("restoring a version creates a new draft and keeps the replaced one, and the trash gives a page its URL back", async ({
   page,
@@ -10,7 +10,7 @@ test("restoring a version creates a new draft and keeps the replaced one, and th
   await page.goto("/");
   await page.getByRole("button", { name: "New page" }).click();
   await nameNewPage(page, title);
-  await page.locator(".ProseMirror").click();
+  await (await editablePage(page)).click();
   await page.keyboard.type("first version");
   await expect(page.getByRole("status")).toHaveText("Saved");
   const id = new URL(page.url()).hash.replace("#page=", "");
@@ -23,7 +23,7 @@ test("restoring a version creates a new draft and keeps the replaced one, and th
   await page.reload();
   await expect(page.getByRole("button", { name: renamed, exact: true })).toBeVisible();
   const renamedUrl = (await (await request.get(`/api/pages/${id}/url`)).json()).url;
-  await page.locator(".ProseMirror").click();
+  await (await editablePage(page)).click();
   await page.keyboard.type(" and then a second");
   await expect(page.getByRole("status")).toHaveText("Saved");
   const versionsBefore = (await (await request.get(`/api/pages/${id}/history`)).json()).length;

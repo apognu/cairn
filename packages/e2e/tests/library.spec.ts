@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
-import { nameNewPage, publishAll, slashCommand } from "./helpers";
+import { editablePage, nameNewPage, publishAll, slashCommand } from "./helpers";
 
 test("a variable and a snippet are used on a page, and a snippet cannot include itself", async ({ page }) => {
   const tag = Math.random().toString(36).slice(2, 8);
@@ -36,7 +36,7 @@ test("a variable and a snippet are used on a page, and a snippet cannot include 
   await page.getByRole("button", { name: "Back to pages" }).click();
   await page.getByRole("button", { name: "New page" }).click();
   await nameNewPage(page, title);
-  await page.locator(".ProseMirror").click();
+  await (await editablePage(page)).click();
   await page.keyboard.type("Version ");
   await slashCommand(page, "variable", "Variable");
   const panel = page.getByRole("complementary", { name: "Component settings" });
@@ -91,7 +91,7 @@ test("a term marked in a page shows as a dfn linking to the Glossary page", asyn
   await page.getByRole("button", { name: "Back to pages" }).click();
   await page.getByRole("button", { name: "New page" }).click();
   await nameNewPage(page, title);
-  await page.locator(".ProseMirror").click();
+  await (await editablePage(page)).click();
   await page.keyboard.type(`We love ${term} a lot`);
   // Select the term's words and mark them.
   for (let i = 0; i < " a lot".length; i++) await page.keyboard.press("ArrowLeft");

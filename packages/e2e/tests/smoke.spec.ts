@@ -1,5 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
-import { nameNewPage, PNG, publishAll, quiet, slashCommand } from "./helpers";
+import { editablePage, nameNewPage, PNG, publishAll, quiet, slashCommand } from "./helpers";
 
 // The whole path of the M1 acceptance criteria: write three nested pages with an image and a callout, publish, and read them on the
 // published site with working search.
@@ -27,7 +27,7 @@ test("write, publish and read three nested pages with an image and a callout", a
   await createPage(page, linux, install);
 
   await page.getByRole("button", { name: linux, exact: true }).click();
-  const editor = page.locator(".ProseMirror");
+  const editor = await editablePage(page);
   await editor.click();
   await page.keyboard.type(`Platypus installation steps for ${tag}`);
   await page.keyboard.press("Enter");
