@@ -1,4 +1,5 @@
 import { Extension } from "@tiptap/core";
+import type { Node as PMNode } from "@tiptap/pm/model";
 import { Plugin, PluginKey, TextSelection } from "@tiptap/pm/state";
 import { Decoration, DecorationSet, type EditorView } from "@tiptap/pm/view";
 
@@ -9,6 +10,12 @@ const TEXT = "Write content here…";
  * it is, since an empty paragraph would publish as a blank line. A page that already ends in an empty paragraph (the one kept after a
  * final table or tabs) shows the text in it; any other page gets a line after its last block that adds that paragraph when clicked.
  */
+/** Whether the page ends in the empty paragraph that shows the line: it is the place to write next, not a block yet. */
+export function endsInPhantomLine(doc: PMNode): boolean {
+  const last = doc.lastChild;
+  return last?.type.name === "paragraph" && last.content.size === 0;
+}
+
 export const PhantomLine = Extension.create({
   name: "phantomLine",
   addProseMirrorPlugins() {
@@ -37,7 +44,7 @@ export const PhantomLine = Extension.create({
             const last = doc.lastChild;
             if (!last) return null;
 
-            if (last.type.name === "paragraph" && last.content.size === 0) {
+            if (endsInPhantomLine(doc)) {
               const from = doc.content.size - last.nodeSize;
               // With the cursor in it, the text would push the cursor to its right: the line is plain and empty while written in.
               if (state.selection.from > from) return null;

@@ -2,6 +2,7 @@ import { Extension } from "@tiptap/core";
 import type { Node as PMNode } from "@tiptap/pm/model";
 import { NodeSelection, Plugin, PluginKey, type Selection, TextSelection } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
+import { endsInPhantomLine } from "./phantom";
 
 const GRIP =
   '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="5" r="1.6"/><circle cx="15" cy="5" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="19" r="1.6"/><circle cx="15" cy="19" r="1.6"/></svg>';
@@ -72,10 +73,10 @@ function handleView(view: EditorView) {
     if (!host || dragged !== null || pressed) return;
     if (!near(event)) return hideHandle();
 
-    const block = blocks(view)
-      .filter((b) => b.rect.top <= event.clientY + 4)
-      .at(-1);
-    if (!block) return hideHandle();
+    const all = blocks(view);
+    const block = all.filter((b) => b.rect.top <= event.clientY + 4).at(-1);
+    // Below the last block is the phantom line, which has no handle until something is written in it.
+    if (!block || (block === all.at(-1) && event.clientY > block.rect.bottom + 8)) return hideHandle();
 
     const area = host.getBoundingClientRect();
     // Centered on the first line of text; other blocks (tables, components) get it at their top edge.
@@ -171,11 +172,18 @@ function handleView(view: EditorView) {
   };
 }
 
-/** The top-level blocks, top to bottom, with where they are on screen. */
+/** How many top-level blocks can move: all but the empty paragraph of the phantom line, which stays last. */
+function movable(doc: PMNode): number {
+  return doc.childCount - (endsInPhantomLine(doc) ? 1 : 0);
+}
+
+/** The top-level blocks that can move, top to bottom, with where they are on screen. */
 function blocks(view: EditorView): Block[] {
   const list: Block[] = [];
+  const count = movable(view.state.doc);
 
   view.state.doc.forEach((node, pos, index) => {
+    if (index >= count) return;
     const dom = view.nodeDOM(pos);
     if (dom instanceof HTMLElement) list.push({ index, node, dom, rect: dom.getBoundingClientRect() });
   });
@@ -219,7 +227,8 @@ function moveByKey(view: EditorView, direction: -1 | 1): boolean {
     selection instanceof NodeSelection || (selection instanceof TextSelection && selection.$to.index(0) === index);
   if (!within) return false;
   // Consumed even at the ends, so the keys never fall through to the browser's own selection change.
-  if (index + direction < 0 || index + direction >= doc.childCount) return true;
+  const count = movable(doc);
+  if (index >= count || index + direction < 0 || index + direction >= count) return true;
 
   moveBlock(view, index, direction < 0 ? index - 1 : index + 2, (after, shift) =>
     selection instanceof NodeSelection

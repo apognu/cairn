@@ -24,6 +24,8 @@ async function openPage(page: Page, request: APIRequestContext) {
         ],
       },
       paragraph("Last paragraph", "last-id"),
+      // The empty paragraph a page keeps at its end, where the phantom line shows.
+      { type: "paragraph" },
     ],
   };
   await saveDraft(request, created.id, doc, null);
@@ -100,6 +102,34 @@ test("a heading keeps its ID when moved", async ({ page, request }) => {
   const draft = await (await request.get(`/api/pages/${id}/draft`)).json();
   const heading = draft.doc.content.find((node: { type: string }) => node.type === "heading");
   expect(heading.attrs.id).toBe("alpha-id");
+});
+
+test("the phantom line stays last, with no handle, until something is written in it", async ({ page, request }) => {
+  await openPage(page, request);
+  const phantom = page.locator(".ProseMirror > p:last-child");
+  const endsEmpty = () =>
+    page.evaluate(() => {
+      const { editor } = document.querySelector(".ProseMirror") as unknown as {
+        editor: { getJSON: () => { content: { type: string; content?: unknown[] }[] } };
+      };
+      const last = editor.getJSON().content.at(-1);
+      return last?.type === "paragraph" && !last.content?.length;
+    });
+
+  await phantom.hover();
+  await expect(page.locator(".block-handle")).toBeHidden();
+
+  // Dropped on the phantom line: the block goes just above it.
+  const line = await phantom.boundingBox();
+  if (!line) throw new Error("not laid out");
+  await drag(page, page.getByText("First paragraph"), line.y + line.height / 2);
+  await expect.poll(() => blocks(page)).toEqual(["Alpha", "cards", "tabs", "Last paragraph", "First paragraph"]);
+  expect(await endsEmpty()).toBe(true);
+
+  await phantom.click();
+  await page.keyboard.type("Now a block");
+  await page.getByText("Now a block").hover();
+  await expect(page.locator(".block-handle")).toBeVisible();
 });
 
 test("Alt+Shift+Up and Down move the block at the cursor", async ({ page, request }) => {
