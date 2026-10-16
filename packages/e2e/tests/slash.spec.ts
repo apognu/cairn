@@ -192,3 +192,51 @@ test("on a narrower window, block settings open from their button, Alt+Enter or 
   await editor.locator(".feature-tabs").dblclick();
   await expect(drawer).toBeVisible();
 });
+
+test("steps are added with Enter or the button, and removed or merged with Backspace", async ({ page }) => {
+  const title = `Steps ${Math.random().toString(36).slice(2, 8)}`;
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "New page" }).click();
+  await nameNewPage(page, title);
+  await page.getByRole("button", { name: title, exact: true }).click();
+
+  const editor = page.locator(".ProseMirror");
+  await editor.click();
+  await page.keyboard.type("/steps");
+  await page.keyboard.press("Enter");
+
+  // Each step's lines, the first being its title.
+  const steps = editor.locator("ol.steps > li.step");
+  const lines = () => steps.evaluateAll((items) => items.map((li) => [...li.children].map((p) => p.textContent)));
+
+  // The cursor starts on the second step's body. Enter on an empty last line starts the next step.
+  await page.keyboard.type("Body");
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("Third");
+  await expect.poll(lines).toEqual([["First step", ""], ["Second step", "Body"], ["Third"]]);
+
+  // Backspace at the start of a title makes the step a line of the one before. ProseMirror reads the cursor moved by Home a moment
+  // later, as it does for a person's keys.
+  await page.keyboard.press("Home");
+  await page.waitForTimeout(100);
+  await page.keyboard.press("Backspace");
+  await expect.poll(lines).toEqual([
+    ["First step", ""],
+    ["Second step", "Body", "Third"],
+  ]);
+
+  // The button adds an empty step; Backspace removes it again.
+  await page.getByRole("button", { name: "+ Add step" }).click();
+  await expect(steps).toHaveCount(3);
+  await page.keyboard.press("Backspace");
+  await expect(steps).toHaveCount(2);
+
+  // Enter on an empty step leaves the block, as in a list.
+  await page.getByRole("button", { name: "+ Add step" }).click();
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("After the steps");
+  await expect(steps).toHaveCount(2);
+  await expect(editor.locator("ol.steps + p")).toHaveText("After the steps");
+});
