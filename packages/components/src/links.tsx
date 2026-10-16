@@ -75,13 +75,20 @@ export const relatedPages = defineComponent({
 });
 
 function SeeAlsoLinks({ ids }: { ids: string[] }) {
-  const { urls, pages } = useRenderEnv();
+  const { urls, pages, editing } = useRenderEnv();
   const found = ids.filter((id) => urls[id] && pages[id]);
+
+  if (found.length === 0)
+    return editing ? (
+      <aside className="see-also" data-empty>
+        Choose pages in the settings panel
+      </aside>
+    ) : null;
 
   return (
     <aside className="see-also">
-      <strong>See also</strong>
-      <ul>
+      <strong className="see-also-title">See also</strong>
+      <ul className="see-also-links">
         {found.map((id) => (
           <li key={id}>
             <a href={urls[id]}>{pages[id].title}</a>

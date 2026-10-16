@@ -325,8 +325,9 @@
   font-size: 14px;
 }
 
-/* Each tone sets one colour (`--tone`) for the border, the tint and the icon. */
-.callout {
+/* Each tone sets one colour (`--tone`) for the border, the tint and the icon. A see-also box is drawn as a callout of its own tone. */
+.callout,
+.see-also {
   --tone: var(--accent);
   --tone-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='M12 16v-4M12 8h.01'/%3E%3C/svg%3E");
   position: relative;
@@ -358,8 +359,13 @@
   --tone-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 9a2.4 2.4 0 0 0-.706-1.706l-3.588-3.588A2.4 2.4 0 0 0 15 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2zM15 3v5a1 1 0 0 0 1 1h5'/%3E%3C/svg%3E");
 }
 
+.see-also {
+  --tone-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71'/%3E%3C/svg%3E");
+}
+
 /* Drawn by CSS, not markup, so the editor's callout (a plain node) and the published one show the same icon. Centred on the first line. */
-.callout::before {
+.callout::before,
+.see-also::before {
   content: "";
   position: absolute;
   top: calc(16px + (1.6em - 18px) / 2);
@@ -632,21 +638,26 @@ a.link-card:hover {
   font-size: 18px;
 }
 
-.see-also {
-  margin: var(--gap-block, 1.75em) 0;
-  padding: 12px 16px;
-  border-left: 3px solid var(--accent);
-  border-radius: 0 8px 8px 0;
-  background: var(--bg-side);
+/* The frame is the callout's (above). One link per line, so a long title wraps on its own. Under `.doc-content`, or the page's own
+   list margins win. */
+.see-also-title {
+  display: block;
 }
 
-.see-also ul {
+.doc-content .see-also-links {
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px 18px;
-  margin: 6px 0 0;
+  flex-direction: column;
+  gap: 2px;
+  margin: 4px 0 0;
   padding: 0;
   list-style: none;
+}
+
+/* While editing, before any page is chosen: the frame's outline, no colour. */
+.see-also[data-empty] {
+  --tone: var(--border-input);
+  border-style: dashed;
+  color: var(--muted);
 }
 
 /* Steps: a numbered procedure. The first paragraph of a step is its title. */
