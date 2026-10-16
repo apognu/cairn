@@ -8,7 +8,7 @@ use axum::{
   response::{IntoResponse, Response},
   routing::get,
 };
-use cairn_assets::LocalAssetStore;
+use cairn_assets::ObjectAssetStore;
 use cairn_core::LocalBroadcast;
 use cairn_publish::{Bundles, PublishConfig, PublishTarget, Publisher, PublisherParts};
 use cairn_render::Pool;
@@ -23,8 +23,8 @@ pub struct AppState {
   pub pool: Arc<Pool>,
   pub db: DatabaseConnection,
   pub content: SqlContentStore,
-  pub assets: Arc<LocalAssetStore>,
-  pub publisher: Arc<Publisher<SqlContentStore, LocalAssetStore, LocalBroadcast>>,
+  pub assets: Arc<ObjectAssetStore>,
+  pub publisher: Arc<Publisher<SqlContentStore, ObjectAssetStore, LocalBroadcast>>,
   /// The editor built with the custom components, when there is one; otherwise the embedded editor is served.
   pub editor_dir: Option<Arc<std::path::PathBuf>>,
   /// Which API pages are being checked right now, and the spec each check last merged.
@@ -65,12 +65,12 @@ pub(crate) struct PublishSetup {
 pub(crate) fn publisher(
   db: DatabaseConnection,
   content: SqlContentStore,
-  assets: Arc<LocalAssetStore>,
+  assets: Arc<ObjectAssetStore>,
   pool: Arc<Pool>,
   setup: PublishSetup,
   broadcast: LocalBroadcast,
   target: PublishTarget,
-) -> anyhow::Result<Arc<Publisher<SqlContentStore, LocalAssetStore, LocalBroadcast>>> {
+) -> anyhow::Result<Arc<Publisher<SqlContentStore, ObjectAssetStore, LocalBroadcast>>> {
   Ok(Arc::new(Publisher::new(PublisherParts {
     db,
     content,
@@ -172,7 +172,7 @@ pub(crate) async fn test_state_serving(target: impl FnOnce(&std::path::Path) -> 
 
   let pool = Arc::new(pool);
   let content = SqlContentStore::new(db.clone());
-  let assets = Arc::new(LocalAssetStore::new(&dir.join("assets")).unwrap());
+  let assets = Arc::new(ObjectAssetStore::local(&dir.join("assets")).unwrap());
 
   let state = AppState {
     publisher: publisher(

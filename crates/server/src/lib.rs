@@ -58,7 +58,14 @@ struct Runtime {
   stop: tokio::sync::watch::Sender<bool>,
 }
 
-async fn prepare(data_dir: &std::path::Path, database_url: Option<&str>, site_url: String, auth: AuthSetup, target: cairn_publish::PublishTarget) -> anyhow::Result<Runtime> {
+async fn prepare(
+  data_dir: &std::path::Path,
+  database_url: Option<&str>,
+  assets: &cairn_assets::AssetBackend,
+  site_url: String,
+  auth: AuthSetup,
+  target: cairn_publish::PublishTarget,
+) -> anyhow::Result<Runtime> {
   std::fs::create_dir_all(data_dir).with_context(|| format!("cannot create {}", data_dir.display()))?;
   let db = match database_url {
     Some(url) => cairn_store::connect_url(url).await,
@@ -75,7 +82,7 @@ async fn prepare(data_dir: &std::path::Path, database_url: Option<&str>, site_ur
 
   let pool = Arc::new(pool);
   let content = cairn_store::SqlContentStore::new(db.clone());
-  let assets = Arc::new(cairn_assets::LocalAssetStore::new(&data_dir.join("assets")).context("cannot open the asset store")?);
+  let assets = Arc::new(cairn_assets::ObjectAssetStore::open(assets).context("cannot open the asset store")?);
 
   let events = cairn_core::LocalBroadcast::new();
 
@@ -181,7 +188,7 @@ pub async fn run_dev(bind: SocketAddr, site_bind: SocketAddr, data_dir: PathBuf)
   // Without PUBLIC_URL, the address `dev` serves the site on, whichever port it was given.
   let site_url = env::var("PUBLIC_URL").unwrap_or_else(|_| format!("http://{site_bind}")).trim_end_matches('/').to_string();
   let target = cairn_publish::PublishTarget::Folder(cairn_publish::FolderTarget::new(data_dir.clone()));
-  let Runtime { state, events, .. } = prepare(&data_dir, None, site_url, AuthSetup::Local, target).await?;
+  let Runtime { state, events, .. } = prepare(&data_dir, None, &cairn_assets::AssetBackend::Local(data_dir.join("assets")), site_url, AuthSetup::Local, target).await?;
 
   let editor = tokio::net::TcpListener::bind(bind).await.with_context(|| format!("cannot bind {bind}"))?;
   let site = tokio::net::TcpListener::bind(site_bind).await.with_context(|| format!("cannot bind {site_bind}"))?;
@@ -209,7 +216,7 @@ pub async fn run_serve() -> anyhow::Result<()> {
     config::TargetChoice::Cloudflare(cloudflare) => cairn_publish::PublishTarget::Cloudflare(cairn_publish::CloudflareTarget::new(cloudflare.clone())?),
   };
   let setup = AuthSetup::Oidc(Box::new(config.oidc.clone()), config.github.clone(), redirect);
-  let Runtime { state, stop, .. } = prepare(&config.data_dir, config.database_url.as_deref(), config.site_url.clone(), setup, target).await?;
+  let Runtime { state, stop, .. } = prepare(&config.data_dir, config.database_url.as_deref(), &config.assets, config.site_url.clone(), setup, target).await?;
 
   let listener = tokio::net::TcpListener::bind(config.bind).await.with_context(|| format!("cannot bind {}", config.bind))?;
   tracing::info!(address = %config.bind, public_url = %config.public_url, "listening");

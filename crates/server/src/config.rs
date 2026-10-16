@@ -24,6 +24,10 @@ pub(crate) struct Config {
   /// Where readers find the site: `PUBLIC_URL` when this server serves it, otherwise wherever the target puts it (`SITE_URL`).
   pub(crate) site_url: String,
 
+  // Assets
+  /// Where uploads, the render cache and API specs are kept (`ASSET_STORE`): the data directory unless a bucket is named.
+  pub(crate) assets: cairn_assets::AssetBackend,
+
   // OIDC
   pub(crate) oidc: OidcSettings,
 
@@ -194,10 +198,37 @@ impl Config {
       _ => bail!("PUBLIC_URL must be the https:// address people use (http:// only for localhost), got {public_url}"),
     }
 
+    let data_dir = var("DATA_DIR").map_or_else(|| PathBuf::from("/data"), PathBuf::from);
+    let prefix = var("ASSETS_PREFIX").unwrap_or_default();
+    let assets = match var("ASSET_STORE").as_deref().unwrap_or("local") {
+      "local" => cairn_assets::AssetBackend::Local(data_dir.join("assets")),
+      "s3" => cairn_assets::AssetBackend::S3(cairn_assets::S3Settings {
+        bucket: required("ASSETS_S3_BUCKET").context("ASSET_STORE=s3 needs ASSETS_S3_BUCKET")?,
+        region: var("ASSETS_S3_REGION").unwrap_or_else(|| "us-east-1".into()),
+        endpoint: var("ASSETS_S3_ENDPOINT"),
+        access_key: var("ASSETS_S3_ACCESS_KEY_ID"),
+        secret_key: var("ASSETS_S3_SECRET_ACCESS_KEY"),
+        prefix,
+      }),
+      "gcs" => cairn_assets::AssetBackend::Gcs(cairn_assets::GcsSettings {
+        bucket: required("ASSETS_GCS_BUCKET").context("ASSET_STORE=gcs needs ASSETS_GCS_BUCKET")?,
+        credentials: var("ASSETS_GCS_CREDENTIALS").map(PathBuf::from),
+        endpoint: var("ASSETS_GCS_ENDPOINT"),
+        prefix,
+      }),
+      other => bail!("ASSET_STORE={other} is not available: use local, s3 or gcs"),
+    };
+    if let cairn_assets::AssetBackend::S3(s3) = &assets
+      && s3.access_key.is_some() != s3.secret_key.is_some()
+    {
+      bail!("ASSETS_S3_ACCESS_KEY_ID and ASSETS_S3_SECRET_ACCESS_KEY go together; leave both out to use the environment's AWS credentials");
+    }
+
     Ok(Self {
       bind: parsed("BIND", "0.0.0.0:8080")?,
       database_url: var("DATABASE_URL").map(|url| validate_database_url(&url)).transpose()?,
-      data_dir: var("DATA_DIR").map_or_else(|| PathBuf::from("/data"), PathBuf::from),
+      data_dir,
+      assets,
       site_url: var("SITE_URL").map_or_else(|| public_url.clone(), |url| url.trim_end_matches('/').to_string()),
       public_url,
       trusted_proxies: crate::proxy::TrustedProxies::parse(&var("TRUSTED_PROXIES").unwrap_or_default()).map_err(|e| anyhow::anyhow!("TRUSTED_PROXIES: {e}"))?,
@@ -320,6 +351,30 @@ mod tests {
     for (url, origin) in [("https://docs.example.com/a/b?x=1", "https://docs.example.com"), ("http://localhost:8080", "http://localhost:8080")] {
       assert_eq!(origin_of(url), origin);
     }
+  }
+
+  #[test]
+  fn the_asset_store_is_local_unless_a_bucket_is_named() {
+    use cairn_assets::AssetBackend;
+    let with = |extra: &[(&str, &str)]| load(&[FULL, &[("DATA_DIR", "/srv")], extra].concat());
+
+    assert_eq!(with(&[]).unwrap().assets, AssetBackend::Local("/srv/assets".into()));
+    assert!(with(&[("ASSET_STORE", "s3")]).is_err(), "no bucket");
+    assert!(
+      with(&[("ASSET_STORE", "s3"), ("ASSETS_S3_BUCKET", "b"), ("ASSETS_S3_ACCESS_KEY_ID", "k")]).is_err(),
+      "a key without its secret"
+    );
+    assert!(with(&[("ASSET_STORE", "azure")]).is_err());
+
+    let AssetBackend::S3(s3) = with(&[("ASSET_STORE", "s3"), ("ASSETS_S3_BUCKET", "b"), ("ASSETS_PREFIX", "cairn")]).unwrap().assets else {
+      panic!("not S3")
+    };
+    assert_eq!((s3.region.as_str(), s3.prefix.as_str(), s3.access_key), ("us-east-1", "cairn", None));
+
+    let AssetBackend::Gcs(gcs) = with(&[("ASSET_STORE", "gcs"), ("ASSETS_GCS_BUCKET", "b")]).unwrap().assets else {
+      panic!("not GCS")
+    };
+    assert_eq!((gcs.bucket.as_str(), gcs.credentials, gcs.endpoint), ("b", None, None));
   }
 
   #[test]

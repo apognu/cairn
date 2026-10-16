@@ -12,7 +12,10 @@ workspace = true
 anyhow = "1.0.104"
 image = { version = "0.25.10", default-features = false, features = ["png", "jpeg", "gif", "webp"] }
 imagesize = "0.15.0"
-object_store = "0.14.2"
+object_store = { version = "0.14.2", features = ["aws-base", "gcp-base", "reqwest", "ring"] }
+# object_store's `aws`/`gcp` features bring aws-lc-rs; this keeps the ring-backed rustls the rest of the workspace uses.
+reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider"] }
+rustls = { version = "0.23", default-features = false, features = ["ring"] }
 sha2 = "0.11.1"
 thiserror = "2.0.21"
 tokio = { version = "1.53.2", features = ["rt", "macros"] }

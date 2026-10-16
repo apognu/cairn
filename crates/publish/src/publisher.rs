@@ -1137,7 +1137,7 @@ fn bundle_files(bundles: &Bundles) -> Vec<(String, Vec<u8>)> {
 mod tests {
   use std::{path::Path, time::Duration};
 
-  use cairn_assets::LocalAssetStore;
+  use cairn_assets::ObjectAssetStore;
   use cairn_core::{LocalBroadcast, Placement, UserId};
   use cairn_store::{SqlContentStore, create_page};
 
@@ -1145,7 +1145,7 @@ mod tests {
   use crate::FolderTarget;
 
   struct Fixture {
-    publisher: Publisher<SqlContentStore, LocalAssetStore, LocalBroadcast>,
+    publisher: Publisher<SqlContentStore, ObjectAssetStore, LocalBroadcast>,
     db: DatabaseConnection,
     content: SqlContentStore,
     dir: std::path::PathBuf,
@@ -1176,7 +1176,7 @@ mod tests {
     let publisher = Publisher::new(PublisherParts {
       db: db.clone(),
       content: content.clone(),
-      assets: Arc::new(LocalAssetStore::new(&dir.join("assets")).unwrap()),
+      assets: Arc::new(ObjectAssetStore::local(&dir.join("assets")).unwrap()),
       pool,
       target: if self_hosted {
         PublishTarget::SelfHosted(FolderTarget::new(dir.join("out")))
@@ -1753,7 +1753,7 @@ mod tests {
 
     let f = fixture().await;
     let user = UserId::new();
-    let store = LocalAssetStore::new(&f.dir.join("assets")).unwrap();
+    let store = ObjectAssetStore::local(&f.dir.join("assets")).unwrap();
 
     // What an upload does: the original, its WebP copies and the row that lists them.
     let mut png = Vec::new();
@@ -1879,7 +1879,7 @@ mod tests {
     let restarted = Publisher::new(PublisherParts {
       db: f.db.clone(),
       content: f.content.clone(),
-      assets: Arc::new(LocalAssetStore::new(&f.dir.join("assets")).unwrap()),
+      assets: Arc::new(ObjectAssetStore::local(&f.dir.join("assets")).unwrap()),
       pool: f.publisher.pool.clone(),
       target: PublishTarget::Folder(FolderTarget::new(f.dir.join("out"))),
       bundles: Bundles::new("ssr", b"console.log(2)".to_vec(), b"body{}".to_vec(), b"window.Scalar = {}".to_vec()),
@@ -1996,7 +1996,7 @@ mod tests {
   async fn only_the_render_cache_entries_of_the_live_release_are_kept() {
     let f = fixture().await;
     let user = UserId::new();
-    let assets = LocalAssetStore::new(&f.dir.join("assets")).unwrap();
+    let assets = ObjectAssetStore::local(&f.dir.join("assets")).unwrap();
     let page = create_page(&f.db, user, None, "Guide", Placement::Last).await.unwrap();
     create_page(&f.db, user, None, "Other", Placement::Last).await.unwrap();
 
@@ -2347,7 +2347,7 @@ mod tests {
       let restarted = Publisher::new(PublisherParts {
         db: f.db.clone(),
         content: f.content.clone(),
-        assets: Arc::new(LocalAssetStore::new(&f.dir.join("assets")).unwrap()),
+        assets: Arc::new(ObjectAssetStore::local(&f.dir.join("assets")).unwrap()),
         pool: f.publisher.pool.clone(),
         target: PublishTarget::Folder(FolderTarget::new(f.dir.join("out"))),
         bundles: Bundles::new("ssr", b"console.log(2)".to_vec(), b"body{}".to_vec(), b"window.Scalar = {}".to_vec()),

@@ -2,10 +2,10 @@
 
 #![forbid(unsafe_code)]
 
-mod local;
 mod sniff;
+mod store;
 mod variants;
 
-pub use local::LocalAssetStore;
 pub use sniff::{ImageInfo, inspect, sha256_hex};
+pub use store::{AssetBackend, GcsSettings, ObjectAssetStore, S3Settings};
 pub use variants::{EncodedVariant, MAX_PIXELS, Processed, check_size, process};
