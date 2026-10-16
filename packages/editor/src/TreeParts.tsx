@@ -116,7 +116,7 @@ export function TitleForm({
 
   return (
     <form
-      className="flex-1 flex flex-col gap-1 my-2 py-0.5 px-0"
+      className="flex-1 flex flex-col gap-1 my-2 mr-2 py-0.5 px-0"
       onSubmit={(e) => {
         e.preventDefault();
         if (value.trim() && (!isLink || url.trim()))
@@ -145,7 +145,7 @@ export function TitleForm({
         />
       )}
       {askRedirect && (
-        <label className="flex items-center gap-1.5 text-label text-muted">
+        <label className="flex items-center gap-1.5 mt-1.5 text-label text-muted">
           <input type="checkbox" className="w-auto h-auto" checked={keep} onChange={(e) => setKeep(e.target.checked)} />
           Keep old URL as redirect
         </label>
