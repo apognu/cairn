@@ -1,5 +1,5 @@
 # Reusable: packages the binary from _binary.yml (same run) into the server image and pushes it to ghcr.io: `latest` from main, the
-# version from a `v*` tag, and `sha-…` always. The caller grants `packages: write`.
+# version from a `v*` tag, and the full commit SHA always (no prefix), which deployments follow. The caller grants `packages: write`.
 name: image
 on:
   workflow_call:
@@ -32,7 +32,7 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=sha
+            type=sha,prefix=,format=long
       - uses: docker/build-push-action@v7
         with:
           context: .
