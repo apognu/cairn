@@ -19,8 +19,16 @@ struct Job {
 
 /// Fixed set of threads, each owning one V8 isolate, fed through a bounded queue.
 pub struct Pool {
-  queue: SyncSender<Job>,
+  script: Arc<str>,
+  threads: usize,
+  queue_size: usize,
   timeout: Duration,
+  /// Started by the first job of a lazy pool, so a server that only edits never pays for V8.
+  workers: tokio::sync::OnceCell<Workers>,
+}
+
+struct Workers {
+  queue: SyncSender<Job>,
   /// How long a job may wait for a worker: every job ahead of it running to its limit. Only a pool whose workers are all stuck reaches it.
   queue_wait: Duration,
 }
@@ -35,26 +43,38 @@ enum Watch {
 const GRACE: Duration = Duration::from_secs(2);
 
 impl Pool {
+  /// Starts the workers now: a broken bundle fails here.
   pub fn new(script: &str, threads: usize, queue_size: usize, timeout: Duration) -> Result<Self, RenderError> {
-    let (queue, receiver) = mpsc::sync_channel::<Job>(queue_size);
-    // Workers block on `recv` while holding this lock, which is fine: they are plain threads, not async tasks.
-    let receiver = Arc::new(Mutex::new(receiver));
-    let (ready_tx, ready_rx) = mpsc::channel();
+    let workers = start(script, threads, queue_size, timeout)?;
 
-    for n in 0..threads {
-      let (script, receiver, ready) = (script.to_string(), receiver.clone(), ready_tx.clone());
+    Ok(Self {
+      workers: tokio::sync::OnceCell::new_with(Some(workers)),
+      ..Self::lazy(script, threads, queue_size, timeout)
+    })
+  }
 
-      spawn_v8_thread(format!("render-{n}"), move || work(&script, &receiver, &ready, timeout)).map_err(|e| RenderError::Other(e.into()))?;
+  /// Starts the workers on the first job instead; a broken bundle fails that job (and the next ones, which try again).
+  pub fn lazy(script: &str, threads: usize, queue_size: usize, timeout: Duration) -> Self {
+    Self {
+      script: script.into(),
+      threads,
+      queue_size,
+      timeout,
+      workers: tokio::sync::OnceCell::new(),
     }
+  }
 
-    // Every worker reports once its isolate has loaded the script, so a broken bundle fails startup.
-    for _ in 0..threads {
-      ready_rx.recv().map_err(|e| RenderError::Other(e.into()))??;
-    }
-
-    let queue_wait = (timeout + GRACE) * u32::try_from(queue_size.div_ceil(threads.max(1)) + 1).unwrap_or(u32::MAX);
-
-    Ok(Self { queue, timeout, queue_wait })
+  async fn workers(&self) -> Result<&Workers, RenderError> {
+    self
+      .workers
+      .get_or_try_init(|| async {
+        let (script, threads, queue_size, timeout) = (self.script.clone(), self.threads, self.queue_size, self.timeout);
+        // Loading the bundle in every isolate takes a moment of blocking work.
+        tokio::task::spawn_blocking(move || start(&script, threads, queue_size, timeout))
+          .await
+          .map_err(|e| RenderError::Other(e.into()))?
+      })
+      .await
   }
 
   /// Asks the renderer whether a document would render: unknown blocks and component settings that do not fit their schema. Each
@@ -70,12 +90,13 @@ impl Pool {
     let (reply, response) = oneshot::channel();
     let (started, picked) = oneshot::channel();
 
-    self.queue.try_send(Job { doc, started, reply }).map_err(|e| match e {
+    let workers = self.workers().await?;
+    workers.queue.try_send(Job { doc, started, reply }).map_err(|e| match e {
       TrySendError::Full(_) => RenderError::Busy,
       TrySendError::Disconnected(_) => RenderError::Other(anyhow::anyhow!("render pool is shut down")),
     })?;
 
-    match tokio::time::timeout(self.queue_wait, picked).await {
+    match tokio::time::timeout(workers.queue_wait, picked).await {
       Ok(Ok(())) => {}
       Ok(Err(_)) => return Err(RenderError::Other(anyhow::anyhow!("render worker stopped"))),
       Err(_) => return Err(RenderError::Timeout),
@@ -88,6 +109,28 @@ impl Pool {
       Err(_) => Err(RenderError::Timeout),
     }
   }
+}
+
+fn start(script: &str, threads: usize, queue_size: usize, timeout: Duration) -> Result<Workers, RenderError> {
+  let (queue, receiver) = mpsc::sync_channel::<Job>(queue_size);
+  // Workers block on `recv` while holding this lock, which is fine: they are plain threads, not async tasks.
+  let receiver = Arc::new(Mutex::new(receiver));
+  let (ready_tx, ready_rx) = mpsc::channel();
+
+  for n in 0..threads {
+    let (script, receiver, ready) = (script.to_string(), receiver.clone(), ready_tx.clone());
+
+    spawn_v8_thread(format!("render-{n}"), move || work(&script, &receiver, &ready, timeout)).map_err(|e| RenderError::Other(e.into()))?;
+  }
+
+  // Every worker reports once its isolate has loaded the script, so a broken bundle fails the start.
+  for _ in 0..threads {
+    ready_rx.recv().map_err(|e| RenderError::Other(e.into()))??;
+  }
+
+  let queue_wait = (timeout + GRACE) * u32::try_from(queue_size.div_ceil(threads.max(1)) + 1).unwrap_or(u32::MAX);
+
+  Ok(Workers { queue, queue_wait })
 }
 
 fn work(script: &str, receiver: &Mutex<Receiver<Job>>, ready: &mpsc::Sender<Result<(), RenderError>>, timeout: Duration) {
@@ -194,6 +237,15 @@ mod tests {
   }
 
   /// A bundle that renders by echoing, and spins forever for the input "spin".
+  #[tokio::test]
+  async fn a_lazy_pool_starts_with_its_first_job_and_reports_a_broken_bundle_there() {
+    let broken = Pool::lazy("this is not javascript", 1, 8, Duration::from_secs(5));
+    assert!(broken.render(serde_json::json!("x")).await.is_err());
+
+    let pool = Pool::lazy(SPINNING, 1, 8, Duration::from_secs(5));
+    assert_eq!(pool.render(serde_json::json!("x")).await.unwrap(), "ok:\"x\"");
+  }
+
   const SPINNING: &str = r#"var SSR = { render: function (input) { if (input.indexOf("spin") >= 0) { for (;;) {} } return "ok:" + input; } };"#;
 
   #[tokio::test]

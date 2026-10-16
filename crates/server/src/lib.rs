@@ -78,7 +78,8 @@ async fn prepare(
     Some(dir) => BundleSet::load(Some(&PathBuf::from(dir)), true)?,
     None => BundleSet::load(Some(std::path::Path::new("/app/bundles")), false)?,
   };
-  let pool = Pool::new(&bundles.ssr_js, 2, 64, Duration::from_secs(5)).context("failed to start the render pool")?;
+  // V8 starts with the first preview, check or publish: signing in and editing never wait for it.
+  let pool = Pool::lazy(&bundles.ssr_js, 2, 64, Duration::from_secs(5));
 
   let pool = Arc::new(pool);
   let content = cairn_store::SqlContentStore::new(db.clone());
