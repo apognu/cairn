@@ -87,3 +87,13 @@ export async function nameNewPage(page: Page, title: string) {
   await page.keyboard.press("Enter");
   await expect(page.getByTestId("crumbs")).toContainText(title);
 }
+
+/**
+ * Runs a slash command at the cursor: types "/" and the query, waits until the menu highlights the item titled `title`, and picks it.
+ * The menu follows the typing a moment later, and on a busy machine an Enter that comes first only starts a new line.
+ */
+export async function slashCommand(page: Page, query: string, title: string) {
+  await page.keyboard.type(`/${query}`);
+  await expect(page.getByRole("option", { selected: true }).locator("strong")).toHaveText(title);
+  await page.keyboard.press("Enter");
+}

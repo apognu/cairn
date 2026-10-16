@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
-import { nameNewPage, publishAll } from "./helpers";
+import { nameNewPage, publishAll, slashCommand } from "./helpers";
 
 test("a variable and a snippet are used on a page, and a snippet cannot include itself", async ({ page }) => {
   const tag = Math.random().toString(36).slice(2, 8);
@@ -25,8 +25,7 @@ test("a variable and a snippet are used on a page, and a snippet cannot include 
   await row.getByRole("button", { name: "Edit" }).click();
   await row.locator(".ProseMirror").click();
   await page.keyboard.press("Enter");
-  await page.keyboard.type("/snippet");
-  await page.keyboard.press("Enter");
+  await slashCommand(page, "snippet", "Snippet");
   await row.locator(".snippet").click();
   await row.getByRole("complementary", { name: "Component settings" }).getByLabel("Snippet").selectOption(snippet);
   await row.getByRole("button", { name: "Save snippet" }).click();
@@ -39,16 +38,14 @@ test("a variable and a snippet are used on a page, and a snippet cannot include 
   await nameNewPage(page, title);
   await page.locator(".ProseMirror").click();
   await page.keyboard.type("Version ");
-  await page.keyboard.type("/variable");
-  await page.keyboard.press("Enter");
+  await slashCommand(page, "variable", "Variable");
   const panel = page.getByRole("complementary", { name: "Component settings" });
   await page.locator(".ProseMirror .variable").click();
   await panel.getByLabel("Variable").selectOption(variable);
   await expect(page.locator(".ProseMirror .variable")).toHaveText("9.9.9");
   await page.keyboard.press("End");
   await page.keyboard.press("Enter");
-  await page.keyboard.type("/snippet");
-  await page.keyboard.press("Enter");
+  await slashCommand(page, "snippet", "Snippet");
   await page.locator(".ProseMirror .snippet").click();
   await panel.getByLabel("Snippet").selectOption(snippet);
   await expect(page.locator(".ProseMirror .snippet")).toContainText(`Install the tool before ${tag}.`);

@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
-import { nameNewPage, publishAll } from "./helpers";
+import { nameNewPage, publishAll, slashCommand } from "./helpers";
 
 test("a page created from the picker is in the tree and its link survives a move", async ({ page, request }) => {
   const suffix = Math.random().toString(36).slice(2, 8);
@@ -101,8 +101,7 @@ test("a link card shows the title and description of the page it points to", asy
 
   await page.getByRole("button", { name: host, exact: true }).click();
   await page.locator(".ProseMirror").click();
-  await page.keyboard.type("/link card");
-  await page.keyboard.press("Enter");
+  await slashCommand(page, "link card", "Link card");
 
   // A selected atom shows its settings.
   await page.locator(".ProseMirror .link-card").click();

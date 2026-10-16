@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { nameNewPage, publishFixture, quiet } from "./helpers";
+import { nameNewPage, publishFixture, quiet, slashCommand } from "./helpers";
 
 test("a callout and a code block can be inserted from the slash menu", async ({ page }) => {
   const title = `Slash ${Math.random().toString(36).slice(2, 8)}`;
@@ -20,8 +20,7 @@ test("a callout and a code block can be inserted from the slash menu", async ({ 
 
   // Leave the callout through the paragraph the editor keeps after the last block.
   await page.keyboard.press("ArrowDown");
-  await page.keyboard.type("/code block");
-  await page.keyboard.press("Enter");
+  await slashCommand(page, "code block", "Code block");
   await expect(editor.locator("pre")).toBeVisible();
 
   await page.getByLabel("Language").click();
@@ -79,8 +78,7 @@ test("a component's settings form edits the document", async ({ page, request })
 
   const editor = page.locator(".ProseMirror");
   await editor.click();
-  await page.keyboard.type("/callout");
-  await page.keyboard.press("Enter");
+  await slashCommand(page, "callout", "Callout");
   await page.keyboard.type("Settings test");
 
   const panel = page.getByRole("complementary", { name: "Component settings" });
@@ -104,8 +102,7 @@ test("feature tabs are edited through their settings form", async ({ page }) => 
 
   const editor = page.locator(".ProseMirror");
   await editor.click();
-  await page.keyboard.type("/feature tabs");
-  await page.keyboard.press("Enter");
+  await slashCommand(page, "feature tabs", "Feature tabs");
 
   // A selected atom shows its form.
   await editor.locator(".feature-tabs").click();
@@ -132,8 +129,7 @@ test("a card title is written on the canvas and lands in the page settings", asy
 
   const editor = page.locator(".ProseMirror");
   await editor.click();
-  await page.keyboard.type("/cards");
-  await page.keyboard.press("Enter");
+  await slashCommand(page, "cards", "Cards");
 
   const cardTitle = editor.locator(".feature-title .editable");
   await expect(cardTitle).toHaveText("Card");
@@ -161,8 +157,7 @@ test("on a narrower window, block settings open from their button, Alt+Enter or 
 
   const editor = page.locator(".ProseMirror");
   await editor.click();
-  await page.keyboard.type("/feature tabs");
-  await page.keyboard.press("Enter");
+  await slashCommand(page, "feature tabs", "Feature tabs");
   await editor.locator(".feature-tabs").click();
 
   // The button names the block, and the drawer gives the cursor back to the text when it closes.
@@ -203,8 +198,7 @@ test("steps are added with Enter, and removed or merged with Backspace", async (
 
   const editor = page.locator(".ProseMirror");
   await editor.click();
-  await page.keyboard.type("/steps");
-  await page.keyboard.press("Enter");
+  await slashCommand(page, "steps", "Steps");
 
   // Each step's lines, the first being its title.
   const steps = editor.locator("ol.steps > li.step");

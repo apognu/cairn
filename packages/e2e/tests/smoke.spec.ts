@@ -1,5 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
-import { nameNewPage, PNG, publishAll, quiet } from "./helpers";
+import { nameNewPage, PNG, publishAll, quiet, slashCommand } from "./helpers";
 
 // The whole path of the M1 acceptance criteria: write three nested pages with an image and a callout, publish, and read them on the
 // published site with working search.
@@ -32,14 +32,12 @@ test("write, publish and read three nested pages with an image and a callout", a
   await page.keyboard.type(`Platypus installation steps for ${tag}`);
   await page.keyboard.press("Enter");
 
-  await page.keyboard.type("/callout");
-  await page.keyboard.press("Enter");
+  await slashCommand(page, "callout", "Callout");
   await page.keyboard.type("Run as an administrator.");
   await page.keyboard.press("ArrowDown");
 
   const chooser = page.waitForEvent("filechooser");
-  await page.keyboard.type("/image");
-  await page.keyboard.press("Enter");
+  await slashCommand(page, "image", "Image");
   await (await chooser).setFiles({ name: "step.png", mimeType: "image/png", buffer: PNG });
   await expect(editor.locator("figure img")).toBeVisible();
   // A picture needs a description before the site can be published.
