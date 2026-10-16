@@ -8,6 +8,7 @@ import { LeadField } from "./LeadField";
 import { type LockActions, LockBanner } from "./LockBanner";
 import { discardLocal, readLocal } from "./localDrafts";
 import { usePages } from "./queries";
+import { TitleField } from "./TitleField";
 import { type Page, pageUrls } from "./tree";
 import * as ui from "./ui";
 import { type DraftLock, type InitialDraft, type SaveStatus, saveSettled, useDraftSync } from "./useDraftSync";
@@ -225,6 +226,7 @@ function Editing({
         doc={initial.doc}
         context={context}
         embedded
+        title={<TitleField page={page} />}
         lead={<LeadField page={page} />}
         onChange={onChange}
         onReady={baseline}

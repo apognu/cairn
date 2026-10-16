@@ -300,11 +300,15 @@ const pagerLink =
   "block py-3.5 px-4.5 border border-border rounded-[10px] text-text font-semibold no-underline hover:border-accent";
 const pagerLabel = "block text-muted text-help font-normal";
 
+/** The page title's look, shared with the editor's field that renames the page in place. */
+export const docTitleClass = "doc-title mt-0 mb-4 text-[40px] leading-[1.15] tracking-[-0.025em]";
+
 /** The site chrome around a page body: header, navigation, title and table of contents. */
 export function SiteLayout({
   context,
   headings,
   embedded = false,
+  title,
   lead,
   slots = customSlots,
   children,
@@ -313,6 +317,8 @@ export function SiteLayout({
   headings: Heading[];
   /** Leaves out the site header and navigation, for the editor, which has its own. */
   embedded?: boolean;
+  /** Replaces the page's title heading: the editor puts a field there to rename the page in place. */
+  title?: ReactNode;
   /** Replaces the lead drawn from the page's description: the editor puts a field there to write it in place. */
   lead?: ReactNode;
   /** The layout parts to replace; the deployer's by default. */
@@ -564,11 +570,10 @@ export function SiteLayout({
               <span className="text-body">{context.page.title}</span>
             </nav>
           )}
-          {context.page.title ? (
-            <h1 className={`doc-title mt-0 mb-4 text-[40px] leading-[1.15] tracking-[-0.025em] ${api ? "hidden" : ""}`}>
-              {context.page.title}
-            </h1>
-          ) : null}
+          {title ??
+            (context.page.title ? (
+              <h1 className={`${docTitleClass} ${api ? "hidden" : ""}`}>{context.page.title}</h1>
+            ) : null)}
           {lead ?? (context.page.description ? <p className="doc-lead">{context.page.description}</p> : null)}
           {!embedded && (context.updated || context.markdown) && (
             // Whole-pixel line heights keep everything below at whole-pixel positions, so text is drawn the same wherever the page is

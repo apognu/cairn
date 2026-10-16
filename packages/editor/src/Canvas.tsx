@@ -33,6 +33,8 @@ interface Props {
   onBlur?: () => void;
   /** Where the settings panel of the component under the cursor is drawn. */
   panelHost?: HTMLElement | null;
+  /** In place of the page's title: the field to rename it. */
+  title?: ReactNode;
   /** Drawn under the title in place of the description: the field to write it. */
   lead?: ReactNode;
 }
@@ -47,6 +49,7 @@ export function Canvas({
   onReady,
   onBlur,
   panelHost,
+  title,
   lead,
 }: Props) {
   const editor = useEditor({
@@ -210,7 +213,7 @@ export function Canvas({
     <RenderEnvContext.Provider
       value={{ urls: full.urls, pages: full.pages, variables, snippets, editing: editable, today: full.today }}
     >
-      <SiteLayout context={full} headings={headings} embedded={embedded} lead={lead}>
+      <SiteLayout context={full} headings={headings} embedded={embedded} title={title} lead={lead}>
         {/* Positioned: the block handle is placed against it. */}
         <EditorContent editor={editor} className="relative" />
         {editor && editable && <BubbleMenus editor={editor} />}
