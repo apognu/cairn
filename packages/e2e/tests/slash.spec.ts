@@ -210,9 +210,22 @@ test("steps are added with Enter or the button, and removed or merged with Backs
   const steps = editor.locator("ol.steps > li.step");
   const lines = () => steps.evaluateAll((items) => items.map((li) => [...li.children].map((p) => p.textContent)));
 
-  // The cursor starts on the second step's body. Enter on an empty last line starts the next step.
+  // The cursor starts on the second step's body. Enter on an empty last line leaves the block, as in a list.
   await page.keyboard.type("Body");
   await page.keyboard.press("Enter");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("After the steps");
+  await expect.poll(lines).toEqual([
+    ["First step", ""],
+    ["Second step", "Body"],
+  ]);
+  await expect(editor.locator("ol.steps + p")).toHaveText("After the steps");
+
+  // Enter at the end of a title starts the next step, after the body. As with Home below, ProseMirror reads the moved cursor a moment
+  // later.
+  await editor.getByText("Second step").click();
+  await page.keyboard.press("End");
+  await page.waitForTimeout(100);
   await page.keyboard.press("Enter");
   await page.keyboard.type("Third");
   await expect.poll(lines).toEqual([["First step", ""], ["Second step", "Body"], ["Third"]]);
@@ -236,7 +249,7 @@ test("steps are added with Enter or the button, and removed or merged with Backs
   // Enter on an empty step leaves the block, as in a list.
   await page.getByRole("button", { name: "+ Add step" }).click();
   await page.keyboard.press("Enter");
-  await page.keyboard.type("After the steps");
+  await page.keyboard.type("After the button");
   await expect(steps).toHaveCount(2);
-  await expect(editor.locator("ol.steps + p")).toHaveText("After the steps");
+  await expect(editor.locator("ol.steps + p")).toHaveText("After the button");
 });

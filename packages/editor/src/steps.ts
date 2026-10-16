@@ -18,8 +18,9 @@ const newStep = (view: EditorView) =>
   view.state.schema.nodes.step.create(null, view.state.schema.nodes.paragraph.create());
 
 /**
- * Adding and removing steps. Enter on an empty last line of a step starts the next step, and on an empty step leaves the block, as in a
- * list; Backspace at the start of a step's title merges it into the step before. Editing only: the button is not part of the page.
+ * Adding and removing steps. Enter at the end of a step's title starts the next step, and on an empty last line (or an empty step)
+ * leaves the block, as in a list, so a body can still hold several paragraphs; Backspace at the start of a step's title merges it into
+ * the step before. Editing only: the button is not part of the page.
  */
 export const StepsEditing = Extension.create({
   name: "stepsEditing",
@@ -30,29 +31,33 @@ export const StepsEditing = Extension.create({
     return {
       Enter: ({ editor }) => {
         const at = stepAt(editor.view);
-        if (!at || at.$from.parent.content.size > 0 || at.index !== at.step.childCount - 1) return false;
+        if (!at) return false;
         const { view } = editor;
-        const stepEnd = at.stepPos + at.step.nodeSize;
+        const { $from, step } = at;
+        const stepEnd = at.stepPos + step.nodeSize;
+        const empty = $from.parent.content.size === 0;
 
-        // An empty step (no title, nothing else): out of the block, onto a new paragraph after it.
-        if (at.step.childCount === 1) {
-          const steps = at.$from.node(-2);
-          const stepsPos = at.$from.before(-2);
-          const after = stepsPos + steps.nodeSize;
-          // The only step goes with the whole block; otherwise just this one.
-          const tr =
-            steps.childCount === 1 ? view.state.tr.delete(stepsPos, after) : view.state.tr.delete(at.stepPos, stepEnd);
-          const paragraph = tr.mapping.map(after);
-          tr.insert(paragraph, view.state.schema.nodes.paragraph.create());
-          view.dispatch(tr.setSelection(TextSelection.create(tr.doc, paragraph + 1)).scrollIntoView());
+        // At the end of a title: the next step, after this one's body.
+        if (at.index === 0 && !empty && $from.parentOffset === $from.parent.content.size) {
+          const tr = view.state.tr.insert(stepEnd, newStep(view));
+          view.dispatch(tr.setSelection(TextSelection.create(tr.doc, stepEnd + 2)).scrollIntoView());
           return true;
         }
+        if (!empty || at.index !== step.childCount - 1) return false;
 
-        // The empty last line becomes the title of a new step after this one.
-        const tr = view.state.tr.delete(at.$from.before(), at.$from.after());
-        const next = tr.mapping.map(stepEnd);
-        tr.insert(next, newStep(view));
-        view.dispatch(tr.setSelection(TextSelection.create(tr.doc, next + 2)).scrollIntoView());
+        // An empty last line, or an empty step: out of the block, onto a new paragraph after it. The empty line goes; an empty step goes
+        // with it, and the whole block when it was the only step.
+        const steps = $from.node(-2);
+        const stepsPos = $from.before(-2);
+        const after = stepsPos + steps.nodeSize;
+        const tr = view.state.tr;
+        if (step.childCount > 1) tr.delete($from.before(), $from.after());
+        else if (steps.childCount === 1) tr.delete(stepsPos, after);
+        else tr.delete(at.stepPos, stepEnd);
+
+        const paragraph = tr.mapping.map(after);
+        tr.insert(paragraph, view.state.schema.nodes.paragraph.create());
+        view.dispatch(tr.setSelection(TextSelection.create(tr.doc, paragraph + 1)).scrollIntoView());
         return true;
       },
 
