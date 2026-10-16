@@ -91,14 +91,22 @@ test("a term marked in a page shows as a dfn linking to the Glossary page", asyn
   await page.getByRole("button", { name: "Back to pages" }).click();
   await page.getByRole("button", { name: "New page" }).click();
   await nameNewPage(page, title);
-  await (await editablePage(page)).click();
+  const editor = await editablePage(page);
+  await editor.click();
   await page.keyboard.type(`We love ${term} a lot`);
-  // Select the term's words and mark them.
-  for (let i = 0; i < " a lot".length; i++) await page.keyboard.press("ArrowLeft");
-  await page.keyboard.down("Shift");
-  for (let i = 0; i < term.length; i++) await page.keyboard.press("ArrowLeft");
-  await page.keyboard.up("Shift");
-  await page.getByRole("button", { name: "Glossary term" }).click();
+  // Select the term's words and mark them. The formatting tools show once the editor has the selection; while other tests publish,
+  // it can be lost on the way, so the selection is made again until they show.
+  const mark = page.getByRole("button", { name: "Glossary term" });
+  await expect(async () => {
+    await editor.getByText(`We love ${term} a lot`).click();
+    await page.keyboard.press("End");
+    for (let i = 0; i < " a lot".length; i++) await page.keyboard.press("ArrowLeft");
+    await page.keyboard.down("Shift");
+    for (let i = 0; i < term.length; i++) await page.keyboard.press("ArrowLeft");
+    await page.keyboard.up("Shift");
+    await expect(mark).toBeVisible({ timeout: 2_000 });
+  }).toPass();
+  await mark.click();
   await page.getByLabel("Glossary term", { exact: true }).selectOption(term);
   await page.getByRole("button", { name: "Apply" }).click();
   await expect(page.locator(".ProseMirror dfn.term")).toHaveText(term);
