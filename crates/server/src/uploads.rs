@@ -1,11 +1,11 @@
 use axum::{
   Json,
-  body::Bytes,
-  extract::{DefaultBodyLimit, Path, State},
-  http::{HeaderValue, StatusCode, header},
+  body::Body,
+  extract::{Path, State},
+  http::{HeaderMap, HeaderValue, StatusCode, header},
   response::{IntoResponse, Response},
 };
-use cairn_assets::{check_size, inspect, process, sha256_hex};
+use cairn_assets::process;
 use cairn_auth::CurrentUser;
 use cairn_core::{Asset, AssetId, AssetStore, AssetVariant, CoreError, original_key, variant_key};
 use cairn_store::{NewAsset, asset_by_hash, asset_by_id, get_or_create_asset};
@@ -17,14 +17,13 @@ use crate::{
   error::{AppError, ErrorBody},
 };
 
-/// Largest accepted upload. The body is held in memory for now; streaming comes with the production hardening (M7).
-const MAX_UPLOAD: usize = 25 * 1024 * 1024;
+/// Largest accepted upload. The body streams into the asset store, so this bounds the file decoded for its variants, not the transfer.
+const MAX_UPLOAD: u64 = 25 * 1024 * 1024;
 
 pub(crate) fn routes() -> OpenApiRouter<AppState> {
   OpenApiRouter::new()
     .routes(routes!(upload))
     .layer(axum::middleware::from_fn(|request, next| crate::error::too_large_upload(MAX_UPLOAD / (1024 * 1024), request, next)))
-    .layer(DefaultBodyLimit::max(MAX_UPLOAD))
 }
 
 /// Uploads an image (the request body is the file). Uploading bytes that are already stored returns the existing asset.
@@ -35,27 +34,40 @@ pub(crate) fn routes() -> OpenApiRouter<AppState> {
   (status = 422, body = ErrorBody, description = "not a supported image, too many pixels, or damaged"),
 ))]
 #[instrument(skip_all)]
-async fn upload(State(state): State<AppState>, CurrentUser(user): CurrentUser, body: Bytes) -> Result<(StatusCode, Json<Asset>), AppError> {
+async fn upload(State(state): State<AppState>, CurrentUser(user): CurrentUser, headers: HeaderMap, body: Body) -> Result<(StatusCode, Json<Asset>), AppError> {
+  let announced = headers.get(header::CONTENT_LENGTH).and_then(|v| v.to_str().ok()?.parse::<u64>().ok());
+  if announced.is_some_and(|length| length > MAX_UPLOAD) {
+    return Err(CoreError::TooLarge { limit: MAX_UPLOAD }.into());
+  }
+
   // The type and size come from the bytes, never from what the client says; the size is checked before any pixel is decoded.
-  let info = inspect(&body)?;
-  check_size(&info)?;
-  let bytes = body.len() as u64;
+  let staged = state.assets.stage(body.into_data_stream(), MAX_UPLOAD).await?;
+  let key = original_key(&staged.sha256);
 
-  let (sha256, body) = tokio::task::spawn_blocking(move || (sha256_hex(&body), body)).await.map_err(|e| CoreError::Other(e.into()))?;
-
-  if let Some(existing) = asset_by_hash(&state.db, &sha256).await? {
+  if let Some(existing) = asset_by_hash(&state.db, &staged.sha256).await? {
+    // The row exists but its file may not (a store emptied or switched): this upload puts it back.
+    if state.assets.exists(&key).await? {
+      state.assets.discard(staged).await?;
+    } else {
+      state.assets.keep(staged, &key).await?;
+    }
     return Ok((StatusCode::OK, Json(existing)));
   }
 
   // Decoding and resizing are CPU heavy: never on the async threads.
-  let (source, details) = (body.clone(), info.clone());
-  let processed = tokio::task::spawn_blocking(move || process(&source, &details)).await.map_err(|e| CoreError::Other(e.into()))??;
+  let source = state.assets.read_staged(&staged).await?;
+  let details = staged.info.clone();
+  let processed = match tokio::task::spawn_blocking(move || process(&source, &details)).await.map_err(|e| CoreError::Other(e.into()))? {
+    Ok(processed) => processed,
+    Err(error) => {
+      state.assets.discard(staged).await?;
+      return Err(error.into());
+    }
+  };
 
   // The files first, the row second: a row never points at a missing file, and an orphaned file is harmless.
-  let key = original_key(&sha256);
-  if !state.assets.exists(&key).await? {
-    state.assets.put(&key, body.to_vec()).await?;
-  }
+  let (sha256, bytes, mime) = (staged.sha256.clone(), staged.bytes, staged.info.mime);
+  state.assets.keep(staged, &key).await?;
 
   let mut variants = Vec::with_capacity(processed.variants.len());
   for variant in processed.variants {
@@ -71,7 +83,7 @@ async fn upload(State(state): State<AppState>, CurrentUser(user): CurrentUser, b
     &state.db,
     NewAsset {
       sha256,
-      mime: info.mime.into(),
+      mime: mime.into(),
       width: Some(processed.width),
       height: Some(processed.height),
       bytes,
@@ -126,7 +138,7 @@ mod tests {
   #[tokio::test]
   async fn uploading_the_same_file_twice_stores_it_once() {
     let (state, dir) = crate::app::test_state_with_dir().await;
-    let send = || upload(State(state.clone()), CurrentUser(local_user_id()), Bytes::from_static(PNG));
+    let send = || upload(State(state.clone()), CurrentUser(local_user_id()), HeaderMap::new(), Body::from(PNG));
 
     let (first_status, Json(first)) = send().await.unwrap();
     let (second_status, Json(second)) = send().await.unwrap();
@@ -148,7 +160,7 @@ mod tests {
   #[tokio::test]
   async fn rejects_files_that_are_not_images() {
     let state = test_state().await;
-    let result = upload(State(state), CurrentUser(local_user_id()), Bytes::from_static(b"<svg onload=alert(1)>")).await;
+    let result = upload(State(state), CurrentUser(local_user_id()), HeaderMap::new(), Body::from(&b"<svg onload=alert(1)>"[..])).await;
 
     assert!(matches!(result, Err(AppError::Core(CoreError::Invalid(_)))));
   }
@@ -161,9 +173,22 @@ mod tests {
     bomb[16..20].copy_from_slice(&30_000u32.to_be_bytes());
     bomb[20..24].copy_from_slice(&30_000u32.to_be_bytes());
 
-    let result = upload(State(state), CurrentUser(local_user_id()), Bytes::from(bomb)).await;
+    let result = upload(State(state), CurrentUser(local_user_id()), HeaderMap::new(), Body::from(bomb)).await;
 
     assert!(matches!(result, Err(AppError::Core(CoreError::Invalid(m))) if m.contains("pixels")));
+  }
+
+  #[tokio::test]
+  async fn a_file_past_the_limit_is_refused_while_it_streams_and_leaves_nothing() {
+    let (state, dir) = crate::app::test_state_with_dir().await;
+    // An image header followed by more than the limit, sent in chunks and without a length, as a client streaming it would.
+    let chunks = std::iter::once(Ok::<_, std::io::Error>(bytes::Bytes::from_static(PNG))).chain((0..30).map(|_| Ok(bytes::Bytes::from(vec![0u8; 1 << 20]))));
+    let body = Body::from_stream(futures_util::stream::iter(chunks));
+
+    let result = upload(State(state), CurrentUser(local_user_id()), HeaderMap::new(), body).await;
+
+    assert!(matches!(result, Err(AppError::Core(CoreError::TooLarge { .. }))));
+    assert!(walk(&dir.join("assets")).is_empty());
   }
 
   fn walk(dir: &std::path::Path) -> Vec<std::path::PathBuf> {

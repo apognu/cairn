@@ -55,6 +55,7 @@ impl IntoResponse for AppError {
       AppError::Store(StoreError::Invalid(reason)) => (StatusCode::UNPROCESSABLE_ENTITY, Some(reason.clone()), vec![reason.clone()]),
       AppError::Core(CoreError::NotFound) => (StatusCode::NOT_FOUND, None, vec![]),
       AppError::Core(CoreError::Conflict { .. }) => (StatusCode::CONFLICT, None, vec![]),
+      AppError::Core(CoreError::TooLarge { .. }) => (StatusCode::PAYLOAD_TOO_LARGE, None, vec![]),
       AppError::Core(CoreError::Invalid(reason)) => (StatusCode::UNPROCESSABLE_ENTITY, Some(reason.clone()), vec![reason.clone()]),
       AppError::Publish(PublishError::Api(problems)) => (StatusCode::UNPROCESSABLE_ENTITY, None, problems.iter().map(ToString::to_string).collect()),
       AppError::Publish(PublishError::ApiSource { .. }) => (StatusCode::UNPROCESSABLE_ENTITY, None, vec![self.to_string()]),
@@ -136,7 +137,7 @@ pub(crate) async fn rejections_as_json(request: axum::extract::Request, next: ax
 }
 
 /// An upload over the limit says what the limit is, which the editor shows as it is.
-pub(crate) async fn too_large_upload(limit_mb: usize, request: axum::extract::Request, next: axum::middleware::Next) -> Response {
+pub(crate) async fn too_large_upload(limit_mb: u64, request: axum::extract::Request, next: axum::middleware::Next) -> Response {
   let response = next.run(request).await;
   if response.status() != StatusCode::PAYLOAD_TOO_LARGE {
     return response;

@@ -644,7 +644,9 @@ name = "cairn-assets"
 version = "0.0.0"
 dependencies = [
  "anyhow",
+ "bytes",
  "cairn-core",
+ "futures-util",
  "image",
  "imagesize",
  "object_store",

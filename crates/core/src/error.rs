@@ -8,6 +8,9 @@ pub enum CoreError {
   Conflict { base: Option<crate::RevisionId> },
   #[error("invalid: {0}")]
   Invalid(String),
+  /// An upload went past the size limit, in bytes.
+  #[error("larger than {limit} bytes")]
+  TooLarge { limit: u64 },
   #[error(transparent)]
   Other(#[from] anyhow::Error),
 }

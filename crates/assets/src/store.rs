@@ -42,7 +42,7 @@ pub struct GcsSettings {
 
 /// Assets in a folder or a bucket, through `object_store`, keyed by content hash.
 pub struct ObjectAssetStore {
-  store: Arc<dyn ObjectStore>,
+  pub(crate) store: Arc<dyn ObjectStore>,
 }
 
 impl ObjectAssetStore {
@@ -100,7 +100,7 @@ fn prefixed(store: Arc<dyn ObjectStore>, prefix: &str) -> Arc<dyn ObjectStore> {
   }
 }
 
-fn other(error: object_store::Error) -> CoreError {
+pub(crate) fn other(error: object_store::Error) -> CoreError {
   match error {
     object_store::Error::NotFound { .. } => CoreError::NotFound,
     error => CoreError::Other(error.into()),
