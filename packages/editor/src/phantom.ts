@@ -39,6 +39,8 @@ export const PhantomLine = Extension.create({
 
             if (last.type.name === "paragraph" && last.content.size === 0) {
               const from = doc.content.size - last.nodeSize;
+              // With the cursor in it, the text would push the cursor to its right: the line is plain and empty while written in.
+              if (state.selection.from > from) return null;
               return DecorationSet.create(doc, [
                 Decoration.node(from, doc.content.size, { class: "phantom-line", "data-placeholder": TEXT }),
               ]);
