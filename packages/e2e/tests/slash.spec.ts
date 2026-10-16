@@ -24,7 +24,10 @@ test("a callout and a code block can be inserted from the slash menu", async ({ 
   await page.keyboard.press("Enter");
   await expect(editor.locator("pre")).toBeVisible();
 
-  await page.getByLabel("Language").selectOption("json");
+  await page.getByLabel("Language").click();
+  await page.getByLabel("Search languages").fill("json");
+  await page.keyboard.press("Enter");
+  await expect(page.getByLabel("Language")).toHaveText("JSON");
   await page.getByLabel("File name").fill("config.json");
   await expect(editor.locator("pre[data-file-name='config.json'] code.language-json")).toHaveCount(1);
 });
