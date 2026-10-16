@@ -16,6 +16,22 @@ export const PhantomLine = Extension.create({
       new Plugin({
         key: new PluginKey("phantomLine"),
         props: {
+          // The gap between the last block and the line is the editor's own box, and next to a non-editable last child the browser
+          // puts no caret there: the click would leave the cursor where it was. It goes to the end of the page instead, as it did
+          // before the line was drawn.
+          handleDOMEvents: {
+            mousedown: (view, event) => {
+              const blocks = [...view.dom.children].filter((el) => el.getAttribute("contenteditable") !== "false");
+              const lastBlock = blocks.at(-1);
+              if (event.target !== view.dom || !lastBlock || event.clientY < lastBlock.getBoundingClientRect().bottom)
+                return false;
+
+              event.preventDefault();
+              view.dispatch(view.state.tr.setSelection(TextSelection.atEnd(view.state.doc)).scrollIntoView());
+              view.focus();
+              return true;
+            },
+          },
           decorations: (state) => {
             const { doc } = state;
             const last = doc.lastChild;
