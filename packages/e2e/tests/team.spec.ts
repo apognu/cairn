@@ -2,7 +2,7 @@ import { type Browser, expect, type Page, test } from "@playwright/test";
 import { editablePage, nameNewPage } from "./helpers";
 
 // Two people on `cairn serve` (:3400), signed in as alice and bob through the local Dex. Alice signed in first (`serve.spec`), so she is
-// the admin; bob starts as a viewer and is made admin too, so he can edit, force a take-over and publish.
+// the admin; bob starts as a viewer and is given the role each test needs (admin, to edit, force a take-over and publish).
 const SERVER = "http://127.0.0.1:3400";
 
 async function signedIn(browser: Browser, login: string): Promise<Page> {
@@ -19,8 +19,8 @@ async function signedIn(browser: Browser, login: string): Promise<Page> {
   return page;
 }
 
-/** Alice and bob, both admins. */
-async function signedInPair(browser: Browser): Promise<[Page, Page]> {
+/** Alice, the admin, and bob with `role`. */
+async function signedInPair(browser: Browser, role = "admin"): Promise<[Page, Page]> {
   const alice = await signedIn(browser, "alice");
   const bob = await signedIn(browser, "bob");
   const users: { id: string; name: string; role: string }[] = await (
@@ -29,7 +29,7 @@ async function signedInPair(browser: Browser): Promise<[Page, Page]> {
   const id = users.find((u) => u.name === "bob")?.id;
   const promoted = await alice.request.put(`${SERVER}/_editor/api/users/${id}/role`, {
     headers: { origin: SERVER },
-    data: { role: "admin" },
+    data: { role },
   });
   expect(promoted.status()).toBe(200);
   // Bob's editor read his role when it opened.
@@ -183,4 +183,35 @@ test("a hotfix of my changes leaves everyone else's drafts pending", async ({ br
   const titles = pending.changes.map((c: { title: string }) => c.title);
   expect(titles).toContain(theirs);
   expect(titles).not.toContain(mine);
+});
+
+test("a viewer reads pages but cannot change or publish them", async ({ browser }) => {
+  const title = `viewer-${Math.random().toString(36).slice(2, 8)}`;
+  const [alice, bob] = await signedInPair(browser, "viewer");
+
+  await alice.getByRole("button", { name: "New page" }).click();
+  await nameNewPage(alice, title);
+  await (await editablePage(alice)).click();
+  await alice.keyboard.type("Only alice writes here");
+  await expect(alice.getByRole("status").first()).toHaveText("Saved");
+  // Alice leaves the page, so nothing but bob's role keeps him from editing it.
+  await alice.getByRole("button", { name: "New page" }).click();
+  await nameNewPage(alice, `${title}-other`);
+
+  await bob.reload();
+  await bob.getByRole("button", { name: title, exact: true }).click();
+  await expect(bob.getByTestId("lock-banner")).toContainText("You can read this page. Your role is viewer.");
+  await expect(bob.locator(".ProseMirror")).toContainText("Only alice writes here");
+  await expect(bob.locator(".ProseMirror")).toHaveAttribute("contenteditable", "false");
+  await expect(bob.getByRole("button", { name: "New page" })).toHaveCount(0);
+  await expect(bob.getByRole("button", { name: /^(Publish|Preview)/ })).toHaveCount(0);
+
+  // The server refuses too, whatever the editor shows.
+  const id = (await (await bob.request.get(`${SERVER}/_editor/api/pages`)).json()).find(
+    (p: { title: string }) => p.title === title,
+  ).id;
+  const lock = await bob.request.post(`${SERVER}/_editor/api/pages/${id}/lock`, { headers: { origin: SERVER } });
+  expect(lock.status()).toBe(403);
+  const publish = await bob.request.post(`${SERVER}/_editor/api/publish`, { headers: { origin: SERVER } });
+  expect(publish.status()).toBe(403);
 });
