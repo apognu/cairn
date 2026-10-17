@@ -9,6 +9,8 @@ pub struct Model {
   pub review_by: Option<String>,
   pub updated_by: Uuid,
   pub updated_at: String,
+  pub reviewed_by: Option<Uuid>,
+  pub reviewed_at: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

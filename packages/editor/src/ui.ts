@@ -64,6 +64,7 @@ const badgeColors: Record<string, string> = {
   moved: "bg-badge-move-bg text-badge-move",
   header: "bg-badge-move-bg text-badge-move",
   deleted: "bg-badge-del-bg text-badge-del",
+  review: "bg-warn-bg text-warn-text",
 };
 
 /** A short tag; a change kind (`new`, `edited`, `moved`…) gives it that kind's color. `margin` replaces the space after it. */

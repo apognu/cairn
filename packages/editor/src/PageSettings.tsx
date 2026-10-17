@@ -270,9 +270,14 @@ function ReviewFields({ pageId }: { pageId: string }) {
   const review = usePageReview(pageId);
   const users = useUsers();
   const save = useSetPageReview(pageId);
-  const current = review.data ?? { owner_id: null, review_by: null };
+  const current: PageReview = review.data ?? { owner_id: null, review_by: null, reviewed_by: null, reviewed_at: null };
   // Both fields are sent on every save: start from what was last sent, so a save made before the previous one answered keeps it.
   const sent = useRef<PageReview | null>(null);
+  // Marking the page reviewed moved its date: what was last sent is out of date.
+  const reviewedAt = review.data?.reviewed_at;
+  useEffect(() => {
+    if (reviewedAt) sent.current = null;
+  }, [reviewedAt]);
   const update = (change: Partial<PageReview>) => {
     sent.current = { ...(sent.current ?? current), ...change };
     save.mutate(sent.current);
@@ -322,6 +327,18 @@ function ReviewFields({ pageId }: { pageId: string }) {
           />
         </div>
       </div>
+      {current.reviewed_at && (
+        <p className={`${ui.drawerNote} mt-2 mb-0`}>
+          Last reviewed
+          {current.reviewed_by && ` by ${users.data?.find((u) => u.id === current.reviewed_by)?.name ?? "someone"}`} on{" "}
+          {new Date(current.reviewed_at).toLocaleDateString("en-GB", {
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+          })}
+          .
+        </p>
+      )}
       {save.isError && (
         <p role="alert" className="text-danger">
           {save.error.message}

@@ -8,6 +8,7 @@ import { LeadField } from "./LeadField";
 import { type LockActions, LockBanner, ViewerBanner } from "./LockBanner";
 import { discardLocal, readLocal } from "./localDrafts";
 import { atLeast, useMe, usePages } from "./queries";
+import { ReviewBanner } from "./ReviewBanner";
 import { TitleField } from "./TitleField";
 import { type Page, pageUrls } from "./tree";
 import * as ui from "./ui";
@@ -30,9 +31,17 @@ export function PageEditor(props: Props) {
   const role = useMe().data?.role;
 
   if (!role) return <p className="text-muted px-2.5">Loading…</p>;
-  // A viewer never takes the lock, so their reading does not keep anyone else from editing.
-  if (!atLeast(role, "editor")) return <ViewerPage page={props.page} onStatus={props.onStatus} />;
-  return <LockedEditor {...props} />;
+  return (
+    <>
+      <ReviewBanner page={props.page} />
+      {/* A viewer never takes the lock, so their reading does not keep anyone else from editing. */}
+      {atLeast(role, "editor") ? (
+        <LockedEditor {...props} />
+      ) : (
+        <ViewerPage page={props.page} onStatus={props.onStatus} />
+      )}
+    </>
+  );
 }
 
 function ViewerPage({ page, onStatus }: Pick<Props, "page" | "onStatus">) {

@@ -23,6 +23,7 @@ mod m0019_lock_activity;
 mod m0020_release_stats;
 mod m0021_page_reviews;
 mod m0022_roles;
+mod m0023_page_reviewed;
 
 struct Migrator;
 
@@ -51,6 +52,7 @@ impl MigratorTrait for Migrator {
       Box::new(m0020_release_stats::Migration),
       Box::new(m0021_page_reviews::Migration),
       Box::new(m0022_roles::Migration),
+      Box::new(m0023_page_reviewed::Migration),
     ]
   }
 }

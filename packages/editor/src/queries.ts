@@ -503,6 +503,22 @@ export function useSetPageReview(id: string) {
   });
 }
 
+/** Records that the user reviewed the page, with the date of its next review. */
+export function useMarkReviewed(id: string) {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (next: string) =>
+      unwrap(
+        await api.POST("/api/pages/{id}/review/done", { params: { path: { id } }, body: { next_review_by: next } }),
+      ),
+    onSuccess: (saved) => {
+      client.setQueryData(["review", id], saved);
+      void client.invalidateQueries({ queryKey: ["stale"] });
+    },
+  });
+}
+
 /** The people who signed in: the owners a page can have, and whom an admin gives roles. */
 export function useUsers() {
   return useQuery({ queryKey: ["users"], queryFn: async () => unwrap(await api.GET("/api/users")) });

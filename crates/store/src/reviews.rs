@@ -30,6 +30,8 @@ pub async fn set_page_review(db: &DatabaseConnection, page: PageId, review: &Pag
     review_by: Set(review.review_by.map(|date| date.to_string())),
     updated_by: Set(by.as_uuid()),
     updated_at: Set(Timestamp::now().to_string()),
+    reviewed_by: Set(None),
+    reviewed_at: Set(None),
   };
   page_review::Entity::insert(row)
     .on_conflict(
@@ -45,7 +47,43 @@ pub async fn set_page_review(db: &DatabaseConnection, page: PageId, review: &Pag
     .exec(db)
     .await?;
 
-  Ok(review.clone())
+  page_review(db, page).await
+}
+
+/// Records that `by` reviewed the page now, and sets when it should be reviewed next. The owner stays as it was.
+pub async fn mark_reviewed(db: &DatabaseConnection, page: PageId, next: Date, by: UserId) -> Result<PageReview, StoreError> {
+  page::Entity::find_by_id(page.as_uuid())
+    .filter(page::Column::DeletedAt.is_null())
+    .one(db)
+    .await?
+    .ok_or(StoreError::NotFound)?;
+
+  let now = Timestamp::now().to_string();
+  let row = page_review::ActiveModel {
+    page_id: Set(page.as_uuid()),
+    owner_id: Set(None),
+    review_by: Set(Some(next.to_string())),
+    updated_by: Set(by.as_uuid()),
+    updated_at: Set(now.clone()),
+    reviewed_by: Set(Some(by.as_uuid())),
+    reviewed_at: Set(Some(now)),
+  };
+  page_review::Entity::insert(row)
+    .on_conflict(
+      OnConflict::column(page_review::Column::PageId)
+        .update_columns([
+          page_review::Column::ReviewBy,
+          page_review::Column::UpdatedBy,
+          page_review::Column::UpdatedAt,
+          page_review::Column::ReviewedBy,
+          page_review::Column::ReviewedAt,
+        ])
+        .to_owned(),
+    )
+    .exec(db)
+    .await?;
+
+  page_review(db, page).await
 }
 
 /// A page whose review date has come, with the ID of its owner.
@@ -90,5 +128,7 @@ fn into_review(row: page_review::Model) -> Result<PageReview, StoreError> {
   Ok(PageReview {
     owner_id: row.owner_id.map(Into::into),
     review_by: row.review_by.as_deref().map(str::parse).transpose().map_err(|e| StoreError::Invalid(format!("bad review date: {e}")))?,
+    reviewed_by: row.reviewed_by.map(Into::into),
+    reviewed_at: row.reviewed_at.as_deref().map(str::parse).transpose().map_err(|e: jiff::Error| StoreError::Other(e.into()))?,
   })
 }

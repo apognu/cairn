@@ -6,9 +6,11 @@ use axum::{
 };
 use cairn_auth::{Editor, local_user_id};
 use cairn_core::{PageId, PageReview, StalePage};
-use cairn_store::{get_user, page_review, set_page_review, stale_pages};
-use jiff::Zoned;
+use cairn_store::{StoreError, get_user, mark_reviewed, page_review, set_page_review, stale_pages};
+use jiff::{Zoned, civil::Date};
+use serde::Deserialize;
 use tracing::instrument;
+use utoipa::ToSchema;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::{
@@ -17,7 +19,7 @@ use crate::{
 };
 
 pub(crate) fn routes() -> OpenApiRouter<AppState> {
-  OpenApiRouter::new().routes(routes!(get_review, set_review)).routes(routes!(stale))
+  OpenApiRouter::new().routes(routes!(get_review, set_review)).routes(routes!(reviewed)).routes(routes!(stale))
 }
 
 /// A page's owner and review date.
@@ -39,6 +41,28 @@ async fn set_review(State(state): State<AppState>, Editor(user): Editor, Path(id
   Ok(Json(set_page_review(&state.db, id, &body, user).await?))
 }
 
+#[derive(Deserialize, ToSchema)]
+struct Reviewed {
+  /// When the page should be reviewed again, after today.
+  #[schema(value_type = String, format = Date)]
+  next_review_by: Date,
+}
+
+/// Records that the signed-in user reviewed the page, and sets its next review date. It leaves the report of pages to review.
+#[utoipa::path(post, path = "/api/pages/{id}/review/done", operation_id = "markPageReviewed", params(("id" = PageId, Path)), request_body = Reviewed, responses(
+  (status = 200, body = PageReview),
+  (status = 404, body = ErrorBody, description = "no such page, or it is in the trash"),
+  (status = 422, body = ErrorBody, description = "the next review date is not after today"),
+))]
+#[instrument(skip_all, fields(page_id = %id))]
+async fn reviewed(State(state): State<AppState>, Editor(user): Editor, Path(id): Path<PageId>, Json(body): Json<Reviewed>) -> Result<Json<PageReview>, AppError> {
+  if body.next_review_by <= Zoned::now().date() {
+    return Err(StoreError::Invalid("the next review date must be after today".into()).into());
+  }
+
+  Ok(Json(mark_reviewed(&state.db, id, body.next_review_by, user).await?))
+}
+
 /// The pages whose review date has come, the most overdue first.
 #[utoipa::path(get, path = "/api/reports/stale", operation_id = "stalePages", responses(
   (status = 200, body = Vec<StalePage>),
@@ -57,7 +81,7 @@ pub(crate) async fn due(state: &AppState) -> Result<Vec<StalePage>, AppError> {
       // An owner whose account is gone owns nothing.
       Some(id) => match get_user(&state.db, id).await {
         Ok(user) => Some(user),
-        Err(cairn_store::StoreError::NotFound) => None,
+        Err(StoreError::NotFound) => None,
         Err(error) => return Err(error.into()),
       },
       None => None,

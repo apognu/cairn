@@ -523,6 +523,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/pages/{id}/review/done": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Records that the signed-in user reviewed the page, and sets its next review date. It leaves the report of pages to review. */
+        post: operations["markPageReviewed"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/pages/{id}/url": {
         parameters: {
             query?: never;
@@ -1421,6 +1438,9 @@ export interface components {
              * @description The day the page should be checked by, `YYYY-MM-DD`.
              */
             review_by?: string | null;
+            /** Format: date-time */
+            reviewed_at?: string | null;
+            reviewed_by?: components["schemas"]["UserId"] | null;
         };
         /** @description Where a page lives and which old URLs lead to it. */
         PageUrl: {
@@ -1583,6 +1603,13 @@ export interface components {
         };
         RestoredDraft: {
             base_revision_id?: components["schemas"]["RevisionId"] | null;
+        };
+        Reviewed: {
+            /**
+             * Format: date
+             * @description When the page should be reviewed again, after today.
+             */
+            next_review_by: string;
         };
         /** @description An immutable snapshot of a page's document. */
         RevisionId: string;
@@ -3146,6 +3173,49 @@ export interface operations {
             };
             /** @description no such page, or it is in the trash */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    markPageReviewed: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["PageId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Reviewed"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageReview"];
+                };
+            };
+            /** @description no such page, or it is in the trash */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description the next review date is not after today */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

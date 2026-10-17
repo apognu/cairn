@@ -283,6 +283,7 @@ mod tests {
     ("POST", "/api/pages/{id}/restore", Role::Editor),
     ("GET", "/api/pages/{id}/review", Role::Viewer),
     ("PUT", "/api/pages/{id}/review", Role::Editor),
+    ("POST", "/api/pages/{id}/review/done", Role::Editor),
     ("GET", "/api/pages/{id}/url", Role::Viewer),
     ("PUT", "/api/pages/{id}/url", Role::Editor),
     ("POST", "/api/publish", Role::Publisher),

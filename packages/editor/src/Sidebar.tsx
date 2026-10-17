@@ -1,7 +1,8 @@
 import { useState } from "react";
+import type { components } from "./api/schema";
 import { DeleteDialog } from "./DeleteDialog";
 import { Icon } from "./icons";
-import { useCan, useCreatePage, useDeletePage, useMovePage, usePending, useRenamePage } from "./queries";
+import { useCan, useCreatePage, useDeletePage, useMovePage, usePending, useRenamePage, useStalePages } from "./queries";
 import { IconButton, MenuItem, placeMenu, rowClass, TitleForm, titleClass } from "./TreeParts";
 import {
   buildTree,
@@ -15,6 +16,8 @@ import {
 } from "./tree";
 import * as ui from "./ui";
 import { markCreated, useLocks } from "./useLock";
+
+type StalePage = components["schemas"]["StalePage"];
 
 interface Props {
   pages: Page[];
@@ -46,6 +49,8 @@ export function Sidebar({ pages, loading, selected, onSelect }: Props) {
   const move = useMovePage();
   const remove = useDeletePage();
   const canEdit = useCan("editor");
+  // Every page due for a review, whoever owns it: the whole team sees what needs checking.
+  const due = new Map((useStalePages().data ?? []).map((s) => [s.page_id, s]));
 
   const run = (action: Promise<unknown>, done?: () => void) =>
     action.then(
@@ -209,6 +214,14 @@ export function Sidebar({ pages, loading, selected, onSelect }: Props) {
               {page.title}
               {page.kind === "link" && <Icon name="external" size={12} className="ml-1.5 text-muted align-[-1px]" />}
             </button>
+          )}
+          {due.has(page.id) && (
+            <span
+              className={`flex-none ${ui.badge("review", "mx-1")} leading-[1.2]`}
+              title={reviewNote(due.get(page.id) as StalePage)}
+            >
+              Review
+            </span>
           )}
           {lockedBy.has(page.id) && (
             <span
@@ -412,6 +425,16 @@ export function Sidebar({ pages, loading, selected, onSelect }: Props) {
 }
 
 /** What follows the pointer while a page is dragged. The browser snapshots the element, so it can go right after. */
+/** "Review due since 3 Oct 2026 · owner Alice": the tooltip of a page's review badge, and the line over a due page. */
+export function reviewNote(due: StalePage): string {
+  const since = new Date(`${due.review_by}T00:00:00`).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+  return `Review due since ${since} · ${due.owner ? `owner ${due.owner.name}` : "no owner"}`;
+}
+
 function dragCard(title: string): HTMLElement {
   const card = document.createElement("div");
   card.className =

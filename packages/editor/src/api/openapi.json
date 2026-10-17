@@ -1708,6 +1708,63 @@
         }
       }
     },
+    "/api/pages/{id}/review/done": {
+      "post": {
+        "summary": "Records that the signed-in user reviewed the page, and sets its next review date. It leaves the report of pages to review.",
+        "operationId": "markPageReviewed",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/PageId"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Reviewed"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageReview"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "no such page, or it is in the trash",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "the next review date is not after today",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/pages/{id}/url": {
       "get": {
         "summary": "The page's URL, custom URL and aliases.",
@@ -4146,6 +4203,24 @@
             ],
             "format": "date",
             "description": "The day the page should be checked by, `YYYY-MM-DD`."
+          },
+          "reviewed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "reviewed_by": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/UserId",
+                "description": "Who last marked the page as reviewed. Set only by marking it; ignored when the owner or date is saved."
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         }
       },
@@ -4639,6 +4714,19 @@
                 "type": "null"
               }
             ]
+          }
+        }
+      },
+      "Reviewed": {
+        "type": "object",
+        "required": [
+          "next_review_by"
+        ],
+        "properties": {
+          "next_review_by": {
+            "type": "string",
+            "format": "date",
+            "description": "When the page should be reviewed again, after today."
           }
         }
       },

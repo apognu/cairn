@@ -1,4 +1,4 @@
-use jiff::civil::Date;
+use jiff::{Timestamp, civil::Date};
 use serde::{Deserialize, Serialize};
 
 use crate::{PageId, User, UserId};
@@ -11,6 +11,12 @@ pub struct PageReview {
   /// The day the page should be checked by, `YYYY-MM-DD`.
   #[cfg_attr(feature = "openapi", schema(value_type = Option<String>, format = Date))]
   pub review_by: Option<Date>,
+  /// Who last marked the page as reviewed. Set only by marking it; ignored when the owner or date is saved.
+  #[serde(default)]
+  pub reviewed_by: Option<UserId>,
+  #[cfg_attr(feature = "openapi", schema(value_type = Option<String>, format = DateTime))]
+  #[serde(default)]
+  pub reviewed_at: Option<Timestamp>,
 }
 
 /// A page whose review date has come.
