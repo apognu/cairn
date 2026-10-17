@@ -11,7 +11,7 @@ pub(crate) struct Listed<'a> {
   pub updated: Timestamp,
 }
 
-fn xml_escape(text: &str) -> String {
+pub(crate) fn xml_escape(text: &str) -> String {
   text.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
 }
 

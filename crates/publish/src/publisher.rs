@@ -7,8 +7,8 @@ use std::{
 };
 
 use cairn_core::{
-  ApiConfig, AssetId, AssetStore, Broadcast, ContentStore, Document, Event, Library, Page, PageId, PageKind, Release, ReleaseId, ReleaseStatus, RevisionId, Settings, UserId, effective_redirects,
-  expand, extract_links, header_section, hotfix_pages, original_key, page_urls, term_anchors, term_refs, variant_key,
+  ApiConfig, AssetId, AssetStore, Broadcast, ContentStore, Document, Event, Library, Mode, Page, PageId, PageKind, Release, ReleaseId, ReleaseStatus, RevisionId, Settings, UserId,
+  effective_redirects, expand, extract_links, header_section, hotfix_pages, original_key, page_urls, term_anchors, term_refs, variant_key,
 };
 use cairn_render::{Pool, Shell, highlight_css};
 use cairn_store::{
@@ -23,6 +23,7 @@ use sha2::{Digest, Sha256};
 use crate::{
   ApiProblem, PublishError,
   api::{ApiHosts, ResolvedApi, ResolvedSpec, SourceFetcher, resolve},
+  card::{self, CardStyle, Logo},
   changes::pending_against,
   content::content_hash,
   generated,
@@ -677,6 +678,8 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
       site_ctx["banner"] = json!(settings.banner);
     }
     let theme_css = settings.theme_css();
+    let site_url = self.config.site_url.clone();
+    let card_style = Arc::new(card_style(settings, &site_url, &asset_files, logo.as_ref()));
 
     let mut bundle_files = bundle_files(&self.bundles);
     // Only API pages load it, so a site without any does not carry its 4 MB in every release.
@@ -755,6 +758,9 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
           script: script.clone(),
           theme_css: theme_css.clone(),
           bundle_hash: self.bundles.hash.clone(),
+          site_url: site_url.clone(),
+          url: Some(format!("{site_url}{page_url}")),
+          card: Some(card_style.clone()),
           page_id: source.page.id,
           revision: source.revision,
           path: output_path(&urls[&source.page.id]),
@@ -762,12 +768,25 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
       })
       .collect();
 
-    let rendered: Vec<Rendered> = stream::iter(jobs.into_iter().map(|job| render_job(job, self.assets.clone(), self.renders.clone())))
+    let mut rendered: Vec<Rendered> = stream::iter(jobs.into_iter().map(|job| render_job(job, self.assets.clone(), self.renders.clone())))
       .buffer_unordered(RENDER_CONCURRENCY)
       .try_collect()
       .await?;
 
     let mut render_keys: Vec<String> = rendered.iter().map(|r| r.cache_key.clone()).collect();
+    let mut cards: Vec<OutputFile> = Vec::new();
+    let mut add_card = |card: Option<(OutputFile, String)>, render_keys: &mut Vec<String>| {
+      // Pages with the same title and description share a card.
+      if let Some((file, key)) = card
+        && !render_keys.contains(&key)
+      {
+        render_keys.push(key);
+        cards.push(file);
+      }
+    };
+    for r in &mut rendered {
+      add_card(r.card.take(), &mut render_keys);
+    }
     let (mut files, mut hashes): (Vec<_>, Vec<_>) = rendered.into_iter().map(|r| (r.file, (r.page_id, r.revision, r.output_hash))).unzip();
     // An API page has no revision to record; what it was built from goes in `release_api_specs`.
     let apis: Vec<&ResolvedApi> = sources.iter().filter_map(|s| s.api.as_ref()).collect();
@@ -797,7 +816,7 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
     }
     // The site root goes to the first top-level page. Positions only order siblings: the lowest one in the whole tree can be a child's.
     let home = pages.iter().find(|p| p.parent_id.is_none()).or(pages.first());
-    let site_url = self.config.site_url.as_str();
+    let site_url = site_url.as_str();
     let generated = [
       ("sitemap.xml", generated::sitemap(site_url, &listed)),
       ("robots.txt", generated::robots(site_url)),
@@ -857,11 +876,15 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
         script: script.clone(),
         theme_css: theme_css.clone(),
         bundle_hash: self.bundles.hash.clone(),
+        site_url: site_url.to_string(),
+        url: Some(format!("{site_url}{glossary_url}")),
+        card: Some(card_style.clone()),
         page_id: PageId::new(),
         revision: RevisionId::new(),
         path: output_path(glossary_url),
       };
-      let rendered = render_job(glossary, self.assets.clone(), self.renders.clone()).await?;
+      let mut rendered = render_job(glossary, self.assets.clone(), self.renders.clone()).await?;
+      add_card(rendered.card.take(), &mut render_keys);
       render_keys.push(rendered.cache_key);
       files.push(rendered.file);
     }
@@ -880,6 +903,9 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
       script: script.clone(),
       theme_css: theme_css.clone(),
       bundle_hash: self.bundles.hash.clone(),
+      site_url: site_url.to_string(),
+      url: None,
+      card: None,
       page_id: PageId::new(),
       revision: RevisionId::new(),
       path: "404.html".into(),
@@ -893,6 +919,7 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
       files.extend(index);
     }
 
+    files.extend(cards);
     files.extend(asset_files);
     files.extend(bundle_files.into_iter().map(|(path, bytes)| OutputFile { path, bytes }));
 
@@ -997,6 +1024,10 @@ struct RenderJob {
   script: String,
   theme_css: String,
   bundle_hash: String,
+  site_url: String,
+  /// The page's full address; none for the 404 page, which has no address of its own.
+  url: Option<String>,
+  card: Option<Arc<CardStyle>>,
   page_id: PageId,
   revision: RevisionId,
   path: String,
@@ -1008,7 +1039,7 @@ const RENDERS_FOLDER: &str = "renders";
 /// Part of every render cache key. The JS bundles are in the key by their hashed names, but the page shell and code highlighting are Rust:
 /// a release changes the version, and the number is bumped when either changes between releases. Otherwise unchanged pages would keep
 /// the old output for good.
-const RENDER_FORMAT: &str = concat!(env!("CARGO_PKG_VERSION"), "/2");
+const RENDER_FORMAT: &str = concat!(env!("CARGO_PKG_VERSION"), "/3");
 
 /// A rendered page, the hash of its HTML, and the render cache entry it came from.
 struct Rendered {
@@ -1017,12 +1048,19 @@ struct Rendered {
   revision: RevisionId,
   output_hash: String,
   cache_key: String,
+  /// The link preview picture and its cache key.
+  card: Option<(OutputFile, String)>,
 }
 
 /// Renders one page, or reuses what an identical render produced before. The cache is content addressed: the key is a hash of everything the
 /// HTML depends on (the render input, the page's own title and description, the site name and theme, the stylesheets and script), so the same
 /// key always means the same file and nothing ever has to be invalidated; entries no kept release uses are deleted when a release goes live.
 async fn render_job<A: AssetStore>(job: RenderJob, cache: Arc<A>, renders: Arc<AtomicUsize>) -> Result<Rendered, PublishError> {
+  // Named by its content, so a new title is a new address: link previews cache pictures by address for a long time.
+  let card_key = job.card.as_ref().map(|style| card::key(style, &job.title, job.description.as_deref()));
+  let card_path = card_key.as_ref().map(|key| format!("_og/{}.png", &key[..16]));
+  let image = card_path.as_ref().map(|path| format!("{}/{path}", job.site_url));
+
   let key = {
     let mut digest = Sha256::new();
     for part in [
@@ -1035,6 +1073,8 @@ async fn render_job<A: AssetStore>(job: RenderJob, cache: Arc<A>, renders: Arc<A
       &job.script,
       &job.theme_css,
       &job.bundle_hash,
+      job.url.as_deref().unwrap_or_default(),
+      image.as_deref().unwrap_or_default(),
     ] {
       digest.update(part.as_bytes());
       digest.update([0]);
@@ -1051,6 +1091,8 @@ async fn render_job<A: AssetStore>(job: RenderJob, cache: Arc<A>, renders: Arc<A
       title: &job.title,
       site_name: &job.site_name,
       description: job.description.as_deref(),
+      url: job.url.as_deref(),
+      image: image.as_deref(),
       body: &body,
       input: &job.input.to_string(),
       stylesheets: &job.stylesheets,
@@ -1064,13 +1106,56 @@ async fn render_job<A: AssetStore>(job: RenderJob, cache: Arc<A>, renders: Arc<A
 
   let output_hash = Sha256::digest(&bytes).iter().map(|b| format!("{b:02x}")).collect();
 
+  let card = match (job.card, card_key, card_path) {
+    (Some(style), Some(card_key), Some(path)) => {
+      let cache_key = format!("{RENDERS_FOLDER}/{card_key}.png");
+      let bytes = if cache.exists(&cache_key).await? {
+        cache.get(&cache_key).await?
+      } else {
+        let (title, description) = (job.title.clone(), job.description.clone());
+        let png = tokio::task::spawn_blocking(move || card::render(&style, &title, description.as_deref()))
+          .await
+          .map_err(anyhow::Error::from)??;
+        cache.put(&cache_key, png.clone()).await?;
+        png
+      };
+      Some((OutputFile { path, bytes }, cache_key))
+    }
+    _ => None,
+  };
+
   Ok(Rendered {
     file: OutputFile { path: job.path, bytes },
     page_id: job.page_id,
     revision: job.revision,
     output_hash,
     cache_key: key,
+    card,
   })
+}
+
+/// What every page's link preview card shows of the site: its name, address, light-mode colors and logo.
+fn card_style(settings: &Settings, site_url: &str, asset_files: &[OutputFile], logo: Option<&Value>) -> CardStyle {
+  let [background, text, _, _] = settings.effective(Mode::Light);
+  let logo = logo.and_then(|meta| {
+    let path = meta["src"].as_str()?.trim_start_matches('/');
+    let file = asset_files.iter().find(|f| f.path == path)?;
+    Some(Logo {
+      bytes: file.bytes.clone(),
+      mime: mime_guess::from_path(path).first_or_octet_stream().to_string(),
+      width: u32::try_from(meta["width"].as_u64()?).ok()?,
+      height: u32::try_from(meta["height"].as_u64()?).ok()?,
+    })
+  });
+
+  CardStyle {
+    site_name: settings.site_name.clone(),
+    host: site_url.split_once("://").map_or(site_url, |(_, host)| host).to_string(),
+    background,
+    text,
+    accent: settings.accent.to_lowercase(),
+    logo,
+  }
 }
 
 async fn resolve_page(fetcher: &SourceFetcher, page: Page, config: ApiConfig) -> (Page, Result<ResolvedSpec, String>, ApiConfig) {
@@ -1751,6 +1836,33 @@ mod tests {
   }
 
   #[tokio::test]
+  async fn each_page_links_a_preview_card_the_site_serves() {
+    let f = fixture().await;
+    let user = UserId::new();
+    create_page(&f.db, user, None, "Install", Placement::Last).await.unwrap();
+    create_page(&f.db, user, None, "Upgrade", Placement::Last).await.unwrap();
+    f.publisher.publish(user).await.unwrap();
+
+    let site = f.dir.join("out/site");
+    let mut images = HashSet::new();
+    for page in ["install", "upgrade"] {
+      let html = std::fs::read_to_string(site.join(page).join("index.html")).unwrap();
+      assert!(html.contains(&format!("property=\"og:url\" content=\"https://docs.example.com/{page}/\"")), "{html}");
+      assert!(html.contains("name=\"twitter:card\" content=\"summary_large_image\""), "{html}");
+
+      let image = html.split("property=\"og:image\" content=\"").nth(1).and_then(|rest| rest.split('"').next()).unwrap().to_string();
+      let path = image.strip_prefix("https://docs.example.com/").unwrap();
+      let png = image::load_from_memory(&std::fs::read(site.join(path)).unwrap()).unwrap();
+      assert_eq!((png.width(), png.height()), (1200, 630));
+      images.insert(image);
+    }
+    assert_eq!(images.len(), 2, "each title has its own card");
+
+    let not_found = std::fs::read_to_string(site.join("404.html")).unwrap();
+    assert!(!not_found.contains("og:image"));
+  }
+
+  #[tokio::test]
   async fn images_are_published_with_webp_variants_and_a_srcset() {
     use std::io::Cursor;
 
@@ -2013,12 +2125,12 @@ mod tests {
       f.publisher.publish(user).await.unwrap();
     }
 
-    // Two pages and the 404 page: the earlier renders of the edited page are gone.
+    // Two pages, their two preview cards and the 404 page: the earlier renders of the edited page are gone.
     let mut cached = assets.list(RENDERS_FOLDER).await.unwrap();
     cached.sort();
     let mut kept: Vec<String> = kept_render_keys(&f.db).await.unwrap().unwrap().into_iter().collect();
     kept.sort();
-    assert_eq!((cached.len(), &cached), (3, &kept));
+    assert_eq!((cached.len(), &cached), (5, &kept));
   }
 
   #[tokio::test]

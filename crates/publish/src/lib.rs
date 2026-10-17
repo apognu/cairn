@@ -3,6 +3,7 @@
 #![forbid(unsafe_code)]
 
 mod api;
+mod card;
 mod changes;
 mod cloudflare;
 mod content;

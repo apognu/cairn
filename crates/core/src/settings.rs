@@ -173,7 +173,7 @@ fn check_links(what: &str, links: &[SiteLink]) -> Result<(), String> {
 
 impl Settings {
   /// The colors that end up on screen in one mode, overrides applied: background, text, surface, link.
-  fn effective(&self, mode: Mode) -> [String; 4] {
+  pub fn effective(&self, mode: Mode) -> [String; 4] {
     let (colors, background, text, surface) = match mode {
       Mode::Light => (&self.light, LIGHT_BACKGROUND, LIGHT_TEXT, LIGHT_SURFACE),
       Mode::Dark => (&self.dark, DARK_BACKGROUND, DARK_TEXT, DARK_SURFACE),

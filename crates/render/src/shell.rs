@@ -6,6 +6,10 @@ pub struct Shell<'a> {
   pub site_name: &'a str,
   /// The page summary for search engines and link previews.
   pub description: Option<&'a str>,
+  /// The page's full address, for link previews.
+  pub url: Option<&'a str>,
+  /// The full address of the page's link preview picture, 1200×630.
+  pub image: Option<&'a str>,
   /// The HTML `ssr.js` produced.
   pub body: &'a str,
   /// The same input `ssr.js` was given, so the browser can hydrate exactly what was rendered.
@@ -48,6 +52,16 @@ pub fn document(shell: &Shell) -> String {
         meta property="og:title" content=(shell.title);
         meta property="og:site_name" content=(shell.site_name);
         meta property="og:type" content="article";
+        @if let Some(url) = shell.url {
+          meta property="og:url" content=(url);
+        }
+        @if let Some(image) = shell.image {
+          meta property="og:image" content=(image);
+          meta property="og:image:width" content="1200";
+          meta property="og:image:height" content="630";
+          meta property="og:image:alt" content=(shell.title);
+          meta name="twitter:card" content="summary_large_image";
+        }
         script { (PreEscaped(THEME_INIT)) }
         @for href in shell.stylesheets {
           link rel="stylesheet" href=(href);
@@ -79,6 +93,8 @@ mod tests {
       title: "<b>Hi</b>",
       site_name: "Docs",
       description: Some("A \"quoted\" summary"),
+      url: None,
+      image: None,
       body: "<p>body</p>",
       input: r#"{"text":"</script><script>alert(1)</script>"}"#,
       stylesheets: &stylesheets,

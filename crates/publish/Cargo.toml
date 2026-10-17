@@ -29,6 +29,8 @@ cairn-apispec = { version = "0.0.0", path = "../apispec" }
 cairn-core = { version = "0.0.0", path = "../core" }
 cairn-render = { version = "0.0.0", path = "../render" }
 cairn-store = { version = "0.0.0", path = "../store" }
+resvg = { version = "0.48", default-features = false, features = ["text", "raster-images"] }
+skrifa = "0.44"
 
 [dev-dependencies]
 cairn-store = { version = "0.0.0", path = "../store", features = ["testing"] }
