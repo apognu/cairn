@@ -104,13 +104,13 @@ export function SearchBox({ afterLinks, open, onClose }: { afterLinks: boolean; 
   );
 }
 
-/** The header's square buttons beside the theme switch: search and the menu of sections and links on a narrow screen. */
+/** The header's square buttons beside the theme switch: search and the menu of links on a narrow screen. */
 export const headerButton =
   "flex-none items-center justify-center w-8.5 h-8.5 p-0 border border-input rounded-lg bg-bg text-text cursor-pointer hover:bg-hover";
 
 /**
- * The header's sections and links on a narrow screen, where they have no room in it: a menu under a button. It closes on a click
- * elsewhere and on Escape, which gives the focus back to its button.
+ * The header's links on a narrow screen, where they have no room in it: a menu under a button. It closes on a click elsewhere and on
+ * Escape, which gives the focus back to its button. The header's sections go to the navigation menu instead.
  */
 export function HeaderMenu({ context }: { context: RenderContext }) {
   const [open, setOpen] = useState(false);
@@ -138,8 +138,7 @@ export function HeaderMenu({ context }: { context: RenderContext }) {
     };
   }, [open]);
 
-  const item =
-    "flex items-center gap-1 py-2 px-3 rounded-md text-body text-[15px] no-underline hover:bg-hover aria-[current=page]:font-semibold aria-[current=page]:text-text";
+  const item = "flex items-center gap-1 py-2 px-3 rounded-md text-body text-[15px] no-underline hover:bg-hover";
 
   return (
     <div className="site-menu relative hidden tablet:block ml-2">
@@ -147,7 +146,7 @@ export function HeaderMenu({ context }: { context: RenderContext }) {
         ref={button}
         type="button"
         className={`${headerButton} flex`}
-        aria-label="Sections and links"
+        aria-label="Links"
         aria-expanded={open}
         aria-controls={id}
         onClick={() => setOpen(!open)}
@@ -163,23 +162,6 @@ export function HeaderMenu({ context }: { context: RenderContext }) {
           id={id}
           className="absolute top-11 right-0 z-30 flex flex-col w-max min-w-56 max-w-[calc(100vw-32px)] p-1.5 border border-border rounded-xl bg-bg shadow-popover"
         >
-          {context.header.length > 0 && (
-            <nav className="flex flex-col" aria-label="Sections">
-              {context.header.map((section) => (
-                <a
-                  key={section.id}
-                  href={section.href}
-                  className={item}
-                  aria-current={section.id === context.section ? "page" : undefined}
-                >
-                  {section.title}
-                </a>
-              ))}
-            </nav>
-          )}
-          {context.header.length > 0 && links.length > 0 && (
-            <hr className="w-full my-1.5 mx-0 border-0 border-t border-border" />
-          )}
           {links.length > 0 && (
             <nav className="flex flex-col" aria-label="Links">
               {links.map((link) => (

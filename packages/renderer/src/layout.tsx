@@ -439,7 +439,7 @@ export function SiteLayout({
                 <path d="M20 20l-3.5-3.5" />
               </svg>
             </button>
-            {(context.header.length > 0 || headerLinks) && <HeaderMenu context={context} />}
+            {headerLinks && <HeaderMenu context={context} />}
             <ThemeToggle className="w-8.5 h-8.5 ml-3 tablet:ml-2" />
           </header>
         </Slot>
@@ -482,6 +482,25 @@ export function SiteLayout({
             id={navId}
             aria-label="Pages"
           >
+            {context.header.length > 0 && (
+              // On a narrow screen the header has no room for its sections: they head the menu, a little bolder than the pages.
+              <ul
+                className={`site-nav-sections ${navList} hidden tablet:block mb-2 pb-2 border-b border-border`}
+                aria-label="Sections"
+              >
+                {context.header.map((section) => (
+                  <li key={section.id}>
+                    <a
+                      href={section.href}
+                      className={`${navLink()} font-semibold text-text`}
+                      aria-current={section.id === context.section ? "page" : undefined}
+                    >
+                      {section.title}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            )}
             {context.sectionBack && (
               // A section's sidebar lists only that section: this is the way back to the rest of the site.
               <a

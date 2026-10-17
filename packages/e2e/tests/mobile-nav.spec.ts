@@ -38,7 +38,7 @@ test("on a phone the menu button opens the page tree, and it closes after naviga
   await expect(menu).toBeFocused();
 });
 
-test("on a phone the header keeps the name on one line, the sections and links in a menu, and search in a panel", async ({
+test("on a phone the header keeps the name on one line, the sections atop the page menu, and search in a panel", async ({
   page,
   request,
   browser,
@@ -64,13 +64,14 @@ test("on a phone the header keeps the name on one line, the sections and links i
   expect((await name.boundingBox())?.height).toBeLessThanOrEqual(32);
   await expect(reader.getByRole("navigation", { name: "Sections" }).first()).toBeHidden();
 
-  // The menu lists the sections; Escape closes it and gives the focus back.
-  const more = reader.getByRole("button", { name: "Sections and links" });
-  await more.click();
-  await expect(reader.getByRole("link", { name: section, exact: true })).toBeVisible();
-  await reader.keyboard.press("Escape");
-  await expect(reader.getByRole("link", { name: section, exact: true })).toBeHidden();
-  await expect(more).toBeFocused();
+  // The sections head the page menu, apart from the header links (this site has none, so no links menu either).
+  await expect(reader.getByRole("button", { name: "Links", exact: true })).toHaveCount(0);
+  await reader.getByRole("button", { name: "Menu", exact: true }).click();
+  const sections = reader.getByRole("list", { name: "Sections" });
+  await expect(sections.getByRole("link", { name: section, exact: true })).toBeVisible();
+  await expect(sections.getByRole("link", { name: section, exact: true })).toHaveCSS("font-weight", "600");
+  await reader.getByRole("button", { name: "Menu", exact: true }).click();
+  await expect(sections).toBeHidden();
 
   // Search opens over the page with the field ready to type in.
   await expect(reader.locator(".site-search input")).toBeAttached();
