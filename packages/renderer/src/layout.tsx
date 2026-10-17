@@ -340,8 +340,9 @@ export function SiteLayout({
 
   return (
     <div
-      // The side columns widen only where the reading column keeps its full width (808px, plus both of them).
-      className="site [--nav-width:280px] [--toc-width:240px] compact:[--nav-width:250px] compact:[--toc-width:200px]"
+      // The side columns widen only where the reading column keeps its full width (808px, plus both of them). The line height is set
+      // here as well as on the body: Scalar resets the body's to `inherit`, which would shrink the sidebar on API pages.
+      className="site leading-[1.6] [--nav-width:280px] [--toc-width:240px] compact:[--nav-width:250px] compact:[--toc-width:200px]"
       data-embedded={embedded || undefined}
       data-api={context.api ? "" : undefined}
       data-nav-open={navOpen || undefined}
