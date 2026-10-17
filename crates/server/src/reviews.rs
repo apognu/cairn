@@ -4,9 +4,9 @@ use axum::{
   Json,
   extract::{Path, State},
 };
-use cairn_auth::{CurrentUser, Editor, local_user_id};
-use cairn_core::{PageId, PageReview, StalePage, User};
-use cairn_store::{get_user, list_users, page_review, set_page_review, stale_pages};
+use cairn_auth::{Editor, local_user_id};
+use cairn_core::{PageId, PageReview, StalePage};
+use cairn_store::{get_user, page_review, set_page_review, stale_pages};
 use jiff::Zoned;
 use tracing::instrument;
 use utoipa_axum::{router::OpenApiRouter, routes};
@@ -17,7 +17,7 @@ use crate::{
 };
 
 pub(crate) fn routes() -> OpenApiRouter<AppState> {
-  OpenApiRouter::new().routes(routes!(get_review, set_review)).routes(routes!(users)).routes(routes!(stale))
+  OpenApiRouter::new().routes(routes!(get_review, set_review)).routes(routes!(stale))
 }
 
 /// A page's owner and review date.
@@ -37,21 +37,6 @@ async fn get_review(State(state): State<AppState>, Path(id): Path<PageId>) -> Re
 #[instrument(skip_all, fields(page_id = %id))]
 async fn set_review(State(state): State<AppState>, Editor(user): Editor, Path(id): Path<PageId>, Json(body): Json<PageReview>) -> Result<Json<PageReview>, AppError> {
   Ok(Json(set_page_review(&state.db, id, &body, user).await?))
-}
-
-/// Everyone who can own a page: the people who signed in, by name.
-#[utoipa::path(get, path = "/api/users", operation_id = "listUsers", responses(
-  (status = 200, body = Vec<User>),
-))]
-#[instrument(skip_all)]
-async fn users(State(state): State<AppState>, CurrentUser(user, _): CurrentUser) -> Result<Json<Vec<User>>, AppError> {
-  let mut users = list_users(&state.db).await?;
-  // `dev` has no login and no row for its one user.
-  if user == local_user_id() {
-    users.insert(0, crate::me::local_user());
-  }
-
-  Ok(Json(users))
 }
 
 /// The pages whose review date has come, the most overdue first.

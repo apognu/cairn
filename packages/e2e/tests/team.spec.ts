@@ -1,7 +1,8 @@
 import { type Browser, expect, type Page, test } from "@playwright/test";
 import { editablePage, nameNewPage } from "./helpers";
 
-// Two editors on `cairn serve` (:3400), signed in as alice and bob through the local Dex.
+// Two people on `cairn serve` (:3400), signed in as alice and bob through the local Dex. Alice signed in first (`serve.spec`), so she is
+// the admin; bob starts as a viewer and is made admin too, so he can edit, force a take-over and publish.
 const SERVER = "http://127.0.0.1:3400";
 
 async function signedIn(browser: Browser, login: string): Promise<Page> {
@@ -18,10 +19,29 @@ async function signedIn(browser: Browser, login: string): Promise<Page> {
   return page;
 }
 
-test("a page someone edits is read-only for others, and free again when they leave", async ({ browser }) => {
-  const title = `team-${Math.random().toString(36).slice(2, 8)}`;
+/** Alice and bob, both admins. */
+async function signedInPair(browser: Browser): Promise<[Page, Page]> {
   const alice = await signedIn(browser, "alice");
   const bob = await signedIn(browser, "bob");
+  const users: { id: string; name: string; role: string }[] = await (
+    await alice.request.get(`${SERVER}/_editor/api/users`)
+  ).json();
+  const id = users.find((u) => u.name === "bob")?.id;
+  const promoted = await alice.request.put(`${SERVER}/_editor/api/users/${id}/role`, {
+    headers: { origin: SERVER },
+    data: { role: "admin" },
+  });
+  expect(promoted.status()).toBe(200);
+  // Bob's editor read his role when it opened.
+  await bob.reload();
+  await expect(bob.getByLabel(/^Account: /)).toHaveText("bob");
+
+  return [alice, bob];
+}
+
+test("a page someone edits is read-only for others, and free again when they leave", async ({ browser }) => {
+  const title = `team-${Math.random().toString(36).slice(2, 8)}`;
+  const [alice, bob] = await signedInPair(browser);
 
   await alice.getByRole("button", { name: "New page" }).click();
   await nameNewPage(alice, title);
@@ -63,8 +83,7 @@ test("a page someone edits is read-only for others, and free again when they lea
 
 test("taking over stops the holder's editor at once, and their unsaved work can become a page", async ({ browser }) => {
   const title = `takeover-${Math.random().toString(36).slice(2, 8)}`;
-  const alice = await signedIn(browser, "alice");
-  const bob = await signedIn(browser, "bob");
+  const [alice, bob] = await signedInPair(browser);
 
   await alice.getByRole("button", { name: "New page" }).click();
   await nameNewPage(alice, title);
@@ -99,8 +118,7 @@ test("taking over stops the holder's editor at once, and their unsaved work can 
 
 test("publishing while someone edits a page names them first", async ({ browser }) => {
   const title = `editing-${Math.random().toString(36).slice(2, 8)}`;
-  const alice = await signedIn(browser, "alice");
-  const bob = await signedIn(browser, "bob");
+  const [alice, bob] = await signedInPair(browser);
 
   await alice.getByRole("button", { name: "New page" }).click();
   await nameNewPage(alice, title);
@@ -132,8 +150,7 @@ test("publishing while someone edits a page names them first", async ({ browser 
 test("a hotfix of my changes leaves everyone else's drafts pending", async ({ browser }) => {
   const suffix = Math.random().toString(36).slice(2, 8);
   const [theirs, mine] = [`theirs-${suffix}`, `mine-${suffix}`];
-  const alice = await signedIn(browser, "alice");
-  const bob = await signedIn(browser, "bob");
+  const [alice, bob] = await signedInPair(browser);
 
   for (const [page, title, text] of [
     [alice, theirs, "Unfinished work"],

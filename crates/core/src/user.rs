@@ -12,6 +12,10 @@ pub struct User {
   pub email: String,
   pub name: String,
   pub role: Role,
+  /// None for `dev`'s user, who never signs in.
+  #[cfg_attr(feature = "openapi", schema(value_type = Option<String>, format = DateTime))]
+  #[serde(default)]
+  pub last_login_at: Option<Timestamp>,
 }
 
 /// What a user may do. Each role can do everything the ones before it can, so roles compare in that order.

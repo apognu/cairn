@@ -914,9 +914,26 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Everyone who can own a page: the people who signed in, by name. */
+        /** Everyone who signed in, by name, with their role: the owners a page can have, and the people an admin gives roles to. */
         get: operations["listUsers"];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/users/{id}/role": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Gives someone a role. It applies to their next request, and to their API tokens. The site always keeps at least one admin. */
+        put: operations["setUserRole"];
         post?: never;
         delete?: never;
         options?: never;
@@ -1579,6 +1596,9 @@ export interface components {
             /** @description The token of the page's lock, which the saver must hold. */
             lock_token: components["schemas"]["LockToken"];
         };
+        SetRole: {
+            role: components["schemas"]["Role"];
+        };
         SetUrl: {
             /** @description The fixed URL, or null to use the one derived from the tree. */
             custom_url?: string | null;
@@ -1727,6 +1747,11 @@ export interface components {
         User: {
             email: string;
             id: components["schemas"]["UserId"];
+            /**
+             * Format: date-time
+             * @description None for `dev`'s user, who never signs in.
+             */
+            last_login_at?: string | null;
             name: string;
             role: components["schemas"]["Role"];
         };
@@ -3889,6 +3914,48 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["User"][];
+                };
+            };
+        };
+    };
+    setUserRole: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["UserId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetRole"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description it would leave the site without an admin */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };

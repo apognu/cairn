@@ -1,5 +1,5 @@
 import { LibrarySettings } from "./LibrarySettings";
-import { usePending, useSignedIn } from "./queries";
+import { useCan, usePending, useSignedIn } from "./queries";
 import { RedirectsSettings } from "./RedirectsSettings";
 import { ReleasesSettings } from "./ReleasesSettings";
 import { ReviewSettings } from "./ReviewSettings";
@@ -8,9 +8,10 @@ import { SiteSettings } from "./SiteSettings";
 import { TokensSettings } from "./TokensSettings";
 import { TrashSettings } from "./TrashSettings";
 import { rowClass, titleClass } from "./TreeParts";
+import { UsersSettings } from "./UsersSettings";
 import * as ui from "./ui";
 
-export type SettingsSection = "site" | "library" | "redirects" | "releases" | "review" | "trash" | "tokens";
+export type SettingsSection = "site" | "library" | "redirects" | "releases" | "review" | "trash" | "users" | "tokens";
 
 export const sectionTitle: Record<SettingsSection, string> = {
   site: "Site and theme",
@@ -19,6 +20,7 @@ export const sectionTitle: Record<SettingsSection, string> = {
   releases: "Releases",
   review: "Pages to review",
   trash: "Trash",
+  users: "Users",
   tokens: "API tokens",
 };
 
@@ -35,8 +37,9 @@ export function SettingsView({
   onOpenPage: (id: string) => void;
 }) {
   const pending = usePending();
-  // Tokens belong to signed-in users; `dev` has none.
+  // Tokens and users belong to signed-in people; `dev` has neither.
   const signedIn = useSignedIn();
+  const admin = useCan("admin");
 
   return (
     <>
@@ -51,6 +54,7 @@ export function SettingsView({
         <ul className="list-none m-0 p-0">
           {(Object.keys(sectionTitle) as SettingsSection[])
             .filter((key) => key !== "tokens" || signedIn)
+            .filter((key) => key !== "users" || (signedIn && admin))
             .map((key) => (
               <li key={key}>
                 <div className={`${rowClass({ selected: section === key, depth: 1 })} pl-2.5`}>
@@ -83,6 +87,8 @@ export function SettingsView({
           <TrashSettings />
         ) : section === "tokens" ? (
           <TokensSettings />
+        ) : section === "users" ? (
+          <UsersSettings />
         ) : (
           <RedirectsSettings />
         )}

@@ -2544,7 +2544,7 @@
     },
     "/api/users": {
       "get": {
-        "summary": "Everyone who can own a page: the people who signed in, by name.",
+        "summary": "Everyone who signed in, by name, with their role: the owners a page can have, and the people an admin gives roles to.",
         "operationId": "listUsers",
         "responses": {
           "200": {
@@ -2555,6 +2555,62 @@
                   "items": {
                     "$ref": "#/components/schemas/User"
                   }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/users/{id}/role": {
+      "put": {
+        "summary": "Gives someone a role. It applies to their next request, and to their API tokens. The site always keeps at least one admin.",
+        "operationId": "setUserRole",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/UserId"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetRole"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "it would leave the site without an admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
                 }
               }
             }
@@ -4627,6 +4683,17 @@
           }
         }
       },
+      "SetRole": {
+        "type": "object",
+        "required": [
+          "role"
+        ],
+        "properties": {
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          }
+        }
+      },
       "SetUrl": {
         "type": "object",
         "properties": {
@@ -5007,6 +5074,14 @@
           },
           "id": {
             "$ref": "#/components/schemas/UserId"
+          },
+          "last_login_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "None for `dev`'s user, who never signs in."
           },
           "name": {
             "type": "string"

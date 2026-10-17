@@ -36,6 +36,7 @@ pub(crate) fn local_user() -> User {
     email: String::new(),
     name: "Local user".into(),
     role: Role::Admin,
+    last_login_at: None,
   }
 }
 

@@ -440,6 +440,20 @@ export function useSignedIn(): boolean {
   return me !== undefined && me.id !== LOCAL_USER;
 }
 
+export type Role = components["schemas"]["Role"];
+
+const ROLE_ORDER: Role[] = ["viewer", "editor", "publisher", "admin"];
+
+/** Whether `role` can do what `needed` can: each role includes the ones before it. */
+export function atLeast(role: Role | undefined, needed: Role): boolean {
+  return role !== undefined && ROLE_ORDER.indexOf(role) >= ROLE_ORDER.indexOf(needed);
+}
+
+/** Whether the signed-in user's role is at least `needed`; false until it is known, so nothing shows that they could not use. */
+export function useCan(needed: Role): boolean {
+  return atLeast(useMe().data?.role, needed);
+}
+
 const TOKENS = ["tokens"];
 
 export function useTokens() {
@@ -488,9 +502,24 @@ export function useSetPageReview(id: string) {
   });
 }
 
-/** The people who can own a page. */
+/** The people who signed in: the owners a page can have, and whom an admin gives roles. */
 export function useUsers() {
   return useQuery({ queryKey: ["users"], queryFn: async () => unwrap(await api.GET("/api/users")) });
+}
+
+/** Gives someone a role; the server refuses to leave the site without an admin. */
+export function useSetUserRole() {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, role }: { id: string; role: Role }) =>
+      unwrap(await api.PUT("/api/users/{id}/role", { params: { path: { id } }, body: { role } })),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ["users"] });
+      // Changing one's own role changes what the editor shows.
+      void client.invalidateQueries({ queryKey: ["me"] });
+    },
+  });
 }
 
 /** The pages whose review date has come. */

@@ -28,6 +28,7 @@ mod site;
 mod tokens;
 mod uploads;
 mod urls;
+mod users;
 
 use std::{env, net::SocketAddr, path::PathBuf, sync::Arc, time::Duration};
 

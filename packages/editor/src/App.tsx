@@ -94,11 +94,8 @@ function Editor() {
   // Settings replace the page tree and the canvas; the section lives in the URL like the selected page does.
   const [section, setSection] = useState<SettingsSection | null>(() => {
     const value = new URLSearchParams(window.location.hash.slice(1)).get("settings");
-    return value === "redirects" || value === "library" || value === "trash" || value === "releases"
-      ? value
-      : value
-        ? "site"
-        : null;
+    if (value === null) return null;
+    return Object.hasOwn(sectionTitle, value) ? (value as SettingsSection) : "site";
   });
 
   // Authors write inside the site's colors: the saved theme is applied to the whole editor, as the published pages get it.

@@ -28,6 +28,7 @@ pub(crate) fn into_user(row: user::Model) -> Result<User, StoreError> {
     email: row.email,
     name: row.name,
     role: parse_role(&row.role)?,
+    last_login_at: Some(row.last_login_at.parse().map_err(|e: jiff::Error| StoreError::Other(e.into()))?),
   })
 }
 
