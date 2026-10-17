@@ -1,4 +1,4 @@
-import { RenderEnvContext } from "@cairn/components";
+import { embedPlayer, RenderEnvContext } from "@cairn/components";
 import {
   collectHeadings,
   type DocNode,
@@ -64,7 +64,7 @@ export function Canvas({
     onBlur: () => onBlur?.(),
     editorProps: {
       // Pasted or dropped pictures are uploaded and inserted where they landed.
-      handlePaste: (_view, event) => {
+      handlePaste: (_view, event): boolean => {
         const editor = editorRef.current;
         if (!editor || !event.clipboardData) return false;
 
@@ -74,9 +74,23 @@ export function Canvas({
           return true;
         }
 
+        // A video's address alone on an empty line becomes its player. Over selected words, an address becomes their link: that is the
+        // link mark's own paste rule, reached because nothing here takes the paste.
+        const text = event.clipboardData.getData("text/plain");
+        const { empty, $from } = editor.state.selection;
+        const url = text.trim();
+        if (
+          empty &&
+          $from.parent.type.name === "paragraph" &&
+          $from.parent.childCount === 0 &&
+          !/\s/.test(url) &&
+          embedPlayer(url)
+        ) {
+          return editor.commands.insertContent({ type: "embed", attrs: { url, title: "Video" } });
+        }
+
         // Markdown from a README, a terminal, a chat or a code editor. A web page's HTML is pasted as it is; a code editor's HTML is only
         // the same text in colour, so its Markdown wins. Code from VS Code or Monaco (named by its language) is left to the code block.
-        const text = event.clipboardData.getData("text/plain");
         const html = event.clipboardData.getData("text/html");
         const markdown =
           (!html || isStyledText(html)) &&
