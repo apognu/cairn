@@ -331,3 +331,12 @@
   font-style: var(--code-dark-style, normal);
   font-weight: var(--code-dark-weight, inherit);
 }
+
+/* Tiptap writes the sum of its column minimums as an inline `min-width` on the table, which beats the site's phone rule that a table fills
+   the screen (`site.css`, tables). */
+@media (max-width: 600px) {
+  .ProseMirror .tableWrapper table {
+    /* biome-ignore lint/complexity/noImportantStyles: only this beats an inline style */
+    min-width: 100% !important;
+  }
+}

@@ -1,5 +1,5 @@
-import { expect, test } from "@playwright/test";
-import { nameNewPage, publishAll, quiet, SITE } from "./helpers";
+import { expect, type Locator, test } from "@playwright/test";
+import { nameNewPage, publishAll, quiet, SITE, saveDraft } from "./helpers";
 
 test("on a phone the menu button opens the page tree, and it closes after navigating and on Escape", async ({
   page,
@@ -85,4 +85,55 @@ test("on a phone the header keeps the name on one line, the sections atop the pa
   await reader.keyboard.press("Escape");
   await expect(field).toBeHidden();
   await expect(search).toBeFocused();
+});
+
+test("on a phone a wide table scrolls inside its box and the page does not", async ({ request, browser }) => {
+  const cell = (type: string, text: string) => ({
+    type,
+    content: [{ type: "paragraph", content: [{ type: "text", text }] }],
+  });
+  const row = (type: string, texts: string[]) => ({ type: "tableRow", content: texts.map((t) => cell(type, t)) });
+  const columns = ["Option", "Type", "Default", "Environment variable", "Since", "Description"];
+  const doc = {
+    type: "doc",
+    content: [
+      {
+        type: "table",
+        content: [
+          row("tableHeader", columns),
+          row("tableCell", [
+            "publish_target",
+            "string",
+            "self-hosted",
+            "PUBLISH_TARGET",
+            "0.1",
+            "Where the published site goes",
+          ]),
+          row("tableCell", [
+            "asset_store",
+            "string",
+            "local",
+            "ASSET_STORE",
+            "0.3",
+            "Where uploaded pictures are kept",
+          ]),
+        ],
+      },
+      { type: "table", content: [row("tableHeader", ["Key", "Value"]), row("tableCell", ["a", "b"])] },
+    ],
+  };
+  const title = `Phone table ${Math.random().toString(36).slice(2, 8)}`;
+  const created = await (await request.post("/api/pages", { data: { parent_id: null, title } })).json();
+  await saveDraft(request, created.id, doc, null);
+  await expect(async () => expect((await request.post("/api/publish")).ok()).toBe(true)).toPass({ timeout: 30_000 });
+
+  const reader = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await quiet(reader);
+  await reader.goto(`${SITE}/${title.toLowerCase().replace(/\W+/g, "-")}/`);
+  const [wide, narrow] = await reader.locator(".doc-content .tableWrapper").all();
+
+  const overflow = (box: Locator) => box.evaluate((el) => el.scrollWidth - el.clientWidth);
+  expect(await overflow(wide)).toBeGreaterThan(100);
+  expect(await overflow(narrow)).toBe(0);
+  expect(await reader.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBe(0);
 });
