@@ -3,6 +3,7 @@ use axum::{
   extract::{Query, State},
   http::StatusCode,
 };
+use cairn_auth::Editor;
 use cairn_core::{Inactive, PageId, Redirect, RedirectOrigin, resolve_redirect};
 use cairn_store::RedirectTarget;
 use serde::{Deserialize, Serialize};
@@ -82,7 +83,7 @@ async fn list(State(state): State<AppState>) -> Result<Json<Vec<RedirectEntry>>,
   (status = 422, body = ErrorBody, description = "not a usable path or target, or it would make a loop"),
 ))]
 #[instrument(skip_all)]
-async fn add(State(state): State<AppState>, Json(body): Json<NewRedirect>) -> Result<(StatusCode, Json<Vec<RedirectEntry>>), AppError> {
+async fn add(State(state): State<AppState>, Editor(_): Editor, Json(body): Json<NewRedirect>) -> Result<(StatusCode, Json<Vec<RedirectEntry>>), AppError> {
   let target = match (body.to_page_id, body.to_url) {
     (Some(id), None) => RedirectTarget::Page(id),
     (None, Some(url)) => RedirectTarget::Url(url),
@@ -99,7 +100,7 @@ async fn add(State(state): State<AppState>, Json(body): Json<NewRedirect>) -> Re
   (status = 404, body = ErrorBody),
 ))]
 #[instrument(skip_all)]
-async fn remove(State(state): State<AppState>, Query(query): Query<RedirectPath>) -> Result<Json<Vec<RedirectEntry>>, AppError> {
+async fn remove(State(state): State<AppState>, Editor(_): Editor, Query(query): Query<RedirectPath>) -> Result<Json<Vec<RedirectEntry>>, AppError> {
   cairn_store::remove_redirect(&state.db, &query.path).await?;
 
   Ok(Json(entries(&state).await?))

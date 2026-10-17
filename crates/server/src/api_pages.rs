@@ -9,7 +9,7 @@ use axum::{
   http::header,
   response::IntoResponse,
 };
-use cairn_auth::CurrentUser;
+use cairn_auth::Editor;
 use cairn_core::{ApiConfig, AssetStore, CoreError, Operation, PageId, ResolvedSource};
 use cairn_publish::ResolvedApi;
 use cairn_store::{StoreError, get_api_config, latest_live_release, release_specs, save_api_config};
@@ -95,7 +95,7 @@ async fn get_config(State(state): State<AppState>, Path(id): Path<PageId>) -> Re
   (status = 422, body = ErrorBody),
 ))]
 #[instrument(skip_all, fields(page_id = %id))]
-async fn put_config(State(state): State<AppState>, CurrentUser(user, _): CurrentUser, Path(id): Path<PageId>, Json(config): Json<ApiConfig>) -> Result<Json<ApiConfig>, AppError> {
+async fn put_config(State(state): State<AppState>, Editor(user): Editor, Path(id): Path<PageId>, Json(config): Json<ApiConfig>) -> Result<Json<ApiConfig>, AppError> {
   save_api_config(&state.db, id, &config, user).await?;
 
   Ok(Json(get_api_config(&state.db, id).await?))
@@ -198,7 +198,7 @@ pub(crate) struct ApiCheck {
   (status = 422, body = ErrorBody),
 ))]
 #[instrument(skip_all, fields(page_id = %id))]
-async fn check_config(State(state): State<AppState>, Path(id): Path<PageId>, Json(config): Json<ApiConfig>) -> Result<Json<ApiCheck>, AppError> {
+async fn check_config(State(state): State<AppState>, Editor(_): Editor, Path(id): Path<PageId>, Json(config): Json<ApiConfig>) -> Result<Json<ApiCheck>, AppError> {
   // Makes sure the page exists and is an API page.
   get_api_config(&state.db, id).await?;
   config.validate().map_err(CoreError::Invalid)?;
@@ -239,6 +239,7 @@ async fn check_config(State(state): State<AppState>, Path(id): Path<PageId>, Jso
 
 #[cfg(test)]
 mod tests {
+  use cairn_auth::local_user_id;
   use cairn_core::{ApiSource, Placement};
   use cairn_store::create_api_page;
 
@@ -257,7 +258,7 @@ mod tests {
       ..Default::default()
     };
 
-    let Json(check) = check_config(State(state.clone()), Path(page.id), Json(config)).await.unwrap();
+    let Json(check) = check_config(State(state.clone()), Editor(local_user_id()), Path(page.id), Json(config)).await.unwrap();
 
     assert!(check.sources.is_empty() && check.operations.is_empty());
     assert!(
@@ -275,7 +276,7 @@ mod tests {
     let page = create_api_page(&state.db, cairn_auth::local_user_id(), None, "Orders", Placement::Last).await.unwrap();
     let _held = Running::start(&state.api_checks, page.id).unwrap();
 
-    let busy = check_config(State(state.clone()), Path(page.id), Json(ApiConfig::default())).await;
+    let busy = check_config(State(state.clone()), Editor(local_user_id()), Path(page.id), Json(ApiConfig::default())).await;
 
     assert!(matches!(busy, Err(AppError::Store(StoreError::Conflict(_)))));
   }

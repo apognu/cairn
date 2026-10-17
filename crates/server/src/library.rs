@@ -2,7 +2,7 @@ use axum::{
   Json,
   extract::{Path, State},
 };
-use cairn_auth::CurrentUser;
+use cairn_auth::Editor;
 use cairn_core::{Document, EntryKind, PageId};
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
@@ -110,7 +110,7 @@ async fn list(State(state): State<AppState>) -> Result<Json<Vec<LibraryEntry>>, 
   (status = 422, body = ErrorBody, description = "not a usable name"),
 ))]
 #[instrument(skip_all, fields(key = %key))]
-async fn put_variable(State(state): State<AppState>, CurrentUser(user, _): CurrentUser, Path(key): Path<String>, Json(body): Json<VariableBody>) -> Result<Json<Vec<LibraryEntry>>, AppError> {
+async fn put_variable(State(state): State<AppState>, Editor(user): Editor, Path(key): Path<String>, Json(body): Json<VariableBody>) -> Result<Json<Vec<LibraryEntry>>, AppError> {
   cairn_store::save_variable(&state.db, user, &key, &body.value).await?;
 
   Ok(Json(entries(&state).await?))
@@ -122,7 +122,7 @@ async fn put_variable(State(state): State<AppState>, CurrentUser(user, _): Curre
   (status = 422, body = ErrorBody, description = "not a usable name, or the snippet would include itself"),
 ))]
 #[instrument(skip_all, fields(key = %key))]
-async fn put_snippet(State(state): State<AppState>, CurrentUser(user, _): CurrentUser, Path(key): Path<String>, Json(body): Json<SnippetBody>) -> Result<Json<Vec<LibraryEntry>>, AppError> {
+async fn put_snippet(State(state): State<AppState>, Editor(user): Editor, Path(key): Path<String>, Json(body): Json<SnippetBody>) -> Result<Json<Vec<LibraryEntry>>, AppError> {
   cairn_store::save_snippet(&state.db, user, &key, &body.doc).await?;
 
   Ok(Json(entries(&state).await?))
@@ -135,7 +135,7 @@ async fn put_snippet(State(state): State<AppState>, CurrentUser(user, _): Curren
   (status = 422, body = ErrorBody, description = "empty or too long, an alias another term has, or a linked page that does not exist"),
 ))]
 #[instrument(skip_all)]
-async fn put_term(State(state): State<AppState>, CurrentUser(user, _): CurrentUser, Json(body): Json<TermBody>) -> Result<Json<Vec<LibraryEntry>>, AppError> {
+async fn put_term(State(state): State<AppState>, Editor(user): Editor, Json(body): Json<TermBody>) -> Result<Json<Vec<LibraryEntry>>, AppError> {
   let input = cairn_store::TermInput {
     term: body.term,
     definition: body.definition,
@@ -154,7 +154,7 @@ async fn put_term(State(state): State<AppState>, CurrentUser(user, _): CurrentUs
   (status = 409, body = ErrorBody, description = "pages or snippets still use it"),
 ))]
 #[instrument(skip_all, fields(id = %id))]
-async fn remove(State(state): State<AppState>, Path(id): Path<uuid::Uuid>) -> Result<Json<Vec<LibraryEntry>>, AppError> {
+async fn remove(State(state): State<AppState>, Editor(_): Editor, Path(id): Path<uuid::Uuid>) -> Result<Json<Vec<LibraryEntry>>, AppError> {
   cairn_store::delete_entry(&state.db, id).await?;
 
   Ok(Json(entries(&state).await?))

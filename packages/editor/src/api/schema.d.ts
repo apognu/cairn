@@ -437,8 +437,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Takes the page from someone who left it idle (or, with `force`, from someone still at work). Their editor is told at once, stops,
-         *     and keeps what it has not saved in their browser. Refused with 409 while the holder is active and `force` is not set.
+         * Takes the page from someone who left it idle (or, with `force`, from someone still at work: admins only). Their editor is told at
+         *     once, stops, and keeps what it has not saved in their browser. Refused with 409 while the holder is active and `force` is not set.
          */
         post: operations["takeOverLock"];
         delete?: never;
@@ -2913,6 +2913,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AcquiredLock"];
+                };
+            };
+            /** @description a viewer, or `force` without the admin role */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
             404: {

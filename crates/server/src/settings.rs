@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 
 use axum::{Json, extract::State, http::header, response::IntoResponse};
+use cairn_auth::Admin;
 use cairn_core::{CoreError, Mode, Settings};
 use cairn_store::{StoreError, asset_by_id, load_settings, save_settings};
 use serde::Serialize;
@@ -33,7 +34,7 @@ async fn get_settings(State(state): State<AppState>) -> Result<Json<Settings>, A
   (status = 422, body = ErrorBody),
 ))]
 #[instrument(skip_all)]
-async fn put_settings(State(state): State<AppState>, Json(settings): Json<Settings>) -> Result<Json<Settings>, AppError> {
+async fn put_settings(State(state): State<AppState>, Admin(_): Admin, Json(settings): Json<Settings>) -> Result<Json<Settings>, AppError> {
   // A logo must be an asset that exists, or every page would publish a broken header image.
   for logo in [settings.logo_asset_id, settings.logo_dark_asset_id].into_iter().flatten() {
     asset_by_id(&state.db, logo).await.map_err(|e| match e {
@@ -63,7 +64,7 @@ pub(crate) struct ThemeCheck {
   (status = 422, body = ErrorBody),
 ))]
 #[instrument(skip_all)]
-async fn check_settings(Json(settings): Json<Settings>) -> Result<Json<ThemeCheck>, AppError> {
+async fn check_settings(Admin(_): Admin, Json(settings): Json<Settings>) -> Result<Json<ThemeCheck>, AppError> {
   settings.validate_shape().map_err(CoreError::Invalid)?;
 
   let vars = |mode| {

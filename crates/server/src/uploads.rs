@@ -6,7 +6,7 @@ use axum::{
   response::{IntoResponse, Response},
 };
 use cairn_assets::process;
-use cairn_auth::CurrentUser;
+use cairn_auth::Editor;
 use cairn_core::{Asset, AssetId, AssetStore, AssetVariant, CoreError, original_key, variant_key};
 use cairn_store::{NewAsset, asset_by_hash, asset_by_id, get_or_create_asset};
 use tracing::instrument;
@@ -34,7 +34,7 @@ pub(crate) fn routes() -> OpenApiRouter<AppState> {
   (status = 422, body = ErrorBody, description = "not a supported image, too many pixels, or damaged"),
 ))]
 #[instrument(skip_all)]
-async fn upload(State(state): State<AppState>, CurrentUser(user, _): CurrentUser, headers: HeaderMap, body: Body) -> Result<(StatusCode, Json<Asset>), AppError> {
+async fn upload(State(state): State<AppState>, Editor(user): Editor, headers: HeaderMap, body: Body) -> Result<(StatusCode, Json<Asset>), AppError> {
   let announced = headers.get(header::CONTENT_LENGTH).and_then(|v| v.to_str().ok()?.parse::<u64>().ok());
   if announced.is_some_and(|length| length > MAX_UPLOAD) {
     return Err(CoreError::TooLarge { limit: MAX_UPLOAD }.into());
@@ -123,6 +123,8 @@ pub(crate) async fn serve(State(state): State<AppState>, Path(name): Path<String
 mod tests {
   use std::fs;
 
+  use cairn_auth::local_user_id;
+
   use super::*;
   use crate::app::test_state;
 
@@ -136,7 +138,7 @@ mod tests {
   #[tokio::test]
   async fn uploading_the_same_file_twice_stores_it_once() {
     let (state, dir) = crate::app::test_state_with_dir().await;
-    let send = || upload(State(state.clone()), CurrentUser::local(), HeaderMap::new(), Body::from(PNG));
+    let send = || upload(State(state.clone()), Editor(local_user_id()), HeaderMap::new(), Body::from(PNG));
 
     let (first_status, Json(first)) = send().await.unwrap();
     let (second_status, Json(second)) = send().await.unwrap();
@@ -158,7 +160,7 @@ mod tests {
   #[tokio::test]
   async fn rejects_files_that_are_not_images() {
     let state = test_state().await;
-    let result = upload(State(state), CurrentUser::local(), HeaderMap::new(), Body::from(&b"<svg onload=alert(1)>"[..])).await;
+    let result = upload(State(state), Editor(local_user_id()), HeaderMap::new(), Body::from(&b"<svg onload=alert(1)>"[..])).await;
 
     assert!(matches!(result, Err(AppError::Core(CoreError::Invalid(_)))));
   }
@@ -171,7 +173,7 @@ mod tests {
     bomb[16..20].copy_from_slice(&30_000u32.to_be_bytes());
     bomb[20..24].copy_from_slice(&30_000u32.to_be_bytes());
 
-    let result = upload(State(state), CurrentUser::local(), HeaderMap::new(), Body::from(bomb)).await;
+    let result = upload(State(state), Editor(local_user_id()), HeaderMap::new(), Body::from(bomb)).await;
 
     assert!(matches!(result, Err(AppError::Core(CoreError::Invalid(m))) if m.contains("pixels")));
   }
@@ -183,7 +185,7 @@ mod tests {
     let chunks = std::iter::once(Ok::<_, std::io::Error>(bytes::Bytes::from_static(PNG))).chain((0..30).map(|_| Ok(bytes::Bytes::from(vec![0u8; 1 << 20]))));
     let body = Body::from_stream(futures_util::stream::iter(chunks));
 
-    let result = upload(State(state), CurrentUser::local(), HeaderMap::new(), body).await;
+    let result = upload(State(state), Editor(local_user_id()), HeaderMap::new(), body).await;
 
     assert!(matches!(result, Err(AppError::Core(CoreError::TooLarge { .. }))));
     assert!(walk(&dir.join("assets")).is_empty());

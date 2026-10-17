@@ -11,8 +11,8 @@ use axum::{
     sse::{Event as SseEvent, KeepAlive},
   },
 };
-use cairn_auth::CurrentUser;
-use cairn_core::{ContentStore, Event, LOCK_IDLE, LockToken, PageId, PageKind, PageLock, ReleaseId, UserId};
+use cairn_auth::{AuthError, CurrentUser, Editor};
+use cairn_core::{ContentStore, Event, LOCK_IDLE, LockToken, PageId, PageKind, PageLock, ReleaseId, Role, UserId};
 use futures_util::{Stream, StreamExt};
 use jiff::{SignedDuration, Timestamp};
 use serde::{Deserialize, Serialize};
@@ -169,7 +169,7 @@ async fn get_lock(State(state): State<AppState>, CurrentUser(user, _): CurrentUs
   (status = 423, body = ErrorBody, description = "someone else is editing the page"),
 ))]
 #[instrument(skip_all, fields(page_id = %id))]
-async fn acquire(State(state): State<AppState>, CurrentUser(user, _): CurrentUser, Path(id): Path<PageId>, body: Option<Json<AcquireLock>>) -> Result<Json<AcquiredLock>, AppError> {
+async fn acquire(State(state): State<AppState>, Editor(user): Editor, Path(id): Path<PageId>, body: Option<Json<AcquireLock>>) -> Result<Json<AcquiredLock>, AppError> {
   if !cairn_store::list_pages(&state.db).await?.iter().any(|p| p.id == id && p.kind == PageKind::Page) {
     return Err(AppError::NotFound);
   }
@@ -197,7 +197,7 @@ async fn acquire(State(state): State<AppState>, CurrentUser(user, _): CurrentUse
   (status = 423, body = ErrorBody, description = "someone else is editing the page"),
 ))]
 #[instrument(skip_all, fields(page_id = %id))]
-async fn renew(State(state): State<AppState>, CurrentUser(user, _): CurrentUser, Path(id): Path<PageId>, Json(body): Json<RenewLock>) -> Result<Json<LockView>, AppError> {
+async fn renew(State(state): State<AppState>, Editor(user): Editor, Path(id): Path<PageId>, Json(body): Json<RenewLock>) -> Result<Json<LockView>, AppError> {
   let lock = keep(&state, id, body.token, user, Timestamp::now().checked_sub(millis(body.idle_ms)).unwrap_or(Timestamp::MIN)).await?;
 
   Ok(Json(view(&state, lock, user).await?))
@@ -216,22 +216,27 @@ pub(crate) async fn keep(state: &AppState, page: PageId, token: LockToken, user:
 /// Stops editing. The editor calls it when the page is left or after a long idle time; a token that lost the lock changes nothing.
 #[utoipa::path(delete, path = "/api/pages/{id}/lock", operation_id = "releaseLock", params(("id" = PageId, Path), ReleaseQuery), responses((status = 204)))]
 #[instrument(skip_all, fields(page_id = %id))]
-async fn release(State(state): State<AppState>, Path(id): Path<PageId>, Query(query): Query<ReleaseQuery>) -> Result<StatusCode, AppError> {
+async fn release(State(state): State<AppState>, Editor(_): Editor, Path(id): Path<PageId>, Query(query): Query<ReleaseQuery>) -> Result<StatusCode, AppError> {
   cairn_store::release_lock(&state.db, id, query.token).await?;
   state.publisher.notify(Event::LockChanged { page: id });
 
   Ok(StatusCode::NO_CONTENT)
 }
 
-/// Takes the page from someone who left it idle (or, with `force`, from someone still at work). Their editor is told at once, stops,
-/// and keeps what it has not saved in their browser. Refused with 409 while the holder is active and `force` is not set.
+/// Takes the page from someone who left it idle (or, with `force`, from someone still at work: admins only). Their editor is told at
+/// once, stops, and keeps what it has not saved in their browser. Refused with 409 while the holder is active and `force` is not set.
 #[utoipa::path(post, path = "/api/pages/{id}/lock/take-over", operation_id = "takeOverLock", params(("id" = PageId, Path)), request_body = TakeOver, responses(
   (status = 200, body = AcquiredLock),
+  (status = 403, body = ErrorBody, description = "a viewer, or `force` without the admin role"),
   (status = 404, body = ErrorBody),
   (status = 409, body = ErrorBody, description = "the holder is still active"),
 ))]
 #[instrument(skip_all, fields(page_id = %id))]
-async fn take_over(State(state): State<AppState>, CurrentUser(user, _): CurrentUser, Path(id): Path<PageId>, Json(body): Json<TakeOver>) -> Result<Json<AcquiredLock>, AppError> {
+async fn take_over(State(state): State<AppState>, CurrentUser(user, role): CurrentUser, Path(id): Path<PageId>, Json(body): Json<TakeOver>) -> Result<Json<AcquiredLock>, AppError> {
+  let needed = if body.force { Role::Admin } else { Role::Editor };
+  if role < needed {
+    return Err(AuthError::Forbidden(format!("this needs the {} role; yours is {}", needed.as_str(), role.as_str())).into());
+  }
   if !cairn_store::list_pages(&state.db).await?.iter().any(|p| p.id == id && p.kind == PageKind::Page) {
     return Err(AppError::NotFound);
   }

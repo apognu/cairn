@@ -2,7 +2,7 @@ use axum::{
   Json,
   extract::{Path, State},
 };
-use cairn_auth::CurrentUser;
+use cairn_auth::Editor;
 use cairn_core::{ContentStore, Document, Page, PageId, RevisionId, UserId};
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
@@ -116,7 +116,7 @@ struct Restore {
   (status = 423, body = ErrorBody, description = "someone else is editing the page"),
 ))]
 #[instrument(skip_all, fields(page_id = %id))]
-async fn restore_revision(State(state): State<AppState>, CurrentUser(user, _): CurrentUser, Path(id): Path<PageId>, Json(body): Json<Restore>) -> Result<Json<RestoredDraft>, AppError> {
+async fn restore_revision(State(state): State<AppState>, Editor(user): Editor, Path(id): Path<PageId>, Json(body): Json<Restore>) -> Result<Json<RestoredDraft>, AppError> {
   let revision = state.content.revision(body.revision_id).await?;
   if revision.page_id != id {
     return Err(AppError::NotFound);
@@ -190,7 +190,7 @@ struct Restored {
 /// Brings a page back from the trash, with the pages deleted with it.
 #[utoipa::path(post, path = "/api/trash/{id}/restore", operation_id = "restoreFromTrash", params(("id" = PageId, Path)), responses((status = 200, body = Restored), (status = 404, body = ErrorBody)))]
 #[instrument(skip_all, fields(page_id = %id))]
-async fn restore_from_trash(State(state): State<AppState>, Path(id): Path<PageId>) -> Result<Json<Restored>, AppError> {
+async fn restore_from_trash(State(state): State<AppState>, Editor(_): Editor, Path(id): Path<PageId>) -> Result<Json<Restored>, AppError> {
   let (page, old_place_kept) = cairn_store::restore_page(&state.db, id).await?;
 
   Ok(Json(Restored { page, old_place_kept }))
@@ -199,7 +199,7 @@ async fn restore_from_trash(State(state): State<AppState>, Path(id): Path<PageId
 #[cfg(test)]
 mod tests {
   use cairn_auth::local_user_id;
-  use cairn_core::{Placement, Role};
+  use cairn_core::Placement;
 
   use super::*;
   use crate::app::test_state;
@@ -220,7 +220,7 @@ mod tests {
     let oldest = before.last().unwrap().id;
     let _ = restore_revision(
       State(state.clone()),
-      CurrentUser(user, Role::Editor),
+      Editor(user),
       Path(page.id),
       Json(Restore {
         revision_id: oldest,
@@ -253,14 +253,7 @@ mod tests {
     state.content.save_draft(page.id, Document::paragraph("two"), old.base_revision_id, user).await.unwrap();
     let old = old.base_revision_id.unwrap();
     let current = |state: AppState| async move { cairn_store::list_pages(&state.db).await.unwrap().into_iter().find(|p| p.id == page.id).unwrap() };
-    let restore = |title: bool, description: bool| {
-      restore_revision(
-        State(state.clone()),
-        CurrentUser(user, Role::Editor),
-        Path(page.id),
-        Json(Restore { revision_id: old, title, description }),
-      )
-    };
+    let restore = |title: bool, description: bool| restore_revision(State(state.clone()), Editor(user), Path(page.id), Json(Restore { revision_id: old, title, description }));
 
     // Content only: title and description stay as they are.
     let _ = restore(false, false).await.unwrap();

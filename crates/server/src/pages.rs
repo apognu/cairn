@@ -3,7 +3,7 @@ use axum::{
   extract::{Path, State},
   http::StatusCode,
 };
-use cairn_auth::CurrentUser;
+use cairn_auth::Editor;
 use cairn_core::{CoreError, OldUrls, Page, PageId, PageKind, Placement};
 use serde::Deserialize;
 use tracing::instrument;
@@ -76,7 +76,7 @@ async fn list(State(state): State<AppState>) -> Result<Json<Vec<Page>>, AppError
   (status = 422, body = ErrorBody),
 ))]
 #[instrument(skip_all)]
-async fn create(State(state): State<AppState>, CurrentUser(user, _): CurrentUser, Json(body): Json<CreatePage>) -> Result<(StatusCode, Json<Page>), AppError> {
+async fn create(State(state): State<AppState>, Editor(user): Editor, Json(body): Json<CreatePage>) -> Result<(StatusCode, Json<Page>), AppError> {
   let place = placement(body.before);
   let page = match (&body.external_url, body.kind) {
     (Some(url), _) => cairn_store::create_link(&state.db, user, body.parent_id, &body.title, url, place).await?,
@@ -96,7 +96,7 @@ async fn create(State(state): State<AppState>, CurrentUser(user, _): CurrentUser
   (status = 422, body = ErrorBody),
 ))]
 #[instrument(skip_all, fields(page_id = %id))]
-async fn rename(State(state): State<AppState>, Path(id): Path<PageId>, Json(body): Json<RenamePage>) -> Result<Json<Page>, AppError> {
+async fn rename(State(state): State<AppState>, Editor(_): Editor, Path(id): Path<PageId>, Json(body): Json<RenamePage>) -> Result<Json<Page>, AppError> {
   let page = match &body.external_url {
     Some(url) => cairn_store::edit_link(&state.db, id, &body.title, url).await?,
     None => cairn_store::rename_page(&state.db, id, &body.title, old_urls(body.redirect)).await?,
@@ -113,7 +113,7 @@ async fn rename(State(state): State<AppState>, Path(id): Path<PageId>, Json(body
   (status = 422, body = ErrorBody, description = "the target is inside the page's own subtree"),
 ))]
 #[instrument(skip_all, fields(page_id = %id))]
-async fn move_to(State(state): State<AppState>, Path(id): Path<PageId>, Json(body): Json<MovePage>) -> Result<Json<Page>, AppError> {
+async fn move_to(State(state): State<AppState>, Editor(_): Editor, Path(id): Path<PageId>, Json(body): Json<MovePage>) -> Result<Json<Page>, AppError> {
   Ok(Json(cairn_store::move_page(&state.db, id, body.parent_id, placement(body.before), old_urls(body.redirect)).await?))
 }
 
@@ -129,7 +129,7 @@ struct HeaderBody {
   (status = 422, body = ErrorBody, description = "links cannot be shown in the header"),
 ))]
 #[instrument(skip_all, fields(page_id = %id))]
-async fn header(State(state): State<AppState>, Path(id): Path<PageId>, Json(body): Json<HeaderBody>) -> Result<Json<Page>, AppError> {
+async fn header(State(state): State<AppState>, Editor(_): Editor, Path(id): Path<PageId>, Json(body): Json<HeaderBody>) -> Result<Json<Page>, AppError> {
   Ok(Json(cairn_store::set_in_header(&state.db, id, body.in_header).await?))
 }
 
@@ -146,7 +146,7 @@ struct DescriptionBody {
   (status = 422, body = ErrorBody, description = "too long"),
 ))]
 #[instrument(skip_all, fields(page_id = %id))]
-async fn describe(State(state): State<AppState>, Path(id): Path<PageId>, Json(body): Json<DescriptionBody>) -> Result<Json<Page>, AppError> {
+async fn describe(State(state): State<AppState>, Editor(_): Editor, Path(id): Path<PageId>, Json(body): Json<DescriptionBody>) -> Result<Json<Page>, AppError> {
   Ok(Json(cairn_store::set_description(&state.db, id, &body.description).await?))
 }
 
@@ -157,7 +157,7 @@ async fn describe(State(state): State<AppState>, Path(id): Path<PageId>, Json(bo
   (status = 423, body = ErrorBody, description = "someone else is editing the page or a page below it"),
 ))]
 #[instrument(skip_all, fields(page_id = %id))]
-async fn remove(State(state): State<AppState>, CurrentUser(user, _): CurrentUser, Path(id): Path<PageId>) -> Result<StatusCode, AppError> {
+async fn remove(State(state): State<AppState>, Editor(user): Editor, Path(id): Path<PageId>) -> Result<StatusCode, AppError> {
   match cairn_store::delete_page(&state.db, id, user).await {
     Ok(_) => {}
     Err(cairn_store::StoreError::LockHeld(lock)) => return Err(crate::locks::held(&state, lock, user).await),
@@ -185,7 +185,7 @@ mod tests {
       kind: None,
     };
 
-    let (status, Json(page)) = create(State(state), CurrentUser::local(), Json(body)).await.unwrap();
+    let (status, Json(page)) = create(State(state), Editor(local_user_id()), Json(body)).await.unwrap();
 
     assert_eq!(status, StatusCode::CREATED);
     assert_eq!(page.created_by, local_user_id());

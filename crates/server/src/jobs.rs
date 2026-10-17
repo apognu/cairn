@@ -1,7 +1,7 @@
 //! Housekeeping that an external scheduler asks for, so an idle server never wakes itself up.
 
 use axum::{Json, extract::State};
-use cairn_auth::CurrentUser;
+use cairn_auth::Admin;
 use cairn_core::StalePage;
 use jiff::{SignedDuration, Timestamp};
 use serde::Serialize;
@@ -38,7 +38,7 @@ struct JobsReport {
   (status = 401, body = ErrorBody, description = "not signed in and no API token"),
 ))]
 #[instrument(skip_all)]
-async fn run(State(state): State<AppState>, CurrentUser(..): CurrentUser) -> Result<Json<JobsReport>, AppError> {
+async fn run(State(state): State<AppState>, Admin(_): Admin) -> Result<Json<JobsReport>, AppError> {
   let cleanup = state.publisher.clean_assets(Timestamp::now() - state.asset_grace).await?;
 
   Ok(Json(JobsReport {

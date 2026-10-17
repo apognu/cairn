@@ -4,7 +4,7 @@ use axum::{
   Json,
   extract::{Path, State},
 };
-use cairn_auth::{CurrentUser, local_user_id};
+use cairn_auth::{CurrentUser, Editor, local_user_id};
 use cairn_core::{PageId, PageReview, StalePage, User};
 use cairn_store::{get_user, list_users, page_review, set_page_review, stale_pages};
 use jiff::Zoned;
@@ -35,7 +35,7 @@ async fn get_review(State(state): State<AppState>, Path(id): Path<PageId>) -> Re
   (status = 404, body = ErrorBody, description = "no such page, or it is in the trash"),
 ))]
 #[instrument(skip_all, fields(page_id = %id))]
-async fn set_review(State(state): State<AppState>, CurrentUser(user, _): CurrentUser, Path(id): Path<PageId>, Json(body): Json<PageReview>) -> Result<Json<PageReview>, AppError> {
+async fn set_review(State(state): State<AppState>, Editor(user): Editor, Path(id): Path<PageId>, Json(body): Json<PageReview>) -> Result<Json<PageReview>, AppError> {
   Ok(Json(set_page_review(&state.db, id, &body, user).await?))
 }
 

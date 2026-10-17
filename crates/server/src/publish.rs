@@ -8,7 +8,7 @@ use axum::{
     sse::{Event as SseEvent, KeepAlive},
   },
 };
-use cairn_auth::CurrentUser;
+use cairn_auth::{Editor, Publisher};
 use cairn_core::{Event, PageId, Pending, Problem, Pulled, Release, ReleaseId, ReleaseStatus};
 use futures_util::{Stream, StreamExt};
 use serde::{Deserialize, Serialize};
@@ -125,7 +125,7 @@ struct PublishRequest {
   (status = 422, body = ErrorBody, description = "the checks found problems or a page could not be rendered; nothing was published; the details name each page"),
 ))]
 #[instrument(skip_all)]
-async fn publish(State(state): State<AppState>, CurrentUser(user, _): CurrentUser, body: Option<Json<PublishRequest>>) -> Result<Json<Release>, AppError> {
+async fn publish(State(state): State<AppState>, Publisher(user): Publisher, body: Option<Json<PublishRequest>>) -> Result<Json<Release>, AppError> {
   let release = match body.and_then(|Json(b)| b.pages) {
     Some(pages) => state.publisher.publish_selected(user, &pages.into_iter().collect()).await?,
     None => state.publisher.publish(user).await?,
@@ -157,7 +157,7 @@ struct PlainLink {
 /// What a hotfix of these pages would also publish, and which of their links would show as plain text. Nothing is published.
 #[utoipa::path(post, path = "/api/publish/plan", operation_id = "hotfixPlan", request_body = PlanRequest, responses((status = 200, body = HotfixPlan)))]
 #[instrument(skip_all)]
-async fn plan(State(state): State<AppState>, Json(body): Json<PlanRequest>) -> Result<Json<HotfixPlan>, AppError> {
+async fn plan(State(state): State<AppState>, Editor(_): Editor, Json(body): Json<PlanRequest>) -> Result<Json<HotfixPlan>, AppError> {
   let plan = cairn_publish::hotfix_plan(&state.db, &body.pages.into_iter().collect()).await?;
 
   Ok(Json(HotfixPlan {
@@ -181,7 +181,7 @@ async fn plan(State(state): State<AppState>, Json(body): Json<PlanRequest>) -> R
   (status = 422, body = ErrorBody, description = "the target has no previews, the checks found problems, or the target would refuse the site"),
 ))]
 #[instrument(skip_all)]
-async fn preview(State(state): State<AppState>, CurrentUser(user, _): CurrentUser) -> Result<Json<Release>, AppError> {
+async fn preview(State(state): State<AppState>, Editor(user): Editor) -> Result<Json<Release>, AppError> {
   Ok(Json(state.publisher.preview(user).await?))
 }
 
@@ -193,7 +193,7 @@ async fn preview(State(state): State<AppState>, CurrentUser(user, _): CurrentUse
   (status = 422, body = ErrorBody, description = "the release is not a preview"),
 ))]
 #[instrument(skip_all)]
-async fn promote(State(state): State<AppState>, _user: CurrentUser, Path(id): Path<ReleaseId>) -> Result<Json<Release>, AppError> {
+async fn promote(State(state): State<AppState>, Publisher(_): Publisher, Path(id): Path<ReleaseId>) -> Result<Json<Release>, AppError> {
   Ok(Json(state.publisher.promote(id).await?))
 }
 
@@ -253,6 +253,6 @@ async fn releases(State(state): State<AppState>) -> Result<Json<Vec<ReleaseRow>>
   (status = 422, body = ErrorBody, description = "the release is the live site already, or never was the site"),
 ))]
 #[instrument(skip_all)]
-async fn rollback(State(state): State<AppState>, CurrentUser(user, _): CurrentUser, Path(id): Path<ReleaseId>) -> Result<Json<Release>, AppError> {
+async fn rollback(State(state): State<AppState>, Publisher(user): Publisher, Path(id): Path<ReleaseId>) -> Result<Json<Release>, AppError> {
   Ok(Json(state.publisher.rollback(user, id).await?))
 }

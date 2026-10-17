@@ -214,6 +214,7 @@ pub(crate) async fn test_state_serving(target: impl FnOnce(&std::path::Path) -> 
 #[cfg(test)]
 mod tests {
   use axum::routing::post;
+  use cairn_core::Role;
   use tower::ServiceExt;
 
   use super::*;
@@ -239,6 +240,202 @@ mod tests {
 
       let response = app.clone().oneshot(request.body(Body::empty()).unwrap()).await.unwrap();
       assert_eq!(response.status(), expected, "{host} {origin:?}");
+    }
+  }
+
+  /// The least role each operation of the API needs. Every operation of the OpenAPI spec must be listed, so a new endpoint cannot be added
+  /// without deciding who may call it.
+  const MINIMUM_ROLES: &[(&str, &str, Role)] = &[
+    ("GET", "/api/events", Role::Viewer),
+    ("POST", "/api/highlight", Role::Viewer),
+    ("GET", "/api/library", Role::Viewer),
+    ("DELETE", "/api/library/{id}", Role::Editor),
+    ("PUT", "/api/library/snippets/{key}", Role::Editor),
+    ("PUT", "/api/library/terms", Role::Editor),
+    ("PUT", "/api/library/variables/{key}", Role::Editor),
+    ("GET", "/api/locks", Role::Viewer),
+    ("GET", "/api/me", Role::Viewer),
+    ("GET", "/api/pages", Role::Viewer),
+    ("POST", "/api/pages", Role::Editor),
+    ("POST", "/api/pages/{id}", Role::Editor),
+    ("DELETE", "/api/pages/{id}", Role::Editor),
+    ("POST", "/api/pages/{id}/aliases", Role::Editor),
+    ("DELETE", "/api/pages/{id}/aliases", Role::Editor),
+    ("GET", "/api/pages/{id}/api-config", Role::Viewer),
+    ("PUT", "/api/pages/{id}/api-config", Role::Editor),
+    ("POST", "/api/pages/{id}/api-config/check", Role::Editor),
+    ("GET", "/api/pages/{id}/api-spec", Role::Viewer),
+    ("GET", "/api/pages/{id}/backlinks", Role::Viewer),
+    ("PUT", "/api/pages/{id}/description", Role::Editor),
+    ("GET", "/api/pages/{id}/draft", Role::Viewer),
+    ("PUT", "/api/pages/{id}/draft", Role::Editor),
+    ("PUT", "/api/pages/{id}/header", Role::Editor),
+    ("GET", "/api/pages/{id}/history", Role::Viewer),
+    ("GET", "/api/pages/{id}/impact", Role::Viewer),
+    ("GET", "/api/pages/{id}/lock", Role::Viewer),
+    ("POST", "/api/pages/{id}/lock", Role::Editor),
+    ("PUT", "/api/pages/{id}/lock", Role::Editor),
+    ("DELETE", "/api/pages/{id}/lock", Role::Editor),
+    ("POST", "/api/pages/{id}/lock/take-over", Role::Editor),
+    ("POST", "/api/pages/{id}/move", Role::Editor),
+    ("GET", "/api/pages/{id}/operations", Role::Viewer),
+    ("POST", "/api/pages/{id}/restore", Role::Editor),
+    ("GET", "/api/pages/{id}/review", Role::Viewer),
+    ("PUT", "/api/pages/{id}/review", Role::Editor),
+    ("GET", "/api/pages/{id}/url", Role::Viewer),
+    ("PUT", "/api/pages/{id}/url", Role::Editor),
+    ("POST", "/api/publish", Role::Publisher),
+    ("GET", "/api/publish/changes", Role::Viewer),
+    ("GET", "/api/publish/checks", Role::Viewer),
+    ("POST", "/api/publish/plan", Role::Editor),
+    ("POST", "/api/publish/preview", Role::Editor),
+    ("GET", "/api/publish/progress", Role::Viewer),
+    ("GET", "/api/redirects", Role::Viewer),
+    ("POST", "/api/redirects", Role::Editor),
+    ("DELETE", "/api/redirects", Role::Editor),
+    ("GET", "/api/releases", Role::Viewer),
+    ("POST", "/api/releases/{id}/promote", Role::Publisher),
+    ("POST", "/api/releases/{id}/rollback", Role::Publisher),
+    ("GET", "/api/reports/stale", Role::Viewer),
+    ("GET", "/api/revisions/{id}", Role::Viewer),
+    ("POST", "/api/jobs/run", Role::Admin),
+    ("GET", "/api/scalar.js", Role::Viewer),
+    ("GET", "/api/settings", Role::Viewer),
+    ("PUT", "/api/settings", Role::Admin),
+    ("POST", "/api/settings/check", Role::Admin),
+    ("GET", "/api/site", Role::Viewer),
+    ("GET", "/api/theme.css", Role::Viewer),
+    ("GET", "/api/tokens", Role::Viewer),
+    ("POST", "/api/tokens", Role::Viewer),
+    ("DELETE", "/api/tokens/{id}", Role::Viewer),
+    ("GET", "/api/trash", Role::Viewer),
+    ("POST", "/api/trash/{id}/restore", Role::Editor),
+    ("POST", "/api/assets", Role::Editor),
+    ("GET", "/api/users", Role::Viewer),
+  ];
+
+  const ORIGIN: &str = "https://docs.example.com";
+
+  /// The editor's router with a real login, and a session cookie for one user of each role.
+  async fn signed_in_app() -> (Router, Vec<(Role, String)>, AppState) {
+    use cairn_auth::{AccessRules, Auth, AuthSettings, Oidc, SessionSettings};
+    use jiff::SignedDuration;
+
+    let (mut state, _) = test_state_serving(|dir| PublishTarget::SelfHosted(cairn_publish::FolderTarget::new(dir.join("out")))).await;
+    state.auth = Auth::oidc(
+      Oidc::unreachable(),
+      None,
+      state.db.clone(),
+      AuthSettings {
+        sessions: SessionSettings {
+          idle: SignedDuration::from_hours(1),
+          absolute: SignedDuration::from_hours(24),
+          secure: true,
+        },
+        access: AccessRules {
+          allow_any: true,
+          ..Default::default()
+        },
+        public_origin: ORIGIN.into(),
+        base_path: String::new(),
+      },
+    );
+
+    let mut cookies = Vec::new();
+    // The first user is the admin; the others start as viewers and are given their role.
+    for role in [Role::Admin, Role::Publisher, Role::Editor, Role::Viewer] {
+      let user = cairn_store::upsert_user(&state.db, "https://idp.example", role.as_str(), &format!("{}@example.com", role.as_str()), role.as_str())
+        .await
+        .unwrap();
+      cairn_store::set_user_role(&state.db, user.id, role).await.unwrap();
+      cookies.push((role, state.auth.start_session_for_tests(user.id).await));
+    }
+
+    (editor_app(state.auth.clone()).with_state(state.clone()), cookies, state)
+  }
+
+  #[test]
+  fn every_operation_has_a_minimum_role() {
+    let (_, spec) = api();
+    let mut missing = Vec::new();
+
+    for (path, item) in &spec.paths.paths {
+      for (method, operation) in [("GET", &item.get), ("POST", &item.post), ("PUT", &item.put), ("DELETE", &item.delete), ("PATCH", &item.patch)] {
+        if operation.is_some() && !MINIMUM_ROLES.iter().any(|(m, p, _)| *m == method && p == path) {
+          missing.push(format!("{method} {path}"));
+        }
+      }
+    }
+
+    assert!(missing.is_empty(), "add these to MINIMUM_ROLES: {missing:?}");
+  }
+
+  #[tokio::test]
+  async fn each_role_can_call_what_it_may_and_nothing_more() {
+    let (app, cookies, _) = signed_in_app().await;
+    let (_, spec) = api();
+
+    for (method, path, minimum) in MINIMUM_ROLES {
+      // A row for an operation that no longer exists would test nothing.
+      assert!(spec.paths.paths.contains_key(*path), "{path} is not an operation any more");
+      let uri = path.replace("{id}", &uuid::Uuid::now_v7().to_string()).replace("{key}", "k");
+      // A forced take-over needs more than a plain one: this body asks for the plain one.
+      let body = if path.ends_with("/take-over") { r#"{"force":false}"# } else { "{}" };
+
+      for (role, cookie) in &cookies {
+        let request = Request::builder()
+          .method(*method)
+          .uri(&uri)
+          .header(header::COOKIE, cookie)
+          .header(header::ORIGIN, ORIGIN)
+          .header(header::CONTENT_TYPE, "application/json")
+          .body(Body::from(body))
+          .unwrap();
+        let status = app.clone().oneshot(request).await.unwrap().status();
+
+        if role < minimum {
+          assert_eq!(status, StatusCode::FORBIDDEN, "{method} {path} as {}", role.as_str());
+        } else {
+          assert_ne!(status, StatusCode::FORBIDDEN, "{method} {path} as {}", role.as_str());
+          assert_ne!(status, StatusCode::UNAUTHORIZED, "{method} {path} as {}", role.as_str());
+        }
+      }
+    }
+  }
+
+  #[tokio::test]
+  async fn a_token_limited_to_viewer_cannot_save_a_draft() {
+    let (app, _, state) = signed_in_app().await;
+    let admin = cairn_store::upsert_user(&state.db, "https://idp.example", "admin", "admin@example.com", "admin").await.unwrap();
+    let (_, secret) = state.auth.issue_token(cairn_auth::CurrentUser(admin.id, admin.role), "CI", Some(Role::Viewer)).await.unwrap();
+    let uri = format!("/api/pages/{}/draft", uuid::Uuid::now_v7());
+
+    let request = Request::put(&uri)
+      .header(header::AUTHORIZATION, format!("Bearer {secret}"))
+      .header(header::CONTENT_TYPE, "application/json")
+      .body(Body::from("{}"))
+      .unwrap();
+
+    assert_eq!(app.oneshot(request).await.unwrap().status(), StatusCode::FORBIDDEN);
+  }
+
+  #[tokio::test]
+  async fn only_an_admin_can_force_a_take_over() {
+    let (app, cookies, _) = signed_in_app().await;
+    let uri = format!("/api/pages/{}/lock/take-over", uuid::Uuid::now_v7());
+
+    for (role, cookie) in &cookies {
+      let request = Request::post(&uri)
+        .header(header::COOKIE, cookie)
+        .header(header::ORIGIN, ORIGIN)
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(r#"{"force":true}"#))
+        .unwrap();
+      let status = app.clone().oneshot(request).await.unwrap().status();
+
+      // An admin gets as far as finding no such page.
+      let expected = if *role == Role::Admin { StatusCode::NOT_FOUND } else { StatusCode::FORBIDDEN };
+      assert_eq!(status, expected, "{}", role.as_str());
     }
   }
 }

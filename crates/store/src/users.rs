@@ -1,7 +1,7 @@
 use cairn_core::{Role, User, UserId};
 use jiff::{Span, Timestamp};
 use sea_orm::{
-  ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter, Set,
+  ColumnTrait, Condition, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter, Set,
   sea_query::{Expr, OnConflict, Query},
 };
 
@@ -88,6 +88,30 @@ pub async fn get_user(db: &DatabaseConnection, id: UserId) -> Result<User, Store
   user::Entity::find_by_id(id.as_uuid()).one(db).await?.map(into_user).ok_or(StoreError::NotFound)?
 }
 
+/// Changes a user's role. Refused with `Conflict` when it would leave the site without an admin: checked in the same statement, so two
+/// admins demoting each other at once cannot both succeed on SQLite.
+pub async fn set_user_role(db: &DatabaseConnection, id: UserId, role: Role) -> Result<User, StoreError> {
+  let keeps_an_admin = match role {
+    Role::Admin => Condition::all(),
+    _ => Condition::any()
+      .add(user::Column::Role.ne(Role::Admin.as_str()))
+      .add(Expr::cust(r#"(SELECT COUNT(*) FROM "users" WHERE "role" = 'admin') > 1"#)),
+  };
+  let updated = user::Entity::update_many()
+    .col_expr(user::Column::Role, Expr::value(role.as_str()))
+    .filter(user::Column::Id.eq(id.as_uuid()))
+    .filter(keeps_an_admin)
+    .exec(db)
+    .await?;
+
+  let found = get_user(db, id).await?;
+  if updated.rows_affected == 0 {
+    return Err(StoreError::Conflict("the site needs at least one admin: make someone else admin first".into()));
+  }
+
+  Ok(found)
+}
+
 /// Remembers a login in progress under its `state` value, and forgets the ones nobody came back for.
 pub async fn save_login_state(db: &DatabaseConnection, state: &str, login: &LoginState) -> Result<(), StoreError> {
   let now = Timestamp::now();
@@ -146,6 +170,22 @@ mod tests {
     let first_again = upsert_user(&db, "https://idp.example", "a", "a@example.com", "A").await.unwrap();
 
     assert_eq!((first.role, second.role, first_again.role), (Role::Admin, Role::Viewer, Role::Admin));
+  }
+
+  #[tokio::test]
+  async fn the_last_admin_cannot_be_demoted() {
+    let db = test_db().await;
+    let alice = upsert_user(&db, "https://idp.example", "a", "a@example.com", "A").await.unwrap().id;
+    let bob = upsert_user(&db, "https://idp.example", "b", "b@example.com", "B").await.unwrap().id;
+
+    assert!(matches!(set_user_role(&db, alice, Role::Editor).await, Err(StoreError::Conflict(_))));
+    assert_eq!(set_user_role(&db, alice, Role::Admin).await.unwrap().role, Role::Admin);
+
+    set_user_role(&db, bob, Role::Admin).await.unwrap();
+
+    assert_eq!(set_user_role(&db, alice, Role::Viewer).await.unwrap().role, Role::Viewer);
+    assert!(matches!(set_user_role(&db, bob, Role::Publisher).await, Err(StoreError::Conflict(_))));
+    assert!(matches!(set_user_role(&db, UserId::new(), Role::Editor).await, Err(StoreError::NotFound)));
   }
 
   #[tokio::test]

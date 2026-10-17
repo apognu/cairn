@@ -2,6 +2,7 @@ use axum::{
   Json,
   extract::{Path, Query, State},
 };
+use cairn_auth::Editor;
 use cairn_core::{OldUrls, PageId, RedirectOrigin, page_urls};
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
@@ -102,7 +103,7 @@ async fn get_url(State(state): State<AppState>, Path(id): Path<PageId>) -> Resul
   (status = 422, body = ErrorBody, description = "not a usable path"),
 ))]
 #[instrument(skip_all, fields(page_id = %id))]
-async fn set_url(State(state): State<AppState>, Path(id): Path<PageId>, Json(body): Json<SetUrl>) -> Result<Json<PageUrl>, AppError> {
+async fn set_url(State(state): State<AppState>, Editor(_): Editor, Path(id): Path<PageId>, Json(body): Json<SetUrl>) -> Result<Json<PageUrl>, AppError> {
   let old = if body.redirect.unwrap_or(true) { OldUrls::Redirect } else { OldUrls::Forget };
   cairn_store::set_custom_url(&state.db, id, body.custom_url.as_deref(), old).await?;
 
@@ -117,7 +118,7 @@ async fn set_url(State(state): State<AppState>, Path(id): Path<PageId>, Json(bod
   (status = 422, body = ErrorBody, description = "not a usable path"),
 ))]
 #[instrument(skip_all, fields(page_id = %id))]
-async fn add_alias(State(state): State<AppState>, Path(id): Path<PageId>, Json(body): Json<NewAlias>) -> Result<Json<PageUrl>, AppError> {
+async fn add_alias(State(state): State<AppState>, Editor(_): Editor, Path(id): Path<PageId>, Json(body): Json<NewAlias>) -> Result<Json<PageUrl>, AppError> {
   cairn_store::add_alias(&state.db, id, &body.path).await?;
 
   Ok(Json(describe(&state, id).await?))
@@ -129,7 +130,7 @@ async fn add_alias(State(state): State<AppState>, Path(id): Path<PageId>, Json(b
   (status = 404, body = ErrorBody),
 ))]
 #[instrument(skip_all, fields(page_id = %id))]
-async fn remove_alias(State(state): State<AppState>, Path(id): Path<PageId>, Query(query): Query<AliasPath>) -> Result<Json<PageUrl>, AppError> {
+async fn remove_alias(State(state): State<AppState>, Editor(_): Editor, Path(id): Path<PageId>, Query(query): Query<AliasPath>) -> Result<Json<PageUrl>, AppError> {
   cairn_store::remove_alias(&state.db, id, &query.path).await?;
 
   Ok(Json(describe(&state, id).await?))
