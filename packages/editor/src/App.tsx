@@ -372,7 +372,7 @@ function Editor() {
               className={`canvas relative overflow-y-auto has-[.sticky-actions]:scroll-pb-20 ${current?.kind === "api" ? "col-[2/-1] mobile:col-[1/-1]" : ""}`}
             >
               {current?.kind === "api" ? (
-                <div className="py-6.5 px-8 text-ui leading-[1.4] has-[.sticky-actions]:pb-0">
+                <div className="py-6.5 px-8 mobile:px-4 text-ui leading-[1.4] has-[.sticky-actions]:pb-0">
                   <ApiSettings key={current.id} page={current} />
                 </div>
               ) : current ? (
