@@ -74,6 +74,17 @@ function ComponentFields({ editor, active }: { editor: Editor; active: Extract<A
   const component = componentsByName.get(active.name);
   if (!component) return null;
 
+  const schema = propsSchema(component);
+  const parsed = component.props.safeParse(active.attrs);
+  // Settings the schema refuses would stop the publish: say so here, next to the fields, naming the field.
+  const problems = parsed.success
+    ? []
+    : parsed.error.issues.map((issue) => {
+        const [name] = issue.path;
+        const label = typeof name === "string" ? (schema.properties?.[name]?.title ?? name) : undefined;
+        return label ? `${label}: ${issue.message}` : issue.message;
+      });
+
   return (
     <>
       <PropsHead
@@ -83,7 +94,7 @@ function ComponentFields({ editor, active }: { editor: Editor; active: Extract<A
         detail={component.name.includes("/") ? `${component.name} · v${component.version}` : undefined}
       />
       <SchemaForm
-        schema={propsSchema(component)}
+        schema={schema}
         value={active.attrs}
         // Not `.focus()`: the form owns the focus while it is being edited.
         onChange={(name, next) =>
@@ -93,6 +104,21 @@ function ComponentFields({ editor, active }: { editor: Editor; active: Extract<A
             .run()
         }
       />
+      {problems.length > 0 && (
+        <p
+          role="alert"
+          className="flex gap-2 mt-0 mb-3.5 py-2.5 px-3 border border-danger rounded-lg text-danger text-help leading-[1.45]"
+        >
+          <Icon name="info" size={16} className="flex-none mt-px" />
+          <span>
+            {problems.map((problem) => (
+              <span key={problem} className="block">
+                {problem}. Publishing waits until it is fixed.
+              </span>
+            ))}
+          </span>
+        </p>
+      )}
     </>
   );
 }

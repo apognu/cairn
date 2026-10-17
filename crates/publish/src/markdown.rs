@@ -129,6 +129,15 @@ fn block(node: &Node, site: &Site) -> String {
       let title = attr_str(node, "title");
       format!("**{}**\n\n{}", escape(if title.is_empty() { "What's new" } else { title }), cards(attr(node, "items"), site))
     }
+    // Markdown cannot play a video; readers get its address. An empty one gives nothing.
+    "embed" => {
+      let (url, title) = (attr_str(node, "url").trim(), attr_str(node, "title"));
+      if url.is_empty() {
+        return String::new();
+      }
+
+      format!("[{}]({})", escape(if title.is_empty() { "Video" } else { title }), url.replace(' ', "%20").replace(')', "%29"))
+    }
     "linkCard" => page_links(attr(node, "page").into_iter(), site),
     "relatedPages" => {
       let title = attr_str(node, "title");
@@ -506,5 +515,23 @@ mod tests {
       page_markdown("T", None, &doc, &site),
       "# T\n\n<details>\n<summary>Why &lt;not&gt;?</summary>\n\nBecause.\n\n</details>\n"
     );
+  }
+
+  #[test]
+  fn a_video_becomes_a_link() {
+    let doc: Document = serde_json::from_value(serde_json::json!({ "type": "doc", "content": [
+      { "type": "embed", "attrs": { "url": "https://youtu.be/dQw4w9WgXcQ", "title": "Tour" } },
+      { "type": "embed", "attrs": { "url": "", "title": "Video" } },
+    ] }))
+    .unwrap();
+    let (urls, titles, assets) = (HashMap::new(), HashMap::new(), HashMap::new());
+    let site = Site {
+      url: "https://d.io",
+      urls: &urls,
+      titles: &titles,
+      assets: &assets,
+    };
+
+    assert_eq!(page_markdown("T", None, &doc, &site), "# T\n\n[Tour](https://youtu.be/dQw4w9WgXcQ)\n");
   }
 }

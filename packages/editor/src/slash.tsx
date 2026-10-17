@@ -89,6 +89,20 @@ export const slashItems: SlashItem[] = [
         })
         .run(),
   ),
+  item(
+    "Components",
+    "video",
+    "Video",
+    "A YouTube, Vimeo or Loom video",
+    "video embed youtube vimeo loom movie player",
+    (e, r) =>
+      e
+        .chain()
+        .focus()
+        .deleteRange(r)
+        .insertContent({ type: "embed", attrs: { url: "", title: "Video" } })
+        .run(),
+  ),
   item("Components", "tabs", "Feature tabs", "Cards grouped into tabs", "features tabs cards grid", (e, r) =>
     e
       .chain()

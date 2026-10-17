@@ -4,13 +4,15 @@
   "type": "module",
   "main": "src/index.ts",
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
   },
   "dependencies": {
     "react": "19.1.1",
     "@cairn/sdk": "workspace:*"
   },
   "devDependencies": {
+    "@types/bun": "1.2.21",
     "@types/react": "19.1.12"
   },
   "exports": {

@@ -13,6 +13,7 @@ const paths = {
   info: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 11v6M12 7.5v.5",
   tabs: "M3 8a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z",
   sparkle: "M12 3l2 6 6 2-6 2-2 6-2-6-6-2 6-2z",
+  video: "M3 6h13v12H3zM16 10l5-3v10l-5-3",
   image: "M4 5h16v14H4zM4 16l5-5 4 4 3-3 4 4M9 9h.01",
   table: "M4 5h16v14H4zM4 11h16M4 15h16M10 5v14",
   divider: "M4 12h16",

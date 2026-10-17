@@ -211,6 +211,15 @@
   line-height: 16px;
 }
 
+/* A video takes clicks only once selected: the first click picks the block, as for any other component. */
+.ProseMirror .embed iframe {
+  pointer-events: none;
+}
+
+.ProseMirror-selectednode .embed iframe {
+  pointer-events: auto;
+}
+
 /* The dimmed line at the end of the canvas that shows where to write (`phantom.ts`). */
 .ProseMirror .phantom-line::before {
   content: attr(data-placeholder);

@@ -1,5 +1,6 @@
 import {
   cards,
+  embed,
   featureTabs,
   fileTree,
   linkCard,
@@ -353,6 +354,7 @@ export const buildExtensions = (editable: boolean) => [
   atomComponent(seeAlso as unknown as AnyComponent),
   atomComponent(cards as unknown as AnyComponent),
   atomComponent(fileTree as unknown as AnyComponent),
+  atomComponent(embed as unknown as AnyComponent),
   atomComponent(variable as unknown as AnyComponent, true),
   atomComponent(snippet as unknown as AnyComponent),
   ...customComponents.map((component) => atomComponent(component)),
