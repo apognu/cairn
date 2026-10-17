@@ -807,6 +807,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Pages whose title or draft has the words, titles first, at most twenty. */
+        get: operations["searchPages"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/settings": {
         parameters: {
             query?: never;
@@ -1657,6 +1674,12 @@ export interface components {
             doc: components["schemas"]["Document"];
             /** @description The token of the page's lock, which the saver must hold. */
             lock_token: components["schemas"]["LockToken"];
+        };
+        SearchHit: {
+            /** @description The words around the match in the page's draft; none when the title matched. */
+            excerpt?: string | null;
+            page_id: components["schemas"]["PageId"];
+            title: string;
         };
         SetRole: {
             role: components["schemas"]["Role"];
@@ -3760,6 +3783,28 @@ export interface operations {
                 };
                 content: {
                     "text/javascript": string;
+                };
+            };
+        };
+    };
+    searchPages: {
+        parameters: {
+            query: {
+                /** @description Words to find, ignoring case; fewer than two characters find nothing. */
+                q: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchHit"][];
                 };
             };
         };

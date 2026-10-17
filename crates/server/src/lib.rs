@@ -23,6 +23,7 @@ mod publish;
 mod reader;
 mod redirects;
 mod reviews;
+mod search;
 mod serving;
 mod settings;
 mod site;

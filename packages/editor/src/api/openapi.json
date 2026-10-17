@@ -2344,6 +2344,37 @@
         }
       }
     },
+    "/api/search": {
+      "get": {
+        "summary": "Pages whose title or draft has the words, titles first, at most twenty.",
+        "operationId": "searchPages",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Words to find, ignoring case; fewer than two characters find nothing.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SearchHit"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/settings": {
       "get": {
         "summary": "The site name, logo and accent color.",
@@ -4845,6 +4876,28 @@
           "lock_token": {
             "$ref": "#/components/schemas/LockToken",
             "description": "The token of the page's lock, which the saver must hold."
+          }
+        }
+      },
+      "SearchHit": {
+        "type": "object",
+        "required": [
+          "page_id",
+          "title"
+        ],
+        "properties": {
+          "excerpt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The words around the match in the page's draft; none when the title matched."
+          },
+          "page_id": {
+            "$ref": "#/components/schemas/PageId"
+          },
+          "title": {
+            "type": "string"
           }
         }
       },
