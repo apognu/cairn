@@ -86,3 +86,33 @@ test("promoting a page with children limits the published sidebar to that branch
   expect(inside).toContain('class="site-nav-back ');
   expect(html(slug(other))).not.toContain('class="site-nav-back ');
 });
+
+test("a review date is cleared with its button, not by deleting part of it", async ({ page }) => {
+  const title = `Review ${Math.random().toString(36).slice(2, 8)}`;
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "New page" }).click();
+  await nameNewPage(page, title);
+  await page.getByRole("button", { name: "Page settings" }).click();
+  const drawer = page.getByRole("dialog", { name: "Page settings" });
+  const date = drawer.getByLabel("Review by", { exact: true });
+
+  await date.fill("2099-01-31");
+  await date.blur();
+  await expect(drawer.getByRole("button", { name: "Clear", exact: true })).toBeVisible();
+
+  // Deleting the year leaves the input empty to the page; leaving it keeps the saved date.
+  await date.press("End");
+  await date.press("Backspace");
+  await expect(date).toHaveValue("");
+  await date.blur();
+  await page.reload();
+  await page.getByRole("button", { name: "Page settings" }).click();
+  await expect(date).toHaveValue("2099-01-31");
+
+  await drawer.getByRole("button", { name: "Clear", exact: true }).click();
+  await expect(drawer.getByRole("button", { name: "Clear", exact: true })).toHaveCount(0);
+  await page.reload();
+  await page.getByRole("button", { name: "Page settings" }).click();
+  await expect(date).toHaveValue("");
+});

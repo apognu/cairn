@@ -284,9 +284,14 @@ function ReviewFields({ pageId }: { pageId: string }) {
   };
   // Typing a year changes the value at every digit: the date is saved when the field is left, not while it is typed.
   const [date, setDate] = useState<string | null>(null);
+  // A date input reads empty as soon as one of its parts is deleted: only the Clear button removes the date.
   const saveDate = () => {
-    if (date === null || date === (current.review_by ?? "")) return;
-    update({ review_by: date || null });
+    if (!date) return setDate(null);
+    if (date !== current.review_by) update({ review_by: date });
+  };
+  const clearDate = () => {
+    setDate(null);
+    update({ review_by: null });
   };
 
   return (
@@ -312,9 +317,16 @@ function ReviewFields({ pageId }: { pageId: string }) {
           </select>
         </div>
         <div className={ui.fieldBase}>
-          <label htmlFor={`${id}-review`} className={ui.fieldLabel}>
-            Review by
-          </label>
+          <div className="flex justify-between items-baseline">
+            <label htmlFor={`${id}-review`} className={ui.fieldLabel}>
+              Review by
+            </label>
+            {current.review_by && (
+              <button type="button" className={`${ui.linkButton} p-0 text-label`} onClick={clearDate}>
+                Clear
+              </button>
+            )}
+          </div>
           <input
             id={`${id}-review`}
             type="date"
