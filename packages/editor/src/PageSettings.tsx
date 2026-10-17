@@ -3,6 +3,7 @@ import {
   type PageReview,
   useAddAlias,
   useBacklinks,
+  useCan,
   usePageReview,
   usePageUrl,
   useRemoveAlias,
@@ -25,6 +26,7 @@ const originLabel = { move: "moved", rename: "previous URL", manual: "manual" } 
 
 /** The URL decisions of one page: derived or custom path, and the old URLs that redirect to it. */
 export function PageSettings({ page, onClose }: { page: Page; onClose: () => void }) {
+  const canEdit = useCan("editor");
   const id = useId();
   const dialog = useRef<HTMLDialogElement>(null);
   const url = usePageUrl(page.id);
@@ -85,7 +87,8 @@ export function PageSettings({ page, onClose }: { page: Page; onClose: () => voi
       {!data ? (
         <p className={ui.drawerNote}>Loading…</p>
       ) : (
-        <>
+        // A viewer reads the settings; every control under here is disabled for them at once.
+        <fieldset disabled={!canEdit} className="contents">
           <fieldset className={`${ui.drawerSection} border-0 p-0`}>
             <legend className={ui.drawerHeading}>URL</legend>
             <label className={ui.checkInField}>
@@ -255,7 +258,7 @@ export function PageSettings({ page, onClose }: { page: Page; onClose: () => voi
             </p>
           )}
           <p className={ui.drawerNote}>URL changes are pending until you publish.</p>
-        </>
+        </fieldset>
       )}
     </dialog>
   );

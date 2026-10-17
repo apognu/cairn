@@ -228,12 +228,19 @@ where
   }
 }
 
+/// Refuses with 403 unless `has` is at least `needed`: for handlers whose role depends on what is asked.
+pub fn require_role(has: Role, needed: Role) -> Result<(), AuthError> {
+  if has < needed {
+    return Err(AuthError::Forbidden(format!("this needs the {} role; yours is {}", needed.as_str(), has.as_str())));
+  }
+
+  Ok(())
+}
+
 /// The user of a request whose role is at least `role`; refused with 403 otherwise.
 async fn at_least(parts: &Parts, auth: &Auth, role: Role) -> Result<UserId, AuthError> {
   let (CurrentUser(user, has), _) = resolve(parts, auth).await?;
-  if has < role {
-    return Err(AuthError::Forbidden(format!("this needs the {} role; yours is {}", role.as_str(), has.as_str())));
-  }
+  require_role(has, role)?;
 
   Ok(user)
 }

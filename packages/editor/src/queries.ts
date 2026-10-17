@@ -442,7 +442,7 @@ export function useSignedIn(): boolean {
 
 export type Role = components["schemas"]["Role"];
 
-const ROLE_ORDER: Role[] = ["viewer", "editor", "publisher", "admin"];
+export const ROLE_ORDER: Role[] = ["viewer", "editor", "publisher", "admin"];
 
 /** Whether `role` can do what `needed` can: each role includes the ones before it. */
 export function atLeast(role: Role | undefined, needed: Role): boolean {
@@ -464,7 +464,8 @@ export function useCreateToken() {
   const client = useQueryClient();
 
   return useMutation({
-    mutationFn: async (name: string) => unwrap(await api.POST("/api/tokens", { body: { name } })),
+    mutationFn: async ({ name, role }: { name: string; role: Role | null }) =>
+      unwrap(await api.POST("/api/tokens", { body: { name, role } })),
     onSuccess: () => client.invalidateQueries({ queryKey: TOKENS }),
   });
 }

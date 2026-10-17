@@ -1,10 +1,11 @@
-import { useRestoreFromTrash, useTrash } from "./queries";
+import { useCan, useRestoreFromTrash, useTrash } from "./queries";
 import * as ui from "./ui";
 
 /** Deleted pages, which wait here and can come back at their old place. */
 export function TrashSettings() {
   const trash = useTrash();
   const restore = useRestoreFromTrash();
+  const canEdit = useCan("editor");
   const restored = restore.data;
 
   return (
@@ -58,14 +59,16 @@ export function TrashSettings() {
                 })}
               </td>
               <td className={ui.td}>
-                <button
-                  type="button"
-                  disabled={restore.isPending}
-                  onClick={() => restore.mutate(t.id)}
-                  aria-label={`Restore ${t.title}`}
-                >
-                  Restore
-                </button>
+                {canEdit && (
+                  <button
+                    type="button"
+                    disabled={restore.isPending}
+                    onClick={() => restore.mutate(t.id)}
+                    aria-label={`Restore ${t.title}`}
+                  >
+                    Restore
+                  </button>
+                )}
               </td>
             </tr>
           ))}

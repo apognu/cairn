@@ -437,8 +437,9 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Takes the page from someone who left it idle (or, with `force`, from someone still at work: admins only). Their editor is told at
-         *     once, stops, and keeps what it has not saved in their browser. Refused with 409 while the holder is active and `force` is not set.
+         * Takes the page from someone who left it idle (or, with `force`, from someone still at work: admins only, unless it is the same user
+         *     in another tab). Their editor is told at once, stops, and keeps what it has not saved in their browser. Refused with 409 while the
+         *     holder is active and `force` is not set.
          */
         post: operations["takeOverLock"];
         delete?: never;

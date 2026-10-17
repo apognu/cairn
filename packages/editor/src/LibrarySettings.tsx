@@ -1,7 +1,7 @@
 import type { DocNode } from "@cairn/renderer";
 import { useId, useRef, useState } from "react";
 import { Canvas } from "./Canvas";
-import { useDeleteEntry, useLibrary, useSaveSnippet, useSaveTerm, useSaveVariable } from "./queries";
+import { useCan, useDeleteEntry, useLibrary, useSaveSnippet, useSaveTerm, useSaveVariable } from "./queries";
 import { TermForm } from "./TermForm";
 import * as ui from "./ui";
 
@@ -12,6 +12,7 @@ const head = "flex items-center gap-3";
 /** Reusable content: variables written inline and snippets included as blocks, edited once and used on many pages. */
 export function LibrarySettings() {
   const library = useLibrary();
+  const canEdit = useCan("editor");
   const saveVariable = useSaveVariable();
   const saveSnippet = useSaveSnippet();
   const saveTerm = useSaveTerm();
@@ -87,6 +88,7 @@ export function LibrarySettings() {
                 <td className={ui.td}>
                   <input
                     aria-label={`Value of ${e.key}`}
+                    readOnly={!canEdit}
                     defaultValue={e.text_value ?? ""}
                     onBlur={(ev) =>
                       ev.target.value !== (e.text_value ?? "") &&
@@ -102,44 +104,48 @@ export function LibrarySettings() {
                   )}
                 </td>
                 <td className={ui.td}>
-                  <button
-                    type="button"
-                    className={ui.icon}
-                    aria-label={`Delete variable ${e.key}`}
-                    onClick={() => remove.mutate(e.id)}
-                  >
-                    ×
-                  </button>
+                  {canEdit && (
+                    <button
+                      type="button"
+                      className={ui.icon}
+                      aria-label={`Delete variable ${e.key}`}
+                      onClick={() => remove.mutate(e.id)}
+                    >
+                      ×
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}
         </tbody>
       </table>
-      <form
-        className={ui.inline}
-        onSubmit={(ev) => {
-          ev.preventDefault();
-          saveVariable.mutate({ key: name, value }, { onSuccess: clearVariableForm });
-        }}
-      >
-        <input
-          className={ui.rowInput}
-          aria-label="New variable name"
-          placeholder="latest_version"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-        <input
-          className={ui.rowInput}
-          aria-label="New variable value"
-          placeholder="2.4.1"
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-        />
-        <button type="submit" className={ui.rowSubmit} disabled={!name || saveVariable.isPending}>
-          Add
-        </button>
-      </form>
+      {canEdit && (
+        <form
+          className={ui.inline}
+          onSubmit={(ev) => {
+            ev.preventDefault();
+            saveVariable.mutate({ key: name, value }, { onSuccess: clearVariableForm });
+          }}
+        >
+          <input
+            className={ui.rowInput}
+            aria-label="New variable name"
+            placeholder="latest_version"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+          <input
+            className={ui.rowInput}
+            aria-label="New variable value"
+            placeholder="2.4.1"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+          />
+          <button type="submit" className={ui.rowSubmit} disabled={!name || saveVariable.isPending}>
+            Add
+          </button>
+        </form>
+      )}
 
       <h2 className={ui.settingsHeading}>Snippets</h2>
       <ul className={list} aria-label="Snippets">
@@ -157,17 +163,21 @@ export function LibrarySettings() {
                     ? "no pages"
                     : `${e.used_in.length} ${e.used_in.length === 1 ? "page" : "pages"}`}
                 </span>
-                <button type="button" className={ui.smallButton} onClick={() => toggle(e.id)}>
-                  {editing === e.id ? "Close" : "Edit"}
-                </button>
-                <button
-                  type="button"
-                  className={ui.icon}
-                  aria-label={`Delete snippet ${e.key}`}
-                  onClick={() => remove.mutate(e.id)}
-                >
-                  ×
-                </button>
+                {canEdit && (
+                  <button type="button" className={ui.smallButton} onClick={() => toggle(e.id)}>
+                    {editing === e.id ? "Close" : "Edit"}
+                  </button>
+                )}
+                {canEdit && (
+                  <button
+                    type="button"
+                    className={ui.icon}
+                    aria-label={`Delete snippet ${e.key}`}
+                    onClick={() => remove.mutate(e.id)}
+                  >
+                    ×
+                  </button>
+                )}
               </div>
               {editing === e.id && (
                 <div className="snippet-editor mt-2.5 py-2 px-3 border border-border rounded-lg text-[16px]">
@@ -200,30 +210,32 @@ export function LibrarySettings() {
             </li>
           ))}
       </ul>
-      <form
-        className={ui.inline}
-        onSubmit={(ev) => {
-          ev.preventDefault();
-          saveSnippet.mutate(
-            { key: snippetName, doc: { type: "doc", content: [{ type: "paragraph" }] } },
-            { onSuccess: () => setSnippetName("") },
-          );
-        }}
-      >
-        <label htmlFor={`${id}-snippet`} className="sr-only">
-          New snippet name
-        </label>
-        <input
-          id={`${id}-snippet`}
-          className={ui.rowInput}
-          placeholder="prerequisites"
-          value={snippetName}
-          onChange={(e) => setSnippetName(e.target.value)}
-        />
-        <button type="submit" className={ui.rowSubmit} disabled={!snippetName || saveSnippet.isPending}>
-          Add snippet
-        </button>
-      </form>
+      {canEdit && (
+        <form
+          className={ui.inline}
+          onSubmit={(ev) => {
+            ev.preventDefault();
+            saveSnippet.mutate(
+              { key: snippetName, doc: { type: "doc", content: [{ type: "paragraph" }] } },
+              { onSuccess: () => setSnippetName("") },
+            );
+          }}
+        >
+          <label htmlFor={`${id}-snippet`} className="sr-only">
+            New snippet name
+          </label>
+          <input
+            id={`${id}-snippet`}
+            className={ui.rowInput}
+            placeholder="prerequisites"
+            value={snippetName}
+            onChange={(e) => setSnippetName(e.target.value)}
+          />
+          <button type="submit" className={ui.rowSubmit} disabled={!snippetName || saveSnippet.isPending}>
+            Add snippet
+          </button>
+        </form>
+      )}
 
       <h2 className={ui.settingsHeading}>Glossary terms</h2>
       <p className="text-muted">
@@ -249,21 +261,25 @@ export function LibrarySettings() {
                     ? "no pages"
                     : `${e.used_in.length} ${e.used_in.length === 1 ? "page" : "pages"}`}
                 </span>
-                <button
-                  type="button"
-                  className={ui.smallButton}
-                  onClick={() => setEditingTerm(editingTerm === e.id ? null : e.id)}
-                >
-                  {editingTerm === e.id ? "Close" : "Edit"}
-                </button>
-                <button
-                  type="button"
-                  className={ui.icon}
-                  aria-label={`Delete term ${e.key}`}
-                  onClick={() => remove.mutate(e.id)}
-                >
-                  ×
-                </button>
+                {canEdit && (
+                  <button
+                    type="button"
+                    className={ui.smallButton}
+                    onClick={() => setEditingTerm(editingTerm === e.id ? null : e.id)}
+                  >
+                    {editingTerm === e.id ? "Close" : "Edit"}
+                  </button>
+                )}
+                {canEdit && (
+                  <button
+                    type="button"
+                    className={ui.icon}
+                    aria-label={`Delete term ${e.key}`}
+                    onClick={() => remove.mutate(e.id)}
+                  >
+                    ×
+                  </button>
+                )}
               </div>
               {editingTerm === e.id && <TermForm entry={e} term={e.key} onDone={() => setEditingTerm(null)} />}
             </li>
@@ -283,28 +299,30 @@ export function LibrarySettings() {
           </li>
         )}
       </ul>
-      <form
-        className={ui.inline}
-        onSubmit={(ev) => {
-          ev.preventDefault();
-          if (term.trim()) setEditingTerm("new");
-        }}
-      >
-        <label htmlFor={`${id}-term`} className="sr-only">
-          New term
-        </label>
-        <input
-          id={`${id}-term`}
-          className={ui.rowInput}
-          placeholder="Blue-green deploy"
-          value={term}
-          disabled={editingTerm === "new"}
-          onChange={(e) => setTerm(e.target.value)}
-        />
-        <button type="submit" className={ui.rowSubmit} disabled={!term.trim() || editingTerm === "new"}>
-          Add term
-        </button>
-      </form>
+      {canEdit && (
+        <form
+          className={ui.inline}
+          onSubmit={(ev) => {
+            ev.preventDefault();
+            if (term.trim()) setEditingTerm("new");
+          }}
+        >
+          <label htmlFor={`${id}-term`} className="sr-only">
+            New term
+          </label>
+          <input
+            id={`${id}-term`}
+            className={ui.rowInput}
+            placeholder="Blue-green deploy"
+            value={term}
+            disabled={editingTerm === "new"}
+            onChange={(e) => setTerm(e.target.value)}
+          />
+          <button type="submit" className={ui.rowSubmit} disabled={!term.trim() || editingTerm === "new"}>
+            Add term
+          </button>
+        </form>
+      )}
 
       {error && (
         <p role="alert" className="text-danger">

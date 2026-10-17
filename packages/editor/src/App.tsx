@@ -11,7 +11,7 @@ import { useCloseMenus } from "./menus";
 import { PageEditor, type PageStatus } from "./PageEditor";
 import { PageSettings } from "./PageSettings";
 import { PublishDialog } from "./PublishDialog";
-import { pendingCount, usePages, usePending, useSettings, useSiteInfo } from "./queries";
+import { pendingCount, useCan, usePages, usePending, useSettings, useSiteInfo } from "./queries";
 import { type SettingsSection, SettingsView, sectionTitle } from "./SettingsView";
 import { Sidebar } from "./Sidebar";
 import { SideDrawer, useModal } from "./sidePanel";
@@ -129,6 +129,9 @@ function Editor() {
   // The page as readers see it now: its live address, which is the old one while a move or rename is pending, and none before its
   // first publish.
   const site = useSiteInfo();
+  const canEdit = useCan("editor");
+  const canPublish = useCan("publisher");
+  const canAdmin = useCan("admin");
   const change = pending.data?.changes.find((c) => c.page_id === current?.id);
   const liveUrl = current && (change ? change.old_url : pageUrls(pages.data ?? [])[current.id]);
 
@@ -214,7 +217,7 @@ function Editor() {
   const sideDrawer = useMemo(() => ({ open: () => setSideOpen(true) }), []);
   const actionsInColumn = sideColumn && !narrow && hasPageActions;
   const siteSettings = (at: ActionsAt) => (
-    <button type="button" className={actionLook[at]} onClick={() => openSettings("site")}>
+    <button type="button" className={actionLook[at]} onClick={() => openSettings(canAdmin ? "site" : "library")}>
       <Icon name="gear" size={15} className={actionIcon} />
       Settings
     </button>
@@ -300,16 +303,20 @@ function Editor() {
               {siteSettings("bar")}
             </>
           )}
-          <button
-            type="button"
-            className={ui.primary}
-            onClick={() => {
-              setPublished(null);
-              setShowPublish(true);
-            }}
-          >
-            {pendingCount(pending.data) > 0 ? `Publish · ${pendingCount(pending.data)}` : "Publish"}
-          </button>
+          {/* Editors open the same dialog to deploy a preview, when the target has previews; viewers have neither. */}
+          {(canPublish || (canEdit && site.data?.capabilities.preview)) && (
+            <button
+              type="button"
+              className={ui.primary}
+              onClick={() => {
+                setPublished(null);
+                setShowPublish(true);
+              }}
+            >
+              {canPublish ? "Publish" : "Preview"}
+              {pendingCount(pending.data) > 0 && ` · ${pendingCount(pending.data)}`}
+            </button>
+          )}
         </div>
       </header>
       {section ? (

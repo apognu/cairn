@@ -1,6 +1,6 @@
 import { useId, useRef, useState } from "react";
 import type { components } from "./api/schema";
-import { useMe, useReleases, useRollback, useSiteInfo } from "./queries";
+import { useCan, useMe, useReleases, useRollback, useSiteInfo } from "./queries";
 import { useModal } from "./sidePanel";
 import * as ui from "./ui";
 
@@ -38,6 +38,7 @@ export function ReleasesSettings() {
   const releases = useReleases();
   const site = useSiteInfo();
   const me = useMe();
+  const canPublish = useCan("publisher");
   const [asking, setAsking] = useState<Row | null>(null);
 
   return (
@@ -101,7 +102,7 @@ export function ReleasesSettings() {
                   )}
                 </td>
                 <td className={ui.td}>
-                  {row.can_roll_back && (
+                  {row.can_roll_back && canPublish && (
                     <button
                       type="button"
                       className={ui.tinyButton}

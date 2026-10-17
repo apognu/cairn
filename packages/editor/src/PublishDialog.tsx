@@ -5,7 +5,16 @@ import { DependencyNotes, ModeSwitch, PickBar, useHotfix } from "./Hotfix";
 import { Icon } from "./icons";
 import { ago, clock } from "./LockBanner";
 import { badge, ChangeRow, ChecksStrip, code, LockWarning, urlNote } from "./PublishParts";
-import { pendingCount, useChecks, usePending, usePreview, usePromote, usePublish, useSiteInfo } from "./queries";
+import {
+  pendingCount,
+  useCan,
+  useChecks,
+  usePending,
+  usePreview,
+  usePromote,
+  usePublish,
+  useSiteInfo,
+} from "./queries";
 import { useModal } from "./sidePanel";
 import * as ui from "./ui";
 import { useLocks } from "./useLock";
@@ -13,9 +22,13 @@ import { useLocks } from "./useLock";
 type Change = components["schemas"]["Change"];
 type Progress = components["schemas"]["PublishProgress"];
 
-/** What publishing will change on the live site, with every URL that is about to stop working called out. */
+/**
+ * What publishing will change on the live site, with every URL that is about to stop working called out. An editor, who cannot publish,
+ * sees the same and can deploy a preview.
+ */
 export function PublishDialog({ onClose, onPublished }: { onClose: () => void; onPublished: (pages: number) => void }) {
   const id = useId();
+  const canPublish = useCan("publisher");
   const dialog = useRef<HTMLDialogElement>(null);
   const pending = usePending();
   const publish = usePublish();
@@ -64,7 +77,7 @@ export function PublishDialog({ onClose, onPublished }: { onClose: () => void; o
       onClose={onClose}
     >
       <h2 id={`${id}-title`} className="mt-0 mb-1 text-[20px] tracking-[-0.01em]">
-        Publish changes
+        {canPublish ? "Publish changes" : "Preview changes"}
       </h2>
       <p className="text-muted">
         {site.data && (
@@ -78,7 +91,9 @@ export function PublishDialog({ onClose, onPublished }: { onClose: () => void; o
 
       <LockWarning locks={others.filter((l) => counts(l.page_id) && changes.some((c) => c.page_id === l.page_id))} />
 
-      {count > 0 && <ModeSwitch hotfix={hotfix} count={count} base={live ? clock(live.release.created_at) : null} />}
+      {count > 0 && canPublish && (
+        <ModeSwitch hotfix={hotfix} count={count} base={live ? clock(live.release.created_at) : null} />
+      )}
       {hotfix.on && <PickBar hotfix={hotfix} />}
 
       {stopping.length > 0 && (
@@ -240,14 +255,14 @@ export function PublishDialog({ onClose, onPublished }: { onClose: () => void; o
         {site.data?.capabilities.preview && !hotfix.on && (
           <button
             type="button"
-            className={ui.dialogButton}
+            className={canPublish ? ui.dialogButton : ui.primary}
             disabled={busy || blocked}
             onClick={() => run(preview, () => preview.mutate())}
           >
             {preview.isPending ? "Building preview…" : previewed ? "Deploy new preview" : "Deploy preview"}
           </button>
         )}
-        {previewed && canPromote && (
+        {previewed && canPromote && canPublish && (
           <button
             type="button"
             className={ui.dialogButton}
@@ -266,27 +281,29 @@ export function PublishDialog({ onClose, onPublished }: { onClose: () => void; o
             {promote.isPending ? "Promoting…" : "Promote preview"}
           </button>
         )}
-        <button
-          type="button"
-          className={ui.primary}
-          disabled={busy || blocked}
-          onClick={() =>
-            run(publish, () =>
-              publish.mutate(hotfix.on ? [...hotfix.picked] : undefined, {
-                onSuccess: (release) => {
-                  onPublished(release.page_count);
-                  dialog.current?.close();
-                },
-              }),
-            )
-          }
-        >
-          {publish.isPending
-            ? "Publishing…"
-            : going === 0 && !hotfix.on
-              ? "Publish site"
-              : `Publish ${going} ${going === 1 ? "change" : "changes"}`}
-        </button>
+        {canPublish && (
+          <button
+            type="button"
+            className={ui.primary}
+            disabled={busy || blocked}
+            onClick={() =>
+              run(publish, () =>
+                publish.mutate(hotfix.on ? [...hotfix.picked] : undefined, {
+                  onSuccess: (release) => {
+                    onPublished(release.page_count);
+                    dialog.current?.close();
+                  },
+                }),
+              )
+            }
+          >
+            {publish.isPending
+              ? "Publishing…"
+              : going === 0 && !hotfix.on
+                ? "Publish site"
+                : `Publish ${going} ${going === 1 ? "change" : "changes"}`}
+          </button>
+        )}
       </div>
     </dialog>
   );

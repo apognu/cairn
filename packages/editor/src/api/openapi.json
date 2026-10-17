@@ -1401,7 +1401,7 @@
     },
     "/api/pages/{id}/lock/take-over": {
       "post": {
-        "summary": "Takes the page from someone who left it idle (or, with `force`, from someone still at work: admins only). Their editor is told at\nonce, stops, and keeps what it has not saved in their browser. Refused with 409 while the holder is active and `force` is not set.",
+        "summary": "Takes the page from someone who left it idle (or, with `force`, from someone still at work: admins only, unless it is the same user\nin another tab). Their editor is told at once, stops, and keeps what it has not saved in their browser. Refused with 409 while the\nholder is active and `force` is not set.",
         "operationId": "takeOverLock",
         "parameters": [
           {

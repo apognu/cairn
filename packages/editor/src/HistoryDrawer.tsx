@@ -3,7 +3,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { api } from "./api/client";
 import { unwrap } from "./api/unwrap";
 import { blockLines, diffLines } from "./diff";
-import { useHistory, useRestoreVersion, useRevision } from "./queries";
+import { useCan, useHistory, useRestoreVersion, useRevision } from "./queries";
 import { useSidePanel } from "./sidePanel";
 import type { Page } from "./tree";
 import * as ui from "./ui";
@@ -34,6 +34,7 @@ export function HistoryDrawer({
   const dialog = useRef<HTMLDialogElement>(null);
   const history = useHistory(page.id);
   const restore = useRestoreVersion(page.id);
+  const canEdit = useCan("editor");
   const [chosen, setChosen] = useState<string | null>(null);
   // Title and description come back only when ticked; another version starts unticked.
   const [withTitle, setWithTitle] = useState(false);
@@ -179,6 +180,7 @@ export function HistoryDrawer({
             <button
               type="button"
               className={ui.primary}
+              hidden={!canEdit}
               disabled={restore.isPending}
               onClick={() =>
                 restore.mutate(

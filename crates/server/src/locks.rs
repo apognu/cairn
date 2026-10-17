@@ -11,7 +11,7 @@ use axum::{
     sse::{Event as SseEvent, KeepAlive},
   },
 };
-use cairn_auth::{AuthError, CurrentUser, Editor};
+use cairn_auth::{CurrentUser, Editor, require_role};
 use cairn_core::{ContentStore, Event, LOCK_IDLE, LockToken, PageId, PageKind, PageLock, ReleaseId, Role, UserId};
 use futures_util::{Stream, StreamExt};
 use jiff::{SignedDuration, Timestamp};
@@ -223,8 +223,9 @@ async fn release(State(state): State<AppState>, Editor(_): Editor, Path(id): Pat
   Ok(StatusCode::NO_CONTENT)
 }
 
-/// Takes the page from someone who left it idle (or, with `force`, from someone still at work: admins only). Their editor is told at
-/// once, stops, and keeps what it has not saved in their browser. Refused with 409 while the holder is active and `force` is not set.
+/// Takes the page from someone who left it idle (or, with `force`, from someone still at work: admins only, unless it is the same user
+/// in another tab). Their editor is told at once, stops, and keeps what it has not saved in their browser. Refused with 409 while the
+/// holder is active and `force` is not set.
 #[utoipa::path(post, path = "/api/pages/{id}/lock/take-over", operation_id = "takeOverLock", params(("id" = PageId, Path)), request_body = TakeOver, responses(
   (status = 200, body = AcquiredLock),
   (status = 403, body = ErrorBody, description = "a viewer, or `force` without the admin role"),
@@ -233,12 +234,14 @@ async fn release(State(state): State<AppState>, Editor(_): Editor, Path(id): Pat
 ))]
 #[instrument(skip_all, fields(page_id = %id))]
 async fn take_over(State(state): State<AppState>, CurrentUser(user, role): CurrentUser, Path(id): Path<PageId>, Json(body): Json<TakeOver>) -> Result<Json<AcquiredLock>, AppError> {
-  let needed = if body.force { Role::Admin } else { Role::Editor };
-  if role < needed {
-    return Err(AuthError::Forbidden(format!("this needs the {} role; yours is {}", needed.as_str(), role.as_str())).into());
-  }
+  require_role(role, Role::Editor)?;
   if !cairn_store::list_pages(&state.db).await?.iter().any(|p| p.id == id && p.kind == PageKind::Page) {
     return Err(AppError::NotFound);
+  }
+
+  // Forcing one's own lock away from another tab is plain editing; forcing it from someone else at work is for admins.
+  if body.force && cairn_store::page_lock(&state.db, id, Timestamp::now()).await?.is_some_and(|lock| lock.user_id != user) {
+    require_role(role, Role::Admin)?;
   }
 
   let (lock, token, from) = cairn_store::take_over_lock(&state.db, id, user, Timestamp::now(), body.force).await?;

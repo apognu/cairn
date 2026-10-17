@@ -1,6 +1,6 @@
 import { useId, useState } from "react";
 import type { components } from "./api/schema";
-import { useAddRedirect, usePages, useRedirects, useRemoveRedirect } from "./queries";
+import { useAddRedirect, useCan, usePages, useRedirects, useRemoveRedirect } from "./queries";
 import * as ui from "./ui";
 
 type Entry = components["schemas"]["RedirectEntry"];
@@ -19,6 +19,7 @@ export function RedirectsSettings() {
   const pages = usePages();
   const add = useAddRedirect();
   const remove = useRemoveRedirect();
+  const canEdit = useCan("editor");
   const [from, setFrom] = useState("");
   const [toPage, setToPage] = useState("");
   const [toUrl, setToUrl] = useState("");
@@ -70,85 +71,96 @@ export function RedirectsSettings() {
                 <span className={ui.badge()}>{originLabel[r.origin]}</span>
               </td>
               <td className={cell(r)}>
-                <button
-                  type="button"
-                  className={ui.icon}
-                  aria-label={`Delete redirect from ${r.from_path}`}
-                  onClick={() => remove.mutate(r.from_path)}
-                >
-                  ×
-                </button>
+                {canEdit && (
+                  <button
+                    type="button"
+                    className={ui.icon}
+                    aria-label={`Delete redirect from ${r.from_path}`}
+                    onClick={() => remove.mutate(r.from_path)}
+                  >
+                    ×
+                  </button>
+                )}
               </td>
             </tr>
           ))}
         </tbody>
       </table>
 
-      <h2 className={ui.settingsHeading}>Add a redirect</h2>
-      <form
-        className="grid gap-1 max-w-130"
-        onSubmit={(e) => {
-          e.preventDefault();
-          add.mutate(
-            { from_path: from, to_page_id: toPage || undefined, to_url: toPage ? undefined : toUrl },
-            {
-              onSuccess: () => {
-                setFrom("");
-                setToUrl("");
-                setToPage("");
-              },
-            },
-          );
-        }}
-      >
-        <div className={ui.field}>
-          <label htmlFor={`${id}-from`} className={ui.fieldLabel}>
-            From
-          </label>
-          <input
-            id={`${id}-from`}
-            className={ui.input}
-            placeholder="/old-path"
-            value={from}
-            onChange={(e) => setFrom(e.target.value)}
-          />
-        </div>
-        <div className={ui.field}>
-          <label htmlFor={`${id}-page`} className={ui.fieldLabel}>
-            To a page
-          </label>
-          <select id={`${id}-page`} className={ui.select} value={toPage} onChange={(e) => setToPage(e.target.value)}>
-            <option value="">Choose a page…</option>
-            {pages.data
-              ?.filter((p) => p.kind !== "link")
-              .map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.title}
-                </option>
-              ))}
-          </select>
-        </div>
-        <div className={ui.field}>
-          <label htmlFor={`${id}-url`} className={ui.fieldLabel}>
-            Or to a URL
-          </label>
-          <input
-            id={`${id}-url`}
-            className={ui.input}
-            placeholder="https://… or /path"
-            disabled={toPage !== ""}
-            value={toUrl}
-            onChange={(e) => setToUrl(e.target.value)}
-          />
-        </div>
-        <button
-          type="submit"
-          className={`${ui.primary} justify-self-start`}
-          disabled={add.isPending || !from || (!toPage && !toUrl)}
-        >
-          Add redirect
-        </button>
-      </form>
+      {canEdit && (
+        <>
+          <h2 className={ui.settingsHeading}>Add a redirect</h2>
+          <form
+            className="grid gap-1 max-w-130"
+            onSubmit={(e) => {
+              e.preventDefault();
+              add.mutate(
+                { from_path: from, to_page_id: toPage || undefined, to_url: toPage ? undefined : toUrl },
+                {
+                  onSuccess: () => {
+                    setFrom("");
+                    setToUrl("");
+                    setToPage("");
+                  },
+                },
+              );
+            }}
+          >
+            <div className={ui.field}>
+              <label htmlFor={`${id}-from`} className={ui.fieldLabel}>
+                From
+              </label>
+              <input
+                id={`${id}-from`}
+                className={ui.input}
+                placeholder="/old-path"
+                value={from}
+                onChange={(e) => setFrom(e.target.value)}
+              />
+            </div>
+            <div className={ui.field}>
+              <label htmlFor={`${id}-page`} className={ui.fieldLabel}>
+                To a page
+              </label>
+              <select
+                id={`${id}-page`}
+                className={ui.select}
+                value={toPage}
+                onChange={(e) => setToPage(e.target.value)}
+              >
+                <option value="">Choose a page…</option>
+                {pages.data
+                  ?.filter((p) => p.kind !== "link")
+                  .map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.title}
+                    </option>
+                  ))}
+              </select>
+            </div>
+            <div className={ui.field}>
+              <label htmlFor={`${id}-url`} className={ui.fieldLabel}>
+                Or to a URL
+              </label>
+              <input
+                id={`${id}-url`}
+                className={ui.input}
+                placeholder="https://… or /path"
+                disabled={toPage !== ""}
+                value={toUrl}
+                onChange={(e) => setToUrl(e.target.value)}
+              />
+            </div>
+            <button
+              type="submit"
+              className={`${ui.primary} justify-self-start`}
+              disabled={add.isPending || !from || (!toPage && !toUrl)}
+            >
+              Add redirect
+            </button>
+          </form>
+        </>
+      )}
       {error && (
         <p role="alert" className="text-danger">
           {error.message}

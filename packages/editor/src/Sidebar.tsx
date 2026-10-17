@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { DeleteDialog } from "./DeleteDialog";
 import { Icon } from "./icons";
-import { useCreatePage, useDeletePage, useMovePage, usePending, useRenamePage } from "./queries";
+import { useCan, useCreatePage, useDeletePage, useMovePage, usePending, useRenamePage } from "./queries";
 import { IconButton, MenuItem, placeMenu, rowClass, TitleForm, titleClass } from "./TreeParts";
 import {
   buildTree,
@@ -45,6 +45,7 @@ export function Sidebar({ pages, loading, selected, onSelect }: Props) {
   const rename = useRenamePage();
   const move = useMovePage();
   const remove = useDeletePage();
+  const canEdit = useCan("editor");
 
   const run = (action: Promise<unknown>, done?: () => void) =>
     action.then(
@@ -154,7 +155,7 @@ export function Sidebar({ pages, loading, selected, onSelect }: Props) {
           data-selected={selected === page.id}
           data-dragging={drag?.id === page.id}
           data-drop={drag?.over?.id === page.id && target ? drag.over.zone : undefined}
-          draggable={!isEditing}
+          draggable={canEdit && !isEditing}
           onDragStart={(e) => {
             e.dataTransfer.effectAllowed = "move";
             e.dataTransfer.setData("text/plain", page.id);
@@ -221,54 +222,60 @@ export function Sidebar({ pages, loading, selected, onSelect }: Props) {
           )}
           {changed.has(page.id) && <span className={ui.dot} role="img" aria-label="Unpublished changes" />}
           {/* Floats over the end of the row so titles keep their width. Hidden by opacity, not display, so keyboard users can tab to it. */}
-          <span
-            className={`absolute right-1 gap-0.5 pl-1 bg-hover rounded-md opacity-0 pointer-events-none group-hover/row:opacity-100 group-hover/row:pointer-events-auto group-focus-within/row:opacity-100 group-focus-within/row:pointer-events-auto has-[details[open]]:opacity-100 has-[details[open]]:pointer-events-auto ${isEditing && editing.kind === "rename" ? "hidden" : "flex"}`}
-          >
-            {page.kind !== "link" && (
-              <IconButton
-                label={`Add a subpage to ${page.title}`}
-                glyph="+"
-                onClick={() => setEditing({ kind: "create", parent: page.id })}
-              />
-            )}
-            <details data-menu className={ui.menu} onToggle={placeMenu}>
-              <summary className={ui.menuSummary} aria-label={`More actions for ${page.title}`} title="More actions">
-                ⋯
-              </summary>
-              <div data-menu-pop className={ui.treeMenuPop}>
-                <MenuItem
-                  label={`Rename ${page.title}`}
-                  text={page.kind === "link" ? "Edit link" : "Rename"}
-                  onClick={() => setEditing({ kind: "rename", id: page.id })}
+          {canEdit && (
+            <span
+              className={`absolute right-1 gap-0.5 pl-1 bg-hover rounded-md opacity-0 pointer-events-none group-hover/row:opacity-100 group-hover/row:pointer-events-auto group-focus-within/row:opacity-100 group-focus-within/row:pointer-events-auto has-[details[open]]:opacity-100 has-[details[open]]:pointer-events-auto ${isEditing && editing.kind === "rename" ? "hidden" : "flex"}`}
+            >
+              {page.kind !== "link" && (
+                <IconButton
+                  label={`Add a subpage to ${page.title}`}
+                  glyph="+"
+                  onClick={() => setEditing({ kind: "create", parent: page.id })}
                 />
-                {page.kind !== "link" && (
-                  <>
-                    <MenuItem
-                      label={`Add an API reference under ${page.title}`}
-                      text="Add API reference"
-                      onClick={() => setEditing({ kind: "create-api", parent: page.id })}
-                    />
-                    <MenuItem
-                      label={`Add an external link under ${page.title}`}
-                      text="Add external link"
-                      onClick={() => setEditing({ kind: "create-link", parent: page.id })}
-                    />
-                  </>
-                )}
-                <MenuItem label={`Move ${page.title} up`} text="Move up" onClick={() => doMove(page.id, "up")} />
-                <MenuItem label={`Move ${page.title} down`} text="Move down" onClick={() => doMove(page.id, "down")} />
-                <MenuItem label={`Indent ${page.title}`} text="Indent" onClick={() => doMove(page.id, "indent")} />
-                <MenuItem label={`Outdent ${page.title}`} text="Outdent" onClick={() => doMove(page.id, "outdent")} />
-                <hr className={ui.menuRule} />
-                <MenuItem
-                  danger
-                  label={`Delete ${page.title}`}
-                  text="Delete…"
-                  onClick={() => setEditing({ kind: "delete", id: page.id })}
-                />
-              </div>
-            </details>
-          </span>
+              )}
+              <details data-menu className={ui.menu} onToggle={placeMenu}>
+                <summary className={ui.menuSummary} aria-label={`More actions for ${page.title}`} title="More actions">
+                  ⋯
+                </summary>
+                <div data-menu-pop className={ui.treeMenuPop}>
+                  <MenuItem
+                    label={`Rename ${page.title}`}
+                    text={page.kind === "link" ? "Edit link" : "Rename"}
+                    onClick={() => setEditing({ kind: "rename", id: page.id })}
+                  />
+                  {page.kind !== "link" && (
+                    <>
+                      <MenuItem
+                        label={`Add an API reference under ${page.title}`}
+                        text="Add API reference"
+                        onClick={() => setEditing({ kind: "create-api", parent: page.id })}
+                      />
+                      <MenuItem
+                        label={`Add an external link under ${page.title}`}
+                        text="Add external link"
+                        onClick={() => setEditing({ kind: "create-link", parent: page.id })}
+                      />
+                    </>
+                  )}
+                  <MenuItem label={`Move ${page.title} up`} text="Move up" onClick={() => doMove(page.id, "up")} />
+                  <MenuItem
+                    label={`Move ${page.title} down`}
+                    text="Move down"
+                    onClick={() => doMove(page.id, "down")}
+                  />
+                  <MenuItem label={`Indent ${page.title}`} text="Indent" onClick={() => doMove(page.id, "indent")} />
+                  <MenuItem label={`Outdent ${page.title}`} text="Outdent" onClick={() => doMove(page.id, "outdent")} />
+                  <hr className={ui.menuRule} />
+                  <MenuItem
+                    danger
+                    label={`Delete ${page.title}`}
+                    text="Delete…"
+                    onClick={() => setEditing({ kind: "delete", id: page.id })}
+                  />
+                </div>
+              </details>
+            </span>
+          )}
         </div>
         {(node.children.length > 0 || (editing && "parent" in editing && editing.parent === page.id)) && (
           <ul className={list}>
@@ -316,30 +323,34 @@ export function Sidebar({ pages, loading, selected, onSelect }: Props) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
-        <button
-          type="button"
-          className={`flex items-center justify-center w-8 h-8 rounded-md ${ui.button}`}
-          aria-label="New page"
-          onClick={() => setEditing({ kind: "create", parent: null })}
-        >
-          <Icon name="plus" size={15} />
-        </button>
-        <details data-menu className={ui.menu}>
-          <summary
-            className={`flex items-center justify-center w-8 h-8 rounded-md list-none [&::-webkit-details-marker]:hidden ${ui.button}`}
-            aria-label="More ways to add"
-            title="More ways to add"
-          >
-            <Icon name="chevron" size={15} />
-          </summary>
-          <div data-menu-pop className={ui.treeMenuPop}>
-            <MenuItem
-              label="New API reference"
-              text="API reference"
-              onClick={() => setEditing({ kind: "create-api", parent: null })}
-            />
-          </div>
-        </details>
+        {canEdit && (
+          <>
+            <button
+              type="button"
+              className={`flex items-center justify-center w-8 h-8 rounded-md ${ui.button}`}
+              aria-label="New page"
+              onClick={() => setEditing({ kind: "create", parent: null })}
+            >
+              <Icon name="plus" size={15} />
+            </button>
+            <details data-menu className={ui.menu}>
+              <summary
+                className={`flex items-center justify-center w-8 h-8 rounded-md list-none [&::-webkit-details-marker]:hidden ${ui.button}`}
+                aria-label="More ways to add"
+                title="More ways to add"
+              >
+                <Icon name="chevron" size={15} />
+              </summary>
+              <div data-menu-pop className={ui.treeMenuPop}>
+                <MenuItem
+                  label="New API reference"
+                  text="API reference"
+                  onClick={() => setEditing({ kind: "create-api", parent: null })}
+                />
+              </div>
+            </details>
+          </>
+        )}
       </div>
       {error && (
         <p role="alert" className={ui.errorBox}>

@@ -1,7 +1,8 @@
 import { useId, useRef, useState } from "react";
 import type { components } from "./api/schema";
-import { useCreateToken, useRevokeToken, useTokens } from "./queries";
+import { atLeast, ROLE_ORDER, type Role, useCreateToken, useMe, useRevokeToken, useTokens } from "./queries";
 import { useModal } from "./sidePanel";
+import { roleLabel } from "./UsersSettings";
 import * as ui from "./ui";
 
 type ApiToken = components["schemas"]["ApiToken"];
@@ -16,6 +17,8 @@ export function TokensSettings() {
   const create = useCreateToken();
   const revoke = useRevokeToken();
   const [name, setName] = useState("");
+  const [role, setRole] = useState<Role | "">("");
+  const mine = useMe().data?.role;
   const [copied, setCopied] = useState(false);
   const [revoking, setRevoking] = useState<ApiToken | null>(null);
   const field = useRef<HTMLInputElement>(null);
@@ -28,8 +31,8 @@ export function TokensSettings() {
       <h1 className={ui.settingsTitle}>API tokens</h1>
       <p className="text-muted">
         A token lets a script, such as a CI job, call this server as you: send it as{" "}
-        <code>Authorization: Bearer &lt;token&gt;</code>. It can do everything you can, so keep it secret and delete it
-        when it is no longer used.
+        <code>Authorization: Bearer &lt;token&gt;</code>. It can do what your role can, or less if you give it a role of
+        its own, so keep it secret and delete it when it is no longer used.
       </p>
 
       <table className={ui.table} aria-label="API tokens">
@@ -37,6 +40,9 @@ export function TokensSettings() {
           <tr>
             <th scope="col" className={ui.th}>
               Name
+            </th>
+            <th scope="col" className={ui.th}>
+              Role
             </th>
             <th scope="col" className={ui.th}>
               Created
@@ -52,7 +58,7 @@ export function TokensSettings() {
         <tbody>
           {tokens.data?.length === 0 && (
             <tr>
-              <td colSpan={4} className={`${ui.td} text-muted text-help`}>
+              <td colSpan={5} className={`${ui.td} text-muted text-help`}>
                 No tokens yet.
               </td>
             </tr>
@@ -62,6 +68,7 @@ export function TokensSettings() {
               <td className={ui.td}>
                 <strong>{t.name}</strong>
               </td>
+              <td className={ui.tdBase}>{t.role ? roleLabel[t.role] : <span className="text-muted">yours</span>}</td>
               <td className={ui.td}>{date(t.created_at)}</td>
               <td className={ui.td}>
                 {t.last_used_at ? date(t.last_used_at) : <span className="text-muted">never</span>}
@@ -88,12 +95,15 @@ export function TokensSettings() {
         onSubmit={(e) => {
           e.preventDefault();
           setCopied(false);
-          create.mutate(name, {
-            onSuccess: () => {
-              setName("");
-              field.current?.focus();
+          create.mutate(
+            { name, role: role || null },
+            {
+              onSuccess: () => {
+                setName("");
+                field.current?.focus();
+              },
             },
-          });
+          );
         }}
       >
         <div className={ui.field}>
@@ -109,6 +119,24 @@ export function TokensSettings() {
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
+        </div>
+        <div className={ui.field}>
+          <label htmlFor={`${id}-role`} className={ui.fieldLabel}>
+            Role
+          </label>
+          <select
+            id={`${id}-role`}
+            className={ui.select}
+            value={role}
+            onChange={(e) => setRole(e.target.value as Role | "")}
+          >
+            <option value="">Yours, whatever it is when the token is used</option>
+            {ROLE_ORDER.filter((r) => atLeast(mine, r)).map((r) => (
+              <option key={r} value={r}>
+                {roleLabel[r]}
+              </option>
+            ))}
+          </select>
         </div>
         <button
           type="submit"

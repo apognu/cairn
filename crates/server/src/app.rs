@@ -423,21 +423,38 @@ mod tests {
 
   #[tokio::test]
   async fn only_an_admin_can_force_a_take_over() {
-    let (app, cookies, _) = signed_in_app().await;
-    let uri = format!("/api/pages/{}/lock/take-over", uuid::Uuid::now_v7());
+    let (app, cookies, state) = signed_in_app().await;
+    let viewer = cairn_store::upsert_user(&state.db, "https://idp.example", "viewer", "viewer@example.com", "viewer").await.unwrap().id;
 
+    // (role, forcing someone else's lock, expected): forcing one's own lock from another tab is ordinary editing.
     for (role, cookie) in &cookies {
-      let request = Request::post(&uri)
-        .header(header::COOKIE, cookie)
-        .header(header::ORIGIN, ORIGIN)
-        .header(header::CONTENT_TYPE, "application/json")
-        .body(Body::from(r#"{"force":true}"#))
-        .unwrap();
-      let status = app.clone().oneshot(request).await.unwrap().status();
+      let holder = match role {
+        Role::Viewer => viewer,
+        _ => {
+          cairn_store::upsert_user(&state.db, "https://idp.example", role.as_str(), &format!("{}@example.com", role.as_str()), role.as_str())
+            .await
+            .unwrap()
+            .id
+        }
+      };
+      for someone_else in [true, false] {
+        let title = format!("{}-{someone_else}", role.as_str());
+        let page = cairn_store::create_page(&state.db, holder, None, &title, cairn_core::Placement::Last).await.unwrap().id;
+        let held_by = if someone_else { viewer } else { holder };
+        cairn_store::acquire_lock(&state.db, page, held_by, jiff::Timestamp::now(), None).await.unwrap();
 
-      // An admin gets as far as finding no such page.
-      let expected = if *role == Role::Admin { StatusCode::NOT_FOUND } else { StatusCode::FORBIDDEN };
-      assert_eq!(status, expected, "{}", role.as_str());
+        let request = Request::post(format!("/api/pages/{page}/lock/take-over"))
+          .header(header::COOKIE, cookie)
+          .header(header::ORIGIN, ORIGIN)
+          .header(header::CONTENT_TYPE, "application/json")
+          .body(Body::from(r#"{"force":true}"#))
+          .unwrap();
+        let status = app.clone().oneshot(request).await.unwrap().status();
+
+        let allowed = *role == Role::Admin || (*role != Role::Viewer && !someone_else);
+        let expected = if allowed { StatusCode::OK } else { StatusCode::FORBIDDEN };
+        assert_eq!(status, expected, "{} someone_else={someone_else}", role.as_str());
+      }
     }
   }
 }

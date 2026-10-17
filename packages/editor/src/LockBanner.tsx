@@ -31,6 +31,8 @@ export interface LockActions {
   takeOver: (force: boolean) => Promise<string | null>;
   watching: boolean;
   watch: () => void;
+  /** Whether the user may take the page from someone still working on it: admins only. */
+  canForce: boolean;
   /** This browser kept work after the page was taken; false when everything was saved. */
   unsaved: boolean;
   copy: () => Promise<void>;
@@ -40,6 +42,15 @@ export interface LockActions {
 interface Props {
   state: Exclude<LockState, { kind: "loading" } | { kind: "mine" }>;
   actions: LockActions;
+}
+
+/** A viewer reads every page; changing one needs the editor role. */
+export function ViewerBanner() {
+  return (
+    <Banner title="You can read this page." lead="Your role is viewer.">
+      To change pages, ask an admin for the editor role.
+    </Banner>
+  );
 }
 
 /** Why the page is read-only, and what can be done about it. */
@@ -144,13 +155,14 @@ function Held({ lock, actions }: { lock: LockView; actions: LockActions }) {
           {lock.idle ? (
             <Primary onClick={() => void take(false)}>Take over editing</Primary>
           ) : (
-            <Secondary onClick={() => setConfirming(true)}>Take over…</Secondary>
+            actions.canForce && <Secondary onClick={() => setConfirming(true)}>Take over…</Secondary>
           )}
         </>
       }
     >
       {activity(lock)}
       {lock.idle && ` Taking over notifies ${first}; anything not saved stays in ${first}'s browser.`}
+      {!lock.idle && !actions.canForce && ` You can take over once ${first} stops working on it.`}
     </Banner>
   );
 }

@@ -22,7 +22,7 @@ use cairn_store::StoreError;
 
 pub use crate::{
   access::AccessRules,
-  auth::{Admin, Auth, AuthSettings, Credential, CurrentUser, Editor, InteractiveUser, Publisher, require_login},
+  auth::{Admin, Auth, AuthSettings, Credential, CurrentUser, Editor, InteractiveUser, Publisher, require_login, require_role},
   github::{GITHUB_ISSUER, Github, GithubConfig},
   oidc::{Authorization, Identity, Oidc, OidcConfig},
   session::SessionSettings,

@@ -5,9 +5,9 @@ import { api } from "./api/client";
 import { unwrap } from "./api/unwrap";
 import { Canvas } from "./Canvas";
 import { LeadField } from "./LeadField";
-import { type LockActions, LockBanner } from "./LockBanner";
+import { type LockActions, LockBanner, ViewerBanner } from "./LockBanner";
 import { discardLocal, readLocal } from "./localDrafts";
-import { usePages } from "./queries";
+import { atLeast, useMe, usePages } from "./queries";
 import { TitleField } from "./TitleField";
 import { type Page, pageUrls } from "./tree";
 import * as ui from "./ui";
@@ -25,8 +25,27 @@ interface Props {
   onOpen?: (id: string) => void;
 }
 
-/** Opens the page for editing when its lock can be had, and read-only while someone else holds it. */
-export function PageEditor({ page, onStatus, panelHost, onOpen }: Props) {
+/** Opens the page for editing when its lock can be had, and read-only while someone else holds it or for a viewer. */
+export function PageEditor(props: Props) {
+  const role = useMe().data?.role;
+
+  if (!role) return <p className="text-muted px-2.5">Loading…</p>;
+  // A viewer never takes the lock, so their reading does not keep anyone else from editing.
+  if (!atLeast(role, "editor")) return <ViewerPage page={props.page} onStatus={props.onStatus} />;
+  return <LockedEditor {...props} />;
+}
+
+function ViewerPage({ page, onStatus }: Pick<Props, "page" | "onStatus">) {
+  useEffect(() => {
+    onStatus("read-only");
+    return () => onStatus(null);
+  }, [onStatus]);
+
+  return <ReadOnlyPage page={page} banner={<ViewerBanner />} />;
+}
+
+function LockedEditor({ page, onStatus, panelHost, onOpen }: Props) {
+  const role = useMe().data?.role;
   const lock = usePageLock(page.id, page.title);
   const kept = useKeptWork(page, lock.state.kind === "taken", onOpen);
   // The sync must see one object for the page's whole life, and the latest lock functions through it.
@@ -53,6 +72,7 @@ export function PageEditor({ page, onStatus, panelHost, onOpen }: Props) {
         takeOver: lock.takeOver,
         watching: lock.watching,
         watch: () => void lock.watch(),
+        canForce: atLeast(role, "admin"),
         ...kept,
       };
       return <ReadOnlyPage page={page} banner={<LockBanner state={lock.state} actions={actions} />} />;

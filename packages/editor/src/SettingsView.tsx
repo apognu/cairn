@@ -55,6 +55,8 @@ export function SettingsView({
           {(Object.keys(sectionTitle) as SettingsSection[])
             .filter((key) => key !== "tokens" || signedIn)
             .filter((key) => key !== "users" || (signedIn && admin))
+            // Site settings are the admins'; the other sections can be read by everyone.
+            .filter((key) => key !== "site" || admin)
             .map((key) => (
               <li key={key}>
                 <div className={`${rowClass({ selected: section === key, depth: 1 })} pl-2.5`}>
@@ -76,7 +78,11 @@ export function SettingsView({
       </nav>
       <main className="canvas relative overflow-y-auto col-[2/-1] py-6.5 px-8 mobile:col-[1/-1] mobile:px-4 text-ui leading-[1.4] has-[.sticky-actions]:pb-0 has-[.sticky-actions]:scroll-pb-20">
         {section === "site" ? (
-          <SiteSettings />
+          admin ? (
+            <SiteSettings />
+          ) : (
+            <LibrarySettings />
+          )
         ) : section === "library" ? (
           <LibrarySettings />
         ) : section === "releases" ? (
