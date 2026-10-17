@@ -7,13 +7,18 @@ import { endsInPhantomLine } from "./phantom";
 const GRIP =
   '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="5" r="1.6"/><circle cx="15" cy="5" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="19" r="1.6"/><circle cx="15" cy="19" r="1.6"/></svg>';
 const SIZE = 24;
+
+/** Asks the canvas for the menu of a top-level block, under the handle that was clicked. */
+export const BLOCK_MENU_EVENT = "cairn:block-menu";
+export type BlockMenuRequest = { index: number; left: number; bottom: number };
 // How far left of the text the pointer may go and still reach the handle, or drop.
 const REACH = 56;
 
 /**
  * A handle in the margin of the top-level block under the pointer, dragged to move the block between two others; a line shows where it
  * will land. The drag is ours from start to end: ProseMirror's own drop would put a caret anywhere, inside other blocks too, and remove
- * the original only if the selection still held it. Alt+Shift+Up and Down move the block at the cursor for the keyboard. Not on phones.
+ * the original only if the selection still held it. Alt+Shift+Up and Down move the block at the cursor for the keyboard. A click, or Mod+/ from
+ * the text, opens the block's menu (`BlockMenu`). Not on phones.
  */
 export const BlockHandle = Extension.create({
   name: "blockHandle",
@@ -21,6 +26,19 @@ export const BlockHandle = Extension.create({
     return {
       "Alt-Shift-ArrowUp": () => moveByKey(this.editor.view, -1),
       "Alt-Shift-ArrowDown": () => moveByKey(this.editor.view, 1),
+      // The keyboard's way to the handle's menu, for the block holding the cursor.
+      "Mod-/": () => {
+        const { view } = this.editor;
+        const index = view.state.selection.$from.index(0);
+        if (index >= movable(view.state.doc)) return false;
+        const box = view.coordsAtPos(startOf(view.state.doc, index) + 1);
+        view.dom.dispatchEvent(
+          new CustomEvent<BlockMenuRequest>(BLOCK_MENU_EVENT, {
+            detail: { index, left: box.left, bottom: box.bottom },
+          }),
+        );
+        return true;
+      },
     };
   },
   addProseMirrorPlugins() {
@@ -41,7 +59,9 @@ function handleView(view: EditorView) {
   handle.className =
     "block-handle absolute z-10 flex items-center justify-center w-5 h-6 rounded text-muted cursor-grab invisible hover:bg-hover hover:text-text active:cursor-grabbing mobile:hidden";
   handle.draggable = true;
-  handle.title = "Drag to move";
+  handle.title = "Drag to move, click for more";
+  handle.setAttribute("role", "button");
+  handle.setAttribute("aria-label", "Block actions");
   handle.innerHTML = GRIP;
   const line = document.createElement("div");
   line.className = "block-drop-line absolute z-10 h-0.5 rounded-full bg-accent pointer-events-none hidden";
@@ -109,9 +129,18 @@ function handleView(view: EditorView) {
   handle.addEventListener("mousedown", () => {
     pressed = true;
   });
-  // A click without a drag lets go of it too.
+  // A click without a drag lets go of it too, and opens the block's menu.
   handle.addEventListener("mouseup", () => {
     pressed = false;
+  });
+  handle.addEventListener("click", () => {
+    if (hovered === null) return;
+    const box = handle.getBoundingClientRect();
+    view.dom.dispatchEvent(
+      new CustomEvent<BlockMenuRequest>(BLOCK_MENU_EVENT, {
+        detail: { index: hovered, left: box.left, bottom: box.bottom },
+      }),
+    );
   });
 
   // Caught before they reach the editor, so neither ProseMirror's drop nor its drop caret ever see this drag.
@@ -191,7 +220,7 @@ function blocks(view: EditorView): Block[] {
 }
 
 /** Where the top-level block at `index` starts. */
-function startOf(doc: PMNode, index: number): number {
+export function startOf(doc: PMNode, index: number): number {
   let pos = 0;
   for (let i = 0; i < index; i++) pos += doc.child(i).nodeSize;
   return pos;

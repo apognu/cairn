@@ -11,13 +11,14 @@ import {
 import { EditorContent, useEditor } from "@tiptap/react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { BlockMenu } from "./BlockMenu";
 import { BubbleMenus } from "./BubbleMenus";
 import { buildExtensions } from "./extensions";
 import { PagePicker } from "./PagePicker";
 import { PropsPanel } from "./PropsPanel";
 import { PICKER_EVENT, type PickerRequest, pageUrlRegistry } from "./pageLink";
 import { inHost, popoverHost } from "./popover";
-import { useLibrary } from "./queries";
+import { useLibrary, useReaderLinks } from "./queries";
 import { setGlossary } from "./termSuggestion";
 import { insertImages, useUploads } from "./upload";
 
@@ -104,6 +105,7 @@ export function Canvas({
     host: HTMLElement | null;
   } | null>(null);
   const library = useLibrary();
+  const reader = useReaderLinks(context?.page?.id || undefined);
   const uploads = useUploads();
   const [headings, setHeadings] = useState(() => collectHeadings(doc).list);
 
@@ -220,6 +222,7 @@ export function Canvas({
         {/* Positioned: the block handle is placed against it. */}
         <EditorContent editor={editor} className="relative" data-ready={ready || undefined} />
         {editor && editable && <BubbleMenus editor={editor} />}
+        {editor && editable && <BlockMenu editor={editor} liveUrl={reader.data?.live} />}
         {editable && uploads > 0 && (
           <output className="fixed z-40 bottom-5 left-1/2 -translate-x-1/2 flex items-center gap-2 py-2 px-3.5 border border-input rounded-lg bg-bg shadow-popover text-ui leading-[1.4]">
             <span
