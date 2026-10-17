@@ -2,6 +2,7 @@ import { customComponents } from "@cairn/components/custom";
 import type { AnyComponent } from "@cairn/sdk";
 import { cards, fileTree } from "./blocks";
 import { callout } from "./Callout";
+import { collapsible } from "./Collapsible";
 import { featureTabs, whatsNew } from "./features";
 import { linkCard, relatedPages, seeAlso } from "./links";
 import { snippet, variable } from "./reusable";
@@ -9,6 +10,7 @@ import { snippet, variable } from "./reusable";
 export { customSlots } from "@cairn/components/custom";
 export { cards, fileTree, parseFileTree } from "./blocks";
 export { Callout, type CalloutProps, callout } from "./Callout";
+export { collapsible } from "./Collapsible";
 export { type RenderEnv, RenderEnvContext, useRenderEnv } from "./env";
 export { FeatureCard, featureTabs, whatsNew } from "./features";
 export { Icon, type IconNode, IconUsageContext, registeredIcons, registerIcons, UsedIcons } from "./icons";
@@ -19,6 +21,7 @@ export { Tabs, type TabsProps } from "./Tabs";
 /** Components whose nodes carry their props in attrs and get a generated settings panel. */
 export const builtinComponents = [
   callout,
+  collapsible,
   featureTabs,
   whatsNew,
   linkCard,

@@ -48,6 +48,27 @@ const Callout = Node.create({
   renderHTML: ({ HTMLAttributes }) => ["aside", mergeAttributes({ class: "callout" }, HTMLAttributes), 0],
 });
 
+// Always open while editing, so what it holds can be written; the published page draws a `<details>` with the same classes.
+const Collapsible = Node.create({
+  name: "collapsible",
+  group: "block",
+  content: "block+",
+  defining: true,
+  addAttributes() {
+    return {
+      title: { default: "Details" },
+      open: { default: false },
+    };
+  },
+  parseHTML: () => [{ tag: "div.collapsible" }],
+  renderHTML: ({ node }) => [
+    "div",
+    { class: "collapsible", "data-open": String(node.attrs.open) },
+    ["div", { class: "collapsible-summary", contenteditable: "false" }, String(node.attrs.title)],
+    ["div", { class: "collapsible-body" }, 0],
+  ],
+});
+
 const Image = Node.create({
   name: "image",
   group: "block",
@@ -296,6 +317,7 @@ const blockTypes = [
   "codeBlock",
   "table",
   "callout",
+  "collapsible",
   "image",
   "tabs",
   "steps",
@@ -318,6 +340,7 @@ export const buildExtensions = (editable: boolean) => [
   TableHeader,
   TableCell,
   Callout,
+  Collapsible,
   Image,
   Tabs,
   TabPanel,

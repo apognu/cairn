@@ -71,6 +71,24 @@ export const slashItems: SlashItem[] = [
         .insertContent({ type: "callout", attrs: { tone: "note" }, content: [{ type: "paragraph" }] })
         .run(),
   ),
+  item(
+    "Components",
+    "chevron",
+    "Collapsible section",
+    "Details readers open when they need them",
+    "collapsible details accordion faq expand toggle spoiler",
+    (e, r) =>
+      e
+        .chain()
+        .focus()
+        .deleteRange(r)
+        .insertContent({
+          type: "collapsible",
+          attrs: { title: "Details", open: false },
+          content: [{ type: "paragraph" }],
+        })
+        .run(),
+  ),
   item("Components", "tabs", "Feature tabs", "Cards grouped into tabs", "features tabs cards grid", (e, r) =>
     e
       .chain()

@@ -90,6 +90,8 @@ fn block(node: &Node, site: &Site) -> String {
         None => body,
       }
     }
+    // GitHub and most Markdown readers show `<details>` as it is on the site.
+    "collapsible" => format!("<details>\n<summary>{}</summary>\n\n{}\n\n</details>", escape_html(attr_str(node, "title")), blocks(children, site, "")),
     "tabs" => children
       .iter()
       .map(|panel| format!("**{}**\n\n{}", escape(attr_str(panel, "label")), blocks(panel.content.as_deref().unwrap_or_default(), site, "")))
@@ -231,6 +233,10 @@ fn page_field(value: &str, site: &Site) -> Option<(String, String)> {
     Some(anchor) => (operation_label(anchor).unwrap_or_else(|| title.clone()), format!("{}{path}#{anchor}", site.url)),
     None => (title.clone(), format!("{}{path}", site.url)),
   })
+}
+
+fn escape_html(text: &str) -> String {
+  text.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
 }
 
 fn fence(language: &str, code: &str) -> String {
@@ -477,6 +483,28 @@ mod tests {
         "- [Create](https://d.io/api/#tag/orders/POST/orders)\n",
       ]
       .join("\n")
+    );
+  }
+
+  #[test]
+  fn a_collapsible_section_becomes_details() {
+    let doc: Document = serde_json::from_value(serde_json::json!({ "type": "doc", "content": [
+      { "type": "collapsible", "attrs": { "title": "Why <not>?", "open": false }, "content": [
+        { "type": "paragraph", "content": [{ "type": "text", "text": "Because." }] },
+      ] },
+    ] }))
+    .unwrap();
+    let (urls, titles, assets) = (HashMap::new(), HashMap::new(), HashMap::new());
+    let site = Site {
+      url: "https://d.io",
+      urls: &urls,
+      titles: &titles,
+      assets: &assets,
+    };
+
+    assert_eq!(
+      page_markdown("T", None, &doc, &site),
+      "# T\n\n<details>\n<summary>Why &lt;not&gt;?</summary>\n\nBecause.\n\n</details>\n"
     );
   }
 }
