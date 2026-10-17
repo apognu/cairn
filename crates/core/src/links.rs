@@ -75,9 +75,14 @@ pub fn extract_links(doc: &Document) -> Vec<PageLink> {
 
 /// The anchors of the page's headings, as the renderer gives them: a link to another anchor of the page leads nowhere.
 pub fn heading_anchors(doc: &Document) -> HashSet<String> {
+  heading_sections(doc).into_iter().map(|(anchor, _)| anchor).collect()
+}
+
+/// The page's sections in order: each heading's anchor, as the renderer gives it, and its text.
+pub fn heading_sections(doc: &Document) -> Vec<(String, String)> {
   let texts: Vec<String> = doc.0.walk().into_iter().filter(|n| n.kind == "heading").map(text_of).collect();
 
-  numbered_anchors(texts.iter().map(String::as_str)).into_iter().collect()
+  numbered_anchors(texts.iter().map(String::as_str)).into_iter().zip(texts).collect()
 }
 
 fn text_of(node: &Node) -> String {

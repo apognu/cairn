@@ -19,7 +19,7 @@ import { PagePicker } from "./PagePicker";
 import { PropsPanel } from "./PropsPanel";
 import { PICKER_EVENT, type PickerRequest, pageUrlRegistry } from "./pageLink";
 import { inHost, popoverHost } from "./popover";
-import { useLibrary, useReaderLinks } from "./queries";
+import { useLibrary, useReaderLinks, useSectionsOf } from "./queries";
 import { setGlossary } from "./termSuggestion";
 import { insertImages, useUploads } from "./upload";
 
@@ -140,6 +140,8 @@ export function Canvas({
   const reader = useReaderLinks(context?.page?.id || undefined);
   const uploads = useUploads();
   const [headings, setHeadings] = useState(() => collectHeadings(doc).list);
+  const [sectionPages, setSectionPages] = useState(() => sectionTargets(doc));
+  const sections = useSectionsOf(sectionPages);
 
   useEffect(() => {
     setGlossary((library.data ?? []).filter((e) => e.kind === "term").map((e) => ({ key: e.key, aliases: e.aliases })));
@@ -148,7 +150,12 @@ export function Canvas({
   useEffect(() => {
     if (!editor) return;
 
-    const update = () => setHeadings(collectHeadings(editor.getJSON() as DocNode).list);
+    const update = () => {
+      const doc = editor.getJSON() as DocNode;
+      setHeadings(collectHeadings(doc).list);
+      const targets = sectionTargets(doc);
+      setSectionPages((previous) => (previous.join() === targets.join() ? previous : targets));
+    };
     editor.on("update", update);
 
     return () => {
@@ -210,6 +217,10 @@ export function Canvas({
   const full = { ...defaultContext, today: new Date().toISOString().slice(0, 10), ...context };
   // Links by page ID show the page's current URL, whichever page moved since they were made.
   pageUrlRegistry.urls = full.urls;
+  // Cards pointing at a section show its heading, read from the target page's draft.
+  const pages = Object.fromEntries(
+    Object.entries(full.pages).map(([id, page]) => [id, sections[id] ? { ...page, sections: sections[id] } : page]),
+  );
 
   // What the library holds, as the editor draws it: a variable's value, a snippet's blocks.
   const entries = library.data ?? [];
@@ -248,7 +259,7 @@ export function Canvas({
 
   return (
     <RenderEnvContext.Provider
-      value={{ urls: full.urls, pages: full.pages, variables, snippets, editing: editable, today: full.today }}
+      value={{ urls: full.urls, pages, variables, snippets, editing: editable, today: full.today }}
     >
       <SiteLayout context={full} headings={headings} embedded={embedded} title={title} lead={lead}>
         {/* Positioned: the block handle is placed against it. */}
@@ -291,4 +302,18 @@ export function Canvas({
       </SiteLayout>
     </RenderEnvContext.Provider>
   );
+}
+
+/**
+ * The pages that component page fields point at a section of (`<page ID>#<anchor>`), sorted. Operations of API pages (`#tag/…`) are left
+ * out: their label comes from the anchor itself.
+ */
+function sectionTargets(doc: DocNode): string[] {
+  const ids = new Set<string>();
+  for (const [, id] of JSON.stringify(doc).matchAll(
+    /"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})#(?!tag\/)[^"]+"/g,
+  )) {
+    ids.add(id);
+  }
+  return [...ids].sort();
 }

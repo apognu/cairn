@@ -6,7 +6,7 @@ export type RenderEnv = {
   /** Page ID to URL. */
   urls: Record<string, string>;
   /** Page ID to what other pages show about it: link cards read the title and description from here. */
-  pages: Record<string, { title: string; description?: string | null }>;
+  pages: Record<string, { title: string; description?: string | null; sections?: Record<string, string> }>;
   /** Variable name to its value, for the editor; published pages have them written in already. */
   variables: Record<string, string>;
   /** Snippet name to its drawn content, for the editor. */

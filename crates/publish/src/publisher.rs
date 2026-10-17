@@ -7,8 +7,8 @@ use std::{
 };
 
 use cairn_core::{
-  ApiConfig, AssetId, AssetStore, Broadcast, ContentStore, Document, Event, Library, Mode, Page, PageId, PageKind, Release, ReleaseId, ReleaseStatus, RevisionId, Settings, UserId,
-  effective_redirects, expand, extract_links, header_section, hotfix_pages, original_key, page_urls, term_anchors, term_refs, variant_key,
+  ApiConfig, AssetId, AssetStore, Broadcast, ContentStore, Document, Event, Library, LinkKind, Mode, Page, PageId, PageKind, PageLink, Release, ReleaseId, ReleaseStatus, RevisionId, Settings, UserId,
+  effective_redirects, expand, extract_links, header_section, heading_sections, hotfix_pages, original_key, page_urls, term_anchors, term_refs, variant_key,
 };
 use cairn_render::{Pool, Shell, highlight_css};
 use cairn_store::{
@@ -666,6 +666,7 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
     glossary_terms.sort_by_key(|t| t.to_lowercase());
     let anchors = term_anchors(&glossary_terms);
     let glossary_url = if urls.values().any(|u| u == "/glossary/") { "/glossary-terms/" } else { "/glossary/" };
+    let sections: HashMap<PageId, HashMap<String, String>> = sources.iter().map(|s| (s.page.id, heading_sections(&s.doc).into_iter().collect())).collect();
     let site_name = settings.site_name.clone();
     let today = jiff::Zoned::now().date().to_string();
 
@@ -701,7 +702,8 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
         let (previous, next) = previous_next(&nav, source.page.id);
         // Only what the page refers to goes into its context: renaming one page must not change the input of every other, or nothing
         // could be reused.
-        let referenced: HashSet<String> = extract_links(&source.doc).into_iter().map(|l| l.target.to_string()).collect();
+        let links = extract_links(&source.doc);
+        let referenced: HashSet<String> = links.iter().map(|l| l.target.to_string()).collect();
         // The date only matters to components that count down to one, and it changes every day.
         // Only the terms this page marks go into its context, so defining another term leaves it alone.
         let terms: serde_json::Map<String, Value> = term_refs(&source.doc)
@@ -735,7 +737,7 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
             "section": header_section(tree_pages, source.page.id),
             "sectionBack": section_back(tree_pages, &urls, source.page.id, &site_name),
             "urls": only(&url_values, &referenced),
-            "pages": only(&page_info, &referenced),
+            "pages": with_sections(only(&page_info, &referenced), &links, &sections),
             "assets": source_assets(&source.doc, &asset_meta),
             "terms": terms,
             "today": today,
@@ -835,10 +837,15 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
       .iter()
       .filter_map(|(id, meta)| Some((id.clone(), meta["src"].as_str()?.trim_start_matches('/').to_string())))
       .collect();
+    let section_titles: HashMap<String, String> = sections
+      .iter()
+      .flat_map(|(id, sections)| sections.iter().map(move |(anchor, text)| (format!("{id}#{anchor}"), text.clone())))
+      .collect();
     let site = Site {
       url: site_url,
       urls: &url_strings,
       titles: &titles,
+      sections: &section_titles,
       assets: &asset_paths,
     };
     files.extend(sources.iter().map(|s| OutputFile {
@@ -1193,6 +1200,20 @@ fn api_context(api: &ResolvedApi, page_url: &str, scalar_url: Option<&str>) -> V
 }
 
 /// The entries of `map` for the IDs in `only`.
+/// Adds to the pages a card points at the heading text of the section it points at, if any. Only those sections: a new heading elsewhere
+/// on the target page leaves this page's render alone.
+fn with_sections(mut pages: Value, links: &[PageLink], sections: &HashMap<PageId, HashMap<String, String>>) -> Value {
+  for link in links.iter().filter(|l| l.kind == LinkKind::Card && !l.anchor.is_empty()) {
+    if let Some(text) = sections.get(&link.target).and_then(|s| s.get(&link.anchor))
+      && let Some(page) = pages.get_mut(link.target.to_string())
+    {
+      page["sections"][&link.anchor] = json!(text);
+    }
+  }
+
+  pages
+}
+
 fn only(map: &serde_json::Map<String, Value>, ids: &HashSet<String>) -> Value {
   Value::Object(map.iter().filter(|(id, _)| ids.contains(*id)).map(|(id, v)| (id.clone(), v.clone())).collect())
 }
@@ -1833,6 +1854,40 @@ mod tests {
     assert_eq!(std::fs::read_to_string(site.join("guide/install/linux.md")).unwrap(), "# Linux\n\n## Packages\n\nUse `apt`\n");
     let llms = std::fs::read_to_string(site.join("llms.txt")).unwrap();
     assert!(llms.contains("(https://docs.example.com/guide/install/linux.md)"), "{llms}");
+  }
+
+  #[tokio::test]
+  async fn a_card_pointing_at_a_section_shows_its_heading_under_the_page_title() {
+    let f = fixture().await;
+    let user = UserId::new();
+    let guide = create_page(&f.db, user, None, "Guide", Placement::Last).await.unwrap();
+    let home = create_page(&f.db, user, None, "Home", Placement::Last).await.unwrap();
+    f.content
+      .save_draft(
+        guide.id,
+        doc(serde_json::json!({ "type": "doc", "content": [{ "type": "heading", "attrs": { "level": 2 }, "content": [{ "type": "text", "text": "Set up & run" }] }] })),
+        None,
+        user,
+      )
+      .await
+      .unwrap();
+    f.content
+      .save_draft(
+        home.id,
+        doc(serde_json::json!({ "type": "doc", "content": [{ "type": "linkCard", "attrs": { "page": format!("{}#set-up-run", guide.id) } }] })),
+        None,
+        user,
+      )
+      .await
+      .unwrap();
+    f.publisher.publish(user).await.unwrap();
+
+    let site = f.dir.join("out/site");
+    let html = std::fs::read_to_string(site.join("home/index.html")).unwrap();
+    assert!(html.contains("href=\"/guide/#set-up-run\""), "{html}");
+    assert!(html.contains("Set up &amp; run<svg") && html.contains("link-card-description\">Guide</span>"), "{html}");
+    let markdown = std::fs::read_to_string(site.join("home.md")).unwrap();
+    assert!(markdown.contains("[Guide › Set up & run](https://docs.example.com/guide/#set-up-run)"), "{markdown}");
   }
 
   #[tokio::test]

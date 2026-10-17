@@ -13,6 +13,8 @@ pub(crate) struct Site<'a> {
   pub urls: &'a HashMap<String, String>,
   /// Page ID to its title.
   pub titles: &'a HashMap<String, String>,
+  /// `<page ID>#<anchor>` to the heading text of that section.
+  pub sections: &'a HashMap<String, String>,
   /// Asset ID to the path of its published file.
   pub assets: &'a HashMap<String, String>,
 }
@@ -233,13 +235,19 @@ fn page_links<'a>(values: impl Iterator<Item = &'a Value>, site: &Site) -> Strin
     .join("\n")
 }
 
-/// The title and absolute address of a page field: a page ID, or `<ID>#<anchor>` for an operation of an API page, which takes the operation as its title.
+/// The title and absolute address of a page field: a page ID, or `<ID>#<anchor>` for an operation of an API page, which takes the operation as its
+/// title, or for a section, which adds its heading to the page's title.
 fn page_field(value: &str, site: &Site) -> Option<(String, String)> {
   let (id, anchor) = value.split_once('#').map_or((value, None), |(id, anchor)| (id, Some(anchor)));
   let (title, path) = (site.titles.get(id)?, site.urls.get(id)?);
 
   Some(match anchor {
-    Some(anchor) => (operation_label(anchor).unwrap_or_else(|| title.clone()), format!("{}{path}#{anchor}", site.url)),
+    Some(anchor) => {
+      let label = operation_label(anchor)
+        .or_else(|| site.sections.get(value).map(|section| format!("{title} › {section}")))
+        .unwrap_or_else(|| title.clone());
+      (label, format!("{}{path}#{anchor}", site.url))
+    }
     None => (title.clone(), format!("{}{path}", site.url)),
   })
 }
@@ -362,6 +370,7 @@ mod tests {
         url: "https://docs.example.com",
         urls: &urls,
         titles: &titles,
+        sections: &HashMap::new(),
         assets: &assets,
       },
     )
@@ -443,6 +452,7 @@ mod tests {
         url: "https://d.io",
         urls: &urls,
         titles: &titles,
+        sections: &HashMap::new(),
         assets: &assets,
       },
     );
@@ -480,6 +490,7 @@ mod tests {
         url: "https://d.io",
         urls: &urls,
         titles: &titles,
+        sections: &HashMap::new(),
         assets: &assets,
       },
     );
@@ -508,6 +519,7 @@ mod tests {
       url: "https://d.io",
       urls: &urls,
       titles: &titles,
+      sections: &HashMap::new(),
       assets: &assets,
     };
 
@@ -529,6 +541,7 @@ mod tests {
       url: "https://d.io",
       urls: &urls,
       titles: &titles,
+      sections: &HashMap::new(),
       assets: &assets,
     };
 

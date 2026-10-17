@@ -21,14 +21,24 @@ function Arrow() {
   );
 }
 
-/** What a link to a page or to an operation of an API page shows: the page's title and description, or the operation and the page's title. */
-function target(value: string, pages: RenderEnv["pages"]): { title: string; description?: string | null } | undefined {
+/**
+ * What a link to a page shows: the page's title and description; for an operation of an API page or a section of a page, the operation
+ * or the section's heading, with the page's title below. `label` is the one line a list of links shows.
+ */
+function target(
+  value: string,
+  pages: RenderEnv["pages"],
+): { title: string; description?: string | null; label: string } | undefined {
   const { id, anchor } = pageTarget(value);
   const page = pages[id];
-  const operation = operationLabel(anchor);
-  if (!page || !operation) return page;
+  if (!page) return undefined;
 
-  return { title: operation, description: page.title };
+  const operation = operationLabel(anchor);
+  if (operation) return { title: operation, description: page.title, label: operation };
+  const section = anchor ? page.sections?.[anchor] : undefined;
+  if (section) return { title: section, description: page.title, label: `${page.title} › ${section}` };
+
+  return { title: page.title, description: page.description, label: page.title };
 }
 
 /** A card with the target page's title and description, read from the page itself so a rename reaches every card at the next publish. */
@@ -89,7 +99,7 @@ function SeeAlsoLinks({ ids }: { ids: string[] }) {
   const found = ids.flatMap((id) => {
     const href = pageHref(urls, id);
     const info = target(id, pages);
-    return href && info ? [{ id, href, title: info.title }] : [];
+    return href && info ? [{ id, href, title: info.label }] : [];
   });
 
   if (found.length === 0)

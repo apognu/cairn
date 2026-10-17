@@ -480,16 +480,29 @@ export function useApiOperations(id: string | null) {
   });
 }
 
+const pageHeadings = (id: string) => ({
+  queryKey: ["page-headings", id],
+  queryFn: async () => {
+    const draft = unwrap(await api.GET("/api/pages/{id}/draft", { params: { path: { id } } }));
+    return collectHeadings(draft.doc as DocNode).list;
+  },
+});
+
 /** The headings of a page's draft, with the anchors the renderer gives them: where a link to one of its sections can point. */
 export function usePageHeadings(id: string | null) {
-  return useQuery({
-    queryKey: ["page-headings", id],
-    enabled: id !== null,
-    queryFn: async () => {
-      const draft = unwrap(await api.GET("/api/pages/{id}/draft", { params: { path: { id: id as string } } }));
-      return collectHeadings(draft.doc as DocNode).list;
-    },
-  });
+  return useQuery({ ...pageHeadings(id ?? ""), enabled: id !== null });
+}
+
+/** Each given page's sections, anchor to heading text, for cards that point at one. Pages still loading are left out. */
+export function useSectionsOf(ids: string[]): Record<string, Record<string, string>> {
+  const results = useQueries({ queries: ids.map(pageHeadings) });
+
+  return Object.fromEntries(
+    ids.flatMap((id, i) => {
+      const headings = results[i]?.data;
+      return headings ? [[id, Object.fromEntries(headings.map((h) => [h.anchor, h.text]))]] : [];
+    }),
+  );
 }
 
 /** The signed-in user. In `cairn dev` there is nobody to sign in, and the email is empty. */

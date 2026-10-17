@@ -35,7 +35,7 @@ pub use find::{excerpt, plain_text};
 pub use hotfix::{PullReason, Pulled, hotfix_pages};
 pub use id::{AssetId, LockToken, PageId, ReleaseId, RevisionId, UserId};
 pub use library::{EntryKind, Library, SNIPPET_NODE, TERM_MARK, Term, VARIABLE_NODE, entry_refs, expand, snippet_cycle, term_anchors, term_refs};
-pub use links::{LinkKind, PageLink, extract_links, heading_anchors};
+pub use links::{LinkKind, PageLink, extract_links, heading_anchors, heading_sections};
 pub use lock::{LOCK_IDLE, LOCK_LEASE, PageLock};
 pub use nav::{header_pages, header_section, in_sidebar, sidebar_root};
 pub use page::{Page, PageKind, Placement, page_urls, slugify};

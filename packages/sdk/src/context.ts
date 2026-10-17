@@ -68,8 +68,8 @@ export type RenderContext = {
   sectionBack?: { title: string; href: string } | null;
   /** Page ID to URL, for links stored by ID. */
   urls: Record<string, string>;
-  /** Page ID to the title and description other pages show about it, for link cards. */
-  pages: Record<string, { title: string; description?: string | null }>;
+  /** Page ID to the title and description other pages show about it, for link cards, and the heading text of the sections cards point at. */
+  pages: Record<string, { title: string; description?: string | null; sections?: Record<string, string> }>;
   /** Glossary term to its definition and the address of its entry, for the terms this page marks. */
   terms: Record<string, { definition: string; href: string }>;
   /** Asset ID to what the published page needs to show it: its URL and, when known, its size. */
