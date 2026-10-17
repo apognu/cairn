@@ -1,8 +1,18 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { components } from "./api/schema";
 import { DeleteDialog } from "./DeleteDialog";
 import { Icon } from "./icons";
-import { useCan, useCreatePage, useDeletePage, useMovePage, usePending, useRenamePage, useStalePages } from "./queries";
+import {
+  useCan,
+  useCreatePage,
+  useDeletePage,
+  useDuplicatePage,
+  useMovePage,
+  usePending,
+  useRenamePage,
+  useSearch,
+  useStalePages,
+} from "./queries";
 import { IconButton, MenuItem, placeMenu, rowClass, TitleForm, titleClass } from "./TreeParts";
 import {
   buildTree,
@@ -48,6 +58,7 @@ export function Sidebar({ pages, loading, selected, onSelect }: Props) {
   const rename = useRenamePage();
   const move = useMovePage();
   const remove = useDeletePage();
+  const duplicate = useDuplicatePage();
   const canEdit = useCan("editor");
   // Every page due for a review, whoever owns it: the whole team sees what needs checking.
   const due = new Map((useStalePages().data ?? []).map((s) => [s.page_id, s]));
@@ -138,8 +149,31 @@ export function Sidebar({ pages, loading, selected, onSelect }: Props) {
       if (within(selected, id)) onSelect(null);
     });
 
+  const doDuplicate = (page: Page) => {
+    // Right after the original, among its siblings.
+    const siblings = pages.filter((p) => p.parent_id === page.parent_id);
+    const next = siblings[siblings.findIndex((p) => p.id === page.id) + 1];
+    return run(
+      duplicate.mutateAsync({ page, before: next?.id ?? null }).then((copy) => {
+        markCreated(copy.id);
+        onSelect(copy.id);
+      }),
+    );
+  };
+
   const needle = query.trim().toLowerCase();
   const search = needle ? pages.filter((p) => p.title.toLowerCase().includes(needle)) : null;
+  // Titles filter as they are typed; the server looks through the drafts' words once typing pauses.
+  const [asked, setAsked] = useState("");
+  useEffect(() => {
+    const timer = window.setTimeout(() => setAsked(needle), 250);
+    return () => window.clearTimeout(timer);
+  }, [needle]);
+  const found = useSearch(asked);
+  const inText =
+    needle.length >= 2
+      ? (found.data ?? []).filter((hit) => hit.excerpt && !search?.some((p) => p.id === hit.page_id))
+      : [];
 
   const renderNode = (node: TreeNode, depth: number) => {
     const { page } = node;
@@ -256,6 +290,13 @@ export function Sidebar({ pages, loading, selected, onSelect }: Props) {
                     text={page.kind === "link" ? "Edit link" : "Rename"}
                     onClick={() => setEditing({ kind: "rename", id: page.id })}
                   />
+                  {page.kind === "page" && (
+                    <MenuItem
+                      label={`Duplicate ${page.title}`}
+                      text="Duplicate"
+                      onClick={() => void doDuplicate(page)}
+                    />
+                  )}
                   {page.kind !== "link" && (
                     <>
                       <MenuItem
@@ -374,6 +415,33 @@ export function Sidebar({ pages, loading, selected, onSelect }: Props) {
       <ul className={list}>
         {(search ? search.map((page) => ({ page, children: [] })) : buildTree(pages)).map((node) =>
           renderNode(node, search ? 1 : 0),
+        )}
+        {inText.length > 0 && (
+          <li>
+            <h3 className="mt-3 mb-1 px-2.5 text-label font-semibold text-muted uppercase tracking-wide">
+              Found in the text
+            </h3>
+            <ul className={list}>
+              {inText.map((hit) => (
+                <li key={hit.page_id}>
+                  <button
+                    type="button"
+                    className={`block w-full py-1.5 px-2.5 border-0 rounded-md text-left cursor-pointer hover:bg-hover ${selected === hit.page_id ? "bg-accent-soft" : "bg-transparent"}`}
+                    aria-current={selected === hit.page_id ? "page" : undefined}
+                    onClick={() => onSelect(hit.page_id)}
+                  >
+                    <span className="block text-ui font-medium overflow-hidden text-ellipsis whitespace-nowrap">
+                      {hit.title}
+                    </span>
+                    <span className="block text-help text-muted line-clamp-2 break-words">{hit.excerpt}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </li>
+        )}
+        {search && search.length === 0 && inText.length === 0 && !found.isFetching && (
+          <li className="py-1.5 px-2.5 text-help text-muted">No page has these words.</li>
         )}
         {editing?.kind === "create" && editing.parent === null && (
           <li style={{ paddingLeft: rowIndent(0) }}>

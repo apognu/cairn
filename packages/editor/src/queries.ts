@@ -40,6 +40,50 @@ export function useCreatePage() {
   );
 }
 
+/**
+ * A copy of a page next to it, "<title> (copy)", with its draft and description; its place in the header, custom URL and aliases stay
+ * with the original. Done as the editor would do it by hand (create, lock, save, unlock), so it follows the same rules.
+ */
+export function useDuplicatePage() {
+  return usePageMutation(async ({ page, before }: { page: components["schemas"]["Page"]; before: string | null }) => {
+    const draft = unwrap(await api.GET("/api/pages/{id}/draft", { params: { path: { id: page.id } } }));
+
+    // A second copy would share the first one's URL segment: number them.
+    let created: components["schemas"]["Page"] | undefined;
+    for (let n = 1; !created; n++) {
+      const title = `${page.title} (copy${n > 1 ? ` ${n}` : ""})`;
+      const result = await api.POST("/api/pages", { body: { parent_id: page.parent_id ?? null, title, before } });
+      if (result.response.status !== 409 || n >= 20) created = unwrap(result);
+    }
+
+    if (page.description) {
+      const body = { description: page.description };
+      unwrap(await api.PUT("/api/pages/{id}/description", { params: { path: { id: created.id } }, body }));
+    }
+    const { token } = unwrap(await api.POST("/api/pages/{id}/lock", { params: { path: { id: created.id } } }));
+    unwrap(
+      await api.PUT("/api/pages/{id}/draft", {
+        params: { path: { id: created.id } },
+        body: { doc: draft.doc, base_revision_id: null, lock_token: token },
+      }),
+    );
+    await api.DELETE("/api/pages/{id}/lock", { params: { path: { id: created.id }, query: { token } } });
+
+    return created;
+  });
+}
+
+/** Pages whose title or draft has the words, from the server; under two characters, nothing is asked. */
+export function useSearch(query: string) {
+  const q = query.trim();
+  return useQuery({
+    queryKey: ["search", q],
+    enabled: q.length >= 2,
+    placeholderData: keepPreviousData,
+    queryFn: async () => unwrap(await api.GET("/api/search", { params: { query: { q } } })),
+  });
+}
+
 /** Renames a page; for a link, `external_url` changes its target too. `redirect: false` lets the old URL stop working. */
 export function useRenamePage() {
   return usePageMutation(
