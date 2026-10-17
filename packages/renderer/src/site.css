@@ -274,6 +274,11 @@
   vertical-align: top;
 }
 
+/* The cell's padding is the space under its text; a paragraph's own margin would leave more below than above. */
+.doc-content :is(th, td) > :last-child {
+  margin-bottom: 0;
+}
+
 .doc-content img {
   max-width: 100%;
   height: auto;
