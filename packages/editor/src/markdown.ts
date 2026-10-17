@@ -19,6 +19,29 @@ export function looksLikeMarkdown(text: string): boolean {
   return markers.some((marker) => marker.test(text));
 }
 
+// What code editors and terminals wrap copied text in to keep its colours and font: no structure of its own.
+const styling = new Set(["html", "head", "body", "meta", "style", "div", "span", "font", "br", "p", "pre", "code"]);
+
+/** Whether clipboard HTML only dresses up plain text (VS Code and terminals copy coloured source this way) rather than holding a document. */
+export function isStyledText(html: string): boolean {
+  const body = html.replace(/<!--[\s\S]*?-->|<style[\s\S]*?<\/style>/gi, "");
+  return [...body.matchAll(/<\/?([a-zA-Z][\w-]*)/g)].every(([, tag]) => styling.has(tag.toLowerCase()));
+}
+
+/**
+ * Whether a paste from VS Code or an editor built on Monaco holds prose rather than code: its `vscode-editor-data` names the language.
+ * Without that entry, the clipboard did not come from such an editor.
+ */
+export function isProseFromCodeEditor(editorData: string): boolean {
+  if (!editorData) return true;
+  try {
+    const { mode } = JSON.parse(editorData) as { mode?: unknown };
+    return typeof mode !== "string" || ["markdown", "mdx", "plaintext"].includes(mode.toLowerCase());
+  } catch {
+    return true;
+  }
+}
+
 /**
  * Markdown (with GitHub's tables and strikethrough) as HTML the editor parses into its own blocks. Raw HTML in it stays text. The page
  * title is the page's only first-level heading, so when the text has `#` headings every heading moves down a level; none goes below 4.

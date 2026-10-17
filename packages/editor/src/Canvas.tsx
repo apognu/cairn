@@ -14,7 +14,7 @@ import { createPortal } from "react-dom";
 import { BlockMenu } from "./BlockMenu";
 import { BubbleMenus } from "./BubbleMenus";
 import { buildExtensions } from "./extensions";
-import { looksLikeMarkdown, markdownToHtml } from "./markdown";
+import { isProseFromCodeEditor, isStyledText, looksLikeMarkdown, markdownToHtml } from "./markdown";
 import { PagePicker } from "./PagePicker";
 import { PropsPanel } from "./PropsPanel";
 import { PICKER_EVENT, type PickerRequest, pageUrlRegistry } from "./pageLink";
@@ -74,10 +74,16 @@ export function Canvas({
           return true;
         }
 
-        // Text from a README, a terminal or a chat comes as Markdown only; with HTML on the clipboard, ProseMirror pastes that instead.
+        // Markdown from a README, a terminal, a chat or a code editor. A web page's HTML is pasted as it is; a code editor's HTML is only
+        // the same text in colour, so its Markdown wins. Code from VS Code or Monaco (named by its language) is left to the code block.
         const text = event.clipboardData.getData("text/plain");
-        if (event.clipboardData.types.includes("text/html") || editor.isActive("codeBlock") || !looksLikeMarkdown(text))
-          return false;
+        const html = event.clipboardData.getData("text/html");
+        const markdown =
+          (!html || isStyledText(html)) &&
+          isProseFromCodeEditor(event.clipboardData.getData("vscode-editor-data")) &&
+          !editor.isActive("codeBlock") &&
+          looksLikeMarkdown(text);
+        if (!markdown) return false;
         editor.commands.insertContent(markdownToHtml(text));
         return true;
       },

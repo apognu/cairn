@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { looksLikeMarkdown, markdownToHtml } from "./markdown";
+import { isProseFromCodeEditor, isStyledText, looksLikeMarkdown, markdownToHtml } from "./markdown";
 
 test("tells Markdown from plain words", () => {
   const cases: [string, boolean][] = [
@@ -32,4 +32,37 @@ test("converts Markdown to the HTML the editor reads", () => {
   ];
 
   for (const [markdown, html] of cases) expect(markdownToHtml(markdown)).toContain(html);
+});
+
+test("tells styled source text from a document", () => {
+  const cases: [string, boolean][] = [
+    // VS Code
+    [
+      '<meta charset=\'utf-8\'><div style="color: #cccccc;white-space: pre;"><div><span style="color: #569cd6;">## Install</span></div><br></div>',
+      true,
+    ],
+    ["<html><body><!--StartFragment--><pre><code>- one\n- two</code></pre><!--EndFragment--></body></html>", true],
+    ["<p>## not a heading here</p>", true],
+    // A plain-text file opened in a browser
+    ['<pre style="word-wrap: break-word; white-space: pre-wrap;">## Install\n\n- one</pre>', true],
+    ["<h2>Install</h2><p>Run it.</p>", false],
+    ['<p>See <a href="https://example.com">the guide</a></p>', false],
+    ["<ul><li>one</li></ul>", false],
+    ["<div><b>bold</b></div>", false],
+  ];
+
+  for (const [html, expected] of cases) expect([html, isStyledText(html)]).toEqual([html, expected]);
+});
+
+test("tells prose from code in a code editor's paste", () => {
+  const cases: [string, boolean][] = [
+    ["", true],
+    ['{"version":1,"isFromEmptySelection":false,"mode":"markdown"}', true],
+    ['{"mode":"plaintext"}', true],
+    ['{"mode":"python"}', false],
+    ['{"mode":"shellscript"}', false],
+    ["not json", true],
+  ];
+
+  for (const [data, expected] of cases) expect([data, isProseFromCodeEditor(data)]).toEqual([data, expected]);
 });
