@@ -1,6 +1,9 @@
-use cairn_core::{User, UserId};
+use cairn_core::{Role, User, UserId};
 use jiff::{Span, Timestamp};
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set, sea_query::OnConflict};
+use sea_orm::{
+  ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter, Set,
+  sea_query::{Expr, OnConflict, Query},
+};
 
 use crate::{
   StoreError,
@@ -19,35 +22,57 @@ pub struct LoginState {
   pub next: String,
 }
 
-pub(crate) fn into_user(row: user::Model) -> User {
-  User {
+pub(crate) fn into_user(row: user::Model) -> Result<User, StoreError> {
+  Ok(User {
     id: row.id.into(),
     email: row.email,
     name: row.name,
-  }
+    role: parse_role(&row.role)?,
+  })
 }
 
-/// The user for an identity provider's subject, created at the first login. Email and name follow the provider at every login.
+pub(crate) fn parse_role(text: &str) -> Result<Role, StoreError> {
+  Role::parse(text).ok_or_else(|| StoreError::Invalid(format!("unknown role {text}")))
+}
+
+/// The user for an identity provider's subject, created at the first login. Email and name follow the provider at every login; the role
+/// is set once: admin for the very first user of the site, viewer for everyone after.
 pub async fn upsert_user(db: &DatabaseConnection, issuer: &str, subject: &str, email: &str, name: &str) -> Result<User, StoreError> {
   let now = Timestamp::now().to_string();
-  let row = user::ActiveModel {
-    id: Set(UserId::new().as_uuid()),
-    issuer: Set(issuer.into()),
-    subject: Set(subject.into()),
-    // Lowercased copy, compared exactly: collation differs between the databases.
-    email: Set(email.to_lowercase()),
-    name: Set(name.into()),
-    created_at: Set(now.clone()),
-    last_login_at: Set(now),
-  };
-  user::Entity::insert(row)
+  // Decided inside the insert, so two people signing in at once on a new site cannot both see it empty (on SQLite; Postgres could let both
+  // through in the same instant, which leaves two admins and nothing worse).
+  let first_is_admin = Expr::cust(r#"CASE WHEN EXISTS (SELECT 1 FROM "users") THEN 'viewer' ELSE 'admin' END"#);
+  let insert = Query::insert()
+    .into_table(user::Entity)
+    .columns([
+      user::Column::Id,
+      user::Column::Issuer,
+      user::Column::Subject,
+      user::Column::Email,
+      user::Column::Name,
+      user::Column::Role,
+      user::Column::CreatedAt,
+      user::Column::LastLoginAt,
+    ])
+    .values([
+      UserId::new().as_uuid().into(),
+      issuer.into(),
+      subject.into(),
+      // Lowercased copy, compared exactly: collation differs between the databases.
+      email.to_lowercase().into(),
+      name.into(),
+      first_is_admin,
+      now.clone().into(),
+      now.into(),
+    ])
+    .map_err(|e| StoreError::Other(e.into()))?
     .on_conflict(
       OnConflict::columns([user::Column::Issuer, user::Column::Subject])
         .update_columns([user::Column::Email, user::Column::Name, user::Column::LastLoginAt])
         .to_owned(),
     )
-    .exec(db)
-    .await?;
+    .to_owned();
+  db.execute(&insert).await?;
 
   let row = user::Entity::find()
     .filter(user::Column::Issuer.eq(issuer))
@@ -56,11 +81,11 @@ pub async fn upsert_user(db: &DatabaseConnection, issuer: &str, subject: &str, e
     .await?
     .ok_or(StoreError::NotFound)?;
 
-  Ok(into_user(row))
+  into_user(row)
 }
 
 pub async fn get_user(db: &DatabaseConnection, id: UserId) -> Result<User, StoreError> {
-  user::Entity::find_by_id(id.as_uuid()).one(db).await?.map(into_user).ok_or(StoreError::NotFound)
+  user::Entity::find_by_id(id.as_uuid()).one(db).await?.map(into_user).ok_or(StoreError::NotFound)?
 }
 
 /// Remembers a login in progress under its `state` value, and forgets the ones nobody came back for.
@@ -110,6 +135,17 @@ mod tests {
     assert_eq!(first.id, again.id);
     assert_eq!((first.email.as_str(), again.name.as_str()), ("alice@example.com", "Alice B."));
     assert_ne!(first.id, other_provider.id);
+  }
+
+  #[tokio::test]
+  async fn the_first_user_is_admin_and_the_next_ones_viewers() {
+    let db = test_db().await;
+
+    let first = upsert_user(&db, "https://idp.example", "a", "a@example.com", "A").await.unwrap();
+    let second = upsert_user(&db, "https://idp.example", "b", "b@example.com", "B").await.unwrap();
+    let first_again = upsert_user(&db, "https://idp.example", "a", "a@example.com", "A").await.unwrap();
+
+    assert_eq!((first.role, second.role, first_again.role), (Role::Admin, Role::Viewer, Role::Admin));
   }
 
   #[tokio::test]

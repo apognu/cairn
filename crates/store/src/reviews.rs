@@ -83,7 +83,7 @@ pub async fn stale_pages(db: &DatabaseConnection, today: Date) -> Result<Vec<Sta
 pub async fn list_users(db: &DatabaseConnection) -> Result<Vec<User>, StoreError> {
   let rows = user::Entity::find().order_by_asc(user::Column::Name).all(db).await?;
 
-  Ok(rows.into_iter().map(into_user).collect())
+  rows.into_iter().map(into_user).collect()
 }
 
 fn into_review(row: page_review::Model) -> Result<PageReview, StoreError> {

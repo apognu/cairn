@@ -116,7 +116,7 @@ struct Restore {
   (status = 423, body = ErrorBody, description = "someone else is editing the page"),
 ))]
 #[instrument(skip_all, fields(page_id = %id))]
-async fn restore_revision(State(state): State<AppState>, CurrentUser(user): CurrentUser, Path(id): Path<PageId>, Json(body): Json<Restore>) -> Result<Json<RestoredDraft>, AppError> {
+async fn restore_revision(State(state): State<AppState>, CurrentUser(user, _): CurrentUser, Path(id): Path<PageId>, Json(body): Json<Restore>) -> Result<Json<RestoredDraft>, AppError> {
   let revision = state.content.revision(body.revision_id).await?;
   if revision.page_id != id {
     return Err(AppError::NotFound);
@@ -199,7 +199,7 @@ async fn restore_from_trash(State(state): State<AppState>, Path(id): Path<PageId
 #[cfg(test)]
 mod tests {
   use cairn_auth::local_user_id;
-  use cairn_core::Placement;
+  use cairn_core::{Placement, Role};
 
   use super::*;
   use crate::app::test_state;
@@ -220,7 +220,7 @@ mod tests {
     let oldest = before.last().unwrap().id;
     let _ = restore_revision(
       State(state.clone()),
-      CurrentUser(user),
+      CurrentUser(user, Role::Editor),
       Path(page.id),
       Json(Restore {
         revision_id: oldest,
@@ -253,7 +253,14 @@ mod tests {
     state.content.save_draft(page.id, Document::paragraph("two"), old.base_revision_id, user).await.unwrap();
     let old = old.base_revision_id.unwrap();
     let current = |state: AppState| async move { cairn_store::list_pages(&state.db).await.unwrap().into_iter().find(|p| p.id == page.id).unwrap() };
-    let restore = |title: bool, description: bool| restore_revision(State(state.clone()), CurrentUser(user), Path(page.id), Json(Restore { revision_id: old, title, description }));
+    let restore = |title: bool, description: bool| {
+      restore_revision(
+        State(state.clone()),
+        CurrentUser(user, Role::Editor),
+        Path(page.id),
+        Json(Restore { revision_id: old, title, description }),
+      )
+    };
 
     // Content only: title and description stay as they are.
     let _ = restore(false, false).await.unwrap();

@@ -110,7 +110,7 @@ async fn list(State(state): State<AppState>) -> Result<Json<Vec<LibraryEntry>>, 
   (status = 422, body = ErrorBody, description = "not a usable name"),
 ))]
 #[instrument(skip_all, fields(key = %key))]
-async fn put_variable(State(state): State<AppState>, CurrentUser(user): CurrentUser, Path(key): Path<String>, Json(body): Json<VariableBody>) -> Result<Json<Vec<LibraryEntry>>, AppError> {
+async fn put_variable(State(state): State<AppState>, CurrentUser(user, _): CurrentUser, Path(key): Path<String>, Json(body): Json<VariableBody>) -> Result<Json<Vec<LibraryEntry>>, AppError> {
   cairn_store::save_variable(&state.db, user, &key, &body.value).await?;
 
   Ok(Json(entries(&state).await?))
@@ -122,7 +122,7 @@ async fn put_variable(State(state): State<AppState>, CurrentUser(user): CurrentU
   (status = 422, body = ErrorBody, description = "not a usable name, or the snippet would include itself"),
 ))]
 #[instrument(skip_all, fields(key = %key))]
-async fn put_snippet(State(state): State<AppState>, CurrentUser(user): CurrentUser, Path(key): Path<String>, Json(body): Json<SnippetBody>) -> Result<Json<Vec<LibraryEntry>>, AppError> {
+async fn put_snippet(State(state): State<AppState>, CurrentUser(user, _): CurrentUser, Path(key): Path<String>, Json(body): Json<SnippetBody>) -> Result<Json<Vec<LibraryEntry>>, AppError> {
   cairn_store::save_snippet(&state.db, user, &key, &body.doc).await?;
 
   Ok(Json(entries(&state).await?))
@@ -135,7 +135,7 @@ async fn put_snippet(State(state): State<AppState>, CurrentUser(user): CurrentUs
   (status = 422, body = ErrorBody, description = "empty or too long, an alias another term has, or a linked page that does not exist"),
 ))]
 #[instrument(skip_all)]
-async fn put_term(State(state): State<AppState>, CurrentUser(user): CurrentUser, Json(body): Json<TermBody>) -> Result<Json<Vec<LibraryEntry>>, AppError> {
+async fn put_term(State(state): State<AppState>, CurrentUser(user, _): CurrentUser, Json(body): Json<TermBody>) -> Result<Json<Vec<LibraryEntry>>, AppError> {
   let input = cairn_store::TermInput {
     term: body.term,
     definition: body.definition,

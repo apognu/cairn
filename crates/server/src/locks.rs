@@ -141,7 +141,7 @@ pub(crate) async fn held(state: &AppState, lock: PageLock, me: UserId) -> AppErr
 /// Every page someone is editing now.
 #[utoipa::path(get, path = "/api/locks", operation_id = "listLocks", responses((status = 200, body = Vec<LockView>)))]
 #[instrument(skip_all)]
-async fn list(State(state): State<AppState>, CurrentUser(user): CurrentUser) -> Result<Json<Vec<LockView>>, AppError> {
+async fn list(State(state): State<AppState>, CurrentUser(user, _): CurrentUser) -> Result<Json<Vec<LockView>>, AppError> {
   let mut views = Vec::new();
   for lock in cairn_store::live_locks(&state.db, Timestamp::now()).await? {
     views.push(view(&state, lock, user).await?);
@@ -153,7 +153,7 @@ async fn list(State(state): State<AppState>, CurrentUser(user): CurrentUser) -> 
 /// Who is editing the page, if anyone.
 #[utoipa::path(get, path = "/api/pages/{id}/lock", operation_id = "getLock", params(("id" = PageId, Path)), responses((status = 200, body = Option<LockView>)))]
 #[instrument(skip_all, fields(page_id = %id))]
-async fn get_lock(State(state): State<AppState>, CurrentUser(user): CurrentUser, Path(id): Path<PageId>) -> Result<Json<Option<LockView>>, AppError> {
+async fn get_lock(State(state): State<AppState>, CurrentUser(user, _): CurrentUser, Path(id): Path<PageId>) -> Result<Json<Option<LockView>>, AppError> {
   let lock = match cairn_store::page_lock(&state.db, id, Timestamp::now()).await? {
     Some(lock) => Some(view(&state, lock, user).await?),
     None => None,
@@ -169,7 +169,7 @@ async fn get_lock(State(state): State<AppState>, CurrentUser(user): CurrentUser,
   (status = 423, body = ErrorBody, description = "someone else is editing the page"),
 ))]
 #[instrument(skip_all, fields(page_id = %id))]
-async fn acquire(State(state): State<AppState>, CurrentUser(user): CurrentUser, Path(id): Path<PageId>, body: Option<Json<AcquireLock>>) -> Result<Json<AcquiredLock>, AppError> {
+async fn acquire(State(state): State<AppState>, CurrentUser(user, _): CurrentUser, Path(id): Path<PageId>, body: Option<Json<AcquireLock>>) -> Result<Json<AcquiredLock>, AppError> {
   if !cairn_store::list_pages(&state.db).await?.iter().any(|p| p.id == id && p.kind == PageKind::Page) {
     return Err(AppError::NotFound);
   }
@@ -197,7 +197,7 @@ async fn acquire(State(state): State<AppState>, CurrentUser(user): CurrentUser, 
   (status = 423, body = ErrorBody, description = "someone else is editing the page"),
 ))]
 #[instrument(skip_all, fields(page_id = %id))]
-async fn renew(State(state): State<AppState>, CurrentUser(user): CurrentUser, Path(id): Path<PageId>, Json(body): Json<RenewLock>) -> Result<Json<LockView>, AppError> {
+async fn renew(State(state): State<AppState>, CurrentUser(user, _): CurrentUser, Path(id): Path<PageId>, Json(body): Json<RenewLock>) -> Result<Json<LockView>, AppError> {
   let lock = keep(&state, id, body.token, user, Timestamp::now().checked_sub(millis(body.idle_ms)).unwrap_or(Timestamp::MIN)).await?;
 
   Ok(Json(view(&state, lock, user).await?))
@@ -231,7 +231,7 @@ async fn release(State(state): State<AppState>, Path(id): Path<PageId>, Query(qu
   (status = 409, body = ErrorBody, description = "the holder is still active"),
 ))]
 #[instrument(skip_all, fields(page_id = %id))]
-async fn take_over(State(state): State<AppState>, CurrentUser(user): CurrentUser, Path(id): Path<PageId>, Json(body): Json<TakeOver>) -> Result<Json<AcquiredLock>, AppError> {
+async fn take_over(State(state): State<AppState>, CurrentUser(user, _): CurrentUser, Path(id): Path<PageId>, Json(body): Json<TakeOver>) -> Result<Json<AcquiredLock>, AppError> {
   if !cairn_store::list_pages(&state.db).await?.iter().any(|p| p.id == id && p.kind == PageKind::Page) {
     return Err(AppError::NotFound);
   }

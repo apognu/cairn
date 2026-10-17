@@ -1,4 +1,4 @@
-//! Who may sign in. There is one role for now: whoever is let in can do everything, so this is the only gate.
+//! Who may sign in. What they may do once in is their role, stored with the user (`users.role`), not decided here.
 
 use crate::Identity;
 

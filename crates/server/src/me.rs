@@ -1,6 +1,6 @@
 use axum::{Json, extract::State};
 use cairn_auth::{CurrentUser, local_user_id};
-use cairn_core::{User, UserId};
+use cairn_core::{Role, User, UserId};
 use cairn_store::get_user;
 use tracing::instrument;
 use utoipa_axum::{router::OpenApiRouter, routes};
@@ -14,13 +14,13 @@ pub(crate) fn routes() -> OpenApiRouter<AppState> {
   OpenApiRouter::new().routes(routes!(me))
 }
 
-/// The signed-in user.
+/// The signed-in user, with their role.
 #[utoipa::path(get, path = "/api/me", operation_id = "getMe", responses(
   (status = 200, body = User),
   (status = 401, body = ErrorBody, description = "not signed in"),
 ))]
 #[instrument(skip_all)]
-async fn me(State(state): State<AppState>, CurrentUser(user): CurrentUser) -> Result<Json<User>, AppError> {
+async fn me(State(state): State<AppState>, CurrentUser(user, _): CurrentUser) -> Result<Json<User>, AppError> {
   // `dev` has no login and no row for its one user.
   if user == local_user_id() {
     return Ok(Json(local_user()));
@@ -35,6 +35,7 @@ pub(crate) fn local_user() -> User {
     id: local_user_id(),
     email: String::new(),
     name: "Local user".into(),
+    role: Role::Admin,
   }
 }
 

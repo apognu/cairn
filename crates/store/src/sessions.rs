@@ -1,10 +1,11 @@
-use cairn_core::{ApiToken, UserId};
+use cairn_core::{ApiToken, Role, UserId};
 use jiff::{SignedDuration, Timestamp};
 use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set};
 
 use crate::{
   StoreError,
-  entity::{api_token, session},
+  entity::{api_token, session, user},
+  users::parse_role,
 };
 
 /// How often a session's last-seen time is written: a request does not cost a write each.
@@ -30,9 +31,9 @@ pub async fn create_session(db: &DatabaseConnection, token_hash: &str, user: Use
   Ok(())
 }
 
-/// The user behind a session, if it is still valid: before its absolute end and not idle for longer than `idle`. A valid session counts
-/// as seen now; an expired one is deleted.
-pub async fn session_user(db: &DatabaseConnection, token_hash: &str, idle: SignedDuration) -> Result<Option<UserId>, StoreError> {
+/// The user behind a session and their role, if it is still valid: before its absolute end and not idle for longer than `idle`. A valid
+/// session counts as seen now; an expired one is deleted.
+pub async fn session_user(db: &DatabaseConnection, token_hash: &str, idle: SignedDuration) -> Result<Option<(UserId, Role)>, StoreError> {
   let Some(row) = session::Entity::find_by_id(token_hash).one(db).await? else { return Ok(None) };
 
   let now = Timestamp::now();
@@ -50,7 +51,14 @@ pub async fn session_user(db: &DatabaseConnection, token_hash: &str, idle: Signe
     touched.update(db).await?;
   }
 
-  Ok(Some(row.user_id.into()))
+  role_of(db, row.user_id).await.map(|role| role.map(|role| (row.user_id.into(), role)))
+}
+
+/// A user's role, read at every request so a change applies at once; none when the user is gone.
+async fn role_of(db: &DatabaseConnection, user: uuid::Uuid) -> Result<Option<Role>, StoreError> {
+  let Some(row) = user::Entity::find_by_id(user).one(db).await? else { return Ok(None) };
+
+  parse_role(&row.role).map(Some)
 }
 
 pub async fn delete_session(db: &DatabaseConnection, token_hash: &str) -> Result<(), StoreError> {
@@ -67,11 +75,13 @@ fn into_token(row: api_token::Model) -> Result<ApiToken, StoreError> {
     name: row.name,
     created_at: parse(&row.created_at)?,
     last_used_at: row.last_used_at.as_deref().map(parse).transpose()?,
+    role: row.role.as_deref().map(parse_role).transpose()?,
   })
 }
 
-/// Stores a new token for a user. `token_hash` is the hash of the secret, which is not kept.
-pub async fn create_api_token(db: &DatabaseConnection, user: UserId, name: &str, token_hash: &str) -> Result<ApiToken, StoreError> {
+/// Stores a new token for a user. `token_hash` is the hash of the secret, which is not kept. A token with a role never acts above it, nor
+/// above its owner's role at the time it is used.
+pub async fn create_api_token(db: &DatabaseConnection, user: UserId, name: &str, role: Option<Role>, token_hash: &str) -> Result<ApiToken, StoreError> {
   let name = name.trim();
   if name.is_empty() || name.chars().count() > 80 {
     return Err(StoreError::Invalid("a token needs a name of up to 80 characters".into()));
@@ -84,6 +94,7 @@ pub async fn create_api_token(db: &DatabaseConnection, user: UserId, name: &str,
     token_hash: Set(token_hash.into()),
     created_at: Set(Timestamp::now().to_string()),
     last_used_at: Set(None),
+    role: Set(role.map(|r| r.as_str().to_string())),
   }
   .insert(db)
   .await?;
@@ -116,11 +127,18 @@ pub async fn delete_api_token(db: &DatabaseConnection, user: UserId, id: uuid::U
   Ok(())
 }
 
-/// The user a token belongs to. Its last use is written at most once a minute.
-pub async fn api_token_user(db: &DatabaseConnection, token_hash: &str) -> Result<Option<UserId>, StoreError> {
+/// The user a token belongs to, and the role it acts with: its own, but never above its owner's. Its last use is written at most once a
+/// minute.
+pub async fn api_token_user(db: &DatabaseConnection, token_hash: &str) -> Result<Option<(UserId, Role)>, StoreError> {
   let Some(row) = api_token::Entity::find().filter(api_token::Column::TokenHash.eq(token_hash)).one(db).await? else {
     return Ok(None);
   };
+  let Some(owner_role) = role_of(db, row.user_id).await? else { return Ok(None) };
+  let role = match row.role.as_deref().map(parse_role).transpose()? {
+    Some(capped) => capped.min(owner_role),
+    None => owner_role,
+  };
+  let user = row.user_id.into();
 
   let now = Timestamp::now();
   let stale = row
@@ -129,15 +147,12 @@ pub async fn api_token_user(db: &DatabaseConnection, token_hash: &str) -> Result
     .and_then(|t| t.parse::<Timestamp>().ok())
     .is_none_or(|used| now.duration_since(used) >= TOUCH_EVERY);
   if stale {
-    let user = row.user_id;
     let mut touched: api_token::ActiveModel = row.into();
     touched.last_used_at = Set(Some(now.to_string()));
     touched.update(db).await?;
-
-    return Ok(Some(user.into()));
   }
 
-  Ok(Some(row.user_id.into()))
+  Ok(Some((user, role)))
 }
 
 #[cfg(test)]
@@ -170,7 +185,7 @@ mod tests {
     old.update(&db).await.unwrap();
 
     let idle = hour;
-    assert_eq!(session_user(&db, "fresh", idle).await.unwrap(), Some(user));
+    assert_eq!(session_user(&db, "fresh", idle).await.unwrap(), Some((user, Role::Admin)));
     assert_eq!(session_user(&db, "idle", idle).await.unwrap(), None);
     assert_eq!(session_user(&db, "old", idle).await.unwrap(), None);
     assert_eq!(session_user(&db, "deleted", idle).await.unwrap(), None);
@@ -186,10 +201,10 @@ mod tests {
     let alice = upsert_user(&db, "https://idp.example", "a", "a@example.com", "A").await.unwrap().id;
     let bob = upsert_user(&db, "https://idp.example", "b", "b@example.com", "B").await.unwrap().id;
 
-    let token = create_api_token(&db, alice, "  CI  ", "hash-1").await.unwrap();
+    let token = create_api_token(&db, alice, "  CI  ", None, "hash-1").await.unwrap();
 
     assert_eq!(token.name, "CI");
-    assert_eq!(api_token_user(&db, "hash-1").await.unwrap(), Some(alice));
+    assert_eq!(api_token_user(&db, "hash-1").await.unwrap(), Some((alice, Role::Admin)));
     assert_eq!(api_token_user(&db, "other").await.unwrap(), None);
     assert!(list_api_tokens(&db, alice).await.unwrap()[0].last_used_at.is_some());
     assert!(list_api_tokens(&db, bob).await.unwrap().is_empty());
@@ -198,6 +213,29 @@ mod tests {
     delete_api_token(&db, alice, token.id).await.unwrap();
 
     assert_eq!(api_token_user(&db, "hash-1").await.unwrap(), None);
-    assert!(matches!(create_api_token(&db, alice, " ", "h").await, Err(StoreError::Invalid(_))));
+    assert!(matches!(create_api_token(&db, alice, " ", None, "h").await, Err(StoreError::Invalid(_))));
+  }
+
+  #[tokio::test]
+  async fn a_token_acts_with_the_lower_of_its_role_and_its_owners() {
+    let db = test_db().await;
+    let admin = upsert_user(&db, "https://idp.example", "a", "a@example.com", "A").await.unwrap().id;
+    let viewer = upsert_user(&db, "https://idp.example", "b", "b@example.com", "B").await.unwrap().id;
+
+    // (owner, token role, acts as)
+    for (i, (owner, role, expected)) in [
+      (admin, None, Role::Admin),
+      (admin, Some(Role::Editor), Role::Editor),
+      (viewer, None, Role::Viewer),
+      (viewer, Some(Role::Admin), Role::Viewer),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+      let hash = format!("hash-{i}");
+      create_api_token(&db, owner, "t", role, &hash).await.unwrap();
+
+      assert_eq!(api_token_user(&db, &hash).await.unwrap(), Some((owner, expected)), "{role:?}");
+    }
   }
 }

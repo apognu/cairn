@@ -76,7 +76,7 @@ async fn list(State(state): State<AppState>) -> Result<Json<Vec<Page>>, AppError
   (status = 422, body = ErrorBody),
 ))]
 #[instrument(skip_all)]
-async fn create(State(state): State<AppState>, CurrentUser(user): CurrentUser, Json(body): Json<CreatePage>) -> Result<(StatusCode, Json<Page>), AppError> {
+async fn create(State(state): State<AppState>, CurrentUser(user, _): CurrentUser, Json(body): Json<CreatePage>) -> Result<(StatusCode, Json<Page>), AppError> {
   let place = placement(body.before);
   let page = match (&body.external_url, body.kind) {
     (Some(url), _) => cairn_store::create_link(&state.db, user, body.parent_id, &body.title, url, place).await?,
@@ -157,7 +157,7 @@ async fn describe(State(state): State<AppState>, Path(id): Path<PageId>, Json(bo
   (status = 423, body = ErrorBody, description = "someone else is editing the page or a page below it"),
 ))]
 #[instrument(skip_all, fields(page_id = %id))]
-async fn remove(State(state): State<AppState>, CurrentUser(user): CurrentUser, Path(id): Path<PageId>) -> Result<StatusCode, AppError> {
+async fn remove(State(state): State<AppState>, CurrentUser(user, _): CurrentUser, Path(id): Path<PageId>) -> Result<StatusCode, AppError> {
   match cairn_store::delete_page(&state.db, id, user).await {
     Ok(_) => {}
     Err(cairn_store::StoreError::LockHeld(lock)) => return Err(crate::locks::held(&state, lock, user).await),
@@ -185,7 +185,7 @@ mod tests {
       kind: None,
     };
 
-    let (status, Json(page)) = create(State(state), CurrentUser(local_user_id()), Json(body)).await.unwrap();
+    let (status, Json(page)) = create(State(state), CurrentUser::local(), Json(body)).await.unwrap();
 
     assert_eq!(status, StatusCode::CREATED);
     assert_eq!(page.created_by, local_user_id());

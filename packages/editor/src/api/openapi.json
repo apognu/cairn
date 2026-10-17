@@ -374,7 +374,7 @@
     },
     "/api/me": {
       "get": {
-        "summary": "The signed-in user.",
+        "summary": "The signed-in user, with their role.",
         "operationId": "getMe",
         "responses": {
           "200": {
@@ -2401,7 +2401,7 @@
         }
       },
       "post": {
-        "summary": "Makes a token for scripts and CI. It has the same access as its owner.",
+        "summary": "Makes a token for scripts and CI. It acts with its own role if it has one, and never above its owner's current role.",
         "operationId": "createToken",
         "requestBody": {
           "content": {
@@ -2424,7 +2424,7 @@
             }
           },
           "403": {
-            "description": "called with an API token, or in `dev`",
+            "description": "called with an API token, in `dev`, or with a role above yours",
             "content": {
               "application/json": {
                 "schema": {
@@ -2797,6 +2797,17 @@
           },
           "name": {
             "type": "string"
+          },
+          "role": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Role",
+                "description": "The most the token may do; none means as much as its owner. It never does more than its owner can at the time."
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         }
       },
@@ -3859,6 +3870,17 @@
         "properties": {
           "name": {
             "type": "string"
+          },
+          "role": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Role",
+                "description": "The most the token may do, up to your own role; none gives it your role."
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         }
       },
@@ -4558,6 +4580,16 @@
         "type": "string",
         "description": "An immutable snapshot of a page's document."
       },
+      "Role": {
+        "type": "string",
+        "description": "What a user may do. Each role can do everything the ones before it can, so roles compare in that order.",
+        "enum": [
+          "viewer",
+          "editor",
+          "publisher",
+          "admin"
+        ]
+      },
       "SaveDraft": {
         "type": "object",
         "required": [
@@ -4956,7 +4988,8 @@
         "required": [
           "id",
           "email",
-          "name"
+          "name",
+          "role"
         ],
         "properties": {
           "email": {
@@ -4967,6 +5000,9 @@
           },
           "name": {
             "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
           }
         }
       },

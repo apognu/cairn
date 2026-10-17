@@ -42,4 +42,4 @@ pub use release::{Release, ReleaseStatus};
 pub use review::{PageReview, StalePage};
 pub use settings::{Banner, Footer, FooterColumn, Mode, ModeColors, Settings, SiteLink, contrast_ratio};
 pub use storage::{AssetStore, ContentStore, Draft, Revision, original_key, variant_key};
-pub use user::{ApiToken, User};
+pub use user::{ApiToken, Role, User};

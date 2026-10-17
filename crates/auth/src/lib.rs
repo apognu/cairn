@@ -1,6 +1,7 @@
-//! Who is making a request: the OIDC login, and the `CurrentUser` extractor every writing handler takes.
+//! Who is making a request: the OIDC login, the `CurrentUser` extractor, and the role extractors (`Editor`, `Publisher`, `Admin`) that
+//! writing handlers take.
 //!
-//! `cairn dev` runs every request as the built-in local user; `serve` requires a signed-in one.
+//! `cairn dev` runs every request as the built-in local user, an admin; `serve` requires a signed-in one.
 
 #![forbid(unsafe_code)]
 
@@ -21,7 +22,7 @@ use cairn_store::StoreError;
 
 pub use crate::{
   access::AccessRules,
-  auth::{Auth, AuthSettings, Credential, CurrentUser, InteractiveUser, require_login},
+  auth::{Admin, Auth, AuthSettings, Credential, CurrentUser, Editor, InteractiveUser, Publisher, require_login},
   github::{GITHUB_ISSUER, Github, GithubConfig},
   oidc::{Authorization, Identity, Oidc, OidcConfig},
   session::SessionSettings,

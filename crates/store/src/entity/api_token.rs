@@ -10,6 +10,7 @@ pub struct Model {
   pub token_hash: String,
   pub created_at: String,
   pub last_used_at: Option<String>,
+  pub role: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

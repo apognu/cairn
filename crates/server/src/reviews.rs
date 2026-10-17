@@ -35,7 +35,7 @@ async fn get_review(State(state): State<AppState>, Path(id): Path<PageId>) -> Re
   (status = 404, body = ErrorBody, description = "no such page, or it is in the trash"),
 ))]
 #[instrument(skip_all, fields(page_id = %id))]
-async fn set_review(State(state): State<AppState>, CurrentUser(user): CurrentUser, Path(id): Path<PageId>, Json(body): Json<PageReview>) -> Result<Json<PageReview>, AppError> {
+async fn set_review(State(state): State<AppState>, CurrentUser(user, _): CurrentUser, Path(id): Path<PageId>, Json(body): Json<PageReview>) -> Result<Json<PageReview>, AppError> {
   Ok(Json(set_page_review(&state.db, id, &body, user).await?))
 }
 
@@ -44,7 +44,7 @@ async fn set_review(State(state): State<AppState>, CurrentUser(user): CurrentUse
   (status = 200, body = Vec<User>),
 ))]
 #[instrument(skip_all)]
-async fn users(State(state): State<AppState>, CurrentUser(user): CurrentUser) -> Result<Json<Vec<User>>, AppError> {
+async fn users(State(state): State<AppState>, CurrentUser(user, _): CurrentUser) -> Result<Json<Vec<User>>, AppError> {
   let mut users = list_users(&state.db).await?;
   // `dev` has no login and no row for its one user.
   if user == local_user_id() {

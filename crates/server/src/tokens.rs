@@ -3,8 +3,8 @@ use axum::{
   extract::{Path, State},
   http::StatusCode,
 };
-use cairn_auth::{Auth, InteractiveUser};
-use cairn_core::ApiToken;
+use cairn_auth::{Auth, CurrentUser, InteractiveUser};
+use cairn_core::{ApiToken, Role};
 use cairn_store::{delete_api_token, list_api_tokens};
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
@@ -23,6 +23,9 @@ pub(crate) fn routes() -> OpenApiRouter<AppState> {
 #[derive(Deserialize, ToSchema)]
 struct NewToken {
   name: String,
+  /// The most the token may do, up to your own role; none gives it your role.
+  #[serde(default)]
+  role: Option<Role>,
 }
 
 /// A new token with its secret, which is shown this once.
@@ -39,19 +42,19 @@ struct CreatedToken {
   (status = 403, body = ErrorBody, description = "called with an API token"),
 ))]
 #[instrument(skip_all)]
-async fn list(State(state): State<AppState>, InteractiveUser(user): InteractiveUser) -> Result<Json<Vec<ApiToken>>, AppError> {
+async fn list(State(state): State<AppState>, InteractiveUser(CurrentUser(user, _)): InteractiveUser) -> Result<Json<Vec<ApiToken>>, AppError> {
   Ok(Json(list_api_tokens(&state.db, user).await?))
 }
 
-/// Makes a token for scripts and CI. It has the same access as its owner.
+/// Makes a token for scripts and CI. It acts with its own role if it has one, and never above its owner's current role.
 #[utoipa::path(post, path = "/api/tokens", operation_id = "createToken", request_body = NewToken, responses(
   (status = 201, body = CreatedToken),
-  (status = 403, body = ErrorBody, description = "called with an API token, or in `dev`"),
+  (status = 403, body = ErrorBody, description = "called with an API token, in `dev`, or with a role above yours"),
   (status = 422, body = ErrorBody, description = "no name"),
 ))]
 #[instrument(skip_all)]
 async fn create(State(auth): State<Auth>, InteractiveUser(user): InteractiveUser, Json(new): Json<NewToken>) -> Result<(StatusCode, Json<CreatedToken>), AppError> {
-  let (token, secret) = auth.issue_token(user, &new.name).await?;
+  let (token, secret) = auth.issue_token(user, &new.name, new.role).await?;
 
   Ok((StatusCode::CREATED, Json(CreatedToken { token, secret })))
 }
@@ -62,7 +65,7 @@ async fn create(State(auth): State<Auth>, InteractiveUser(user): InteractiveUser
   (status = 404, body = ErrorBody),
 ))]
 #[instrument(skip_all)]
-async fn revoke(State(state): State<AppState>, InteractiveUser(user): InteractiveUser, Path(id): Path<uuid::Uuid>) -> Result<StatusCode, AppError> {
+async fn revoke(State(state): State<AppState>, InteractiveUser(CurrentUser(user, _)): InteractiveUser, Path(id): Path<uuid::Uuid>) -> Result<StatusCode, AppError> {
   delete_api_token(&state.db, user, id).await?;
 
   Ok(StatusCode::NO_CONTENT)

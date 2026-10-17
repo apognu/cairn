@@ -71,7 +71,7 @@ async fn get_draft(State(state): State<AppState>, Path(id): Path<PageId>) -> Res
   (status = 423, body = ErrorBody, description = "someone else is editing the page"),
 ))]
 #[instrument(skip_all, fields(page_id = %id))]
-async fn save_draft(State(state): State<AppState>, CurrentUser(user): CurrentUser, Path(id): Path<PageId>, Json(body): Json<SaveDraft>) -> Result<Json<DraftResponse>, AppError> {
+async fn save_draft(State(state): State<AppState>, CurrentUser(user, _): CurrentUser, Path(id): Path<PageId>, Json(body): Json<SaveDraft>) -> Result<Json<DraftResponse>, AppError> {
   if body.doc.0.kind != "doc" {
     return Err(AppError::Invalid(vec!["the root node must have type \"doc\"".into()]));
   }
@@ -88,7 +88,7 @@ async fn save_draft(State(state): State<AppState>, CurrentUser(user): CurrentUse
 #[cfg(test)]
 mod tests {
   use cairn_auth::local_user_id;
-  use cairn_core::Placement;
+  use cairn_core::{Placement, Role};
 
   use super::*;
   use crate::app::test_state;
@@ -104,12 +104,10 @@ mod tests {
       lock_token: token,
     };
 
-    let Json(first) = save_draft(State(state.clone()), CurrentUser(local_user_id()), Path(page), Json(save(None))).await.unwrap();
-    let _ = save_draft(State(state.clone()), CurrentUser(local_user_id()), Path(page), Json(save(first.base_revision_id)))
-      .await
-      .unwrap();
+    let Json(first) = save_draft(State(state.clone()), CurrentUser::local(), Path(page), Json(save(None))).await.unwrap();
+    let _ = save_draft(State(state.clone()), CurrentUser::local(), Path(page), Json(save(first.base_revision_id))).await.unwrap();
 
-    let stale = save_draft(State(state), CurrentUser(local_user_id()), Path(page), Json(save(first.base_revision_id))).await;
+    let stale = save_draft(State(state), CurrentUser::local(), Path(page), Json(save(first.base_revision_id))).await;
     assert!(matches!(stale, Err(AppError::Core(cairn_core::CoreError::Conflict { .. }))));
   }
 
@@ -125,11 +123,11 @@ mod tests {
       lock_token,
     };
 
-    let other = save_draft(State(state.clone()), CurrentUser(bob), Path(page), Json(save(cairn_core::LockToken::new()))).await;
+    let other = save_draft(State(state.clone()), CurrentUser(bob, Role::Editor), Path(page), Json(save(cairn_core::LockToken::new()))).await;
     assert!(matches!(other, Err(AppError::Locked(m)) if m == "Local user is editing this page"));
 
     cairn_store::release_lock(&state.db, page, token).await.unwrap();
-    let released = save_draft(State(state), CurrentUser(alice), Path(page), Json(save(token))).await;
+    let released = save_draft(State(state), CurrentUser(alice, Role::Editor), Path(page), Json(save(token))).await;
     assert!(matches!(released, Err(AppError::LockLost)));
   }
 }

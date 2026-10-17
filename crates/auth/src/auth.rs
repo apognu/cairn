@@ -9,7 +9,7 @@ use axum::{
   middleware::Next,
   response::{IntoResponse, Response},
 };
-use cairn_core::{ApiToken, UserId};
+use cairn_core::{ApiToken, Role, UserId};
 use cairn_store::{DatabaseConnection, api_token_user, create_api_token, create_session, delete_session, session_user};
 
 use crate::{AccessRules, AuthError, Github, Oidc, SessionSettings, local_user_id, routes, session};
@@ -66,22 +66,25 @@ impl Auth {
     Self(Arc::new(Mode::Oidc(Box::new(OidcAuth { oidc, github, db, settings }))))
   }
 
-  /// Who a request comes from: the local user without a login; otherwise the owner of its API token, or of its session cookie.
-  pub async fn authenticate(&self, headers: &HeaderMap) -> Result<(UserId, Credential), AuthError> {
-    let Mode::Oidc(oidc) = &*self.0 else { return Ok((local_user_id(), Credential::Local)) };
+  /// Who a request comes from, and their role: the local user (an admin) without a login; otherwise the owner of its API token, or of its
+  /// session cookie.
+  pub async fn authenticate(&self, headers: &HeaderMap) -> Result<(CurrentUser, Credential), AuthError> {
+    let Mode::Oidc(oidc) = &*self.0 else {
+      return Ok((CurrentUser(local_user_id(), Role::Admin), Credential::Local));
+    };
 
     // A request that carries a token is judged by the token alone: a bad one is not rescued by a cookie.
     if let Some(value) = headers.get(header::AUTHORIZATION) {
       let secret = value.to_str().ok().and_then(|v| v.strip_prefix("Bearer ")).ok_or(AuthError::Unauthorized)?;
-      let user = api_token_user(&oidc.db, &session::hash_token(secret.trim())).await?.ok_or(AuthError::Unauthorized)?;
+      let (user, role) = api_token_user(&oidc.db, &session::hash_token(secret.trim())).await?.ok_or(AuthError::Unauthorized)?;
 
-      return Ok((user, Credential::Token));
+      return Ok((CurrentUser(user, role), Credential::Token));
     }
 
     let token = oidc.settings.sessions.token(headers).ok_or(AuthError::Unauthorized)?;
-    let user = session_user(&oidc.db, &session::hash_token(token), oidc.settings.sessions.idle).await?.ok_or(AuthError::Unauthorized)?;
+    let (user, role) = session_user(&oidc.db, &session::hash_token(token), oidc.settings.sessions.idle).await?.ok_or(AuthError::Unauthorized)?;
 
-    Ok((user, Credential::Session))
+    Ok((CurrentUser(user, role), Credential::Session))
   }
 
   /// Refuses a request that changes something unless it comes from the editor's own origin. Browsers send the `Origin` of every request
@@ -136,13 +139,19 @@ impl Auth {
     set_cookie.split(';').next().expect("a cookie has a name and value").to_string()
   }
 
-  /// Makes an API token for a user. The secret is returned here and nowhere else: only its hash is stored.
-  pub async fn issue_token(&self, user: UserId, name: &str) -> Result<(ApiToken, String), AuthError> {
+  /// Makes an API token for a user, optionally limited to a role up to theirs. The secret is returned here and nowhere else: only its hash
+  /// is stored.
+  pub async fn issue_token(&self, user: CurrentUser, name: &str, role: Option<Role>) -> Result<(ApiToken, String), AuthError> {
     let Mode::Oidc(oidc) = &*self.0 else {
       return Err(AuthError::Forbidden("API tokens belong to signed-in users; `dev` has none".into()));
     };
+    if let Some(role) = role
+      && role > user.1
+    {
+      return Err(AuthError::Forbidden(format!("a token cannot have more rights than you: your role is {}", user.1.as_str())));
+    }
     let secret = format!("{TOKEN_PREFIX}{}", session::new_token());
-    let token = create_api_token(&oidc.db, user, name, &session::hash_token(&secret)).await?;
+    let token = create_api_token(&oidc.db, user.0, name, role, &session::hash_token(&secret)).await?;
 
     Ok((token, secret))
   }
@@ -169,9 +178,26 @@ impl Auth {
   }
 }
 
-/// The authenticated user of a request. Handlers that write take this, so how a request is authenticated changes in one place.
+/// The authenticated user of a request, and their role (capped by the API token when one is used). Handlers that write take this, or one
+/// of the role extractors below, so how a request is authenticated changes in one place.
 #[derive(Debug, Clone, Copy)]
-pub struct CurrentUser(pub UserId);
+pub struct CurrentUser(pub UserId, pub Role);
+
+impl CurrentUser {
+  /// `dev`'s user, for tests that call handlers directly.
+  pub fn local() -> Self {
+    CurrentUser(local_user_id(), Role::Admin)
+  }
+}
+
+/// The user and how they proved it: from the login guard when it ran, otherwise worked out now.
+async fn resolve(parts: &Parts, auth: &Auth) -> Result<(CurrentUser, Credential), AuthError> {
+  // The login guard already resolved it for routes behind it.
+  match (parts.extensions.get::<CurrentUser>(), parts.extensions.get::<Credential>()) {
+    (Some(user), Some(credential)) => Ok((*user, *credential)),
+    _ => auth.authenticate(&parts.headers).await,
+  }
+}
 
 impl<S: Send + Sync> FromRequestParts<S> for CurrentUser
 where
@@ -180,18 +206,13 @@ where
   type Rejection = AuthError;
 
   async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
-    // The login guard already resolved it for routes behind it.
-    if let Some(user) = parts.extensions.get::<CurrentUser>() {
-      return Ok(*user);
-    }
-
-    Auth::from_ref(state).authenticate(&parts.headers).await.map(|(user, _)| CurrentUser(user))
+    resolve(parts, &Auth::from_ref(state)).await.map(|(user, _)| user)
   }
 }
 
 /// A user signed in with a browser session, not an API token: for what a script must not do, such as making more tokens.
 #[derive(Debug, Clone, Copy)]
-pub struct InteractiveUser(pub UserId);
+pub struct InteractiveUser(pub CurrentUser);
 
 impl<S: Send + Sync> FromRequestParts<S> for InteractiveUser
 where
@@ -200,15 +221,65 @@ where
   type Rejection = AuthError;
 
   async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
-    let (user, credential) = match (parts.extensions.get::<CurrentUser>(), parts.extensions.get::<Credential>()) {
-      (Some(user), Some(credential)) => (user.0, *credential),
-      _ => Auth::from_ref(state).authenticate(&parts.headers).await?,
-    };
-
-    match credential {
-      Credential::Token => Err(AuthError::Forbidden("this needs a signed-in session, not an API token".into())),
-      Credential::Local | Credential::Session => Ok(InteractiveUser(user)),
+    match resolve(parts, &Auth::from_ref(state)).await? {
+      (_, Credential::Token) => Err(AuthError::Forbidden("this needs a signed-in session, not an API token".into())),
+      (user, Credential::Local | Credential::Session) => Ok(InteractiveUser(user)),
     }
+  }
+}
+
+/// The user of a request whose role is at least `role`; refused with 403 otherwise.
+async fn at_least(parts: &Parts, auth: &Auth, role: Role) -> Result<UserId, AuthError> {
+  let (CurrentUser(user, has), _) = resolve(parts, auth).await?;
+  if has < role {
+    return Err(AuthError::Forbidden(format!("this needs the {} role; yours is {}", role.as_str(), has.as_str())));
+  }
+
+  Ok(user)
+}
+
+/// A user who may edit: pages, the library, redirects and owners, and deploy previews.
+#[derive(Debug, Clone, Copy)]
+pub struct Editor(pub UserId);
+
+impl<S: Send + Sync> FromRequestParts<S> for Editor
+where
+  Auth: FromRef<S>,
+{
+  type Rejection = AuthError;
+
+  async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+    at_least(parts, &Auth::from_ref(state), Role::Editor).await.map(Editor)
+  }
+}
+
+/// A user who may change the live site: publish, promote and roll back.
+#[derive(Debug, Clone, Copy)]
+pub struct Publisher(pub UserId);
+
+impl<S: Send + Sync> FromRequestParts<S> for Publisher
+where
+  Auth: FromRef<S>,
+{
+  type Rejection = AuthError;
+
+  async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+    at_least(parts, &Auth::from_ref(state), Role::Publisher).await.map(Publisher)
+  }
+}
+
+/// A user who may change site settings and roles.
+#[derive(Debug, Clone, Copy)]
+pub struct Admin(pub UserId);
+
+impl<S: Send + Sync> FromRequestParts<S> for Admin
+where
+  Auth: FromRef<S>,
+{
+  type Rejection = AuthError;
+
+  async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+    at_least(parts, &Auth::from_ref(state), Role::Admin).await.map(Admin)
   }
 }
 
@@ -226,7 +297,7 @@ pub async fn require_login(State(auth): State<Auth>, mut request: Request, next:
     return error.into_response();
   }
 
-  request.extensions_mut().insert(CurrentUser(user));
+  request.extensions_mut().insert(user);
   request.extensions_mut().insert(credential);
 
   next.run(request).await
@@ -277,7 +348,8 @@ mod tests {
   async fn a_session_authenticates_until_logout() {
     let (auth, user, headers) = signed_in(SignedDuration::from_hours(1)).await;
 
-    assert_eq!(auth.authenticate(&headers).await.unwrap(), (user, Credential::Session));
+    let (CurrentUser(found, role), credential) = auth.authenticate(&headers).await.unwrap();
+    assert_eq!((found, role, credential), (user, Role::Admin, Credential::Session));
     assert!(matches!(auth.authenticate(&HeaderMap::new()).await, Err(AuthError::Unauthorized)));
 
     auth.end_session(&headers).await.unwrap();
@@ -323,7 +395,7 @@ mod tests {
   #[tokio::test]
   async fn a_token_authenticates_as_its_owner_until_deleted() {
     let (auth, user, cookie) = signed_in(SignedDuration::from_hours(1)).await;
-    let (token, secret) = auth.issue_token(user, "CI").await.unwrap();
+    let (token, secret) = auth.issue_token(CurrentUser(user, Role::Admin), "CI", None).await.unwrap();
     let bearer = |value: &str| {
       let mut headers = cookie.clone();
       headers.insert(header::AUTHORIZATION, HeaderValue::from_str(value).unwrap());
@@ -331,7 +403,8 @@ mod tests {
     };
 
     assert!(secret.starts_with("yd_"));
-    assert_eq!(auth.authenticate(&bearer(&format!("Bearer {secret}"))).await.unwrap(), (user, Credential::Token));
+    let (CurrentUser(found, _), credential) = auth.authenticate(&bearer(&format!("Bearer {secret}"))).await.unwrap();
+    assert_eq!((found, credential), (user, Credential::Token));
     // A wrong token is not rescued by the valid cookie that comes with it.
     assert!(matches!(auth.authenticate(&bearer("Bearer yd_wrong")).await, Err(AuthError::Unauthorized)));
     assert!(matches!(auth.authenticate(&bearer(&secret)).await, Err(AuthError::Unauthorized)));
@@ -349,9 +422,9 @@ mod tests {
     use tower::ServiceExt;
 
     let (auth, user, cookie) = signed_in(SignedDuration::from_hours(1)).await;
-    let (_, secret) = auth.issue_token(user, "CI").await.unwrap();
+    let (_, secret) = auth.issue_token(CurrentUser(user, Role::Admin), "CI", None).await.unwrap();
     let app = axum::Router::new()
-      .route("/api/publish", post(|CurrentUser(_): CurrentUser| async { "published" }))
+      .route("/api/publish", post(|CurrentUser(..): CurrentUser| async { "published" }))
       .layer(middleware::from_fn_with_state(auth.clone(), require_login))
       .with_state(auth.clone());
 

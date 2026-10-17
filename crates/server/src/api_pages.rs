@@ -95,7 +95,7 @@ async fn get_config(State(state): State<AppState>, Path(id): Path<PageId>) -> Re
   (status = 422, body = ErrorBody),
 ))]
 #[instrument(skip_all, fields(page_id = %id))]
-async fn put_config(State(state): State<AppState>, CurrentUser(user): CurrentUser, Path(id): Path<PageId>, Json(config): Json<ApiConfig>) -> Result<Json<ApiConfig>, AppError> {
+async fn put_config(State(state): State<AppState>, CurrentUser(user, _): CurrentUser, Path(id): Path<PageId>, Json(config): Json<ApiConfig>) -> Result<Json<ApiConfig>, AppError> {
   save_api_config(&state.db, id, &config, user).await?;
 
   Ok(Json(get_api_config(&state.db, id).await?))

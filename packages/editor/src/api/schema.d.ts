@@ -182,7 +182,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The signed-in user. */
+        /** The signed-in user, with their role. */
         get: operations["getMe"];
         put?: never;
         post?: never;
@@ -848,7 +848,7 @@ export interface paths {
         /** The signed-in user's API tokens. Tokens can only be managed from a browser session, never with a token. */
         get: operations["listTokens"];
         put?: never;
-        /** Makes a token for scripts and CI. It has the same access as its owner. */
+        /** Makes a token for scripts and CI. It acts with its own role if it has one, and never above its owner's current role. */
         post: operations["createToken"];
         delete?: never;
         options?: never;
@@ -1028,6 +1028,7 @@ export interface components {
             /** Format: date-time */
             last_used_at?: string | null;
             name: string;
+            role?: components["schemas"]["Role"] | null;
         };
         /** @description An uploaded file. The bytes live in the `AssetStore` under the content hash; this is the row that describes them. */
         Asset: {
@@ -1340,6 +1341,7 @@ export interface components {
         };
         NewToken: {
             name: string;
+            role?: components["schemas"]["Role"] | null;
         };
         /** @description An operation of a merged spec, as the page's fallback, the search index and the pre-publish checks read it. */
         Operation: {
@@ -1566,6 +1568,11 @@ export interface components {
         };
         /** @description An immutable snapshot of a page's document. */
         RevisionId: string;
+        /**
+         * @description What a user may do. Each role can do everything the ones before it can, so roles compare in that order.
+         * @enum {string}
+         */
+        Role: "viewer" | "editor" | "publisher" | "admin";
         SaveDraft: {
             base_revision_id?: components["schemas"]["RevisionId"] | null;
             doc: components["schemas"]["Document"];
@@ -1721,6 +1728,7 @@ export interface components {
             email: string;
             id: components["schemas"]["UserId"];
             name: string;
+            role: components["schemas"]["Role"];
         };
         /** @description A user, including the built-in local one. */
         UserId: string;
@@ -3761,7 +3769,7 @@ export interface operations {
                     "application/json": components["schemas"]["CreatedToken"];
                 };
             };
-            /** @description called with an API token, or in `dev` */
+            /** @description called with an API token, in `dev`, or with a role above yours */
             403: {
                 headers: {
                     [name: string]: unknown;

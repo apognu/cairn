@@ -38,7 +38,7 @@ struct JobsReport {
   (status = 401, body = ErrorBody, description = "not signed in and no API token"),
 ))]
 #[instrument(skip_all)]
-async fn run(State(state): State<AppState>, CurrentUser(_): CurrentUser) -> Result<Json<JobsReport>, AppError> {
+async fn run(State(state): State<AppState>, CurrentUser(..): CurrentUser) -> Result<Json<JobsReport>, AppError> {
   let cleanup = state.publisher.clean_assets(Timestamp::now() - state.asset_grace).await?;
 
   Ok(Json(JobsReport {
