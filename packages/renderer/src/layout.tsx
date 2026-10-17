@@ -1,4 +1,4 @@
-import { customSlots } from "@cairn/components";
+import { customSlots, Icon } from "@cairn/components";
 import type { SlotDefinition, SlotName } from "@cairn/sdk";
 import { createElement, type ReactNode, useEffect, useId, useRef, useState } from "react";
 import { ExternalMark, HeaderMenu, headerButton, isExternal, SearchBox } from "./header";
@@ -406,9 +406,18 @@ export function SiteLayout({
                     key={link.url + link.label}
                     href={link.url}
                     className="flex items-center gap-1 py-1.5 px-2.5 rounded-md text-muted text-[14.5px] no-underline hover:bg-hover hover:text-text"
+                    // A link with an icon shows only the icon here; its title names it, and the narrow menu shows both.
+                    aria-label={link.icon ? link.label : undefined}
+                    title={link.icon ? link.label : undefined}
                   >
-                    {link.label}
-                    {isExternal(link.url) && <ExternalMark />}
+                    {link.icon ? (
+                      <Icon name={link.icon} size={18} />
+                    ) : (
+                      <>
+                        {link.label}
+                        {isExternal(link.url) && <ExternalMark />}
+                      </>
+                    )}
                   </a>
                 ))}
               </nav>

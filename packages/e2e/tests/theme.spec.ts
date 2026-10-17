@@ -76,8 +76,11 @@ test("header links, footer and per-mode colors reach the published site", async 
 
   await page.getByRole("button", { name: "Settings", exact: true }).click();
   await page.getByRole("button", { name: "Add a link" }).first().click();
-  await page.getByLabel("Header: label 1").fill("Status");
+  await page.getByLabel("Header: title 1").fill("Status");
   await page.getByLabel("Header: address 1").fill("https://status.example.com");
+  await page.getByRole("button", { name: "Header: icon 1" }).click();
+  await page.getByLabel("Search icons").fill("activity");
+  await page.getByLabel("Search icons").press("Enter");
   await page.getByLabel("Text", { exact: true }).fill("#101010");
   await page.getByLabel("Footer text").fill(`Made by ${tag}`);
   await page.getByRole("button", { name: "Add a column" }).click();
@@ -93,6 +96,8 @@ test("header links, footer and per-mode colors reach the published site", async 
 
   const html = readFileSync(`.e2e-data/site/${slug}/index.html`, "utf8");
   expect(html).toContain('href="https://status.example.com"');
+  // With an icon, the wide header shows only the icon, named by the title.
+  expect(html).toContain('aria-label="Status" title="Status"');
   expect(html).toContain(`Made by ${tag}`);
   expect(html).toContain('href="/pricing/"');
   expect(html).toContain(":root{--text:#101010;--text-body:#101010}");

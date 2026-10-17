@@ -1,3 +1,4 @@
+import { Icon } from "@cairn/components";
 import type { CSSProperties } from "react";
 
 /** The site in one mode, drawn with the custom properties the server compiled from the unsaved settings. */
@@ -12,7 +13,8 @@ export function ThemePreview({
   vars: Record<string, string>;
   name: string;
   logo: string | null;
-  links: string[];
+  /** The header links; one with an icon shows only the icon, as on a wide screen. */
+  links: { label: string; icon?: string | null }[];
 }) {
   return (
     <section
@@ -26,8 +28,8 @@ export function ThemePreview({
         <strong>{name}</strong>
         <span className="py-2.75 font-semibold shadow-[inset_0_-2px_0_var(--accent)]">Guides</span>
         {links.map((link) => (
-          <span key={link} className="text-muted">
-            {link}
+          <span key={link.label} className="flex text-muted" title={link.icon ? link.label : undefined}>
+            {link.icon ? <Icon name={link.icon} size={15} /> : link.label}
           </span>
         ))}
       </div>

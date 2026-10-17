@@ -1,5 +1,6 @@
 export type SiteImage = { src: string; width?: number; height?: number };
-export type SiteLink = { label: string; url: string };
+/** A header or footer link. `icon` (a Lucide name) is shown by header links only, alone on wide screens. */
+export type SiteLink = { label: string; url: string; icon?: string };
 
 /** `external` marks a link that leaves the site. */
 export type NavNode = {

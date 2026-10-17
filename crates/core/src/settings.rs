@@ -49,9 +49,13 @@ pub struct Banner {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct SiteLink {
+  /// Required; also the accessible name when only the icon shows.
   pub label: String,
   /// `https://…`, `mailto:…` or a path on the site.
   pub url: String,
+  /// A Lucide icon name. Header links with one show only the icon on wide screens; footer links ignore it.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub icon: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -156,6 +160,11 @@ fn check_links(what: &str, links: &[SiteLink]) -> Result<(), String> {
     }
     if !valid_url(&link.url) {
       return Err(format!("the {what} link \"{label}\" must start with https://, http://, mailto: or /"));
+    }
+    if let Some(icon) = &link.icon
+      && (icon.is_empty() || icon.len() > 64 || !icon.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-'))
+    {
+      return Err(format!("the {what} link \"{label}\" has an icon name that is not one"));
     }
   }
 
@@ -356,6 +365,23 @@ mod tests {
         header_links: vec![SiteLink {
           label: "x".into(),
           url: "javascript:alert(1)".into(),
+          icon: None,
+        }],
+        ..ok.clone()
+      },
+      Settings {
+        header_links: vec![SiteLink {
+          label: " ".into(),
+          url: "https://github.com".into(),
+          icon: Some("github".into()),
+        }],
+        ..ok.clone()
+      },
+      Settings {
+        header_links: vec![SiteLink {
+          label: "GitHub".into(),
+          url: "https://github.com".into(),
+          icon: Some("<svg>".into()),
         }],
         ..ok.clone()
       },

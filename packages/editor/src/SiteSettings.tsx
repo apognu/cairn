@@ -132,7 +132,12 @@ export function SiteSettings() {
         )}
 
         <h2 className={ui.settingsHeading}>Header links</h2>
-        <LinkList label="Header" links={draft.header_links} onChange={(header_links) => change({ header_links })} />
+        <LinkList
+          label="Header"
+          links={draft.header_links}
+          onChange={(header_links) => change({ header_links })}
+          icons
+        />
 
         <h2 className={ui.settingsHeading}>Footer</h2>
         <div className={ui.field}>
@@ -282,7 +287,7 @@ export function SiteSettings() {
             logo={
               m === "dark" ? (draft.logo_dark_asset_id ?? draft.logo_asset_id ?? null) : (draft.logo_asset_id ?? null)
             }
-            links={draft.header_links.map((l) => l.label).filter(Boolean)}
+            links={draft.header_links.filter((l) => l.label)}
           />
         ))}
         <p className="m-0 text-muted text-help">

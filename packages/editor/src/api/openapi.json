@@ -5029,8 +5029,16 @@
           "url"
         ],
         "properties": {
+          "icon": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A Lucide icon name. Header links with one show only the icon on wide screens; footer links ignore it."
+          },
           "label": {
-            "type": "string"
+            "type": "string",
+            "description": "Required; also the accessible name when only the icon shows."
           },
           "url": {
             "type": "string",

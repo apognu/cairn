@@ -1,3 +1,4 @@
+import { Icon } from "@cairn/components";
 import { useEffect, useId, useRef, useState } from "react";
 import type { RenderContext } from "./types";
 
@@ -166,6 +167,11 @@ export function HeaderMenu({ context }: { context: RenderContext }) {
             <nav className="flex flex-col" aria-label="Links">
               {links.map((link) => (
                 <a key={link.url + link.label} href={link.url} className={item}>
+                  {link.icon && (
+                    <span className="flex mr-1.5 text-muted">
+                      <Icon name={link.icon} size={18} />
+                    </span>
+                  )}
                   {link.label}
                   {isExternal(link.url) && <ExternalMark />}
                 </a>

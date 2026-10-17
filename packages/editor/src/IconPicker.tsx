@@ -9,8 +9,25 @@ const tagsByName = tags as Record<string, string[]>;
 // Drawing every icon at once makes the grid slow to open; a search finds the rest.
 const SHOWN = 240;
 
-/** An icon field: the chosen icon, which opens a searchable grid of the whole collection under it. */
-export function IconPicker({ id, value, onChange }: { id: string; value: string; onChange: (next: string) => void }) {
+/**
+ * An icon field: the chosen icon, which opens a searchable grid of the whole collection under it. `optional` allows no icon (an empty
+ * value); `floating` opens the grid over what follows instead of pushing it down, for a field inside a row.
+ */
+export function IconPicker({
+  id,
+  value,
+  onChange,
+  optional = false,
+  floating = false,
+  label,
+}: {
+  id: string;
+  value: string;
+  onChange: (next: string) => void;
+  optional?: boolean;
+  floating?: boolean;
+  label?: string;
+}) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const root = useRef<HTMLDivElement>(null);
@@ -59,22 +76,25 @@ export function IconPicker({ id, value, onChange }: { id: string; value: string;
   };
 
   return (
-    <div ref={root}>
+    <div ref={root} className={floating ? "relative" : undefined}>
       <button
         ref={toggle}
         id={id}
         type="button"
         className="flex items-center gap-2 w-full h-8.5 px-2.5 border border-input rounded-md bg-bg text-text text-ui text-left cursor-pointer"
+        aria-label={label}
         aria-expanded={open}
         onClick={() => setOpen(!open)}
       >
-        <SiteIcon name={value} size={18} />
-        <span className="flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{value}</span>
+        {(value || !optional) && <SiteIcon name={value} size={18} />}
+        <span className={`flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap ${value ? "" : "text-muted"}`}>
+          {value || "No icon"}
+        </span>
         <Icon name="chevron" size={14} className="text-muted" />
       </button>
       {open && (
         <fieldset
-          className="flex min-w-0 flex-col gap-2 mt-1.5 p-2 border border-input rounded-lg bg-bg"
+          className={`flex min-w-0 flex-col gap-2 mt-1.5 p-2 border border-input rounded-lg bg-bg ${floating ? "absolute z-20 left-0 w-80 max-w-[calc(100vw-32px)] shadow-popover" : ""}`}
           onKeyDown={(event) => {
             if (event.key !== "Escape") return;
             // Only the grid closes, not the drawer around it.
@@ -101,6 +121,11 @@ export function IconPicker({ id, value, onChange }: { id: string; value: string;
               }
             }}
           />
+          {optional && value && (
+            <button type="button" className={`${ui.smallButton} self-start`} onClick={() => choose("")}>
+              No icon
+            </button>
+          )}
           <div className="grid grid-cols-[repeat(auto-fill,minmax(36px,1fr))] gap-0.5 max-h-58 overflow-y-auto">
             {matches.slice(0, SHOWN).map((name) => (
               <button

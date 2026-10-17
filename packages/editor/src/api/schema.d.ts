@@ -1746,6 +1746,9 @@ export interface components {
             url: string;
         };
         SiteLink: {
+            /** @description A Lucide icon name. Header links with one show only the icon on wide screens; footer links ignore it. */
+            icon?: string | null;
+            /** @description Required; also the accessible name when only the icon shows. */
             label: string;
             /** @description `https://…`, `mailto:…` or a path on the site. */
             url: string;
