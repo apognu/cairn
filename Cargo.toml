@@ -11,3 +11,22 @@ publish = false
 print_stdout = "deny"
 print_stderr = "deny"
 dbg_macro = "deny"
+
+# The link preview cards are drawn at every publish, `cairn dev` and the end-to-end tests included: unoptimized, each one takes a quarter
+# of a second, and a site's first publish draws one per page.
+[profile.dev.package]
+resvg = { opt-level = 3 }
+usvg = { opt-level = 3 }
+tiny-skia = { opt-level = 3 }
+tiny-skia-path = { opt-level = 3 }
+kurbo = { opt-level = 3 }
+harfrust = { opt-level = 3 }
+skrifa = { opt-level = 3 }
+read-fonts = { opt-level = 3 }
+png = { opt-level = 3 }
+fdeflate = { opt-level = 3 }
+flate2 = { opt-level = 3 }
+miniz_oxide = { opt-level = 3 }
+crc32fast = { opt-level = 3 }
+adler2 = { opt-level = 3 }
+simd-adler32 = { opt-level = 3 }
