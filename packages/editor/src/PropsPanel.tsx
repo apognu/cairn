@@ -10,52 +10,75 @@ import { Icon } from "./icons";
 import { PropsHead } from "./PropsHead";
 import { SchemaForm } from "./SchemaForm";
 import { useSideDrawer } from "./sidePanel";
+import { TabsFields } from "./TabsFields";
 import * as ui from "./ui";
 
 type Active =
   | { kind: "component"; name: string; attrs: Record<string, unknown>; at: number }
   | { kind: "image" | "codeBlock"; attrs: Record<string, unknown>; at: number };
 
-/** The settings of the component, image or code block the cursor is in: a form generated from the props schema, or fixed fields. */
+/**
+ * The settings of the component, image or code block the cursor is in: a form generated from the props schema, or fixed fields. In a tab
+ * group, its tabs follow: in a code group the cursor is always in a code block, which would leave them out of reach.
+ */
 export function PropsPanel({ editor, host }: { editor: Editor; host: HTMLElement }) {
-  const active = useEditorState({
+  const found = useEditorState({
     editor,
-    selector: ({ editor: e }): Active | null => {
+    selector: ({ editor: e }): { active: Active | null; tabsAt: number | null } | null => {
       const { selection } = e.state;
       if (selection instanceof NodeSelection) {
         const { node } = selection;
         // A selected atom (feature tabs, what's new) is the component itself.
         if (componentsByName.has(node.type.name))
-          return { kind: "component", name: node.type.name, attrs: node.attrs, at: selection.from };
-        if (node.type.name === "image") return { kind: "image", attrs: node.attrs, at: selection.from };
+          return {
+            active: { kind: "component", name: node.type.name, attrs: node.attrs, at: selection.from },
+            tabsAt: null,
+          };
+        if (node.type.name === "image")
+          return { active: { kind: "image", attrs: node.attrs, at: selection.from }, tabsAt: null };
       }
 
       const { $from } = selection;
+      let active: Active | null = null;
+      let tabsAt: number | null = null;
 
       for (let depth = $from.depth; depth > 0; depth--) {
         const node = $from.node(depth);
-        if (componentsByName.has(node.type.name))
-          return { kind: "component", name: node.type.name, attrs: node.attrs, at: $from.before(depth) };
-        if (node.type.name === "codeBlock") return { kind: "codeBlock", attrs: node.attrs, at: $from.before(depth) };
+        if (!active && componentsByName.has(node.type.name))
+          active = { kind: "component", name: node.type.name, attrs: node.attrs, at: $from.before(depth) };
+        else if (!active && node.type.name === "codeBlock")
+          active = { kind: "codeBlock", attrs: node.attrs, at: $from.before(depth) };
+        else if (tabsAt === null && node.type.name === "tabs") tabsAt = $from.before(depth);
       }
-      return null;
+      return active || tabsAt !== null ? { active, tabsAt } : null;
     },
   });
   const drawer = useSideDrawer();
 
-  if (!active) return null;
+  if (!found) return null;
+  const { active, tabsAt } = found;
 
-  const body =
-    active.kind === "component" ? (
-      <ComponentFields editor={editor} active={active} />
-    ) : active.kind === "image" ? (
-      <ImageFields editor={editor} attrs={active.attrs} />
-    ) : (
-      <CodeBlockFields editor={editor} attrs={active.attrs} />
-    );
+  const fields = !active ? null : active.kind === "component" ? (
+    <ComponentFields editor={editor} active={active} />
+  ) : active.kind === "image" ? (
+    <ImageFields editor={editor} attrs={active.attrs} />
+  ) : (
+    <CodeBlockFields editor={editor} attrs={active.attrs} />
+  );
+  const body = (
+    <>
+      {fields}
+      {tabsAt !== null && (
+        <div className={fields ? "mt-7" : undefined}>
+          <TabsFields editor={editor} at={tabsAt} />
+        </div>
+      )}
+    </>
+  );
 
-  const label =
-    active.kind === "component"
+  const label = !active
+    ? "Tabs settings"
+    : active.kind === "component"
       ? `${componentsByName.get(active.name)?.title ?? "Block"} settings`
       : active.kind === "image"
         ? "Image settings"
