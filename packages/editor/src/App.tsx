@@ -282,20 +282,21 @@ function Editor() {
           <Icon name="logo" size={20} />
           <strong className="narrow:hidden">{settings.data?.site_name ?? "Documentation"}</strong>
         </span>
-        {/* The breadcrumb is what gives way when the bar is short of room; the actions never wrap or shrink. */}
+        {/* The breadcrumb only takes the room left over, up to its own width, so it gives way first; then the status does. The actions never wrap or shrink. */}
         <span
-          className="min-w-0 overflow-hidden text-muted text-help text-ellipsis whitespace-nowrap"
+          className="min-w-0 max-w-max grow basis-0 overflow-hidden text-muted text-help text-ellipsis whitespace-nowrap"
           data-testid="crumbs"
         >
           {section ? `Settings / ${sectionTitle[section]}` : trail.length > 0 ? trail.join(" / ") : "No page selected"}
         </span>
         {status && (
           <output
-            className={`flex flex-none items-center gap-1.25 text-[12.5px] ${statusColor[status] ?? "text-muted"}`}
+            className={`min-w-0 overflow-hidden text-[12.5px] text-ellipsis whitespace-nowrap ${statusColor[status] ?? "text-muted"}`}
             data-status={status}
+            title={statusText[status]}
           >
-            {status === "saved" && <Icon name="check" size={13} className="text-accent" />}
-            {status === "read-only" && <Icon name="lock" size={13} />}
+            {status === "saved" && <Icon name="check" size={13} className="inline mr-1.25 align-[-2px] text-accent" />}
+            {status === "read-only" && <Icon name="lock" size={13} className="inline mr-1.25 align-[-2px]" />}
             {statusText[status]}
           </output>
         )}
