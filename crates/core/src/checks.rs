@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use serde::Serialize;
 
-use crate::{Document, Page, PageId, PageKind, extract_links, page_urls};
+use crate::{Document, Page, PageId, PageKind, extract_links, operation_label, page_urls};
 
 /// What a pre-publish check found wrong.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -59,8 +59,7 @@ pub fn doc_problems(page: &Page, doc: &Document, pages: &[Page], operations: &Ha
       && let Some(known) = operations.get(&target.id)
       && !known.contains(&link.anchor)
     {
-      // `tag/orders/POST/orders` is the operation `POST /orders`.
-      let operation = link.anchor.splitn(3, '/').nth(2).and_then(|rest| rest.split_once('/').map(|(m, p)| format!("{m} /{p}")));
+      let operation = operation_label(&link.anchor);
       lost.push(format!("“{}”", operation.unwrap_or(link.anchor.clone())) + &format!(" of “{}”", target.title));
     }
   }

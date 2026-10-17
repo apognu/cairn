@@ -24,7 +24,7 @@ mod settings;
 mod storage;
 mod user;
 
-pub use api::{ApiConfig, ApiDisplay, ApiSource, GitRef, MergeRules, Operation, ResolvedSource};
+pub use api::{ApiConfig, ApiDisplay, ApiSource, GitRef, MergeRules, Operation, ResolvedSource, operation_label};
 pub use asset::{Asset, AssetVariant};
 pub use broadcast::{Broadcast, Event, LocalBroadcast};
 pub use checks::{Problem, ProblemKind, doc_problems, url_problems};

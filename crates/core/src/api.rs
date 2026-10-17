@@ -118,6 +118,14 @@ impl Operation {
   }
 }
 
+/// `POST /orders` for the anchor `tag/orders/POST/orders` that [`Operation::anchor`] writes; `None` for any other anchor.
+pub fn operation_label(anchor: &str) -> Option<String> {
+  let rest = anchor.strip_prefix("tag/")?.split_once('/')?.1;
+  let (method, path) = rest.split_at(rest.find('/')?);
+
+  Some(format!("{method} {path}"))
+}
+
 /// Where one spec was read from at a build, as recorded in the release.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]

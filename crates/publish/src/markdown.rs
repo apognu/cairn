@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use cairn_core::{Document, Mark, Node};
+use cairn_core::{Document, Mark, Node, operation_label};
 use serde_json::{Map, Value};
 
 /// What the converter needs to know about the rest of the site.
@@ -194,8 +194,8 @@ fn cards(items: Option<&Value>, site: &Site) -> String {
           let href = card
             .get("page")
             .and_then(Value::as_str)
-            .and_then(|id| site.urls.get(id))
-            .map(|path| format!("{}{path}", site.url))
+            .and_then(|value| page_field(value, site))
+            .map(|(_, href)| href)
             .or_else(|| Some(field(card, "href").to_string()).filter(|h| !h.is_empty()));
           let head = href.map_or_else(|| title.clone(), |href| format!("[{title}]({href})"));
           let description = field(card, "description");
@@ -212,13 +212,25 @@ fn cards(items: Option<&Value>, site: &Site) -> String {
     .unwrap_or_default()
 }
 
-/// Links to the pages with these IDs; pages that no longer exist are left out.
-fn page_links<'a>(ids: impl Iterator<Item = &'a Value>, site: &Site) -> String {
-  ids
+/// Links to the pages of these page fields; pages that no longer exist are left out.
+fn page_links<'a>(values: impl Iterator<Item = &'a Value>, site: &Site) -> String {
+  values
     .filter_map(Value::as_str)
-    .filter_map(|id| Some(format!("- [{}]({}{})", escape(site.titles.get(id)?), site.url, site.urls.get(id)?)))
+    .filter_map(|value| page_field(value, site))
+    .map(|(title, href)| format!("- [{}]({href})", escape(&title)))
     .collect::<Vec<_>>()
     .join("\n")
+}
+
+/// The title and absolute address of a page field: a page ID, or `<ID>#<anchor>` for an operation of an API page, which takes the operation as its title.
+fn page_field(value: &str, site: &Site) -> Option<(String, String)> {
+  let (id, anchor) = value.split_once('#').map_or((value, None), |(id, anchor)| (id, Some(anchor)));
+  let (title, path) = (site.titles.get(id)?, site.urls.get(id)?);
+
+  Some(match anchor {
+    Some(anchor) => (operation_label(anchor).unwrap_or_else(|| title.clone()), format!("{}{path}#{anchor}", site.url)),
+    None => (title.clone(), format!("{}{path}", site.url)),
+  })
 }
 
 fn fence(language: &str, code: &str) -> String {
@@ -428,6 +440,41 @@ mod tests {
         "[a ](https://d.io/guide/#setup)``x`y`` `` ` ``\n",
         "\\# not a heading  \n2\\. not a list\n",
         "\\- not an item, #hashtag and 2.5 stay\n",
+      ]
+      .join("\n")
+    );
+  }
+
+  #[test]
+  fn page_fields_link_to_pages_and_operations() {
+    let id = "01234567-89ab-7cde-8f01-23456789abcd";
+    let doc: Document = serde_json::from_value(serde_json::json!({ "type": "doc", "content": [
+      { "type": "seeAlso", "attrs": { "pages": [id, format!("{id}#tag/orders/POST/orders"), format!("{id}#setup")] } },
+      { "type": "cards", "attrs": { "cards": [{ "title": "Create", "page": format!("{id}#tag/orders/POST/orders") }] } },
+    ] }))
+    .unwrap();
+    let urls = HashMap::from([(id.to_string(), "/api/".to_string())]);
+    let titles = HashMap::from([(id.to_string(), "Orders API".to_string())]);
+    let assets = HashMap::new();
+
+    let markdown = page_markdown(
+      "T",
+      None,
+      &doc,
+      &Site {
+        url: "https://d.io",
+        urls: &urls,
+        titles: &titles,
+        assets: &assets,
+      },
+    );
+
+    assert_eq!(
+      markdown,
+      [
+        "# T\n",
+        "**See also**\n\n- [Orders API](https://d.io/api/)\n- [POST /orders](https://d.io/api/#tag/orders/POST/orders)\n- [Orders API](https://d.io/api/#setup)\n",
+        "- [Create](https://d.io/api/#tag/orders/POST/orders)\n",
       ]
       .join("\n")
     );

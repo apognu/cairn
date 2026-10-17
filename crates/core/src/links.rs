@@ -74,9 +74,16 @@ pub fn extract_links(doc: &Document) -> Vec<PageLink> {
 }
 
 fn collect_in_map(map: &Map<String, Value>, kind: LinkKind, found: &mut BTreeSet<PageLink>) {
-  let mut add = |id: &Value| {
-    if let Some(target) = id.as_str().and_then(|s| s.parse().ok()) {
-      found.insert(PageLink { target, anchor: String::new(), kind });
+  // A page field holds a page ID, or `<ID>#<anchor>` for an operation of an API page.
+  let mut add = |value: &Value| {
+    let Some(value) = value.as_str() else { return };
+    let (id, anchor) = value.split_once('#').unwrap_or((value, ""));
+    if let Ok(target) = id.parse() {
+      found.insert(PageLink {
+        target,
+        anchor: anchor.to_string(),
+        kind,
+      });
     }
   };
 
@@ -112,14 +119,15 @@ mod tests {
         { "type": "text", "text": "web", "marks": [{ "type": "link", "attrs": { "href": "https://example.com" } }] },
       ] },
       { "type": "featureTabs", "attrs": { "families": [{ "label": "x", "features": [{ "title": "t", "page": b.to_string() }, { "title": "none" }] }] } },
-      { "type": "relatedPages", "attrs": { "pages": [c.to_string(), "not-an-id"] } },
+      { "type": "relatedPages", "attrs": { "pages": [c.to_string(), "not-an-id", format!("{c}#tag/orders/POST/orders")] } },
     ] }))
     .unwrap();
 
     let links = extract_links(&doc);
-    let kinds: Vec<_> = links.iter().map(|l| (l.target, l.kind)).collect();
+    let kinds: Vec<_> = links.iter().map(|l| (l.target, l.kind, l.anchor.as_str())).collect();
 
-    assert_eq!(links.len(), 3);
-    assert!(kinds.contains(&(a, LinkKind::Inline)) && kinds.contains(&(b, LinkKind::Prop)) && kinds.contains(&(c, LinkKind::Card)));
+    assert_eq!(links.len(), 4);
+    assert!(kinds.contains(&(a, LinkKind::Inline, "")) && kinds.contains(&(b, LinkKind::Prop, "")) && kinds.contains(&(c, LinkKind::Card, "")));
+    assert!(kinds.contains(&(c, LinkKind::Card, "tag/orders/POST/orders")));
   }
 }
