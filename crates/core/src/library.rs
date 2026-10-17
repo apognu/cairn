@@ -94,12 +94,16 @@ pub fn term_refs(doc: &Document) -> BTreeSet<String> {
 /// The anchor each term gets on the generated Glossary page: the slug of the term, numbered when two slugs collide, exactly as the renderer
 /// numbers headings. `terms` must be in the order the page lists them.
 pub fn term_anchors(terms: &[String]) -> HashMap<String, String> {
+  terms.iter().cloned().zip(numbered_anchors(terms.iter().map(String::as_str))).collect()
+}
+
+/// The anchor of each text, in order: its slug, numbered when two slugs collide, as the renderer's `collectHeadings` does.
+pub(crate) fn numbered_anchors<'a>(texts: impl Iterator<Item = &'a str>) -> Vec<String> {
   let mut taken: HashSet<String> = HashSet::new();
 
-  terms
-    .iter()
-    .map(|term| {
-      let base = match crate::slugify(term) {
+  texts
+    .map(|text| {
+      let base = match crate::slugify(text) {
         s if s.is_empty() => "section".to_string(),
         s => s,
       };
@@ -110,7 +114,7 @@ pub fn term_anchors(terms: &[String]) -> HashMap<String, String> {
         .unwrap_or_default();
       taken.insert(anchor.clone());
 
-      (term.clone(), anchor)
+      anchor
     })
     .collect()
 }

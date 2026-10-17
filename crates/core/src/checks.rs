@@ -15,6 +15,8 @@ pub enum ProblemKind {
   InvalidProps,
   /// A link to an operation of an API page that is not in its spec any more.
   BrokenOperationLink,
+  /// A link to a section of a page whose heading is gone or was renamed.
+  BrokenSectionLink,
   /// Two pages with the same URL.
   DuplicateUrl,
   /// An image with no description and not marked decorative.
@@ -47,30 +49,35 @@ fn problem(page: &Page, kind: ProblemKind, message: impl Into<String>) -> Proble
 }
 
 /// Problems found in one page's document: links to pages that are gone (`pages` is every page that exists) and images without alt text.
-/// `operations` has the anchors of the operations of each API page, as the spec of this build has them; a link to another one is broken.
-pub fn doc_problems(page: &Page, doc: &Document, pages: &[Page], operations: &HashMap<PageId, HashSet<String>>) -> Vec<Problem> {
+/// `anchors` has what a link may point at inside each page: the operations of an API page, as the spec of this build has them, and the
+/// headings of any other page; a link to another anchor is broken. Pages missing from it are not checked.
+pub fn doc_problems(page: &Page, doc: &Document, pages: &[Page], anchors: &HashMap<PageId, HashSet<String>>) -> Vec<Problem> {
   let mut found = Vec::new();
 
-  let mut lost: Vec<String> = Vec::new();
+  let (mut operations, mut sections): (Vec<String>, Vec<String>) = (Vec::new(), Vec::new());
   for link in extract_links(doc) {
     let Some(target) = pages.iter().find(|p| p.id == link.target) else { continue };
-    if target.kind == PageKind::Api
-      && link.anchor.starts_with("tag/")
-      && let Some(known) = operations.get(&target.id)
-      && !known.contains(&link.anchor)
-    {
-      let operation = operation_label(&link.anchor);
-      lost.push(format!("“{}”", operation.unwrap_or(link.anchor.clone())) + &format!(" of “{}”", target.title));
+    let Some(known) = anchors.get(&target.id) else { continue };
+    if link.anchor.is_empty() || known.contains(&link.anchor) {
+      continue;
+    }
+
+    match target.kind {
+      PageKind::Api if link.anchor.starts_with("tag/") => {
+        let operation = operation_label(&link.anchor).unwrap_or(link.anchor.clone());
+        operations.push(format!("“{operation}” of “{}”", target.title));
+      }
+      PageKind::Page => sections.push(format!("“#{}” of “{}”", link.anchor, target.title)),
+      _ => {}
     }
   }
-  lost.sort();
-  lost.dedup();
-  for operation in lost {
-    found.push(problem(
-      page,
-      ProblemKind::BrokenOperationLink,
-      format!("a link points to the operation {operation}, which is not in its spec any more"),
-    ));
+  for (mut lost, kind, what, why) in [
+    (operations, ProblemKind::BrokenOperationLink, "operation", "is not in its spec any more"),
+    (sections, ProblemKind::BrokenSectionLink, "section", "no longer has a heading"),
+  ] {
+    lost.sort();
+    lost.dedup();
+    found.extend(lost.into_iter().map(|target| problem(page, kind, format!("a link points to the {what} {target}, which {why}"))));
   }
 
   let gone = extract_links(doc).iter().filter(|l| !pages.iter().any(|p| p.id == l.target && p.kind.has_url())).count();
@@ -190,24 +197,31 @@ mod tests {
   }
 
   #[test]
-  fn a_link_to_an_operation_that_left_the_spec_is_broken() {
-    let (home, mut api) = (page("Home", "home", None), page("Orders API", "orders", None));
+  fn a_link_to_an_operation_or_section_that_is_gone_is_broken() {
+    let (home, mut api, guide) = (page("Home", "home", None), page("Orders API", "orders", None), page("Guide", "guide", None));
     api.kind = PageKind::Api;
-    let link = |anchor: &str| json!({ "type": "text", "text": "x", "marks": [{ "type": "link", "attrs": { "pageId": api.id.to_string(), "anchor": anchor } }] });
-    let doc: Document = serde_json::from_value(json!({ "type": "doc", "content": [{ "type": "paragraph", "content": [
-      link("tag/orders/GET/orders"), link("tag/orders/POST/orders"), link("tag/orders/POST/orders"), link("some-heading"),
-    ] }] }))
+    let link = |to: PageId, anchor: &str| json!({ "type": "text", "text": "x", "marks": [{ "type": "link", "attrs": { "pageId": to.to_string(), "anchor": anchor } }] });
+    let doc: Document = serde_json::from_value(json!({ "type": "doc", "content": [
+      { "type": "paragraph", "content": [
+        link(api.id, "tag/orders/GET/orders"), link(api.id, "tag/orders/POST/orders"), link(api.id, "tag/orders/POST/orders"), link(api.id, "some-heading"),
+        link(guide.id, "install"), link(guide.id, "setup"),
+      ] },
+      { "type": "linkCard", "attrs": { "page": format!("{}#setup", guide.id) } },
+    ] }))
     .unwrap();
-    let pages = [home.clone(), api.clone()];
+    let pages = [home.clone(), api.clone(), guide.clone()];
 
-    let known = HashMap::from([(api.id, HashSet::from(["tag/orders/GET/orders".to_string()]))]);
+    let known = HashMap::from([(api.id, HashSet::from(["tag/orders/GET/orders".to_string()])), (guide.id, HashSet::from(["install".to_string()]))]);
     let found = doc_problems(&home, &doc, &pages, &known);
     assert_eq!(
       found.iter().map(|p| (p.kind, p.message.as_str())).collect::<Vec<_>>(),
-      [(
-        ProblemKind::BrokenOperationLink,
-        "a link points to the operation “POST /orders” of “Orders API”, which is not in its spec any more"
-      )]
+      [
+        (
+          ProblemKind::BrokenOperationLink,
+          "a link points to the operation “POST /orders” of “Orders API”, which is not in its spec any more"
+        ),
+        (ProblemKind::BrokenSectionLink, "a link points to the section “#setup” of “Guide”, which no longer has a heading"),
+      ]
     );
 
     // Without a resolved spec for the page there is nothing to compare with.

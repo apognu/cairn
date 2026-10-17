@@ -1,9 +1,9 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashSet};
 
 use serde::Serialize;
 use serde_json::{Map, Value};
 
-use crate::{Document, PageId};
+use crate::{Document, Node, PageId, library::numbered_anchors};
 
 /// How a page refers to another.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
@@ -73,6 +73,17 @@ pub fn extract_links(doc: &Document) -> Vec<PageLink> {
   found.into_iter().collect()
 }
 
+/// The anchors of the page's headings, as the renderer gives them: a link to another anchor of the page leads nowhere.
+pub fn heading_anchors(doc: &Document) -> HashSet<String> {
+  let texts: Vec<String> = doc.0.walk().into_iter().filter(|n| n.kind == "heading").map(text_of).collect();
+
+  numbered_anchors(texts.iter().map(String::as_str)).into_iter().collect()
+}
+
+fn text_of(node: &Node) -> String {
+  node.text.clone().unwrap_or_else(|| node.content.iter().flatten().map(text_of).collect())
+}
+
 fn collect_in_map(map: &Map<String, Value>, kind: LinkKind, found: &mut BTreeSet<PageLink>) {
   // A page field holds a page ID, or `<ID>#<anchor>` for an operation of an API page.
   let mut add = |value: &Value| {
@@ -129,5 +140,21 @@ mod tests {
     assert_eq!(links.len(), 4);
     assert!(kinds.contains(&(a, LinkKind::Inline, "")) && kinds.contains(&(b, LinkKind::Prop, "")) && kinds.contains(&(c, LinkKind::Card, "")));
     assert!(kinds.contains(&(c, LinkKind::Card, "tag/orders/POST/orders")));
+  }
+
+  #[test]
+  fn heading_anchors_are_numbered_as_the_renderer_numbers_them() {
+    let heading = |text: &str| json!({ "type": "heading", "attrs": { "level": 2 }, "content": [{ "type": "text", "text": text }] });
+    let cases: [(&[&str], &[&str]); 4] = [
+      (&["Install"], &["install"]),
+      (&["Setup", "Setup", "Setup 2"], &["setup", "setup-2", "setup-2-2"]),
+      (&["Setup 2", "Setup", "Setup"], &["setup-2", "setup", "setup-3"]),
+      (&["???", "Café & co."], &["section", "caf-co"]),
+    ];
+
+    for (texts, expected) in cases {
+      let doc: Document = serde_json::from_value(json!({ "type": "doc", "content": texts.iter().map(|t| heading(t)).collect::<Vec<_>>() })).unwrap();
+      assert_eq!(heading_anchors(&doc), expected.iter().map(|a| a.to_string()).collect::<HashSet<_>>(), "{texts:?}");
+    }
   }
 }

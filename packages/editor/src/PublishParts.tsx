@@ -183,7 +183,7 @@ export function ChecksStrip({
   maxFiles: number | null | undefined;
 }) {
   const passed = [
-    { kinds: ["broken_link", "broken_operation_link"], text: "No broken links" },
+    { kinds: ["broken_link", "broken_operation_link", "broken_section_link"], text: "No broken links" },
     { kinds: ["invalid_props"], text: "All component props valid" },
     { kinds: ["missing_alt"], text: "Every image has alt text" },
   ].filter((check) => !problems.some((p) => check.kinds.includes(p.kind)));

@@ -1,7 +1,8 @@
 use std::collections::{HashMap, HashSet};
 
 use cairn_core::{
-  Current, Document, Live, Operation, Page, PageId, PageKind, Pending, Problem, ProblemKind, Pulled, doc_problems, expand, hotfix_pages, page_urls, pending_changes, term_refs, url_problems,
+  Current, Document, Live, Operation, Page, PageId, PageKind, Pending, Problem, ProblemKind, Pulled, doc_problems, expand, heading_anchors, hotfix_pages, page_urls, pending_changes, term_refs,
+  url_problems,
 };
 use cairn_render::Pool;
 use cairn_store::{DatabaseConnection, LiveRelease, Staging, staging};
@@ -66,7 +67,7 @@ pub(crate) fn pending_against(staging: &Staging, against: Option<&LiveRelease>) 
 /// settings the renderer cannot take. Each names its page.
 ///
 /// Links to operations of API pages are compared with what the live release recorded, plus `fresh` (what a check of the settings just
-/// merged); a publish has the specs of its own build and uses `check_with`.
+/// merged); a publish has the specs of its own build and uses `check_with`. Links to a section are compared with the drafts' headings.
 pub async fn check(db: &DatabaseConnection, pool: &Pool, fresh: &OperationAnchors) -> Result<Vec<Problem>, PublishError> {
   let staging = staging(db).await?;
   let mut anchors = OperationAnchors::new();
@@ -90,9 +91,14 @@ pub(crate) async fn check_with(staging: &Staging, linkable: &[Page], pool: &Pool
   let empty = Document::empty();
   let mut found = url_problems(&all.iter().filter(|p| p.kind.has_url()).cloned().collect::<Vec<_>>());
 
-  for page in &pages {
-    // The page as readers will see it, with variables and snippets in place.
-    let (doc, missing) = expand(docs.get(&page.id).unwrap_or(&empty), library);
+  // The pages as readers will see them, with variables and snippets in place: their headings are what links to a section point at.
+  let expanded: Vec<_> = pages.iter().map(|page| (page, expand(docs.get(&page.id).unwrap_or(&empty), library))).collect();
+  let mut anchors = operations.clone();
+  for (page, (doc, _)) in &expanded {
+    anchors.insert(page.id, heading_anchors(doc));
+  }
+
+  for (page, (doc, missing)) in expanded {
     let doc = &doc;
     let unknown_terms = term_refs(doc).into_iter().filter(|t| !library.terms.contains_key(t)).map(|t| format!("term {t}"));
     for key in missing.into_iter().chain(unknown_terms) {
@@ -103,7 +109,7 @@ pub(crate) async fn check_with(staging: &Staging, linkable: &[Page], pool: &Pool
         message: format!("uses a {key} that does not exist"),
       });
     }
-    found.extend(doc_problems(page, doc, linkable, operations));
+    found.extend(doc_problems(page, doc, linkable, &anchors));
 
     let value = serde_json::to_value(doc).map_err(anyhow::Error::from)?;
     for message in pool.validate(&value).await.map_err(|source| PublishError::Render { page: page.title.clone(), source })? {

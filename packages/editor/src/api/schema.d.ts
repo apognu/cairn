@@ -1506,7 +1506,7 @@ export interface components {
          * @description What a pre-publish check found wrong.
          * @enum {string}
          */
-        ProblemKind: "broken_link" | "invalid_props" | "broken_operation_link" | "duplicate_url" | "missing_alt";
+        ProblemKind: "broken_link" | "invalid_props" | "broken_operation_link" | "broken_section_link" | "duplicate_url" | "missing_alt";
         PublishProgress: {
             /**
              * Format: int64

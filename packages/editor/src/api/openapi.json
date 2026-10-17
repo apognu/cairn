@@ -4405,6 +4405,7 @@
           "broken_link",
           "invalid_props",
           "broken_operation_link",
+          "broken_section_link",
           "duplicate_url",
           "missing_alt"
         ]
