@@ -42,6 +42,9 @@ export const slashItems: SlashItem[] = [
   item("Basic", "heading", "Heading 3", "Subsection title", "h3 heading subtitle", (e, r) =>
     e.chain().focus().deleteRange(r).setNode("heading", { level: 3 }).run(),
   ),
+  item("Basic", "heading", "Heading 4", "A minor title, left out of the contents", "h4 heading minor", (e, r) =>
+    e.chain().focus().deleteRange(r).setNode("heading", { level: 4 }).run(),
+  ),
   item("Basic", "list", "Bulleted list", "A list of points", "ul bullet list", (e, r) =>
     e.chain().focus().deleteRange(r).toggleBulletList().run(),
   ),

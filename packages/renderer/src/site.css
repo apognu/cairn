@@ -132,7 +132,8 @@
 
 /* A heading reached through a link lands below the sticky header, not under it. */
 .doc-content h2,
-.doc-content h3 {
+.doc-content h3,
+.doc-content h4 {
   scroll-margin-top: 72px;
 }
 
@@ -156,7 +157,8 @@
 
 .doc-content h1,
 .doc-content h2,
-.doc-content h3 {
+.doc-content h3,
+.doc-content h4 {
   color: var(--text);
   line-height: 1.25;
   letter-spacing: -0.015em;
@@ -171,6 +173,13 @@
 .doc-content h3 {
   margin: 1.9em 0 0.7em;
   font-size: 19px;
+}
+
+/* The smallest heading: the body's size, told apart by its weight. Not in the table of contents. */
+.doc-content h4 {
+  margin: 1.6em 0 0.5em;
+  font-size: 16px;
+  font-weight: 600;
 }
 
 .doc-content p,
@@ -240,7 +249,7 @@
 
 /* The heading's bottom margin alone sets the gap under it, whatever the block: some blocks (tabs, file tree, a rule, a subheading) bring
    a top margin that would otherwise win over it. After `.doc-content hr`, which has the same specificity. */
-.doc-content :is(h2, h3) + * {
+.doc-content :is(h2, h3, h4) + * {
   margin-top: 0;
 }
 
@@ -416,7 +425,8 @@
 /* Under the header and the table of contents bar on narrow screens. */
 @media (max-width: 900px) {
   .doc-content h2,
-  .doc-content h3 {
+  .doc-content h3,
+  .doc-content h4 {
     scroll-margin-top: 112px;
   }
 }

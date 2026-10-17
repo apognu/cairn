@@ -224,7 +224,7 @@
 }
 
 /* A component's node view wraps it twice, and its top margin passes through the wrappers: cleared as on the site (`site.css`). */
-.ProseMirror :is(h2, h3) + .react-renderer > * > :first-child {
+.ProseMirror :is(h2, h3, h4) + .react-renderer > * > :first-child {
   margin-top: 0;
 }
 

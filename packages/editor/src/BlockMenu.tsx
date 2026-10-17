@@ -12,6 +12,7 @@ const kinds = [
   { label: "Paragraph", is: (n: string, level: number) => n === "paragraph" && level === 0 },
   { label: "Heading 2", is: (n: string, level: number) => n === "heading" && level === 2 },
   { label: "Heading 3", is: (n: string, level: number) => n === "heading" && level === 3 },
+  { label: "Heading 4", is: (n: string, level: number) => n === "heading" && level === 4 },
   { label: "Bulleted list", is: (n: string) => n === "bulletList" },
   { label: "Numbered list", is: (n: string) => n === "orderedList" },
   { label: "Quote", is: (n: string) => n === "blockquote" },
@@ -112,6 +113,7 @@ export function BlockMenu({ editor, liveUrl }: { editor: Editor; liveUrl: string
     if (kind === "Paragraph") chain.setParagraph();
     else if (kind === "Heading 2") chain.setHeading({ level: 2 });
     else if (kind === "Heading 3") chain.setHeading({ level: 3 });
+    else if (kind === "Heading 4") chain.setHeading({ level: 4 });
     else if (kind === "Bulleted list") chain.toggleBulletList();
     else if (kind === "Numbered list") chain.toggleOrderedList();
     else chain.toggleBlockquote();
