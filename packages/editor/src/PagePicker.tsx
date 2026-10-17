@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Icon } from "./icons";
-import { useApiOperations, useApiOperationsOf, useCreatePage, usePages, usePending } from "./queries";
+import { useApiOperations, useApiOperationsOf, useCreatePage, usePageHeadings, usePages, usePending } from "./queries";
 import type { Page } from "./tree";
 import { pageUrls } from "./tree";
 import * as ui from "./ui";
@@ -15,10 +15,10 @@ const option =
 type Tab = "page" | "url";
 
 interface Props {
-  /** Pages linked by ID; a new page created from the picker arrives here too. An API page may come with one of its operations. */
-  onPage: (page: Page, operation?: { anchor: string; label: string }) => void;
-  /** Lets an API page be narrowed to one of its operations. */
-  operations?: boolean;
+  /** Pages linked by ID; a new page created from the picker arrives here too. With `anchors`, a place inside the page may come along. */
+  onPage: (page: Page, inside?: { anchor: string; label: string }) => void;
+  /** Lets a link point inside a page: one of an API page's operations, or a section of another page. */
+  anchors?: boolean;
   /** Present when a plain web address is allowed too. */
   onUrl?: (url: string) => void;
   onClose: () => void;
@@ -29,7 +29,7 @@ interface Props {
 }
 
 /** Finds a page to link to: drafts included, with "Create page" when nothing matches. One picker serves text links and component fields. */
-export function PagePicker({ onPage, operations = false, onUrl, onClose, nearPage, initialUrl, style }: Props) {
+export function PagePicker({ onPage, anchors = false, onUrl, onClose, nearPage, initialUrl, style }: Props) {
   const id = useId();
   const pages = usePages();
   const pending = usePending();
@@ -38,9 +38,11 @@ export function PagePicker({ onPage, operations = false, onUrl, onClose, nearPag
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
   const [chosenParent, setParent] = useState<string | null>(null);
-  // An API page chosen, whose operations are being listed.
+  // An API page chosen, whose operations are being listed, or a page whose sections are.
   const [apiPage, setApiPage] = useState<Page | null>(null);
   const apiOperations = useApiOperations(apiPage?.id ?? null);
+  const [sectionsOf, setSectionsOf] = useState<Page | null>(null);
+  const headings = usePageHeadings(sectionsOf?.id ?? null);
   const input = useRef<HTMLInputElement>(null);
   const root = useRef<HTMLDivElement>(null);
 
@@ -74,7 +76,7 @@ export function PagePicker({ onPage, operations = false, onUrl, onClose, nearPag
     .slice(0, 8);
   const canCreate = needle !== "" && !all.some((p) => p.title.toLowerCase() === needle);
   // Operations of API pages are found by what they do: `POST /orders` or its summary, once something is typed.
-  const known = useApiOperationsOf(operations ? all.filter((p) => p.kind === "api") : []);
+  const known = useApiOperationsOf(anchors ? all.filter((p) => p.kind === "api") : []);
   const operationRows: OperationRow[] = needle
     ? known
         .flatMap(({ page, operations: list }) => list.map((operation) => ({ page, operation })))
@@ -93,7 +95,9 @@ export function PagePicker({ onPage, operations = false, onUrl, onClose, nearPag
     if (create.isPending) return;
     create.mutate({ parent_id: parent || null, title: query.trim() }, { onSuccess: (page) => onPage(page) });
   };
-  const pick = (page: Page) => (operations && page.kind === "api" ? setApiPage(page) : onPage(page));
+  const pick = (page: Page) => (anchors && page.kind === "api" ? setApiPage(page) : onPage(page));
+  const hasSections = (row: (typeof rows)[number] | undefined): row is Page =>
+    anchors && row !== undefined && row !== "create" && !("operation" in row) && row.kind === "page";
   const chooseOperation = ({ page, operation }: OperationRow) =>
     onPage(page, { anchor: operation.anchor, label: `${operation.method} ${operation.path}` });
   const choose = (row: (typeof rows)[number] | undefined) => {
@@ -135,12 +139,32 @@ export function PagePicker({ onPage, operations = false, onUrl, onClose, nearPag
       )}
 
       {apiPage ? (
-        <OperationList
+        <AnchorList
           page={apiPage}
-          operations={apiOperations.data}
+          what="operations"
+          rows={apiOperations.data?.map((o) => ({
+            anchor: o.anchor,
+            title: `${o.method} ${o.path}`,
+            detail: o.summary,
+            mono: true,
+          }))}
           loading={apiOperations.isPending}
+          empty="No operations known yet: use “Check sources now” in the page's settings, or publish."
           onBack={() => setApiPage(null)}
           onChoose={(operation) => onPage(apiPage, operation)}
+        />
+      ) : sectionsOf ? (
+        <AnchorList
+          page={sectionsOf}
+          what="sections"
+          // The page's title is its only first-level heading; sections start at the second.
+          rows={headings.data
+            ?.filter((h) => h.level >= 2)
+            .map((h) => ({ anchor: h.anchor, title: h.text || "Untitled section", depth: h.level - 2 }))}
+          loading={headings.isPending}
+          empty="This page has no headings yet."
+          onBack={() => setSectionsOf(null)}
+          onChoose={(section) => onPage(sectionsOf, section)}
         />
       ) : tab === "url" && onUrl ? (
         <form
@@ -186,6 +210,13 @@ export function PagePicker({ onPage, operations = false, onUrl, onClose, nearPag
                 if (e.key === "ArrowDown") setActive((choice + 1) % Math.max(rows.length, 1));
                 else if (e.key === "ArrowUp") setActive((choice + rows.length - 1) % Math.max(rows.length, 1));
                 else if (e.key === "Enter") choose(rows[choice]);
+                // At the end of what is typed, the right arrow goes into the page's sections, as the row's Sections button does.
+                else if (
+                  e.key === "ArrowRight" &&
+                  e.currentTarget.selectionStart === query.length &&
+                  hasSections(rows[choice])
+                )
+                  setSectionsOf(rows[choice]);
                 else return;
                 e.preventDefault();
               }}
@@ -262,25 +293,36 @@ export function PagePicker({ onPage, operations = false, onUrl, onClose, nearPag
                   key={row.id}
                   id={`${id}-${i}`}
                   role="option"
-                  className="group/option"
+                  className="group/option flex items-center gap-1 pr-1 rounded-lg aria-selected:bg-accent-soft"
                   aria-selected={i === choice}
                   tabIndex={-1}
                 >
                   <button
                     type="button"
-                    className={option}
+                    className={`${option} min-w-0`}
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => pick(row)}
                   >
-                    <span>
+                    <span className="min-w-0">
                       <strong>{row.title}</strong>
                       {drafts.has(row.id) && <span className={ui.badge(undefined, "mr-1 ml-2")}>Draft</span>}
-                      {operations && row.kind === "api" && (
-                        <span className={ui.badge(undefined, "mr-1 ml-2")}>API</span>
-                      )}
-                      <small className="block text-muted font-mono text-label">{urls[row.id]}</small>
+                      {anchors && row.kind === "api" && <span className={ui.badge(undefined, "mr-1 ml-2")}>API</span>}
+                      <small className="block text-muted font-mono text-label overflow-hidden text-ellipsis">
+                        {urls[row.id]}
+                      </small>
                     </span>
                   </button>
+                  {hasSections(row) && (
+                    <button
+                      type="button"
+                      className="flex-none h-7 px-2 border-0 rounded-[5px] bg-transparent text-help text-muted cursor-pointer hover:bg-hover hover:text-text"
+                      aria-label={`Sections of ${row.title}`}
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => setSectionsOf(row)}
+                    >
+                      Sections ›
+                    </button>
+                  )}
                 </div>
               ),
             )}
@@ -292,7 +334,10 @@ export function PagePicker({ onPage, operations = false, onUrl, onClose, nearPag
             </p>
           )}
           <div className="flex justify-between gap-3.5 py-2 px-4 border-t border-border bg-side text-label text-muted">
-            <span>↵ to {canCreate && choice === 0 ? "create and link" : "link"}</span>
+            <span className="whitespace-nowrap">
+              ↵ to {canCreate && choice === 0 ? "create and link" : "link"}
+              {hasSections(rows[choice]) && ", → for a section"}
+            </span>
             <span>Links are stored by page, so moves never break them</span>
           </div>
         </>
@@ -305,19 +350,26 @@ type OperationRow = { page: Page; operation: OperationLink };
 
 type OperationLink = { method: string; path: string; summary?: string | null; tags: string[]; anchor: string };
 
-/** The second step for an API page: the whole page, or one of its operations. */
-function OperationList({
+/** A place inside a page: an operation of an API page, or a section of another page. */
+type AnchorRow = { anchor: string; title: string; detail?: string | null; mono?: boolean; depth?: number };
+
+/** The second step for a page: the whole page, or one of its operations or sections. */
+function AnchorList({
   page,
-  operations,
+  what,
+  rows: all,
   loading,
+  empty,
   onBack,
   onChoose,
 }: {
   page: Page;
-  operations: OperationLink[] | undefined;
+  what: "operations" | "sections";
+  rows: AnchorRow[] | undefined;
   loading: boolean;
+  empty: string;
   onBack: () => void;
-  onChoose: (operation?: { anchor: string; label: string }) => void;
+  onChoose: (inside?: { anchor: string; label: string }) => void;
 }) {
   const id = useId();
   const [query, setQuery] = useState("");
@@ -326,14 +378,14 @@ function OperationList({
   useEffect(() => input.current?.focus(), []);
 
   const needle = query.trim().toLowerCase();
-  const shown = (operations ?? [])
-    .filter((o) => !needle || `${o.method} ${o.path} ${o.summary ?? ""}`.toLowerCase().includes(needle))
+  const shown = (all ?? [])
+    .filter((r) => !needle || `${r.title} ${r.detail ?? ""}`.toLowerCase().includes(needle))
     .slice(0, 50);
-  // The whole page first; once something is typed, the first matching operation is what Enter takes.
-  const rows: (OperationLink | null)[] = [null, ...shown];
+  // The whole page first; once something is typed, the first match is what Enter takes.
+  const rows: (AnchorRow | null)[] = [null, ...shown];
   const choice = Math.min(active, rows.length - 1);
-  const choose = (row: OperationLink | null | undefined) =>
-    onChoose(row ? { anchor: row.anchor, label: `${row.method} ${row.path}` } : undefined);
+  const choose = (row: AnchorRow | null | undefined) =>
+    onChoose(row ? { anchor: row.anchor, label: row.title } : undefined);
 
   return (
     <>
@@ -348,7 +400,7 @@ function OperationList({
           aria-expanded="true"
           aria-controls={`${id}-list`}
           aria-activedescendant={`${id}-${choice}`}
-          aria-label={`Search the operations of ${page.title}`}
+          aria-label={`Search the ${what} of ${page.title}`}
           placeholder={`Search ${page.title}`}
           value={query}
           onChange={(e) => {
@@ -365,7 +417,12 @@ function OperationList({
           }}
         />
       </div>
-      <div className={list} id={`${id}-list`} role="listbox" aria-label="Operations">
+      <div
+        className={`${list} max-h-90 overflow-y-auto`}
+        id={`${id}-list`}
+        role="listbox"
+        aria-label={what === "operations" ? "Operations" : "Sections"}
+      >
         {rows.map((row, i) => (
           <div
             key={row?.anchor ?? "page"}
@@ -378,15 +435,14 @@ function OperationList({
             <button
               type="button"
               className={option}
+              style={row?.depth ? { paddingLeft: `${10 + row.depth * 16}px` } : undefined}
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => choose(row)}
             >
               {row ? (
-                <span>
-                  <strong className={ui.mono}>
-                    {row.method} {row.path}
-                  </strong>
-                  {row.summary && <small className="block text-muted">{row.summary}</small>}
+                <span className="min-w-0">
+                  <strong className={row.mono ? ui.mono : undefined}>{row.title}</strong>
+                  {row.detail && <small className="block text-muted">{row.detail}</small>}
                 </span>
               ) : (
                 <span>
@@ -397,11 +453,7 @@ function OperationList({
             </button>
           </div>
         ))}
-        {!loading && (operations ?? []).length === 0 && (
-          <div className="py-2 px-2.5 text-muted">
-            No operations known yet: use “Check sources now” in the page's settings, or publish.
-          </div>
-        )}
+        {!loading && (all ?? []).length === 0 && <div className="py-2 px-2.5 text-muted">{empty}</div>}
       </div>
     </>
   );

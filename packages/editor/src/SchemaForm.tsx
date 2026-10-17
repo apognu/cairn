@@ -292,6 +292,10 @@ export function PageField({ id, value, onChange }: { id: string; value: string; 
               <>
                 {operation} <span className="text-muted">· {chosen.title}</span>
               </>
+            ) : target.anchor ? (
+              <>
+                {chosen.title} <span className="text-muted">#{target.anchor}</span>
+              </>
             ) : (
               chosen.title
             )}
@@ -312,7 +316,7 @@ export function PageField({ id, value, onChange }: { id: string; value: string; 
         <PagePicker
           style={{ position: "absolute", left: 0, right: 0, top: "100%", width: "auto" }}
           onClose={() => setOpen(false)}
-          operations
+          anchors
           onPage={(page, chosenOperation) => {
             onChange(chosenOperation ? `${page.id}#${chosenOperation.anchor}` : page.id);
             setOpen(false);

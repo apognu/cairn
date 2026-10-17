@@ -243,7 +243,7 @@ export function Canvas({
                 setPicker(null);
                 editor?.commands.focus();
               }}
-              operations
+              anchors
               onPage={(page, operation) =>
                 linkTo({
                   href: full.urls[page.id] ?? "",

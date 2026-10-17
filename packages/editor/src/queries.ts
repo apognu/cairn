@@ -1,3 +1,4 @@
+import { collectHeadings, type DocNode } from "@cairn/renderer";
 import { keepPreviousData, useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./api/client";
 import type { components } from "./api/schema";
@@ -432,6 +433,18 @@ export function useApiOperations(id: string | null) {
     enabled: id !== null,
     queryFn: async () =>
       unwrap(await api.GET("/api/pages/{id}/operations", { params: { path: { id: id as string } } })),
+  });
+}
+
+/** The headings of a page's draft, with the anchors the renderer gives them: where a link to one of its sections can point. */
+export function usePageHeadings(id: string | null) {
+  return useQuery({
+    queryKey: ["page-headings", id],
+    enabled: id !== null,
+    queryFn: async () => {
+      const draft = unwrap(await api.GET("/api/pages/{id}/draft", { params: { path: { id: id as string } } }));
+      return collectHeadings(draft.doc as DocNode).list;
+    },
   });
 }
 

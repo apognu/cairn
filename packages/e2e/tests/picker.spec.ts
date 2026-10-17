@@ -55,7 +55,7 @@ test("deleting a linked page lists every page that links to it", async ({ page }
     await page.getByRole("dialog", { name: "Link to" }).getByRole("combobox").fill(target);
     await page
       .getByRole("option", { name: new RegExp(target) })
-      .getByRole("button")
+      .getByRole("button", { name: new RegExp(`^${target}`) })
       .click();
     await expect(page.getByRole("status")).toHaveText("Saved");
   }
@@ -104,7 +104,7 @@ test("a link card shows the title and description of the page it points to", asy
   await panel.getByRole("combobox").fill(target);
   await page
     .getByRole("option", { name: new RegExp(target) })
-    .getByRole("button")
+    .getByRole("button", { name: new RegExp(`^${target}`) })
     .click();
 
   const card = page.locator(".ProseMirror .link-card");
