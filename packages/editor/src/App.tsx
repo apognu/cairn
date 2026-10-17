@@ -7,15 +7,16 @@ import { useEditorEvents } from "./events";
 import { FixtureView } from "./FixtureView";
 import { HistoryDrawer } from "./HistoryDrawer";
 import { Icon } from "./icons";
+import { clock } from "./LockBanner";
 import { useCloseMenus } from "./menus";
 import { PageEditor, type PageStatus } from "./PageEditor";
 import { PageSettings } from "./PageSettings";
 import { PublishDialog } from "./PublishDialog";
-import { pendingCount, useCan, usePages, usePending, useSettings, useSiteInfo } from "./queries";
+import { pendingCount, useCan, usePages, usePending, useReaderLinks, useSettings, useSiteInfo } from "./queries";
 import { type SettingsSection, SettingsView, sectionTitle } from "./SettingsView";
 import { Sidebar } from "./Sidebar";
 import { SideDrawer, useModal } from "./sidePanel";
-import { firstPage, type Page, pageUrls } from "./tree";
+import { firstPage, type Page } from "./tree";
 import { UserMenu } from "./UserMenu";
 import * as ui from "./ui";
 import { useMobile, useNarrow } from "./useNarrow";
@@ -45,6 +46,7 @@ const actionLook: Record<ActionsAt, string> = {
   menu: "flex items-center gap-2 py-1.5 px-2.5 border-0 rounded-[5px] bg-transparent text-text text-ui text-left no-underline cursor-pointer hover:bg-hover aria-pressed:bg-hover disabled:text-muted disabled:cursor-default",
 };
 const actionIcon = "flex-none text-muted";
+const iconAction = `inline-flex flex-none items-center justify-center w-8 h-8 rounded-[7px] no-underline ${ui.button}`;
 
 export function App() {
   const fixture = new URLSearchParams(window.location.hash.slice(1)).get("fixture");
@@ -126,14 +128,11 @@ function Editor() {
     if (first) select(first.id);
   }, [section, pages.data, pages.isFetching, current, select]);
 
-  // The page as readers see it now: its live address, which is the old one while a move or rename is pending, and none before its
-  // first publish.
   const site = useSiteInfo();
+  const reader = useReaderLinks(current && current.kind !== "link" ? current.id : undefined);
   const canEdit = useCan("editor");
   const canPublish = useCan("publisher");
   const canAdmin = useCan("admin");
-  const change = pending.data?.changes.find((c) => c.page_id === current?.id);
-  const liveUrl = current && (change ? change.old_url : pageUrls(pages.data ?? [])[current.id]);
 
   const openSettings = (next: SettingsSection | null) => {
     window.history.replaceState(
@@ -174,20 +173,56 @@ function Editor() {
     current &&
     current.kind !== "link" && (
       <>
-        {liveUrl && site.data ? (
+        {site.data?.capabilities.preview &&
+          (reader.data?.preview ? (
+            <a
+              className={`${actionLook[at]} hover:bg-hover`}
+              href={reader.data.preview.url}
+              target="_blank"
+              rel="noopener"
+              title={
+                reader.data.preview.outdated
+                  ? `Preview from ${clock(reader.data.preview.created_at)}, older than the latest edits`
+                  : `Preview from ${clock(reader.data.preview.created_at)}`
+              }
+            >
+              <Icon name="eye" size={15} className={actionIcon} />
+              View as reader
+            </a>
+          ) : (
+            <button
+              type="button"
+              className={actionLook[at]}
+              disabled
+              title="No preview of this page yet — deploy one from the Publish dialog"
+            >
+              <Icon name="eye" size={15} className={actionIcon} />
+              View as reader
+            </button>
+          ))}
+        {/* Beside the other actions only its icon fits; the menu has room for its words. */}
+        {reader.data?.live ? (
           <a
-            className={`${actionLook[at]} hover:bg-hover`}
-            href={`${site.data.url}${liveUrl}`}
+            className={at === "menu" ? actionLook.menu : `${iconAction} hover:bg-hover`}
+            href={reader.data.live}
             target="_blank"
             rel="noopener"
+            aria-label="See live version"
+            title="See live version"
           >
-            <Icon name="eye" size={15} className={actionIcon} />
-            View as reader
+            <Icon name="external" size={15} className={actionIcon} />
+            {at === "menu" && "See live version"}
           </a>
         ) : (
-          <button type="button" className={actionLook[at]} disabled title="This page has not been published yet">
-            <Icon name="eye" size={15} className={actionIcon} />
-            View as reader
+          <button
+            type="button"
+            className={at === "menu" ? actionLook.menu : iconAction}
+            disabled
+            aria-label="See live version"
+            title="This page has not been published yet"
+          >
+            <Icon name="external" size={15} className={actionIcon} />
+            {at === "menu" && "See live version"}
           </button>
         )}
         {current.kind === "page" && (

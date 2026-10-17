@@ -1570,6 +1570,33 @@
         }
       }
     },
+    "/api/pages/{id}/reader": {
+      "get": {
+        "summary": "Where a page can be read now: live, and in the latest preview. Each address comes from that release's own tree, so a page moved or\nrenamed since still opens where the release has it.",
+        "operationId": "readerLinks",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/PageId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReaderLinks"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/pages/{id}/restore": {
       "post": {
         "summary": "Makes an older version the page's draft, and optionally its title and description the page's. The draft it replaces stays in the\nhistory, so the restore can be undone.",
@@ -4322,6 +4349,31 @@
           }
         }
       },
+      "PreviewLink": {
+        "type": "object",
+        "required": [
+          "url",
+          "release_id",
+          "created_at",
+          "outdated"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "outdated": {
+            "type": "boolean",
+            "description": "The page changed since the preview was built: its saved draft, or its address."
+          },
+          "release_id": {
+            "$ref": "#/components/schemas/ReleaseId"
+          },
+          "url": {
+            "type": "string"
+          }
+        }
+      },
       "Problem": {
         "type": "object",
         "description": "A problem that stops a publish, with the page it is on.",
@@ -4418,6 +4470,30 @@
           },
           "title": {
             "type": "string"
+          }
+        }
+      },
+      "ReaderLinks": {
+        "type": "object",
+        "description": "A page's addresses in the published releases, for the editor's \"View as reader\" and \"See live version\".",
+        "properties": {
+          "live": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The page on the live site; none before it was first published."
+          },
+          "preview": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PreviewLink",
+                "description": "The page in the newest preview; none when there is no preview, or the page is not in it."
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         }
       },

@@ -163,8 +163,17 @@ pub async fn kept_render_keys(db: &DatabaseConnection) -> Result<Option<HashSet<
 }
 
 pub async fn latest_live_release(db: &impl ConnectionTrait) -> Result<Option<Release>, StoreError> {
+  latest_release(db, ReleaseStatus::Live).await
+}
+
+/// The newest preview that was not promoted, if any.
+pub async fn latest_preview_release(db: &impl ConnectionTrait) -> Result<Option<Release>, StoreError> {
+  latest_release(db, ReleaseStatus::Preview).await
+}
+
+async fn latest_release(db: &impl ConnectionTrait, status: ReleaseStatus) -> Result<Option<Release>, StoreError> {
   let row = release::Entity::find()
-    .filter(release::Column::Status.eq(ReleaseStatus::Live.as_str()))
+    .filter(release::Column::Status.eq(status.as_str()))
     .order_by_desc(release::Column::Id)
     .one(db)
     .await?;

@@ -103,14 +103,29 @@ export function usePublish() {
     /** `pages` publishes a hotfix of them; without it, everything pending goes out. */
     mutationFn: async (pages?: string[]) =>
       unwrap(await api.POST("/api/publish", { body: pages ? { pages } : undefined })),
-    onSuccess: () =>
-      Promise.all([client.invalidateQueries({ queryKey: PENDING }), client.invalidateQueries({ queryKey: ["site"] })]),
+    onSuccess: () => Promise.all([PENDING, ["site"], READER].map((queryKey) => client.invalidateQueries({ queryKey }))),
   });
 }
 
 /** Builds the pending changes without making them live. Only targets with previews offer it. */
 export function usePreview() {
-  return useMutation({ mutationFn: async () => unwrap(await api.POST("/api/publish/preview")) });
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () => unwrap(await api.POST("/api/publish/preview")),
+    onSuccess: () => client.invalidateQueries({ queryKey: READER }),
+  });
+}
+
+const READER = ["reader"];
+
+/** Where the page can be read: on the live site and in the latest preview, each as that release has it. */
+export function useReaderLinks(id: string | undefined) {
+  return useQuery({
+    queryKey: [...READER, id],
+    enabled: id !== undefined,
+    queryFn: async () => unwrap(await api.GET("/api/pages/{id}/reader", { params: { path: { id: id as string } } })),
+  });
 }
 
 /** Makes a preview the live site. */
@@ -120,8 +135,7 @@ export function usePromote() {
   return useMutation({
     mutationFn: async (id: string) =>
       unwrap(await api.POST("/api/releases/{id}/promote", { params: { path: { id } } })),
-    onSuccess: () =>
-      Promise.all([client.invalidateQueries({ queryKey: PENDING }), client.invalidateQueries({ queryKey: ["site"] })]),
+    onSuccess: () => Promise.all([PENDING, ["site"], READER].map((queryKey) => client.invalidateQueries({ queryKey }))),
   });
 }
 
@@ -137,7 +151,7 @@ export function useRollback() {
     mutationFn: async (id: string) =>
       unwrap(await api.POST("/api/releases/{id}/rollback", { params: { path: { id } } })),
     onSuccess: () =>
-      Promise.all([PENDING, ["site"], ["releases"]].map((queryKey) => client.invalidateQueries({ queryKey }))),
+      Promise.all([PENDING, ["site"], ["releases"], READER].map((queryKey) => client.invalidateQueries({ queryKey }))),
   });
 }
 

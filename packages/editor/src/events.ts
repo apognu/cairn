@@ -38,8 +38,10 @@ export function useEditorEvents() {
       const next = new EventSource(serverUrl("/api/events"));
       next.onmessage = (message) => {
         const event = JSON.parse(message.data) as EditorEvent;
-        if (event.type === "published") void queryClient.invalidateQueries({ queryKey: PENDING });
-        else void queryClient.invalidateQueries({ queryKey: ["locks"] });
+        if (event.type === "published") {
+          void queryClient.invalidateQueries({ queryKey: PENDING });
+          void queryClient.invalidateQueries({ queryKey: ["reader"] });
+        } else void queryClient.invalidateQueries({ queryKey: ["locks"] });
         for (const listener of listeners) listener(event);
       };
       next.onerror = () => {

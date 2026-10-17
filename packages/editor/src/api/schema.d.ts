@@ -485,6 +485,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/pages/{id}/reader": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Where a page can be read now: live, and in the latest preview. Each address comes from that release's own tree, so a page moved or
+         *     renamed since still opens where the release has it.
+         */
+        get: operations["readerLinks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/pages/{id}/restore": {
         parameters: {
             query?: never;
@@ -1467,6 +1487,14 @@ export interface components {
         PlanRequest: {
             pages: components["schemas"]["PageId"][];
         };
+        PreviewLink: {
+            /** Format: date-time */
+            created_at: string;
+            /** @description The page changed since the preview was built: its saved draft, or its address. */
+            outdated: boolean;
+            release_id: components["schemas"]["ReleaseId"];
+            url: string;
+        };
         /** @description A problem that stops a publish, with the page it is on. */
         Problem: {
             kind: components["schemas"]["ProblemKind"];
@@ -1505,6 +1533,12 @@ export interface components {
             page_id: components["schemas"]["PageId"];
             reason: components["schemas"]["PullReason"];
             title: string;
+        };
+        /** @description A page's addresses in the published releases, for the editor's "View as reader" and "See live version". */
+        ReaderLinks: {
+            /** @description The page on the live site; none before it was first published. */
+            live?: string | null;
+            preview?: components["schemas"]["PreviewLink"] | null;
         };
         /** @description A redirect as the Settings page shows it. */
         RedirectEntry: {
@@ -3072,6 +3106,27 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    readerLinks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["PageId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReaderLinks"];
                 };
             };
         };

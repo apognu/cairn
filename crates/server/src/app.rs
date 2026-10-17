@@ -15,7 +15,7 @@ use cairn_render::Pool;
 use cairn_store::SqlContentStore;
 use sea_orm::DatabaseConnection;
 
-use crate::{api_pages, drafts, highlight, history, jobs, library, links, locks, me, pages, publish, redirects, reviews, settings, tokens, uploads, urls, users};
+use crate::{api_pages, drafts, highlight, history, jobs, library, links, locks, me, pages, publish, reader, redirects, reviews, settings, tokens, uploads, urls, users};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -105,6 +105,7 @@ pub fn api() -> (Router<AppState>, utoipa::openapi::OpenApi) {
     .merge(jobs::routes())
     .merge(reviews::routes())
     .merge(users::routes())
+    .merge(reader::routes())
     .split_for_parts();
   // The router's default info describes utoipa-axum itself.
   spec.info = utoipa::openapi::InfoBuilder::new().title("cairn").version(env!("CARGO_PKG_VERSION")).build();
@@ -280,6 +281,7 @@ mod tests {
     ("POST", "/api/pages/{id}/lock/take-over", Role::Editor),
     ("POST", "/api/pages/{id}/move", Role::Editor),
     ("GET", "/api/pages/{id}/operations", Role::Viewer),
+    ("GET", "/api/pages/{id}/reader", Role::Viewer),
     ("POST", "/api/pages/{id}/restore", Role::Editor),
     ("GET", "/api/pages/{id}/review", Role::Viewer),
     ("PUT", "/api/pages/{id}/review", Role::Editor),

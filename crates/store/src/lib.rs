@@ -40,8 +40,8 @@ pub use purge::purge_trash;
 pub use redirects::{draft_docs, draft_revisions, list_redirects};
 pub use release_log::{ReleaseEntry, release_log};
 pub use releases::{
-  LiveRelease, ReleasePage, add_release_pages, create_release, get_release, get_setting, kept_render_keys, latest_live_release, live_release, load_settings, make_release_live, release_state_of,
-  save_settings, set_release_deployment, set_release_render_keys, set_release_stats, set_release_status, set_setting,
+  LiveRelease, ReleasePage, add_release_pages, create_release, get_release, get_setting, kept_render_keys, latest_live_release, latest_preview_release, live_release, load_settings, make_release_live,
+  release_state_of, save_settings, set_release_deployment, set_release_render_keys, set_release_stats, set_release_status, set_setting,
 };
 pub use reviews::{StaleRow, list_users, mark_reviewed, page_review, set_page_review, stale_pages};
 pub use sea_orm::DatabaseConnection;

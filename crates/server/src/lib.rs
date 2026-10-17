@@ -20,6 +20,7 @@ mod me;
 mod pages;
 mod proxy;
 mod publish;
+mod reader;
 mod redirects;
 mod reviews;
 mod serving;
