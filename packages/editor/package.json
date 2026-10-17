@@ -27,6 +27,8 @@
     "@cairn/sdk": "workspace:*",
     "emojibase-data": "17.0.0",
     "lucide-static": "1.48.0",
+    "micromark": "4.0.3",
+    "micromark-extension-gfm": "3.0.0",
     "openapi-fetch": "0.17.0",
     "react": "19.1.1",
     "react-dom": "19.1.1"

@@ -14,6 +14,7 @@ import { createPortal } from "react-dom";
 import { BlockMenu } from "./BlockMenu";
 import { BubbleMenus } from "./BubbleMenus";
 import { buildExtensions } from "./extensions";
+import { looksLikeMarkdown, markdownToHtml } from "./markdown";
 import { PagePicker } from "./PagePicker";
 import { PropsPanel } from "./PropsPanel";
 import { PICKER_EVENT, type PickerRequest, pageUrlRegistry } from "./pageLink";
@@ -64,9 +65,20 @@ export function Canvas({
     editorProps: {
       // Pasted or dropped pictures are uploaded and inserted where they landed.
       handlePaste: (_view, event) => {
-        const files = Array.from(event.clipboardData?.files ?? []).filter((f) => f.type.startsWith("image/"));
-        if (files.length === 0 || !editorRef.current) return false;
-        void insertImages(editorRef.current, files);
+        const editor = editorRef.current;
+        if (!editor || !event.clipboardData) return false;
+
+        const files = Array.from(event.clipboardData.files).filter((f) => f.type.startsWith("image/"));
+        if (files.length > 0) {
+          void insertImages(editor, files);
+          return true;
+        }
+
+        // Text from a README, a terminal or a chat comes as Markdown only; with HTML on the clipboard, ProseMirror pastes that instead.
+        const text = event.clipboardData.getData("text/plain");
+        if (event.clipboardData.types.includes("text/html") || editor.isActive("codeBlock") || !looksLikeMarkdown(text))
+          return false;
+        editor.commands.insertContent(markdownToHtml(text));
         return true;
       },
       handleDrop: (view, event) => {
