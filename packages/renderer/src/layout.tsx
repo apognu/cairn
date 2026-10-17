@@ -491,6 +491,28 @@ export function SiteLayout({
             id={navId}
             aria-label="Pages"
           >
+            {context.sectionBack && (
+              // A section's sidebar lists only that section: this is the way back to the rest of the site.
+              <a
+                className="site-nav-back flex items-center gap-1.5 mt-0.5 mx-0 mb-2 pt-1 pb-3.5 px-2.5 tablet:pt-1.75 tablet:pb-4 border-b border-border text-muted text-help no-underline hover:text-body"
+                href={context.sectionBack.href}
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M15 18l-6-6 6-6" />
+                </svg>
+                {context.sectionBack.title}
+              </a>
+            )}
             {context.header.length > 0 && (
               // On a narrow screen the header has no room for its sections: they head the menu, a little bolder than the pages.
               <ul
@@ -509,28 +531,6 @@ export function SiteLayout({
                   </li>
                 ))}
               </ul>
-            )}
-            {context.sectionBack && (
-              // A section's sidebar lists only that section: this is the way back to the rest of the site.
-              <a
-                className="site-nav-back flex items-center gap-1.5 mt-0.5 mx-0 mb-2 pt-1 tablet:pt-1.75 pb-2 px-2.5 border-b border-border text-muted text-help no-underline hover:text-body"
-                href={context.sectionBack.href}
-              >
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden="true"
-                >
-                  <path d="M15 18l-6-6 6-6" />
-                </svg>
-                {context.sectionBack.title}
-              </a>
             )}
             <NavList nodes={context.nav} currentId={context.page.id} />
             <Slot name="SidebarFooter" slots={slots} context={context} />
