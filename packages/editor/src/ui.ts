@@ -47,6 +47,9 @@ export const sectionHead = "flex items-center justify-between mt-6.5 mb-2.5";
 export const rowInput = "flex-1 min-w-0 h-8.5 px-2.5 border border-input rounded-md bg-bg";
 export const rowSubmit = `h-8.5 px-3 rounded-md ${button}`;
 export const smallButton = `h-7 px-2.5 rounded-md ${button}`;
+/** The small move and remove buttons of a list's rows. */
+export const itemButton =
+  "w-6 h-6 border border-transparent rounded-md bg-bg text-muted cursor-pointer enabled:hover:border-input enabled:hover:text-text disabled:opacity-35 disabled:cursor-default";
 export const icon =
   "w-6 h-6 border-0 rounded-[5px] bg-transparent text-muted cursor-pointer hover:bg-border hover:text-text";
 

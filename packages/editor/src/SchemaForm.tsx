@@ -2,13 +2,11 @@ import { type JsonSchema, operationLabel, pageTarget } from "@cairn/sdk";
 import { useId, useState } from "react";
 import { IconPicker } from "./IconPicker";
 import { PagePicker } from "./PagePicker";
-import { useLibrary, usePages } from "./queries";
+import { useLibrary, usePageHeadings, usePages } from "./queries";
 import * as ui from "./ui";
 
 /** A group of fields (an object), or a list of entries. */
 const group = "mt-0 mx-0 mb-3.5 min-w-0";
-const itemButton =
-  "w-6 h-6 border border-transparent rounded-md bg-bg text-muted cursor-pointer enabled:hover:border-input enabled:hover:text-text disabled:opacity-35 disabled:cursor-default";
 
 type Values = Record<string, unknown>;
 
@@ -63,11 +61,14 @@ export function SchemaForm({
 
 function Field({
   label,
+  labelHidden = false,
   schema,
   value,
   onChange,
 }: {
   label: string;
+  /** Read by screen readers only: a list item's header already says what the field holds. */
+  labelHidden?: boolean;
   schema: JsonSchema;
   value: unknown;
   onChange: (next: unknown) => void;
@@ -98,7 +99,7 @@ function Field({
 
   return (
     <div className={ui.field}>
-      <label htmlFor={id} className={ui.fieldLabel}>
+      <label htmlFor={id} className={labelHidden ? "sr-only" : ui.fieldLabel}>
         {label}
       </label>
       {schema["x-field"] === "page" ? (
@@ -185,12 +186,16 @@ function ListField({
               ⠿
             </span>
             <span className="flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
-              {summaryOf(entry) ?? `${label} ${i + 1}`}
+              {item["x-field"] === "page" ? (
+                <PageLabel value={String(entry ?? "")} empty={`No ${one} chosen`} />
+              ) : (
+                (summaryOf(entry) ?? `${label} ${i + 1}`)
+              )}
             </span>
             <span className="flex gap-0.5">
               <button
                 type="button"
-                className={itemButton}
+                className={ui.itemButton}
                 aria-label={`Move ${label} ${i + 1} up`}
                 disabled={i === 0}
                 onClick={(e) => {
@@ -202,7 +207,7 @@ function ListField({
               </button>
               <button
                 type="button"
-                className={itemButton}
+                className={ui.itemButton}
                 aria-label={`Move ${label} ${i + 1} down`}
                 disabled={i === value.length - 1}
                 onClick={(e) => {
@@ -214,7 +219,7 @@ function ListField({
               </button>
               <button
                 type="button"
-                className={itemButton}
+                className={ui.itemButton}
                 aria-label={`Remove ${label} ${i + 1}`}
                 // Fewer than the schema allows and the component could no longer render.
                 disabled={value.length <= (schema.minItems ?? 0)}
@@ -235,7 +240,13 @@ function ListField({
                 onChange={(name, next) => replace(i, { ...(entry as Values), [name]: next })}
               />
             ) : (
-              <Field label={`${label} ${i + 1}`} schema={item} value={entry} onChange={(next) => replace(i, next)} />
+              <Field
+                label={`${label} ${i + 1}`}
+                labelHidden={item["x-field"] === "page"}
+                schema={item}
+                value={entry}
+                onChange={(next) => replace(i, next)}
+              />
             )}
           </div>
         </details>
@@ -267,15 +278,40 @@ function summaryOf(entry: unknown): string | undefined {
   return typeof named === "string" && named ? named : undefined;
 }
 
-/** A component's page field: the chosen page's title, or the operation of an API page, and a button that opens the page picker. */
-export function PageField({ id, value, onChange }: { id: string; value: string; onChange: (next: string) => void }) {
+/**
+ * What a page field points at, as authors know it: the page's title, or for an API operation the operation then the page, or for a section
+ * the page then the section's heading.
+ */
+function PageLabel({ value, empty }: { value: string; empty: string }) {
   const pages = usePages();
-  const [open, setOpen] = useState(false);
   const target = pageTarget(value);
   const chosen = pages.data?.find((p) => p.id === target.id);
   const operation = operationLabel(target.anchor);
+  const headings = usePageHeadings(chosen && target.anchor && !operation ? chosen.id : null);
+  const section = headings.data?.find((h) => h.anchor === target.anchor)?.text;
+
   // Still pointing at a page that was deleted: it counts as a broken link until it is changed or removed.
-  const gone = Boolean(value) && pages.data !== undefined && !chosen;
+  if (value && pages.data !== undefined && !chosen) return <span className="text-danger">Deleted page</span>;
+  if (!chosen) return <span className="text-muted">{empty}</span>;
+  if (operation)
+    return (
+      <>
+        {operation} <span className="text-muted">· {chosen.title}</span>
+      </>
+    );
+  if (target.anchor)
+    return (
+      <>
+        {chosen.title} <span className="text-muted">› {section ?? `#${target.anchor}`}</span>
+      </>
+    );
+
+  return <>{chosen.title}</>;
+}
+
+/** A component's page field: what it points at, and a button that opens the page picker. */
+export function PageField({ id, value, onChange }: { id: string; value: string; onChange: (next: string) => void }) {
+  const [open, setOpen] = useState(false);
 
   return (
     <div className="relative flex gap-1.5">
@@ -286,25 +322,9 @@ export function PageField({ id, value, onChange }: { id: string; value: string; 
         aria-haspopup="dialog"
         onClick={() => setOpen(true)}
       >
-        {chosen ? (
-          <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
-            {operation ? (
-              <>
-                {operation} <span className="text-muted">· {chosen.title}</span>
-              </>
-            ) : target.anchor ? (
-              <>
-                {chosen.title} <span className="text-muted">#{target.anchor}</span>
-              </>
-            ) : (
-              chosen.title
-            )}
-          </span>
-        ) : gone ? (
-          <span className="text-danger">Deleted page</span>
-        ) : (
-          <span className="text-muted">No link</span>
-        )}
+        <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
+          <PageLabel value={value} empty="No link" />
+        </span>
         <span className={`flex-none ${ui.linkButton}`}>{value ? "Change" : "Choose"}</span>
       </button>
       {value && (
