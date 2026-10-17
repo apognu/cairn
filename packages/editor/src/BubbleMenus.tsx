@@ -1,4 +1,5 @@
-import { type Editor, isTextSelection } from "@tiptap/core";
+import { type Editor, findParentNode, isTextSelection } from "@tiptap/core";
+import { CellSelection } from "@tiptap/pm/tables";
 import { useEditorState } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import { useEffect, useState } from "react";
@@ -10,7 +11,7 @@ const bubble = "flex items-center border border-input rounded-lg bg-bg shadow-po
 const bubbleButton =
   "min-w-7 h-7 px-1.5 border-0 rounded-[5px] bg-transparent cursor-pointer hover:bg-hover aria-pressed:bg-hover aria-pressed:text-accent aria-pressed:font-bold";
 
-/** Floating tools: formatting for a text selection, a link the cursor is in. */
+/** Floating tools: formatting for a text selection, a link the cursor is in, the table the cursor is in. */
 export function BubbleMenus({ editor }: { editor: Editor }) {
   return (
     <>
@@ -35,6 +36,27 @@ export function BubbleMenus({ editor }: { editor: Editor }) {
         options={{ placement: "bottom-start" }}
       >
         <LinkTools editor={editor} />
+      </BubbleMenu>
+      <BubbleMenu
+        editor={editor}
+        pluginKey="tableMenu"
+        updateDelay={0}
+        // Selected words get the formatting tools and a link its own; the table's tools are for a caret or selected cells.
+        shouldShow={({ editor: e, state }) =>
+          e.isEditable &&
+          e.isActive("table") &&
+          !e.isActive("link") &&
+          (state.selection.empty || state.selection instanceof CellSelection)
+        }
+        // Above the table rather than the caret, so the tools never cover the cell being typed in.
+        getReferencedVirtualElement={() => {
+          const table = findParentNode((node) => node.type.name === "table")(editor.state.selection);
+          const dom = table && editor.view.nodeDOM(table.pos);
+          return dom instanceof HTMLElement ? dom : null;
+        }}
+        options={{ placement: "top-start", offset: 6 }}
+      >
+        <TableTools editor={editor} />
       </BubbleMenu>
     </>
   );
@@ -207,6 +229,104 @@ function LinkTools({ editor }: { editor: Editor }) {
       >
         Remove
       </button>
+    </div>
+  );
+}
+
+/** Rows, columns and the header row of the table the cursor is in. */
+function TableTools({ editor }: { editor: Editor }) {
+  const state = useEditorState({
+    editor,
+    selector: ({ editor: e }) => {
+      const table = findParentNode((node) => node.type.name === "table")(e.state.selection);
+      return {
+        header: table?.node.firstChild?.firstChild?.type.name === "tableHeader",
+        deleteRow: e.can().deleteRow(),
+        deleteColumn: e.can().deleteColumn(),
+      };
+    },
+  });
+
+  const tool = (label: string, text: string, run: () => void, enabled = true, look = "") => (
+    <button
+      type="button"
+      className={`${bubbleButton} disabled:opacity-40 disabled:cursor-default ${look}`}
+      aria-label={label}
+      title={label}
+      disabled={!enabled}
+      onClick={run}
+      onMouseDown={(e) => e.preventDefault()}
+    >
+      {text}
+    </button>
+  );
+  const run = (command: (chain: ReturnType<Editor["chain"]>) => ReturnType<Editor["chain"]>) => () =>
+    command(editor.chain().focus()).run();
+  const group = "flex items-center gap-0.5";
+  const groupLabel = "px-1 text-label text-muted";
+
+  return (
+    <div
+      className={`${bubble} flex-wrap gap-x-2.5 gap-y-1 p-1 max-w-[calc(100vw-32px)]`}
+      role="toolbar"
+      aria-label="Table"
+    >
+      <span className={group}>
+        <span className={groupLabel}>Row</span>
+        {tool(
+          "Add a row above",
+          "+ Above",
+          run((c) => c.addRowBefore()),
+        )}
+        {tool(
+          "Add a row below",
+          "+ Below",
+          run((c) => c.addRowAfter()),
+        )}
+        {tool(
+          "Delete the row",
+          "Delete",
+          run((c) => c.deleteRow()),
+          state.deleteRow,
+        )}
+      </span>
+      <span className={group}>
+        <span className={groupLabel}>Column</span>
+        {tool(
+          "Add a column to the left",
+          "+ Left",
+          run((c) => c.addColumnBefore()),
+        )}
+        {tool(
+          "Add a column to the right",
+          "+ Right",
+          run((c) => c.addColumnAfter()),
+        )}
+        {tool(
+          "Delete the column",
+          "Delete",
+          run((c) => c.deleteColumn()),
+          state.deleteColumn,
+        )}
+      </span>
+      <span className={group}>
+        <button
+          type="button"
+          className={bubbleButton}
+          aria-pressed={state.header}
+          onClick={run((c) => c.toggleHeaderRow())}
+          onMouseDown={(e) => e.preventDefault()}
+        >
+          Header row
+        </button>
+        {tool(
+          "Delete the table",
+          "Delete table",
+          run((c) => c.deleteTable()),
+          true,
+          "text-danger",
+        )}
+      </span>
     </div>
   );
 }
