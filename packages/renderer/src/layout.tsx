@@ -524,7 +524,8 @@ export function SiteLayout({
                     <a
                       href={section.href}
                       className={`${navLink()} font-semibold text-text`}
-                      aria-current={section.id === context.section ? "page" : undefined}
+                      // The header marks the whole section; here the pages follow, so only the section's own page is current.
+                      aria-current={section.id === context.page.id ? "page" : undefined}
                     >
                       {section.title}
                     </a>
