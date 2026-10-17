@@ -780,9 +780,22 @@ a.link-card:hover {
   content: "·";
 }
 
-.site-search .pagefind-ui__search-input {
-  height: 34px;
-  font-size: 14px;
+/* On a wide screen the field matches the header's 34px buttons, leaving it room above and below. Pagefind's sheet loads after this one,
+   so the selectors carry one more class; a narrow screen keeps Pagefind's larger field, made for a finger. */
+@media (min-width: 901px) {
+  .site-search .pagefind-ui .pagefind-ui__search-input {
+    height: 34px;
+    font-size: 14px;
+  }
+
+  .site-search .pagefind-ui .pagefind-ui__form::before {
+    top: 11px;
+  }
+
+  .site-search .pagefind-ui .pagefind-ui__search-clear {
+    top: 3px;
+    height: 28px;
+  }
 }
 
 /* Library content: a variable reads as part of the sentence, a snippet as the page's own blocks. */
