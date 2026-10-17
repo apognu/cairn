@@ -1,3 +1,4 @@
+import { pageTarget } from "@cairn/sdk";
 import { createContext, type ReactNode, useContext } from "react";
 
 /** What components may know about the page being rendered. Provided by the renderer and the editor; never fetched during render. */
@@ -26,3 +27,10 @@ export const RenderEnvContext = createContext<RenderEnv>({
 });
 
 export const useRenderEnv = () => useContext(RenderEnvContext);
+
+/** Where a page field leads: the page's URL, followed by the operation's anchor when it names one; undefined while the page has no URL. */
+export function pageHref(urls: Record<string, string>, value: string): string | undefined {
+  const { id, anchor } = pageTarget(value);
+  const url = urls[id];
+  return url && anchor ? `${url}#${anchor}` : url;
+}

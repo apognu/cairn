@@ -80,9 +80,21 @@ export function propsSchema(component: AnyComponent): JsonSchema {
   return z.toJSONSchema(component.props) as JsonSchema;
 }
 
-/** An optional link to another page, stored as the page's ID so moves and renames never break it. */
+/** An optional link to another page, stored as the page's ID so moves and renames never break it; `<ID>#<anchor>` for an operation of an API page. */
 export function link() {
   return z.string().optional().meta({ title: "Page", "x-field": "page" });
+}
+
+/** The page ID and the anchor of a page field's value. */
+export function pageTarget(value: string): { id: string; anchor?: string } {
+  const at = value.indexOf("#");
+  return at < 0 ? { id: value } : { id: value.slice(0, at), anchor: value.slice(at + 1) };
+}
+
+/** `POST /orders` for the anchor `tag/orders/POST/orders`, as Scalar writes it; `undefined` for an anchor that is not an operation. */
+export function operationLabel(anchor: string | undefined): string | undefined {
+  const match = anchor?.match(/^tag\/[^/]*\/([A-Z]+)(\/.*)$/);
+  return match ? `${match[1]} ${match[2]}` : undefined;
 }
 
 /** The name of an icon of the Lucide collection (lucide.dev), chosen in the editor from a searchable grid. */

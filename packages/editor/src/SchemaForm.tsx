@@ -1,4 +1,4 @@
-import type { JsonSchema } from "@cairn/sdk";
+import { type JsonSchema, operationLabel, pageTarget } from "@cairn/sdk";
 import { useId, useState } from "react";
 import { IconPicker } from "./IconPicker";
 import { PagePicker } from "./PagePicker";
@@ -267,11 +267,13 @@ function summaryOf(entry: unknown): string | undefined {
   return typeof named === "string" && named ? named : undefined;
 }
 
-/** A component's page field: the chosen page's title and a button that opens the page picker. */
+/** A component's page field: the chosen page's title, or the operation of an API page, and a button that opens the page picker. */
 export function PageField({ id, value, onChange }: { id: string; value: string; onChange: (next: string) => void }) {
   const pages = usePages();
   const [open, setOpen] = useState(false);
-  const chosen = pages.data?.find((p) => p.id === value);
+  const target = pageTarget(value);
+  const chosen = pages.data?.find((p) => p.id === target.id);
+  const operation = operationLabel(target.anchor);
   // Still pointing at a page that was deleted: it counts as a broken link until it is changed or removed.
   const gone = Boolean(value) && pages.data !== undefined && !chosen;
 
@@ -280,18 +282,26 @@ export function PageField({ id, value, onChange }: { id: string; value: string; 
       <button
         type="button"
         id={id}
-        className="flex flex-1 items-center justify-between h-8.5 px-2.5 border border-input rounded-md bg-bg cursor-pointer"
+        className="flex flex-1 min-w-0 items-center justify-between gap-2 h-8.5 px-2.5 border border-input rounded-md bg-bg cursor-pointer"
         aria-haspopup="dialog"
         onClick={() => setOpen(true)}
       >
         {chosen ? (
-          chosen.title
+          <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
+            {operation ? (
+              <>
+                {operation} <span className="text-muted">· {chosen.title}</span>
+              </>
+            ) : (
+              chosen.title
+            )}
+          </span>
         ) : gone ? (
           <span className="text-danger">Deleted page</span>
         ) : (
           <span className="text-muted">No link</span>
         )}
-        <span className={ui.linkButton}>{value ? "Change" : "Choose"}</span>
+        <span className={`flex-none ${ui.linkButton}`}>{value ? "Change" : "Choose"}</span>
       </button>
       {value && (
         <button type="button" className={ui.icon} aria-label="Remove link" onClick={() => onChange("")}>
@@ -302,8 +312,9 @@ export function PageField({ id, value, onChange }: { id: string; value: string; 
         <PagePicker
           style={{ position: "absolute", left: 0, right: 0, top: "100%", width: "auto" }}
           onClose={() => setOpen(false)}
-          onPage={(page) => {
-            onChange(page.id);
+          operations
+          onPage={(page, chosenOperation) => {
+            onChange(chosenOperation ? `${page.id}#${chosenOperation.anchor}` : page.id);
             setOpen(false);
           }}
         />

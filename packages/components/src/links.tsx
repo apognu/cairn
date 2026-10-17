@@ -1,5 +1,5 @@
-import { defineComponent, link, z } from "@cairn/sdk";
-import { useRenderEnv } from "./env";
+import { defineComponent, link, operationLabel, pageTarget, z } from "@cairn/sdk";
+import { pageHref, type RenderEnv, useRenderEnv } from "./env";
 
 /** Fields named `page` and `pages` are how the server finds a component's links to other pages. */
 const pageList = z.array(z.string().meta({ title: "Page", "x-field": "page" })).default([]);
@@ -21,11 +21,21 @@ function Arrow() {
   );
 }
 
+/** What a link to a page or to an operation of an API page shows: the page's title and description, or the operation and the page's title. */
+function target(value: string, pages: RenderEnv["pages"]): { title: string; description?: string | null } | undefined {
+  const { id, anchor } = pageTarget(value);
+  const page = pages[id];
+  const operation = operationLabel(anchor);
+  if (!page || !operation) return page;
+
+  return { title: operation, description: page.title };
+}
+
 /** A card with the target page's title and description, read from the page itself so a rename reaches every card at the next publish. */
 function PageCard({ id }: { id: string | undefined }) {
   const { urls, pages, editing } = useRenderEnv();
-  const info = id ? pages[id] : undefined;
-  const href = id ? urls[id] : undefined;
+  const info = id ? target(id, pages) : undefined;
+  const href = id ? pageHref(urls, id) : undefined;
 
   if (!info || !href) {
     return editing ? (
@@ -76,7 +86,11 @@ export const relatedPages = defineComponent({
 
 function SeeAlsoLinks({ ids }: { ids: string[] }) {
   const { urls, pages, editing } = useRenderEnv();
-  const found = ids.filter((id) => urls[id] && pages[id]);
+  const found = ids.flatMap((id) => {
+    const href = pageHref(urls, id);
+    const info = target(id, pages);
+    return href && info ? [{ id, href, title: info.title }] : [];
+  });
 
   if (found.length === 0)
     return editing ? (
@@ -89,9 +103,9 @@ function SeeAlsoLinks({ ids }: { ids: string[] }) {
     <aside className="see-also">
       <strong className="see-also-title">See also</strong>
       <ul className="see-also-links">
-        {found.map((id) => (
+        {found.map(({ id, href, title }) => (
           <li key={id}>
-            <a href={urls[id]}>{pages[id].title}</a>
+            <a href={href}>{title}</a>
           </li>
         ))}
       </ul>

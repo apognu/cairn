@@ -1,6 +1,6 @@
 import { date, defineComponent, Editable, icon, link, z } from "@cairn/sdk";
 import { useEffect, useId, useState } from "react";
-import { useRenderEnv } from "./env";
+import { pageHref, useRenderEnv } from "./env";
 import { Icon, upgradeIconNames } from "./icons";
 
 const feature = z
@@ -20,7 +20,7 @@ type Feature = z.infer<typeof feature>;
 /** The card both feature components use: icon, title, description, and a link to a page when one is set. With `path` (where the card sits in the props) its title is written on the canvas. */
 export function FeatureCard({ feature: f, path }: { feature: Feature; path?: string }) {
   const { urls, today } = useRenderEnv();
-  const href = f.page ? urls[f.page] : f.href;
+  const href = f.page ? pageHref(urls, f.page) : f.href;
   // A date in the past hides the tag at the next render; without a date the tag never shows.
   const isNew = Boolean(f.newUntil) && today !== "" && (f.newUntil as string) >= today;
 
