@@ -56,3 +56,28 @@ test("a page can be dragged under a new parent and an external link added", asyn
   const links = (await (await request.get("/api/pages")).json()).filter((p: { kind: string }) => p.kind === "link");
   expect(links.at(-1).external_url).toBe("https://status.example.com");
 });
+
+test("Back and Forward move between the pages and settings that were opened", async ({ page }) => {
+  const tag = Math.random().toString(36).slice(2, 8);
+  const [first, second] = [`Back one ${tag}`, `Back two ${tag}`];
+  const crumbs = page.getByTestId("crumbs");
+  await page.goto("/");
+  for (const title of [first, second]) {
+    await page.getByRole("button", { name: "New page" }).click();
+    await nameNewPage(page, title);
+  }
+
+  await page.getByRole("button", { name: first, exact: true }).click();
+  await expect(crumbs).toHaveText(first);
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await expect(crumbs).toContainText("Settings /");
+
+  await page.goBack();
+  await expect(crumbs).toHaveText(first);
+  await page.goBack();
+  await expect(crumbs).toHaveText(second);
+  await page.goForward();
+  await expect(crumbs).toHaveText(first);
+  await page.goForward();
+  await expect(crumbs).toContainText("Settings /");
+});

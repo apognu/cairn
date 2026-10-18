@@ -77,6 +77,23 @@ function Splash() {
   );
 }
 
+/** The settings section the address shows, if any: an unknown one opens the first. */
+function sectionInUrl(): SettingsSection | null {
+  const value = new URLSearchParams(window.location.hash.slice(1)).get("settings");
+  if (value === null) return null;
+  return Object.hasOwn(sectionTitle, value) ? (value as SettingsSection) : "site";
+}
+
+/**
+ * Shows `url` in the address bar. Moving to another page or section is a step Back can undo; showing the same one again, or a choice
+ * the editor made on its own (`replace`), is not.
+ */
+function navigate(url: string, replace = false) {
+  const same = url === window.location.hash || (url === window.location.pathname && window.location.hash === "");
+  if (replace || same) window.history.replaceState(null, "", url);
+  else window.history.pushState(null, "", url);
+}
+
 /** Titles from the top of the tree down to the page. */
 function breadcrumb(pages: Page[], page: Page): string[] {
   const trail = [page.title];
@@ -116,11 +133,7 @@ function Editor() {
   const [restores, setRestores] = useState(0);
   const settings = useSettings();
   // Settings replace the page tree and the canvas; the section lives in the URL like the selected page does.
-  const [section, setSection] = useState<SettingsSection | null>(() => {
-    const value = new URLSearchParams(window.location.hash.slice(1)).get("settings");
-    if (value === null) return null;
-    return Object.hasOwn(sectionTitle, value) ? (value as SettingsSection) : "site";
-  });
+  const [section, setSection] = useState<SettingsSection | null>(sectionInUrl);
 
   // Authors write inside the site's colors: the saved theme is applied to the whole editor, as the published pages get it.
   const themeCss = useQuery({
@@ -137,18 +150,32 @@ function Editor() {
   const current = pages.data?.find((p) => p.id === selected);
   const trail = current ? breadcrumb(pages.data ?? [], current) : [];
 
-  const select = useCallback((id: string | null) => {
-    window.history.replaceState(null, "", id ? `#page=${id}` : window.location.pathname);
+  const select = useCallback((id: string | null, replace = false) => {
+    navigate(id ? `#page=${id}` : window.location.pathname, replace);
     setSelected(id);
   }, []);
 
-  // There is always a page open when there is one: on arrival, and after the open page was deleted.
+  // There is always a page open when there is one: on arrival, and after the open page was deleted. Not a step of its own, or Back
+  // would come to the empty address and be sent forward again.
   // A page just created is selected before the list that holds it comes back: only a settled list says a page is really gone.
   useEffect(() => {
     if (section || !pages.data || pages.isFetching || current) return;
     const first = firstPage(pages.data);
-    if (first) select(first.id);
+    if (first) select(first.id, true);
   }, [section, pages.data, pages.isFetching, current, select]);
+
+  // Back and Forward. Settings keep the page that was open, so closing them goes back to it.
+  useEffect(() => {
+    const onPop = () => {
+      const page = new URLSearchParams(window.location.hash.slice(1)).get("page");
+      if (page) setSelected(page);
+      setSection(sectionInUrl());
+      setNavOpen(false);
+    };
+    window.addEventListener("popstate", onPop);
+
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
 
   const site = useSiteInfo();
   const reader = useReaderLinks(current && current.kind !== "link" ? current.id : undefined);
@@ -157,11 +184,7 @@ function Editor() {
   const canAdmin = useCan("admin");
 
   const openSettings = (next: SettingsSection | null) => {
-    window.history.replaceState(
-      null,
-      "",
-      next ? `#settings=${next}` : selected ? `#page=${selected}` : window.location.pathname,
-    );
+    navigate(next ? `#settings=${next}` : selected ? `#page=${selected}` : window.location.pathname);
     setSection(next);
     if (next) setNavOpen(false);
   };
