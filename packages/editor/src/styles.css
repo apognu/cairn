@@ -301,6 +301,12 @@
   }
 }
 
+@keyframes splash-in {
+  from {
+    opacity: 0;
+  }
+}
+
 @keyframes progress-busy {
   from {
     background-position: 100% 0;

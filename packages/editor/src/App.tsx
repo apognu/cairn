@@ -12,7 +12,7 @@ import { useCloseMenus } from "./menus";
 import { PageEditor, type PageStatus } from "./PageEditor";
 import { PageSettings } from "./PageSettings";
 import { PublishDialog } from "./PublishDialog";
-import { pendingCount, useCan, usePages, usePending, useReaderLinks, useSettings, useSiteInfo } from "./queries";
+import { pendingCount, useCan, useMe, usePages, usePending, useReaderLinks, useSettings, useSiteInfo } from "./queries";
 import { type SettingsSection, SettingsView, sectionTitle } from "./SettingsView";
 import { Sidebar } from "./Sidebar";
 import { SideDrawer, useModal } from "./sidePanel";
@@ -52,7 +52,29 @@ export function App() {
   const fixture = new URLSearchParams(window.location.hash.slice(1)).get("fixture");
   if (fixture) return <FixtureView name={fixture} />;
 
+  return <SignedIn />;
+}
+
+/** The editor once the user is known. Until then, and while a 401 sends the browser to the provider, only the splash shows. */
+function SignedIn() {
+  const me = useMe();
+  // Asked now rather than after the splash, so the editor does not wait for a second round trip.
+  usePages();
+  useSettings();
+
+  if (me.isPending) return <Splash />;
   return <Editor />;
+}
+
+/** Fades in after a moment, so a quick answer goes straight to the editor without flashing it. */
+function Splash() {
+  return (
+    <output className="grid place-items-center h-dvh bg-bg text-muted" aria-label="Loading">
+      <span className="animate-[splash-in_300ms_ease-out_200ms_both]">
+        <Icon name="logo" size={40} />
+      </span>
+    </output>
+  );
 }
 
 /** Titles from the top of the tree down to the page. */
