@@ -14,6 +14,7 @@ import { createPortal } from "react-dom";
 import { BlockMenu } from "./BlockMenu";
 import { BubbleMenus } from "./BubbleMenus";
 import { buildExtensions } from "./extensions";
+import { DeferredFocusEvents } from "./focusEvents";
 import { isProseFromCodeEditor, isStyledText, looksLikeMarkdown, markdownToHtml } from "./markdown";
 import { PagePicker } from "./PagePicker";
 import { PropsPanel } from "./PropsPanel";
@@ -55,7 +56,8 @@ export function Canvas({
   lead,
 }: Props) {
   const editor = useEditor({
-    extensions: buildExtensions(editable),
+    extensions: [...buildExtensions(editable), DeferredFocusEvents],
+    enableCoreExtensions: { focusEvents: false },
     // A page saved by an older version of a component is upgraded as it opens.
     content: migrateDoc(doc),
     editable,

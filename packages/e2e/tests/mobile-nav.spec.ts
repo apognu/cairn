@@ -1,5 +1,5 @@
-import { expect, type Locator, test } from "@playwright/test";
-import { nameNewPage, publishAll, quiet, SITE, saveDraft } from "./helpers";
+import { devices, expect, type Locator, test } from "@playwright/test";
+import { editablePage, nameNewPage, publishAll, quiet, SITE, saveDraft } from "./helpers";
 
 test("on a phone the menu button opens the page tree, and it closes after navigating and on Escape", async ({
   page,
@@ -36,6 +36,39 @@ test("on a phone the menu button opens the page tree, and it closes after naviga
   await reader.keyboard.press("Escape");
   await expect(tree).toBeHidden();
   await expect(menu).toBeFocused();
+});
+
+test("on a phone the editor opens another page from the tree", async ({ request, browser, baseURL }) => {
+  const tag = Math.random().toString(36).slice(2, 8);
+  const titles = [`Phone edit one ${tag}`, `Phone edit two ${tag}`];
+  for (const title of titles) {
+    const created = await (await request.post("/api/pages", { data: { parent_id: null, title } })).json();
+    // Stored without block IDs, as imported pages are: the editor adds them on its first transaction.
+    // Ending with a list, as many imported pages do: the editor adds an empty paragraph after it on its first transaction.
+    const doc = {
+      type: "doc",
+      content: [
+        { type: "paragraph", content: [{ type: "text", text: title }] },
+        { type: "bulletList", content: [{ type: "listItem", content: [{ type: "paragraph" }] }] },
+      ],
+    };
+    await saveDraft(request, created.id, doc, null);
+  }
+
+  // An iPhone's user agent: there Tiptap focuses the page in the middle of its focus command, and the paragraph added on focus made
+  // the command's own transaction fail, which left the editor blank.
+  const phone = await (await browser.newContext({ ...devices["iPhone 13"], baseURL })).newPage();
+  const errors: string[] = [];
+  phone.on("pageerror", (error) => errors.push(error.message));
+  await phone.goto("/");
+  await expect(phone.locator(".ProseMirror")).toBeVisible();
+
+  for (const title of titles) {
+    await phone.getByRole("button", { name: "Pages" }).click();
+    await phone.getByRole("button", { name: title, exact: true }).click();
+    await expect(await editablePage(phone)).toContainText(title);
+  }
+  expect(errors).toEqual([]);
 });
 
 test("on a phone the header keeps the name on one line, the sections atop the page menu, and search in a panel", async ({

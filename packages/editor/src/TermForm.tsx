@@ -4,6 +4,7 @@ import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { useId, useRef, useState } from "react";
 import type { components } from "./api/schema";
+import { DeferredFocusEvents } from "./focusEvents";
 import { useSaveTerm } from "./queries";
 import { PageField } from "./SchemaForm";
 import * as ui from "./ui";
@@ -133,7 +134,9 @@ function DefinitionField({
   submit.current = onSubmit;
 
   const editor = useEditor({
+    enableCoreExtensions: { focusEvents: false },
     extensions: [
+      DeferredFocusEvents,
       StarterKit.configure({
         heading: false,
         bulletList: false,
