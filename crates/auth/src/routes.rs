@@ -8,7 +8,10 @@ use axum::{
 use cairn_store::{LoginState, save_login_state, take_login_state, upsert_user};
 use serde::Deserialize;
 
-use crate::{Auth, AuthError};
+use crate::{
+  Auth, AuthError,
+  pages::{Action, Badge, page, sentence},
+};
 
 pub(crate) fn routes() -> Router<Auth> {
   Router::new()
@@ -27,10 +30,10 @@ struct LoginQuery {
 }
 
 /// With one provider the login starts at once; with GitHub as well, the person chooses.
-async fn login(State(auth): State<Auth>, Query(query): Query<LoginQuery>) -> Result<Response, AuthError> {
-  let parts = auth.parts().ok_or_else(no_login)?;
+async fn login(State(auth): State<Auth>, Query(query): Query<LoginQuery>) -> Response {
+  let Some(parts) = auth.parts() else { return failed(&auth, &no_login()) };
   if parts.github.is_none() {
-    return start(&auth, Provider::Oidc, query.next.as_deref()).await;
+    return start(&auth, Provider::Oidc, query.next.as_deref()).await.unwrap_or_else(|error| failed(&auth, &error));
   }
 
   let base = auth.base_path();
@@ -41,19 +44,33 @@ async fn login(State(auth): State<Auth>, Query(query): Query<LoginQuery>) -> Res
     .unwrap_or_default();
   let host = parts.settings.public_origin.split("://").nth(1).unwrap_or_default();
 
-  Ok(Html(format!(
-    "<!doctype html><meta charset=utf-8><meta name=viewport content=\"width=device-width, initial-scale=1\"><meta name=color-scheme content=\"light dark\"><title>Sign in</title><p>Sign in to {host}</p><p><a href=\"{base}/auth/login/oidc{next}\">Sign in with single sign-on</a></p><p><a href=\"{base}/auth/login/github{next}\">Sign in with GitHub</a></p>",
-    host = escape(host)
+  Html(page(
+    "Sign in",
+    Badge::SignIn,
+    &format!("Sign in to {host}"),
+    "Choose how to sign in.",
+    &[
+      Action {
+        label: "Sign in with single sign-on",
+        href: format!("{base}/auth/login/oidc{next}"),
+        primary: true,
+      },
+      Action {
+        label: "Sign in with GitHub",
+        href: format!("{base}/auth/login/github{next}"),
+        primary: false,
+      },
+    ],
   ))
-  .into_response())
+  .into_response()
 }
 
-async fn login_oidc(State(auth): State<Auth>, Query(query): Query<LoginQuery>) -> Result<Response, AuthError> {
-  start(&auth, Provider::Oidc, query.next.as_deref()).await
+async fn login_oidc(State(auth): State<Auth>, Query(query): Query<LoginQuery>) -> Response {
+  start(&auth, Provider::Oidc, query.next.as_deref()).await.unwrap_or_else(|error| failed(&auth, &error))
 }
 
-async fn login_github(State(auth): State<Auth>, Query(query): Query<LoginQuery>) -> Result<Response, AuthError> {
-  start(&auth, Provider::Github, query.next.as_deref()).await
+async fn login_github(State(auth): State<Auth>, Query(query): Query<LoginQuery>) -> Response {
+  start(&auth, Provider::Github, query.next.as_deref()).await.unwrap_or_else(|error| failed(&auth, &error))
 }
 
 #[derive(Clone, Copy)]
@@ -109,17 +126,26 @@ async fn callback(auth: &Auth, provider: Provider, headers: &HeaderMap, query: C
 
   match finish_login(auth, provider, headers, query).await {
     Ok((cookie, next)) => (AppendHeaders([(header::SET_COOKIE, clear), (header::SET_COOKIE, cookie)]), Redirect::to(&next)).into_response(),
-    Err(error) => {
-      let message = match &error {
-        AuthError::Login(message) => message.clone(),
-        other => {
-          tracing::error!(error = %other, "login failed");
-          "The sign-in could not be completed. Try again.".to_string()
-        }
-      };
-      (StatusCode::BAD_REQUEST, [(header::SET_COOKIE, clear)], Html(error_page(&message, auth.base_path()))).into_response()
-    }
+    Err(error) => ([(header::SET_COOKIE, clear)], failed(auth, &error)).into_response(),
   }
+}
+
+/// A failed sign-in, as a page: a person is looking at it, not the editor. Only refusals say why; the rest is in the log.
+fn failed(auth: &Auth, error: &AuthError) -> Response {
+  let (status, message) = match error {
+    AuthError::Login(message) => (StatusCode::BAD_REQUEST, sentence(message)),
+    other => {
+      tracing::error!(error = %other, "login failed");
+      (StatusCode::INTERNAL_SERVER_ERROR, "The sign-in could not be completed. Try again.".to_string())
+    }
+  };
+  let retry = Action {
+    label: "Try again",
+    href: format!("{}/auth/login", auth.base_path()),
+    primary: true,
+  };
+
+  (status, Html(page("Sign-in failed", Badge::Failed, "Sign-in failed", &message, &[retry]))).into_response()
 }
 
 /// Completes a login; returns the cookie that starts the session and where to send the browser.
@@ -174,8 +200,16 @@ async fn finish_login(auth: &Auth, provider: Provider, headers: &HeaderMap, quer
 async fn signed_out(State(auth): State<Auth>) -> Html<String> {
   let base = auth.base_path();
 
-  Html(format!(
-    "<!doctype html><meta charset=utf-8><meta name=viewport content=\"width=device-width, initial-scale=1\"><meta name=color-scheme content=\"light dark\"><title>Signed out</title><p>You are signed out.</p><p><a href=\"{base}/auth/login\">Sign in again</a></p>"
+  Html(page(
+    "Signed out",
+    Badge::SignedOut,
+    "You are signed out",
+    "You can close this tab, or sign in again.",
+    &[Action {
+      label: "Sign in again",
+      href: format!("{base}/auth/login"),
+      primary: true,
+    }],
   ))
 }
 
@@ -194,17 +228,6 @@ fn local_path(next: Option<&str>, base: &str) -> String {
     Some(path) if path.starts_with('/') && !path.starts_with("//") && !path.contains('\\') && !path.chars().any(char::is_control) => path.to_string(),
     _ => format!("{base}/"),
   }
-}
-
-fn escape(text: &str) -> String {
-  text.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
-}
-
-fn error_page(message: &str, base: &str) -> String {
-  format!(
-    "<!doctype html><meta charset=utf-8><title>Sign-in failed</title><p>{}</p><p><a href=\"{base}/auth/login\">Try again</a></p>",
-    escape(message)
-  )
 }
 
 #[cfg(test)]

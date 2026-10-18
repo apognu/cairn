@@ -9,6 +9,7 @@ mod access;
 mod auth;
 mod github;
 mod oidc;
+mod pages;
 mod routes;
 mod session;
 
