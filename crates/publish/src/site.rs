@@ -73,8 +73,9 @@ pub(crate) fn breadcrumbs(pages: &[Page], urls: &HashMap<PageId, String>, page: 
   trail
 }
 
-/// The pages before and after `page` in the order of the sidebar it appears in (`nav`, as built by `nav_tree`). Links to other sites are skipped.
-pub(crate) fn previous_next(nav: &[Value], page: PageId) -> (Option<Value>, Option<Value>) {
+/// The pages before and after `page` in the order of the sidebar it appears in (`nav`, as built by `nav_tree` for `page`). Links to other
+/// sites are skipped. A section's sidebar leaves out the section's own page, so it is put first: it leads to the first subpage and back.
+pub(crate) fn previous_next(pages: &[Page], urls: &HashMap<PageId, String>, nav: &[Value], page: PageId) -> (Option<Value>, Option<Value>) {
   fn flatten(nodes: &[Value], into: &mut Vec<Value>) {
     for node in nodes {
       if node["external"] != true {
@@ -87,6 +88,11 @@ pub(crate) fn previous_next(nav: &[Value], page: PageId) -> (Option<Value>, Opti
   }
 
   let mut flat = Vec::new();
+  if let Some(section) = sidebar_root(pages, Some(page)).and_then(|id| pages.iter().find(|p| p.id == id))
+    && let Some(href) = urls.get(&section.id)
+  {
+    flat.push(json!({ "id": section.id, "title": section.title, "href": href }));
+  }
   flatten(nav, &mut flat);
   let id = json!(page);
   let Some(at) = flat.iter().position(|n| n["id"] == id) else { return (None, None) };
@@ -192,10 +198,10 @@ mod tests {
 
     // Order is the tree's, depth first: guide, install, linux, faq.
     let nav = nav_tree(&pages, &urls, &HashSet::new(), Some(linux.id));
-    let (previous, next) = previous_next(&nav, linux.id);
+    let (previous, next) = previous_next(&pages, &urls, &nav, linux.id);
     assert_eq!((previous.unwrap()["title"].as_str(), next.unwrap()["title"].as_str()), (Some("install"), Some("faq")));
-    assert_eq!(previous_next(&nav, guide.id).0, None);
-    assert_eq!(previous_next(&nav, faq.id).1, None);
+    assert_eq!(previous_next(&pages, &urls, &nav, guide.id).0, None);
+    assert_eq!(previous_next(&pages, &urls, &nav, faq.id).1, None);
 
     assert_eq!(markdown_path("/guide/install/"), "guide/install.md");
   }
@@ -230,6 +236,28 @@ mod tests {
     for (id, expected) in cases {
       assert_eq!(back(id), expected.map(|(t, h)| (t.to_string(), h.to_string())), "{id}");
     }
+  }
+
+  #[test]
+  fn a_section_root_leads_to_its_first_subpage_and_back() {
+    let guide = page("guide", None);
+    let api = Page {
+      in_header: true,
+      header_position: Some("80".into()),
+      ..page("api", None)
+    };
+    let auth = page("auth", Some(api.id));
+    let users = page("users", Some(api.id));
+    let pages = vec![guide.clone(), api.clone(), auth.clone(), users.clone()];
+    let urls = page_urls(&pages);
+    let titles = |id: PageId| {
+      let (previous, next) = previous_next(&pages, &urls, &nav_tree(&pages, &urls, &HashSet::new(), Some(id)), id);
+      (previous.map(|p| p["title"].as_str().unwrap().to_string()), next.map(|n| n["title"].as_str().unwrap().to_string()))
+    };
+
+    assert_eq!(titles(api.id), (None, Some("auth".into())));
+    assert_eq!(titles(auth.id), (Some("api".into()), Some("users".into())));
+    assert_eq!(titles(guide.id), (None, None));
   }
 
   #[test]

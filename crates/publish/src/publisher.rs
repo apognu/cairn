@@ -699,7 +699,7 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
       .iter()
       .map(|source| {
         let nav = nav_tree(tree_pages, &urls, &betas, Some(source.page.id));
-        let (previous, next) = previous_next(&nav, source.page.id);
+        let (previous, next) = previous_next(tree_pages, &urls, &nav, source.page.id);
         // Only what the page refers to goes into its context: renaming one page must not change the input of every other, or nothing
         // could be reused.
         let links = extract_links(&source.doc);
