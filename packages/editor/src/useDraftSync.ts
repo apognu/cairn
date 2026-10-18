@@ -156,7 +156,9 @@ export function useDraftSync(pageId: string, initial: InitialDraft, lock: DraftL
       if (s.doc === initial.doc) s.doc = doc;
       s.savedSignature = contentSignature(doc);
       // The editor's own first update (block IDs) can come before this and look like an edit: it was not one.
+      // Its browser copy too, or the next load would find it marked as unsaved and send it.
       if (contentSignature(s.doc) === s.savedSignature) {
+        window.clearTimeout(s.localTimer);
         window.clearTimeout(s.serverTimer);
         setStatus("saved");
       }
