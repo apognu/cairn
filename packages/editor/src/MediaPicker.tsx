@@ -3,6 +3,7 @@ import { closeHistory } from "@tiptap/pm/history";
 import { NodeSelection } from "@tiptap/pm/state";
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { ImageEditor } from "./ImageEditor";
 import { MediaGrid } from "./MediaGrid";
 import { type Asset, assetLabel } from "./media";
 import { useModal } from "./sidePanel";
@@ -89,6 +90,7 @@ function MediaPicker({
   const id = useId();
   const dialog = useRef<HTMLDialogElement>(null);
   const [chosen, setChosen] = useState<Asset | null>(null);
+  const [editing, setEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useModal(dialog);
@@ -143,10 +145,26 @@ function MediaPicker({
         <button type="button" className={ui.dialogButton} onClick={() => dialog.current?.close()}>
           Cancel
         </button>
+        <button
+          type="button"
+          className={ui.dialogButton}
+          disabled={!chosen || chosen.variants?.length === 0}
+          onClick={() => setEditing(true)}
+        >
+          Crop & annotate…
+        </button>
         <button type="button" className={ui.primary} disabled={!chosen} onClick={() => chosen && choose(chosen)}>
           {replacing ? "Replace" : "Insert"}
         </button>
       </div>
+      {editing && chosen && (
+        <ImageEditor
+          asset={chosen}
+          saveLabel={replacing ? "Save and replace" : "Save and insert"}
+          onSaved={choose}
+          onClose={() => setEditing(false)}
+        />
+      )}
     </dialog>
   );
 }

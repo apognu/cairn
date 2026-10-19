@@ -1,4 +1,5 @@
 import { type APIRequestContext, expect, test } from "@playwright/test";
+import { PNG as Png } from "pngjs";
 import { editablePage, nameNewPage, PNG, saveDraft, slashCommand } from "./helpers";
 
 /** A file unique to this run, so uploading it really creates an asset. */
@@ -6,9 +7,17 @@ function uniquePng(): Buffer {
   return Buffer.concat([PNG, Buffer.from(Math.random().toString())]);
 }
 
-async function addToLibrary(request: APIRequestContext, name: string): Promise<{ id: string }> {
+/** A picture large enough to crop, in a color unique to this run so its bytes are new. */
+function picture(width: number, height: number): Buffer {
+  const png = new Png({ width, height });
+  const [r, g, b] = [0, 1, 2].map(() => Math.floor(Math.random() * 256));
+  for (let i = 0; i < png.data.length; i += 4) png.data.set([r, g, b, 255], i);
+  return Png.sync.write(png);
+}
+
+async function addToLibrary(request: APIRequestContext, name: string, data = uniquePng()): Promise<{ id: string }> {
   const upload = await request.post(`/api/assets?name=${name}&keep=true`, {
-    data: uniquePng(),
+    data,
     headers: { "content-type": "application/octet-stream" },
   });
   return upload.json();
@@ -116,4 +125,50 @@ test("an image already uploaded is inserted from the library, and replacing it i
   await expect(page.getByRole("status")).toHaveText("Saved");
   // Nothing was uploaded again.
   expect(await (await request.get(`/api/assets?q=${run}`)).json()).toHaveLength(2);
+});
+
+test("cropping an image saves a new image made from it and leaves the original as it was", async ({
+  page,
+  request,
+}) => {
+  const run = Math.random().toString(36).slice(2, 8);
+  const source = await addToLibrary(request, `wide-${run}.png`, picture(200, 120));
+
+  await page.goto("/#settings=media");
+  await page.getByRole("searchbox", { name: "Search images" }).fill(`wide-${run}`);
+  await page
+    .getByRole("list", { name: "Images" })
+    .getByRole("button", { name: `wide-${run}.png` })
+    .click();
+  await page.getByRole("button", { name: "Crop & annotate…" }).click();
+
+  const editor = page.getByRole("dialog", { name: `Edit “wide-${run}.png”` });
+  const canvas = editor.getByRole("img");
+  await expect(canvas).toHaveAttribute("aria-label", /200 × 120 pixels/);
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("the canvas has no box");
+  await page.mouse.move(box.x + box.width * 0.25, box.y + box.height * 0.25);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width * 0.5, box.y + box.height * 0.5, { steps: 4 });
+  await page.mouse.move(box.x + box.width * 0.75, box.y + box.height * 0.75, { steps: 4 });
+  await page.mouse.up();
+  await expect(editor.getByText("Cropped to 100 × 60 px")).toBeVisible();
+  await editor.getByRole("button", { name: "Save as copy" }).click();
+
+  // The copy's details open, pointing back at the original.
+  const copyDrawer = page.getByRole("dialog", { name: `wide-${run}-edited.png` });
+  await expect(copyDrawer.getByRole("button", { name: `wide-${run}.png` })).toBeVisible();
+
+  const [copy] = (await (await request.get(`/api/assets?q=wide-${run}-edited`)).json()) as {
+    id: string;
+    width: number;
+    height: number;
+    derived_from: string;
+    kept: boolean;
+    variants: unknown[];
+  }[];
+  expect([copy.width, copy.height, copy.derived_from, copy.kept]).toEqual([100, 60, source.id, true]);
+  expect(copy.variants.length).toBeGreaterThan(0);
+  const original = (await (await request.get(`/api/assets/${source.id}`)).json()).asset;
+  expect([original.width, original.height]).toEqual([200, 120]);
 });

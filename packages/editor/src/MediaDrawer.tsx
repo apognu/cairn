@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
+import { ImageEditor } from "./ImageEditor";
 import { type Asset, assetLabel, thumbnail, useAsset, useDeleteAsset, useRenameAsset } from "./media";
 import { useSidePanel } from "./sidePanel";
 import * as ui from "./ui";
@@ -30,6 +31,7 @@ export function MediaDrawer({
   const detail = useAsset(id);
   const remove = useDeleteAsset();
   const [confirming, setConfirming] = useState(false);
+  const [editing, setEditing] = useState(false);
 
   useSidePanel(dialog);
 
@@ -74,6 +76,16 @@ export function MediaDrawer({
           >
             <img className="w-full h-full object-contain" src={thumbnail(asset)} alt="" />
           </a>
+          {asset.variants?.length !== 0 && (
+            <div className={`${ui.inline} -mt-2 mb-4.5`}>
+              <button type="button" className={ui.secondary} onClick={() => setEditing(true)}>
+                Crop & annotate…
+              </button>
+            </div>
+          )}
+          {editing && (
+            <ImageEditor asset={asset} onSaved={(copy) => onOpen(copy.id)} onClose={() => setEditing(false)} />
+          )}
 
           <TitleField asset={asset} />
 
