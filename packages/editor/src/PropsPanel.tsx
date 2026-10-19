@@ -7,6 +7,7 @@ import { useEffect, useId } from "react";
 import { createPortal } from "react-dom";
 import { CodeBlockFields } from "./CodeBlockFields";
 import { Icon } from "./icons";
+import { openMediaPicker } from "./MediaPicker";
 import { PropsHead } from "./PropsHead";
 import { SchemaForm } from "./SchemaForm";
 import { useSideDrawer } from "./sidePanel";
@@ -61,7 +62,7 @@ export function PropsPanel({ editor, host }: { editor: Editor; host: HTMLElement
   const fields = !active ? null : active.kind === "component" ? (
     <ComponentFields editor={editor} active={active} />
   ) : active.kind === "image" ? (
-    <ImageFields editor={editor} attrs={active.attrs} />
+    <ImageFields editor={editor} attrs={active.attrs} at={active.at} />
   ) : (
     <CodeBlockFields editor={editor} attrs={active.attrs} />
   );
@@ -146,7 +147,7 @@ function ComponentFields({ editor, active }: { editor: Editor; active: Extract<A
   );
 }
 
-function ImageFields({ editor, attrs }: { editor: Editor; attrs: Record<string, unknown> }) {
+function ImageFields({ editor, attrs, at }: { editor: Editor; attrs: Record<string, unknown>; at: number }) {
   const id = useId();
   const alt = String(attrs.alt ?? "");
   const caption = String(attrs.caption ?? "");
@@ -165,6 +166,11 @@ function ImageFields({ editor, attrs }: { editor: Editor; attrs: Record<string, 
           <img className="max-w-full max-h-45 object-contain rounded-sm" src={`/_a/${attrs.assetId}`} alt="" />
         </div>
       )}
+      <div className={`${ui.inline} mb-4.5`}>
+        <button type="button" className={ui.secondary} onClick={() => openMediaPicker(editor, { mode: "replace", at })}>
+          Replace…
+        </button>
+      </div>
       <div className={ui.field}>
         <label htmlFor={`${id}-alt`} className={ui.fieldLabel}>
           Alt text

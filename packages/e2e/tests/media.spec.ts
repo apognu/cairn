@@ -1,9 +1,17 @@
-import { expect, test } from "@playwright/test";
-import { PNG, saveDraft } from "./helpers";
+import { type APIRequestContext, expect, test } from "@playwright/test";
+import { editablePage, nameNewPage, PNG, saveDraft, slashCommand } from "./helpers";
 
 /** A file unique to this run, so uploading it really creates an asset. */
 function uniquePng(): Buffer {
   return Buffer.concat([PNG, Buffer.from(Math.random().toString())]);
+}
+
+async function addToLibrary(request: APIRequestContext, name: string): Promise<{ id: string }> {
+  const upload = await request.post(`/api/assets?name=${name}&keep=true`, {
+    data: uniquePng(),
+    headers: { "content-type": "application/octet-stream" },
+  });
+  return upload.json();
 }
 
 test("an image added in Media is named, found by its title, and cannot be deleted while a page shows it", async ({
@@ -53,11 +61,7 @@ test("an image added in Media is named, found by its title, and cannot be delete
 
 test("an unused image is taken out of the library", async ({ page, request }) => {
   const run = Math.random().toString(36).slice(2, 8);
-  const upload = await request.post(`/api/assets?name=spare-${run}.png&keep=true`, {
-    data: uniquePng(),
-    headers: { "content-type": "application/octet-stream" },
-  });
-  const asset = await upload.json();
+  const asset = await addToLibrary(request, `spare-${run}.png`);
 
   await page.goto("/#settings=media");
   await page.getByRole("searchbox", { name: "Search images" }).fill(`spare-${run}`);
@@ -71,4 +75,45 @@ test("an unused image is taken out of the library", async ({ page, request }) =>
 
   await expect(drawer).toBeHidden();
   await expect.poll(async () => (await (await request.get(`/api/assets/${asset.id}`)).json()).asset.kept).toBe(false);
+});
+
+test("an image already uploaded is inserted from the library, and replacing it is one undo step", async ({
+  page,
+  request,
+}) => {
+  const run = Math.random().toString(36).slice(2, 8);
+  const first = await addToLibrary(request, `first-${run}.png`);
+  const second = await addToLibrary(request, `second-${run}.png`);
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "New page" }).click();
+  await nameNewPage(page, `Picked ${run}`);
+  await page.getByRole("button", { name: `Picked ${run}`, exact: true }).click();
+  const editor = await editablePage(page);
+  await editor.click();
+  await slashCommand(page, "from library", "Image from library");
+
+  const picker = page.getByRole("dialog", { name: "Choose an image" });
+  await picker.getByRole("searchbox", { name: "Search images" }).fill(`first-${run}`);
+  await picker.getByRole("button", { name: `first-${run}.png` }).click();
+  await picker.getByRole("button", { name: "Insert", exact: true }).click();
+  const image = editor.locator("figure img");
+  await expect(image).toHaveAttribute("src", `/_a/${first.id}`);
+
+  await image.click();
+  await page.getByRole("button", { name: "Replace…" }).click();
+  const replacing = page.getByRole("dialog", { name: "Replace the image" });
+  await replacing.getByRole("searchbox", { name: "Search images" }).fill(`second-${run}`);
+  await replacing.getByRole("button", { name: `second-${run}.png` }).dblclick();
+  await expect(replacing).toBeHidden();
+  await expect(image).toHaveAttribute("src", `/_a/${second.id}`);
+
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect(image).toHaveAttribute("src", `/_a/${first.id}`);
+  // Every test publishes everything pending: an image without alt text would hold up the others.
+  await image.click();
+  await page.getByLabel("Alt text").fill("The first image");
+  await expect(page.getByRole("status")).toHaveText("Saved");
+  // Nothing was uploaded again.
+  expect(await (await request.get(`/api/assets?q=${run}`)).json()).toHaveLength(2);
 });

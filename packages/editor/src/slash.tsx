@@ -5,6 +5,7 @@ import { ReactRenderer } from "@tiptap/react";
 import Suggestion, { type SuggestionKeyDownProps, type SuggestionProps } from "@tiptap/suggestion";
 import { Fragment, forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { Icon, type IconName } from "./icons";
+import { openMediaPicker } from "./MediaPicker";
 import { inHost, popoverHost, showInList } from "./popover";
 import * as ui from "./ui";
 import { pickAndInsertImages } from "./upload";
@@ -233,6 +234,17 @@ export const slashItems: SlashItem[] = [
     e.chain().focus().deleteRange(r).run();
     pickAndInsertImages(e);
   }),
+  item(
+    "Basic",
+    "grid",
+    "Image from library",
+    "A picture already uploaded",
+    "image picture media library existing",
+    (e, r) => {
+      e.chain().focus().deleteRange(r).run();
+      openMediaPicker(e, { mode: "insert", at: e.state.selection.from });
+    },
+  ),
   item("Basic", "table", "Table", "Rows and columns", "table grid", (e, r) =>
     e.chain().focus().deleteRange(r).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(),
   ),

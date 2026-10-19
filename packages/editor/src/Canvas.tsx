@@ -15,6 +15,7 @@ import { BlockMenu } from "./BlockMenu";
 import { BubbleMenus } from "./BubbleMenus";
 import { buildExtensions } from "./extensions";
 import { DeferredFocusEvents } from "./focusEvents";
+import { MediaPickerHost } from "./MediaPicker";
 import { isProseFromCodeEditor, isStyledText, looksLikeMarkdown, markdownToHtml } from "./markdown";
 import { PagePicker } from "./PagePicker";
 import { PropsPanel } from "./PropsPanel";
@@ -278,6 +279,7 @@ export function Canvas({
           </output>
         )}
         {editor && editable && panelHost && <PropsPanel editor={editor} host={panelHost} />}
+        {editor && editable && <MediaPickerHost editor={editor} />}
         {picker &&
           createPortal(
             <PagePicker

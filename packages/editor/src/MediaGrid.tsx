@@ -5,14 +5,19 @@ import * as ui from "./ui";
 /** Typing pauses this long before the library is searched again. */
 const SEARCH_DELAY_MS = 200;
 
-/** The media library as a searchable grid of thumbnails, in Settings and in the image picker. `children` go beside the search field. */
+/**
+ * The media library as a searchable grid of thumbnails, in Settings and in the image picker. A click chooses an image, a double click
+ * picks it at once. `children` go beside the search field.
+ */
 export function MediaGrid({
   selected,
   onChoose,
+  onPick,
   children,
 }: {
   selected: string | null;
   onChoose: (asset: Asset) => void;
+  onPick?: (asset: Asset) => void;
   children?: ReactNode;
 }) {
   const id = useId();
@@ -64,6 +69,7 @@ export function MediaGrid({
               className="group/tile flex flex-col w-full p-0 border-0 bg-transparent text-left text-text cursor-pointer"
               aria-pressed={selected === asset.id}
               onClick={() => onChoose(asset)}
+              onDoubleClick={() => onPick?.(asset)}
             >
               <span className="flex items-center justify-center w-full aspect-[4/3] overflow-hidden border border-border rounded-lg bg-hover group-hover/tile:border-input group-aria-pressed/tile:border-accent group-aria-pressed/tile:outline-2 group-aria-pressed/tile:outline-accent">
                 <img className="w-full h-full object-contain" src={thumbnail(asset)} alt="" loading="lazy" />
