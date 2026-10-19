@@ -32,6 +32,18 @@ pub struct Asset {
   pub uploaded_by: UserId,
   #[cfg_attr(feature = "openapi", schema(value_type = String, format = DateTime))]
   pub created_at: Timestamp,
+  /// What the media library shows and searches; none until someone names it.
+  #[serde(default)]
+  pub title: Option<String>,
+  /// The file name it was uploaded with, when the browser gave one.
+  #[serde(default)]
+  pub name: Option<String>,
+  /// The image this one was cropped or annotated from.
+  #[serde(default)]
+  pub derived_from: Option<AssetId>,
+  /// Added to the media library on purpose: cleanup keeps it even when no page shows it.
+  #[serde(default)]
+  pub kept: bool,
 }
 
 impl Asset {

@@ -15,7 +15,7 @@ use cairn_render::Pool;
 use cairn_store::SqlContentStore;
 use sea_orm::DatabaseConnection;
 
-use crate::{api_pages, drafts, highlight, history, jobs, library, links, locks, me, pages, publish, reader, redirects, reviews, search, settings, tokens, uploads, urls, users};
+use crate::{api_pages, drafts, highlight, history, jobs, library, links, locks, me, media, pages, publish, reader, redirects, reviews, search, settings, tokens, uploads, urls, users};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -92,6 +92,7 @@ pub fn api() -> (Router<AppState>, utoipa::openapi::OpenApi) {
     .merge(drafts::routes())
     .merge(locks::routes())
     .merge(uploads::routes())
+    .merge(media::routes())
     .merge(publish::routes())
     .merge(settings::routes())
     .merge(urls::routes())
@@ -321,6 +322,10 @@ mod tests {
     ("GET", "/api/trash", Role::Viewer),
     ("POST", "/api/trash/{id}/restore", Role::Editor),
     ("POST", "/api/assets", Role::Editor),
+    ("GET", "/api/assets", Role::Editor),
+    ("GET", "/api/assets/{id}", Role::Editor),
+    ("PATCH", "/api/assets/{id}", Role::Editor),
+    ("DELETE", "/api/assets/{id}", Role::Editor),
     ("GET", "/api/users", Role::Viewer),
     ("PUT", "/api/users/{id}/role", Role::Admin),
   ];

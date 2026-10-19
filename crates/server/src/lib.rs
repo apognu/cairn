@@ -18,6 +18,7 @@ mod library;
 mod links;
 mod locks;
 mod me;
+mod media;
 mod pages;
 mod proxy;
 mod publish;

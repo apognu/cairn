@@ -6,9 +6,86 @@
   },
   "paths": {
     "/api/assets": {
+      "get": {
+        "summary": "Uploaded images, newest first, a page at a time.",
+        "operationId": "listAssets",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Part of the title or file name, ignoring case.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "description": "The last asset of the previous page; the list goes on with older ones.",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/AssetId"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Asset"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
       "post": {
         "summary": "Uploads an image (the request body is the file). Uploading bytes that are already stored returns the existing asset.",
         "operationId": "uploadAsset",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "query",
+            "description": "The file's name, shown and searched in the media library.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "description": "The image this one was cropped or annotated from; its title is carried over.",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/AssetId"
+            }
+          },
+          {
+            "name": "keep",
+            "in": "query",
+            "description": "Added from the media library: kept even when no page shows it.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/octet-stream": {
@@ -52,6 +129,92 @@
           },
           "422": {
             "description": "not a supported image, too many pixels, or damaged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/assets/{id}": {
+      "get": {
+        "summary": "One asset with where it is used.",
+        "operationId": "getAsset",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssetDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Takes an asset out of the media library. Its files go with the next cleanup after the grace period, so a page restored from an older\nversion in the meantime still shows it.",
+        "operationId": "deleteAsset",
+        "responses": {
+          "204": {},
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "a page, snippet, the settings or a kept copy still uses it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "summary": "Names an asset, so it can be found in the media library.",
+        "operationId": "renameAsset",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Rename"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Asset"
+                }
+              }
+            }
+          },
+          "404": {
             "content": {
               "application/json": {
                 "schema": {
@@ -3059,6 +3222,17 @@
             "type": "string",
             "format": "date-time"
           },
+          "derived_from": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AssetId",
+                "description": "The image this one was cropped or annotated from."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "height": {
             "type": [
               "integer",
@@ -3070,8 +3244,19 @@
           "id": {
             "$ref": "#/components/schemas/AssetId"
           },
+          "kept": {
+            "type": "boolean",
+            "description": "Added to the media library on purpose: cleanup keeps it even when no page shows it."
+          },
           "mime": {
             "type": "string"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The file name it was uploaded with, when the browser gave one."
           },
           "placeholder": {
             "type": [
@@ -3083,6 +3268,13 @@
           "sha256": {
             "type": "string",
             "description": "Hex SHA-256 of the file: two uploads of the same bytes are one asset."
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What the media library shows and searches; none until someone names it."
           },
           "uploaded_by": {
             "$ref": "#/components/schemas/UserId"
@@ -3101,6 +3293,64 @@
             ],
             "format": "int32",
             "minimum": 0
+          }
+        }
+      },
+      "AssetDetail": {
+        "type": "object",
+        "description": "An asset and everything that still shows it.",
+        "required": [
+          "asset",
+          "pages",
+          "entries",
+          "in_settings",
+          "copies"
+        ],
+        "properties": {
+          "asset": {
+            "$ref": "#/components/schemas/Asset"
+          },
+          "copies": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AssetId"
+            },
+            "description": "Kept copies made from it."
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Keys of the library entries (snippets) that show it."
+          },
+          "in_settings": {
+            "type": "boolean",
+            "description": "The site settings use it (the logo)."
+          },
+          "pages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UsedOn"
+            }
+          },
+          "source": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Asset",
+                "description": "The image it was made from, when it is a copy."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "uploaded_by_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Who uploaded it; none when that account is gone."
           }
         }
       },
@@ -4768,6 +5018,18 @@
           "failed"
         ]
       },
+      "Rename": {
+        "type": "object",
+        "required": [
+          "title"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "Blank removes the title."
+          }
+        }
+      },
       "RenamePage": {
         "type": "object",
         "required": [
@@ -5345,6 +5607,21 @@
         ],
         "properties": {
           "page_id": {
+            "$ref": "#/components/schemas/PageId"
+          },
+          "title": {
+            "type": "string"
+          }
+        }
+      },
+      "UsedOn": {
+        "type": "object",
+        "required": [
+          "id",
+          "title"
+        ],
+        "properties": {
+          "id": {
             "$ref": "#/components/schemas/PageId"
           },
           "title": {

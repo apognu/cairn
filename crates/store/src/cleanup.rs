@@ -19,13 +19,10 @@ const CHUNK: usize = 500;
 
 /// The assets uploaded before `before` that no draft, library entry, setting, release (other than a failed one) or revision saved
 /// since `before` names. Older revisions that no release published do not hold an asset: restoring one of them may show a missing image.
+/// Assets kept in the media library stay, and so does the image any staying asset was made from, through a whole chain of copies.
 pub async fn unused_assets(db: &DatabaseConnection, before: Timestamp) -> Result<Vec<Asset>, StoreError> {
-  let old: Vec<asset::Model> = asset::Entity::find()
-    .all(db)
-    .await?
-    .into_iter()
-    .filter(|row| row.created_at.parse::<Timestamp>().is_ok_and(|at| at < before))
-    .collect();
+  let all = asset::Entity::find().all(db).await?;
+  let old: Vec<&asset::Model> = all.iter().filter(|row| !row.kept && row.created_at.parse::<Timestamp>().is_ok_and(|at| at < before)).collect();
   if old.is_empty() {
     return Ok(Vec::new());
   }
@@ -78,7 +75,23 @@ pub async fn unused_assets(db: &DatabaseConnection, before: Timestamp) -> Result
     }
   }
 
-  old.into_iter().filter(|row| unused.contains(&row.id.to_string())).map(into_asset).collect()
+  // A source stays when one of its copies stays; repeat until no more sources are freed, for chains of copies.
+  loop {
+    let sources: Vec<String> = all
+      .iter()
+      .filter(|row| !unused.contains(&row.id.to_string()))
+      .filter_map(|row| row.derived_from.map(|id| id.to_string()))
+      .filter(|id| unused.contains(id))
+      .collect();
+    if sources.is_empty() {
+      break;
+    }
+    sources.iter().for_each(|id| {
+      unused.remove(id);
+    });
+  }
+
+  old.into_iter().filter(|row| unused.contains(&row.id.to_string())).cloned().map(into_asset).collect()
 }
 
 /// Deletes these asset rows; their files are the caller's to delete.
@@ -95,6 +108,14 @@ pub async fn asset_hashes(db: &DatabaseConnection) -> Result<HashSet<String>, St
   let hashes: Vec<String> = asset::Entity::find().select_only().column(asset::Column::Sha256).into_tuple().all(db).await?;
 
   Ok(hashes.into_iter().collect())
+}
+
+/// Whether a string in `value` is `name`, the way `forget_named` finds it.
+pub(crate) fn mentions(value: &Value, name: &str) -> bool {
+  let mut wanted = HashSet::from([name.to_string()]);
+  forget_named(value, &mut wanted);
+
+  wanted.is_empty()
 }
 
 /// Removes from `unused` every ID a string in `value` names: an image node's `assetId`, a logo setting, or a component prop.
@@ -146,7 +167,23 @@ mod tests {
       "published",
       "logo",
       "in a failed release",
+      "kept in the library",
+      "source of a copy in a draft",
+      "copy in a draft",
+      "chain source",
+      "chain middle",
+      "chain copy kept",
+      "source of a stray copy",
+      "stray copy",
     ];
+    // Copies point at what they were made from; only these are kept on purpose.
+    let made_from = [
+      ("copy in a draft", "source of a copy in a draft"),
+      ("chain middle", "chain source"),
+      ("chain copy kept", "chain middle"),
+      ("stray copy", "source of a stray copy"),
+    ];
+    let kept = ["kept in the library", "chain copy kept"];
 
     let mut ids = Vec::new();
     for (n, name) in names.iter().enumerate() {
@@ -159,6 +196,10 @@ mod tests {
         variants: vec![],
         placeholder: None,
         uploaded_by: user,
+        name: None,
+        title: None,
+        derived_from: made_from.iter().find(|(copy, _)| copy == name).map(|(_, source)| ids[names.iter().position(|n| n == source).unwrap()]),
+        kept: kept.contains(name),
       };
       ids.push(get_or_create_asset(&db, new).await.unwrap().0.id);
       if *name != "uploaded recently" {
@@ -186,6 +227,8 @@ mod tests {
 
     let drafted = create_page(&db, user, None, "Drafted", Placement::Last).await.unwrap();
     content.save_draft(drafted.id, with_image(id("in a draft")), None, user).await.unwrap();
+    let with_copy = create_page(&db, user, None, "With a copy", Placement::Last).await.unwrap();
+    content.save_draft(with_copy.id, with_image(id("copy in a draft")), None, user).await.unwrap();
 
     shown_then_removed("in a recent version").await;
     let (_, old) = shown_then_removed("in an old version").await;
@@ -223,11 +266,19 @@ mod tests {
       ("published", false),
       ("logo", false),
       ("in a failed release", true),
+      ("kept in the library", false),
+      ("source of a copy in a draft", false),
+      ("copy in a draft", false),
+      ("chain source", false),
+      ("chain middle", false),
+      ("chain copy kept", false),
+      ("source of a stray copy", true),
+      ("stray copy", true),
     ] {
       assert_eq!(unused.contains(&id(name)), gone, "{name}");
     }
 
     delete_assets(&db, &unused.into_iter().collect::<Vec<_>>()).await.unwrap();
-    assert_eq!(asset_hashes(&db).await.unwrap().len(), 5);
+    assert_eq!(asset_hashes(&db).await.unwrap().len(), 11);
   }
 }

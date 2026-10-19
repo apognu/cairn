@@ -6,7 +6,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** Uploaded images, newest first, a page at a time. */
+        get: operations["listAssets"];
         put?: never;
         /** Uploads an image (the request body is the file). Uploading bytes that are already stored returns the existing asset. */
         post: operations["uploadAsset"];
@@ -14,6 +15,28 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/assets/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One asset with where it is used. */
+        get: operations["getAsset"];
+        put?: never;
+        post?: never;
+        /**
+         * Takes an asset out of the media library. Its files go with the next cleanup after the grace period, so a page restored from an older
+         *     version in the meantime still shows it.
+         */
+        delete: operations["deleteAsset"];
+        options?: never;
+        head?: never;
+        /** Names an asset, so it can be found in the media library. */
+        patch: operations["renameAsset"];
         trace?: never;
     };
     "/api/events": {
@@ -1128,19 +1151,40 @@ export interface components {
             bytes: number;
             /** Format: date-time */
             created_at: string;
+            derived_from?: components["schemas"]["AssetId"] | null;
             /** Format: int32 */
             height?: number | null;
             id: components["schemas"]["AssetId"];
+            /** @description Added to the media library on purpose: cleanup keeps it even when no page shows it. */
+            kept?: boolean;
             mime: string;
+            /** @description The file name it was uploaded with, when the browser gave one. */
+            name?: string | null;
             /** @description The image's average color, `#rrggbb`, shown while it loads. */
             placeholder?: string | null;
             /** @description Hex SHA-256 of the file: two uploads of the same bytes are one asset. */
             sha256: string;
+            /** @description What the media library shows and searches; none until someone names it. */
+            title?: string | null;
             uploaded_by: components["schemas"]["UserId"];
             /** @description The WebP copies made at upload, narrowest first; empty for animated GIFs. */
             variants?: components["schemas"]["AssetVariant"][];
             /** Format: int32 */
             width?: number | null;
+        };
+        /** @description An asset and everything that still shows it. */
+        AssetDetail: {
+            asset: components["schemas"]["Asset"];
+            /** @description Kept copies made from it. */
+            copies: components["schemas"]["AssetId"][];
+            /** @description Keys of the library entries (snippets) that show it. */
+            entries: string[];
+            /** @description The site settings use it (the logo). */
+            in_settings: boolean;
+            pages: components["schemas"]["UsedOn"][];
+            source?: components["schemas"]["Asset"] | null;
+            /** @description Who uploaded it; none when that account is gone. */
+            uploaded_by_name?: string | null;
         };
         /** @description An uploaded file. */
         AssetId: string;
@@ -1642,6 +1686,10 @@ export interface components {
         };
         /** @enum {string} */
         ReleaseStatus: "building" | "preview" | "live" | "superseded" | "failed";
+        Rename: {
+            /** @description Blank removes the title. */
+            title: string;
+        };
         RenamePage: {
             /** @description The new target of a link; refused for pages. */
             external_url?: string | null;
@@ -1858,6 +1906,10 @@ export interface components {
             page_id: components["schemas"]["PageId"];
             title: string;
         };
+        UsedOn: {
+            id: components["schemas"]["PageId"];
+            title: string;
+        };
         /** @description Someone who signed in through an identity provider. */
         User: {
             email: string;
@@ -1909,9 +1961,41 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    listAssets: {
+        parameters: {
+            query?: {
+                /** @description Part of the title or file name, ignoring case. */
+                q?: string;
+                /** @description The last asset of the previous page; the list goes on with older ones. */
+                before?: components["schemas"]["AssetId"];
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Asset"][];
+                };
+            };
+        };
+    };
     uploadAsset: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description The file's name, shown and searched in the media library. */
+                name?: string;
+                /** @description The image this one was cropped or annotated from; its title is carried over. */
+                from?: components["schemas"]["AssetId"];
+                /** @description Added from the media library: kept even when no page shows it. */
+                keep?: boolean;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -1951,6 +2035,98 @@ export interface operations {
             };
             /** @description not a supported image, too many pixels, or damaged */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    getAsset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssetDetail"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    deleteAsset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description a page, snippet, the settings or a kept copy still uses it */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    renameAsset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Rename"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Asset"];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

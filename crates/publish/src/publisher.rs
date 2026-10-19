@@ -2017,6 +2017,10 @@ mod tests {
         variants,
         placeholder: processed.placeholder,
         uploaded_by: user,
+        name: None,
+        title: None,
+        derived_from: None,
+        kept: false,
       },
     )
     .await

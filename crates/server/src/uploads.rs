@@ -1,14 +1,15 @@
 use axum::{
   Json,
   body::Body,
-  extract::{Path, State},
+  extract::{Path, Query, State},
   http::{HeaderMap, HeaderValue, StatusCode, header},
   response::{IntoResponse, Response},
 };
 use cairn_assets::process;
 use cairn_auth::Editor;
 use cairn_core::{Asset, AssetId, AssetStore, AssetVariant, CoreError, original_key, variant_key};
-use cairn_store::{NewAsset, asset_by_hash, asset_by_id, get_or_create_asset};
+use cairn_store::{NewAsset, asset_by_hash, asset_by_id, get_or_create_asset, set_kept};
+use serde::Deserialize;
 use tracing::instrument;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
@@ -26,15 +27,32 @@ pub(crate) fn routes() -> OpenApiRouter<AppState> {
     .layer(axum::middleware::from_fn(|request, next| crate::error::too_large_upload(MAX_UPLOAD / (1024 * 1024), request, next)))
 }
 
+#[derive(Default, Deserialize, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
+struct UploadQuery {
+  /// The file's name, shown and searched in the media library.
+  name: Option<String>,
+  /// The image this one was cropped or annotated from; its title is carried over.
+  from: Option<AssetId>,
+  /// Added from the media library: kept even when no page shows it.
+  #[serde(default)]
+  keep: bool,
+}
+
 /// Uploads an image (the request body is the file). Uploading bytes that are already stored returns the existing asset.
-#[utoipa::path(post, path = "/api/assets", operation_id = "uploadAsset", request_body(content = String, content_type = "application/octet-stream"), responses(
+#[utoipa::path(post, path = "/api/assets", operation_id = "uploadAsset", params(UploadQuery), request_body(content = String, content_type = "application/octet-stream"), responses(
   (status = 201, body = Asset, description = "stored as a new asset"),
   (status = 200, body = Asset, description = "the same file was already stored"),
   (status = 413, body = ErrorBody, description = "the file is too large"),
   (status = 422, body = ErrorBody, description = "not a supported image, too many pixels, or damaged"),
 ))]
 #[instrument(skip_all)]
-async fn upload(State(state): State<AppState>, Editor(user): Editor, headers: HeaderMap, body: Body) -> Result<(StatusCode, Json<Asset>), AppError> {
+async fn upload(State(state): State<AppState>, Editor(user): Editor, Query(query): Query<UploadQuery>, headers: HeaderMap, body: Body) -> Result<(StatusCode, Json<Asset>), AppError> {
+  let made_from = match query.from {
+    Some(id) => Some(asset_by_id(&state.db, id).await?),
+    None => None,
+  };
+
   let announced = headers.get(header::CONTENT_LENGTH).and_then(|v| v.to_str().ok()?.parse::<u64>().ok());
   if announced.is_some_and(|length| length > MAX_UPLOAD) {
     return Err(CoreError::TooLarge { limit: MAX_UPLOAD }.into());
@@ -50,6 +68,10 @@ async fn upload(State(state): State<AppState>, Editor(user): Editor, headers: He
       state.assets.discard(staged).await?;
     } else {
       state.assets.keep(staged, &key).await?;
+    }
+    if query.keep && !existing.kept {
+      set_kept(&state.db, existing.id, true).await?;
+      return Ok((StatusCode::OK, Json(Asset { kept: true, ..existing })));
     }
     return Ok((StatusCode::OK, Json(existing)));
   }
@@ -90,6 +112,10 @@ async fn upload(State(state): State<AppState>, Editor(user): Editor, headers: He
       variants,
       placeholder: processed.placeholder,
       uploaded_by: user,
+      name: query.name,
+      title: made_from.as_ref().and_then(|source| source.title.clone()),
+      derived_from: made_from.map(|source| source.id),
+      kept: query.keep,
     },
   )
   .await?;
@@ -138,7 +164,7 @@ mod tests {
   #[tokio::test]
   async fn uploading_the_same_file_twice_stores_it_once() {
     let (state, dir) = crate::app::test_state_with_dir().await;
-    let send = || upload(State(state.clone()), Editor(local_user_id()), HeaderMap::new(), Body::from(PNG));
+    let send = || upload(State(state.clone()), Editor(local_user_id()), Query(UploadQuery::default()), HeaderMap::new(), Body::from(PNG));
 
     let (first_status, Json(first)) = send().await.unwrap();
     let (second_status, Json(second)) = send().await.unwrap();
@@ -160,7 +186,14 @@ mod tests {
   #[tokio::test]
   async fn rejects_files_that_are_not_images() {
     let state = test_state().await;
-    let result = upload(State(state), Editor(local_user_id()), HeaderMap::new(), Body::from(&b"<svg onload=alert(1)>"[..])).await;
+    let result = upload(
+      State(state),
+      Editor(local_user_id()),
+      Query(UploadQuery::default()),
+      HeaderMap::new(),
+      Body::from(&b"<svg onload=alert(1)>"[..]),
+    )
+    .await;
 
     assert!(matches!(result, Err(AppError::Core(CoreError::Invalid(_)))));
   }
@@ -173,7 +206,7 @@ mod tests {
     bomb[16..20].copy_from_slice(&30_000u32.to_be_bytes());
     bomb[20..24].copy_from_slice(&30_000u32.to_be_bytes());
 
-    let result = upload(State(state), Editor(local_user_id()), HeaderMap::new(), Body::from(bomb)).await;
+    let result = upload(State(state), Editor(local_user_id()), Query(UploadQuery::default()), HeaderMap::new(), Body::from(bomb)).await;
 
     assert!(matches!(result, Err(AppError::Core(CoreError::Invalid(m))) if m.contains("pixels")));
   }
@@ -185,7 +218,7 @@ mod tests {
     let chunks = std::iter::once(Ok::<_, std::io::Error>(bytes::Bytes::from_static(PNG))).chain((0..30).map(|_| Ok(bytes::Bytes::from(vec![0u8; 1 << 20]))));
     let body = Body::from_stream(futures_util::stream::iter(chunks));
 
-    let result = upload(State(state), Editor(local_user_id()), HeaderMap::new(), body).await;
+    let result = upload(State(state), Editor(local_user_id()), Query(UploadQuery::default()), HeaderMap::new(), body).await;
 
     assert!(matches!(result, Err(AppError::Core(CoreError::TooLarge { .. }))));
     assert!(walk(&dir.join("assets")).is_empty());

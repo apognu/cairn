@@ -25,7 +25,7 @@ mod urls;
 mod users;
 
 pub use api::{ReleaseSpec, get_api_config, list_api_configs, record_release_specs, release_specs, save_api_config};
-pub use assets::{NewAsset, asset_by_hash, asset_by_id, assets_by_ids, get_or_create_asset};
+pub use assets::{AssetUsage, NewAsset, asset_by_hash, asset_by_id, asset_usage, assets_by_ids, get_or_create_asset, list_assets, set_asset_title, set_kept};
 pub use cleanup::{asset_hashes, delete_assets, unused_assets};
 #[cfg(any(test, feature = "testing"))]
 pub use connect::connect_for_tests;

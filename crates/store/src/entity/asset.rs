@@ -14,6 +14,11 @@ pub struct Model {
   pub placeholder: Option<String>,
   pub uploaded_by: Uuid,
   pub created_at: String,
+  pub title: Option<String>,
+  pub name: Option<String>,
+  pub search: String,
+  pub derived_from: Option<Uuid>,
+  pub kept: bool,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
