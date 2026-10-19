@@ -1178,6 +1178,8 @@ export interface components {
         };
         /** @description A link from a page that stays to a page that is going away. */
         BrokenLink: {
+            /** @description The target is hidden rather than deleted. */
+            hidden: boolean;
             source_id: components["schemas"]["PageId"];
             source_title: string;
             target_title: string;
@@ -1202,7 +1204,7 @@ export interface components {
          * @description What changed about a page since the live release.
          * @enum {string}
          */
-        ChangeKind: "new" | "edited" | "renamed" | "moved" | "header" | "deleted";
+        ChangeKind: "new" | "edited" | "renamed" | "moved" | "header" | "deleted" | "hidden";
         CodeToken: {
             dark?: components["schemas"]["CodeTokenStyle"] | null;
             /** @description Offsets in UTF-16 code units, as JavaScript counts them. */
@@ -1514,7 +1516,7 @@ export interface components {
             url: string;
         };
         Pending: {
-            /** @description Links that would point at a deleted page: they render as plain text. */
+            /** @description Links that would point at a deleted or hidden page: they render as plain text. */
             broken_links: components["schemas"]["BrokenLink"][];
             changes: components["schemas"]["Change"][];
             lost_urls: components["schemas"]["LostUrl"][];

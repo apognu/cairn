@@ -3202,9 +3202,14 @@
         "required": [
           "source_id",
           "source_title",
-          "target_title"
+          "target_title",
+          "hidden"
         ],
         "properties": {
+          "hidden": {
+            "type": "boolean",
+            "description": "The target is hidden rather than deleted."
+          },
           "source_id": {
             "$ref": "#/components/schemas/PageId"
           },
@@ -3296,7 +3301,8 @@
           "renamed",
           "moved",
           "header",
-          "deleted"
+          "deleted",
+          "hidden"
         ]
       },
       "CodeToken": {
@@ -4388,7 +4394,7 @@
             "items": {
               "$ref": "#/components/schemas/BrokenLink"
             },
-            "description": "Links that would point at a deleted page: they render as plain text."
+            "description": "Links that would point at a deleted or hidden page: they render as plain text."
           },
           "changes": {
             "type": "array",

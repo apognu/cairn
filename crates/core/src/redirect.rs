@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
 
-use crate::{ApiConfig, Page, PageId, PageKind, Settings, page_urls};
+use crate::{ApiConfig, Page, PageId, PageKind, Settings, page_urls, published_pages};
 
 /// Whether a move or rename keeps the old URL working.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -117,6 +117,8 @@ pub enum ChangeKind {
   /// Promoted to or taken out of the site header.
   Header,
   Deleted,
+  /// Hidden, or under a hidden page: it leaves the site but stays in the tree.
+  Hidden,
 }
 
 /// One page with something to publish.
@@ -155,6 +157,8 @@ pub struct BrokenLink {
   pub source_id: PageId,
   pub source_title: String,
   pub target_title: String,
+  /// The target is hidden rather than deleted.
+  pub hidden: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -162,7 +166,7 @@ pub struct BrokenLink {
 pub struct Pending {
   pub changes: Vec<Change>,
   pub lost_urls: Vec<LostUrl>,
-  /// Links that would point at a deleted page: they render as plain text.
+  /// Links that would point at a deleted or hidden page: they render as plain text.
   pub broken_links: Vec<BrokenLink>,
   /// The site settings (name, logos, theme, header links, footer, custom CSS) differ from the live release's.
   pub settings: bool,
@@ -204,6 +208,10 @@ pub fn pending_changes(current: &Current, live: Option<&Live>) -> Pending {
     api_configs,
     settings,
   } = *current;
+  // Hidden pages compare as if they were not in the tree; `every` still knows them, to tell a hidden page from a deleted one.
+  let every = pages;
+  let published = published_pages(every);
+  let pages = published.as_slice();
   let urls = page_urls(pages);
   let rules = effective_redirects(redirects, pages);
   let no_configs = HashMap::new();
@@ -279,7 +287,7 @@ pub fn pending_changes(current: &Current, live: Option<&Live>) -> Pending {
     changes.push(Change {
       page_id: old.id,
       title: old.title.clone(),
-      kinds: vec![ChangeKind::Deleted],
+      kinds: vec![if every.iter().any(|p| p.id == old.id) { ChangeKind::Hidden } else { ChangeKind::Deleted }],
       old_url: live_urls.get(&old.id).cloned(),
       new_url: None,
       redirected: false,
@@ -307,12 +315,16 @@ pub fn pending_changes(current: &Current, live: Option<&Live>) -> Pending {
       if pages.iter().any(|p| p.id == *target) {
         return None;
       }
-      let target_title = live.pages.iter().find(|p| p.id == *target).map_or_else(|| "a deleted page".to_string(), |p| p.title.clone());
+      let hidden = every.iter().find(|p| p.id == *target);
+      let target_title = hidden
+        .or_else(|| live.pages.iter().find(|p| p.id == *target))
+        .map_or_else(|| "a deleted page".to_string(), |p| p.title.clone());
 
       Some(BrokenLink {
         source_id: *source,
         source_title: source_page.title.clone(),
         target_title,
+        hidden: hidden.is_some(),
       })
     })
     .collect();
@@ -532,6 +544,32 @@ mod tests {
 
     let kinds: Vec<_> = result.changes.iter().map(|c| (c.title.as_str(), c.kinds.clone())).collect();
     assert_eq!(kinds, [("kept", vec![ChangeKind::Edited]), ("fresh", vec![ChangeKind::New]), ("gone", vec![ChangeKind::Deleted])]);
+  }
+
+  #[test]
+  fn a_hidden_page_leaves_the_site_and_its_links_are_reported_as_hidden() {
+    let kept = page("kept", None);
+    let mut hidden = page("hidden", None);
+    let below = page("below", Some(hidden.id));
+    let mut draft = page("draft", None);
+    hidden.hidden = true;
+    draft.hidden = true;
+
+    let live = Live {
+      pages: &[kept.clone(), hidden.clone(), below.clone()],
+      redirects: &[],
+      revisions: &HashMap::new(),
+      content: &HashMap::new(),
+      settings: None,
+      api_configs: &HashMap::new(),
+    };
+    let pending = pending_for(&[kept.clone(), hidden.clone(), below, draft], &[], &HashMap::new(), &[(kept.id, hidden.id)], &live);
+
+    // The page below goes with it; a hidden page that was never published is not a change.
+    let kinds: Vec<_> = pending.changes.iter().map(|c| (c.title.as_str(), c.kinds.clone())).collect();
+    assert_eq!(kinds, [("hidden", vec![ChangeKind::Hidden]), ("below", vec![ChangeKind::Hidden])]);
+    assert_eq!(pending.lost_urls.iter().map(|u| u.path.as_str()).collect::<Vec<_>>(), ["/hidden/", "/hidden/below/"]);
+    assert_eq!((pending.broken_links[0].target_title.as_str(), pending.broken_links[0].hidden), ("hidden", true));
   }
 
   #[test]

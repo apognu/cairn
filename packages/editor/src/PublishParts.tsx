@@ -20,6 +20,7 @@ export const badge: Record<Change["kinds"][number], string> = {
   moved: "Moved",
   header: "Header",
   deleted: "Deleted",
+  hidden: "Hidden",
 };
 
 /** A saved version never changes, so it is read once. */

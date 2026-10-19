@@ -8,7 +8,7 @@ use std::{
 
 use cairn_core::{
   ApiConfig, AssetId, AssetStore, Broadcast, ContentStore, Document, Event, Library, LinkKind, Mode, Page, PageId, PageKind, PageLink, Release, ReleaseId, ReleaseStatus, RevisionId, Settings, UserId,
-  effective_redirects, expand, extract_links, header_section, heading_sections, hotfix_pages, original_key, page_urls, term_anchors, term_refs, variant_key,
+  effective_redirects, expand, extract_links, header_section, heading_sections, hotfix_pages, original_key, page_urls, published_pages, term_anchors, term_refs, variant_key,
 };
 use cairn_render::{Pool, Shell, highlight_css};
 use cairn_store::{
@@ -340,8 +340,10 @@ impl<C: ContentStore, A: AssetStore, B: Broadcast> Publisher<C, A, B> {
     // One snapshot for the checks and the build: a save or a tree change made meanwhile waits for the next publish instead of going out
     // unchecked.
     let mut staging = staging(&self.db).await?;
-    // Links to pages that exist but are not in a hotfix render as plain text: they are not broken.
+    // Links to pages that exist but are hidden or not in a hotfix render as plain text: they are not broken.
     let mut linkable = staging.pages.clone();
+    // Hidden pages are dropped here, once, so nothing below (sources, navigation, redirects, the frozen tree) can let one out.
+    staging.pages = published_pages(&staging.pages);
     if let Some(picked) = picked {
       self.narrow(&mut staging, picked).await?;
       // A page deleted since, but kept by the hotfix, is still there to link to.
@@ -1616,6 +1618,63 @@ mod tests {
     // 404 is a page of the site but not a searchable one.
     assert!(!std::fs::read_to_string(site.join("404.html")).unwrap().contains("data-pagefind-body"));
     assert!(std::fs::read_to_string(site.join("guide/index.html")).unwrap().contains("data-pagefind-body"));
+  }
+
+  #[tokio::test]
+  async fn a_hidden_page_and_its_subpages_are_not_published_and_links_to_it_are_plain_text() {
+    use cairn_store::set_hidden;
+
+    let f = fixture().await;
+    let user = UserId::new();
+    let guide = create_page(&f.db, user, None, "Guide", Placement::Last).await.unwrap();
+    let secret = create_page(&f.db, user, None, "Secret", Placement::Last).await.unwrap();
+    create_page(&f.db, user, Some(secret.id), "Inside", Placement::Last).await.unwrap();
+    let id = secret.id.to_string();
+    f.content
+      .save_draft(
+        guide.id,
+        doc(serde_json::json!({ "type": "doc", "content": [
+          { "type": "paragraph", "content": [{ "type": "text", "text": "the secret", "marks": [{ "type": "link", "attrs": { "pageId": id } }] }] },
+          { "type": "linkCard", "attrs": { "page": id } },
+        ] })),
+        None,
+        user,
+      )
+      .await
+      .unwrap();
+    let site = f.dir.join("out/site");
+
+    f.publisher.publish(user).await.unwrap();
+    assert_eq!(html_files(&site), ["404.html", "guide/index.html", "secret/index.html", "secret/inside/index.html"]);
+
+    set_hidden(&f.db, secret.id, true).await.unwrap();
+    let pending = crate::pending(&f.db).await.unwrap();
+    let kinds: Vec<_> = pending.changes.iter().map(|c| (c.title.as_str(), c.kinds.clone())).collect();
+    assert_eq!(
+      kinds,
+      [
+        ("Guide", vec![cairn_core::ChangeKind::Edited]),
+        ("Inside", vec![cairn_core::ChangeKind::Hidden]),
+        ("Secret", vec![cairn_core::ChangeKind::Hidden])
+      ]
+    );
+    assert!(pending.broken_links.iter().all(|l| l.hidden && l.target_title == "Secret"));
+
+    // Not a broken link: the publish goes through, and the guide no longer leads there in any way (link, card, navigation).
+    f.publisher.publish(user).await.unwrap();
+    assert_eq!(html_files(&site), ["404.html", "guide/index.html"]);
+    let html = std::fs::read_to_string(site.join("guide/index.html")).unwrap();
+    assert!(html.contains("the secret") && !html.contains("/secret/"), "{html}");
+    assert!(crate::pending(&f.db).await.unwrap().changes.is_empty());
+
+    set_hidden(&f.db, secret.id, false).await.unwrap();
+    f.publisher.publish(user).await.unwrap();
+    assert_eq!(html_files(&site), ["404.html", "guide/index.html", "secret/index.html", "secret/inside/index.html"]);
+
+    // A hotfix of the hidden page takes it out with its subpage, as it would a deleted one.
+    set_hidden(&f.db, secret.id, true).await.unwrap();
+    f.publisher.publish_selected(user, &HashSet::from([secret.id])).await.unwrap();
+    assert_eq!(html_files(&site), ["404.html", "guide/index.html"]);
   }
 
   #[tokio::test]

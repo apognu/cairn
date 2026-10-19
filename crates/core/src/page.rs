@@ -109,6 +109,28 @@ pub fn page_urls(pages: &[Page]) -> HashMap<PageId, String> {
   urls
 }
 
+/// The pages a build publishes: every page but the hidden ones and the pages below them.
+pub fn published_pages(pages: &[Page]) -> Vec<Page> {
+  let by_id: HashMap<PageId, &Page> = pages.iter().map(|p| (p.id, p)).collect();
+
+  pages
+    .iter()
+    .filter(|page| {
+      let mut current = Some(*page);
+      // Bounded like `page_urls`, against corrupt data.
+      for _ in 0..64 {
+        let Some(p) = current else { return true };
+        if p.hidden {
+          return false;
+        }
+        current = p.parent_id.and_then(|id| by_id.get(&id).copied());
+      }
+      true
+    })
+    .cloned()
+    .collect()
+}
+
 /// Turns a title into a URL segment: lowercase ASCII letters and digits separated by single dashes.
 pub fn slugify(title: &str) -> String {
   let mut slug = String::new();
@@ -159,6 +181,20 @@ mod tests {
     assert_eq!(urls[&guide.id], "/guide/");
     assert_eq!(urls[&hooks.id], "/hooks/");
     assert_eq!(urls[&retries.id], "/hooks/retries/");
+  }
+
+  #[test]
+  fn hidden_pages_and_everything_below_them_are_not_published() {
+    let guide = node("guide", None, None);
+    let mut hooks = node("webhooks", Some(&guide), None);
+    let retries = node("retries", Some(&hooks), None);
+    let deep = node("deep", Some(&retries), None);
+    let mut faq = node("faq", None, None);
+    hooks.hidden = true;
+    faq.hidden = true;
+
+    let published: Vec<String> = published_pages(&[guide, hooks, retries, deep, faq]).into_iter().map(|p| p.slug).collect();
+    assert_eq!(published, ["guide"]);
   }
 
   #[test]

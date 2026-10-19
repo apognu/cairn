@@ -1,8 +1,8 @@
 use std::collections::{HashMap, HashSet};
 
 use cairn_core::{
-  Current, Document, Live, Operation, Page, PageId, PageKind, Pending, Problem, ProblemKind, Pulled, doc_problems, expand, heading_anchors, hotfix_pages, page_urls, pending_changes, term_refs,
-  url_problems,
+  Current, Document, Live, Operation, Page, PageId, PageKind, Pending, Problem, ProblemKind, Pulled, doc_problems, expand, heading_anchors, hotfix_pages, page_urls, pending_changes, published_pages,
+  term_refs, url_problems,
 };
 use cairn_render::Pool;
 use cairn_store::{DatabaseConnection, LiveRelease, Staging, staging};
@@ -33,13 +33,14 @@ pub(crate) fn pending_against(staging: &Staging, against: Option<&LiveRelease>) 
   } = staging;
   let links: Vec<_> = links.iter().map(|l| (l.source, l.target)).collect();
 
-  // What each page would be published with, hashed as the publisher records it.
-  let urls = page_urls(pages);
+  // What each page would be published with, hashed as the publisher records it: with the tree it builds, hidden pages left out.
+  let published = published_pages(pages);
+  let urls = page_urls(&published);
   let empty = Document::empty();
-  let content: HashMap<PageId, String> = pages
+  let content: HashMap<PageId, String> = published
     .iter()
     .filter(|p| p.kind == PageKind::Page)
-    .map(|p| (p.id, content_hash(&expand(docs.get(&p.id).unwrap_or(&empty), library).0, pages, &urls, library)))
+    .map(|p| (p.id, content_hash(&expand(docs.get(&p.id).unwrap_or(&empty), library).0, &published, &urls, library)))
     .collect();
 
   let state = against.map(|l| Live {
@@ -69,7 +70,10 @@ pub(crate) fn pending_against(staging: &Staging, against: Option<&LiveRelease>) 
 /// Links to operations of API pages are compared with what the live release recorded, plus `fresh` (what a check of the settings just
 /// merged); a publish has the specs of its own build and uses `check_with`. Links to a section are compared with the drafts' headings.
 pub async fn check(db: &DatabaseConnection, pool: &Pool, fresh: &OperationAnchors) -> Result<Vec<Problem>, PublishError> {
-  let staging = staging(db).await?;
+  let mut staging = staging(db).await?;
+  // As a publish checks: hidden pages are not built, and links to them are not broken.
+  let linkable = std::mem::take(&mut staging.pages);
+  staging.pages = published_pages(&linkable);
   let mut anchors = OperationAnchors::new();
   for spec in &staging.live_specs {
     anchors.insert(spec.page_id, spec.operations.iter().map(Operation::anchor).collect());
@@ -78,13 +82,13 @@ pub async fn check(db: &DatabaseConnection, pool: &Pool, fresh: &OperationAnchor
     anchors.entry(*page).or_default().extend(known.iter().cloned());
   }
 
-  check_with(&staging, &staging.pages, pool, &anchors).await
+  check_with(&staging, &linkable, pool, &anchors).await
 }
 
 /// The anchors of the operations of each API page: what a link to one of them may point at.
 pub type OperationAnchors = HashMap<PageId, HashSet<String>>;
 
-/// `linkable` are the pages a link may point to without being broken: all pages that exist, even those a hotfix leaves out.
+/// `linkable` are the pages a link may point to without being broken: all pages that exist, even hidden ones and those a hotfix leaves out.
 pub(crate) async fn check_with(staging: &Staging, linkable: &[Page], pool: &Pool, operations: &OperationAnchors) -> Result<Vec<Problem>, PublishError> {
   let Staging { pages: all, docs, library, .. } = staging;
   let pages: Vec<_> = all.iter().filter(|p| p.kind == PageKind::Page).cloned().collect();
@@ -144,7 +148,8 @@ pub async fn hotfix_plan(db: &DatabaseConnection, picked: &HashSet<PageId>) -> R
   let staging = staging(db).await?;
   let no_pages = Vec::new();
   let live_pages = staging.live.as_ref().map_or(&no_pages, |l| &l.pages);
-  let (tree, pulled) = hotfix_pages(live_pages, &staging.pages, picked);
+  // A picked hidden page leaves the site, like a deleted one.
+  let (tree, pulled) = hotfix_pages(live_pages, &published_pages(&staging.pages), picked);
   let included: HashSet<PageId> = picked.iter().copied().chain(pulled.iter().map(|p| p.page_id)).collect();
   let title = |id: PageId| staging.pages.iter().find(|p| p.id == id).map(|p| p.title.clone());
 
