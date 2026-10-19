@@ -24,6 +24,7 @@ mod m0020_release_stats;
 mod m0021_page_reviews;
 mod m0022_roles;
 mod m0023_page_reviewed;
+mod m0024_hidden;
 
 struct Migrator;
 
@@ -53,6 +54,7 @@ impl MigratorTrait for Migrator {
       Box::new(m0021_page_reviews::Migration),
       Box::new(m0022_roles::Migration),
       Box::new(m0023_page_reviewed::Migration),
+      Box::new(m0024_hidden::Migration),
     ]
   }
 }
@@ -73,8 +75,9 @@ pub(super) async fn run(manager: &SchemaManager<'_>, sql: &str) -> Result<(), Db
 fn postgres(sql: &str) -> String {
   sql
     .replace(") STRICT;", ");")
-    // The one flag: written as 0/1 for SQLite, a real boolean for Postgres, which is what the entity reads.
+    // The flags: written as 0/1 for SQLite, real booleans for Postgres, which is what the entity reads.
     .replace("\"in_header\" INTEGER NOT NULL DEFAULT 0", "\"in_header\" BOOLEAN NOT NULL DEFAULT FALSE")
+    .replace("\"hidden\" INTEGER NOT NULL DEFAULT 0", "\"hidden\" BOOLEAN NOT NULL DEFAULT FALSE")
     .replace("BLOB", "UUID")
     .replace("INTEGER", "BIGINT")
 }

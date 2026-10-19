@@ -1150,6 +1150,52 @@
         }
       }
     },
+    "/api/pages/{id}/hidden": {
+      "put": {
+        "summary": "Leaves the page and its subpages out of the published site from the next publish on, or puts them back. Links to a hidden page render\nas plain text.",
+        "operationId": "setPageHidden",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/PageId"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HiddenBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/pages/{id}/history": {
       "get": {
         "summary": "The saved versions of a page, newest first.",
@@ -3609,6 +3655,17 @@
           }
         }
       },
+      "HiddenBody": {
+        "type": "object",
+        "required": [
+          "hidden"
+        ],
+        "properties": {
+          "hidden": {
+            "type": "boolean"
+          }
+        }
+      },
       "HighlightRequest": {
         "type": "object",
         "required": [
@@ -4182,6 +4239,10 @@
               "null"
             ],
             "description": "Orders the header entries (fractional index, like `position`)."
+          },
+          "hidden": {
+            "type": "boolean",
+            "description": "Left out of every build, with its subpages (see `published_pages`); it stays in the editor."
           },
           "id": {
             "$ref": "#/components/schemas/PageId"

@@ -373,6 +373,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/pages/{id}/hidden": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Leaves the page and its subpages out of the published site from the next publish on, or puts them back. Links to a hidden page render
+         *     as plain text.
+         */
+        put: operations["setPageHidden"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/pages/{id}/history": {
         parameters: {
             query?: never;
@@ -1274,6 +1294,9 @@ export interface components {
         HeaderBody: {
             in_header: boolean;
         };
+        HiddenBody: {
+            hidden: boolean;
+        };
         HighlightRequest: {
             code: string;
             /** @description As written in the code block, like `rust` or `tsx`. */
@@ -1445,6 +1468,8 @@ export interface components {
             external_url?: string | null;
             /** @description Orders the header entries (fractional index, like `position`). */
             header_position?: string | null;
+            /** @description Left out of every build, with its subpages (see `published_pages`); it stays in the editor. */
+            hidden?: boolean;
             id: components["schemas"]["PageId"];
             /** @description Shown as an entry of the site header; a page with children also gets a sidebar of its own. */
             in_header?: boolean;
@@ -2811,6 +2836,39 @@ export interface operations {
             };
             /** @description links cannot be shown in the header */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    setPageHidden: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["PageId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HiddenBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page"];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

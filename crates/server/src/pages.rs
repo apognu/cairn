@@ -21,6 +21,7 @@ pub(crate) fn routes() -> OpenApiRouter<AppState> {
     .routes(routes!(rename, remove))
     .routes(routes!(move_to))
     .routes(routes!(header))
+    .routes(routes!(hide))
     .routes(routes!(describe))
 }
 
@@ -131,6 +132,22 @@ struct HeaderBody {
 #[instrument(skip_all, fields(page_id = %id))]
 async fn header(State(state): State<AppState>, Editor(_): Editor, Path(id): Path<PageId>, Json(body): Json<HeaderBody>) -> Result<Json<Page>, AppError> {
   Ok(Json(cairn_store::set_in_header(&state.db, id, body.in_header).await?))
+}
+
+#[derive(Deserialize, ToSchema)]
+struct HiddenBody {
+  hidden: bool,
+}
+
+/// Leaves the page and its subpages out of the published site from the next publish on, or puts them back. Links to a hidden page render
+/// as plain text.
+#[utoipa::path(put, path = "/api/pages/{id}/hidden", operation_id = "setPageHidden", params(("id" = PageId, Path)), request_body = HiddenBody, responses(
+  (status = 200, body = Page),
+  (status = 404, body = ErrorBody),
+))]
+#[instrument(skip_all, fields(page_id = %id))]
+async fn hide(State(state): State<AppState>, Editor(_): Editor, Path(id): Path<PageId>, Json(body): Json<HiddenBody>) -> Result<Json<Page>, AppError> {
+  Ok(Json(cairn_store::set_hidden(&state.db, id, body.hidden).await?))
 }
 
 #[derive(Deserialize, ToSchema)]

@@ -55,6 +55,9 @@ pub struct Page {
   /// Orders the header entries (fractional index, like `position`).
   #[serde(default)]
   pub header_position: Option<String>,
+  /// Left out of every build, with its subpages (see `published_pages`); it stays in the editor.
+  #[serde(default)]
+  pub hidden: bool,
   /// A short summary, shown on link cards and in the page's meta description.
   #[serde(default)]
   pub description: Option<String>,
@@ -137,6 +140,7 @@ mod tests {
       external_url: None,
       path_override: custom.map(Into::into),
       in_header: false,
+      hidden: false,
       header_position: None,
       description: None,
       created_by: UserId::new(),

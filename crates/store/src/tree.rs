@@ -56,6 +56,7 @@ async fn insert(db: &DatabaseConnection, user: UserId, parent: Option<PageId>, t
     external_url: url.clone(),
     path_override: None,
     in_header: false,
+    hidden: false,
     header_position: None,
     description: None,
     created_by: user,
@@ -74,6 +75,7 @@ async fn insert(db: &DatabaseConnection, user: UserId, parent: Option<PageId>, t
     external_url: Set(url),
     path_override: Set(None),
     in_header: Set(false),
+    hidden: Set(false),
     header_position: Set(None),
     description: Set(None),
     created_by: Set(user.as_uuid()),
@@ -136,6 +138,25 @@ pub async fn set_in_header(db: &DatabaseConnection, id: PageId, in_header: bool)
     id: Set(id.as_uuid()),
     in_header: Set(in_header),
     header_position: Set(position),
+    updated_at: Set(Timestamp::now().to_string()),
+    ..Default::default()
+  }
+  .update(&tx)
+  .await?;
+
+  tx.commit().await?;
+
+  into_page(row)
+}
+
+/// Hides a page from the published site, or shows it again; its subpages follow it.
+pub async fn set_hidden(db: &DatabaseConnection, id: PageId, hidden: bool) -> Result<Page, StoreError> {
+  let tx = write_tx(db).await?;
+  find(&list_pages(&tx).await?, id)?;
+
+  let row = page::ActiveModel {
+    id: Set(id.as_uuid()),
+    hidden: Set(hidden),
     updated_at: Set(Timestamp::now().to_string()),
     ..Default::default()
   }
@@ -411,6 +432,7 @@ pub(crate) fn into_page(row: page::Model) -> Result<Page, StoreError> {
     external_url: row.external_url,
     path_override: row.path_override,
     in_header: row.in_header,
+    hidden: row.hidden,
     header_position: row.header_position,
     description: row.description,
     created_by: row.created_by.into(),

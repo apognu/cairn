@@ -273,6 +273,7 @@ mod tests {
     ("GET", "/api/pages/{id}/draft", Role::Viewer),
     ("PUT", "/api/pages/{id}/draft", Role::Editor),
     ("PUT", "/api/pages/{id}/header", Role::Editor),
+    ("PUT", "/api/pages/{id}/hidden", Role::Editor),
     ("GET", "/api/pages/{id}/history", Role::Viewer),
     ("GET", "/api/pages/{id}/impact", Role::Viewer),
     ("GET", "/api/pages/{id}/lock", Role::Viewer),

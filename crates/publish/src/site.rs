@@ -143,6 +143,7 @@ mod tests {
       external_url: None,
       path_override: None,
       in_header: false,
+      hidden: false,
       header_position: None,
       description: None,
       created_by: UserId::new(),
@@ -210,6 +211,7 @@ mod tests {
   fn a_section_sidebar_links_back_to_where_the_section_sits() {
     let promoted = |p: Page| Page {
       in_header: true,
+      hidden: false,
       header_position: Some("80".into()),
       ..p
     };
@@ -243,6 +245,7 @@ mod tests {
     let guide = page("guide", None);
     let api = Page {
       in_header: true,
+      hidden: false,
       header_position: Some("80".into()),
       ..page("api", None)
     };

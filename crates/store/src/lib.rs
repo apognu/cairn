@@ -47,6 +47,6 @@ pub use reviews::{StaleRow, list_users, mark_reviewed, page_review, set_page_rev
 pub use sea_orm::DatabaseConnection;
 pub use sessions::{api_token_user, create_api_token, create_session, delete_api_token, delete_session, list_api_tokens, session_user};
 pub use staging::{Staging, staging};
-pub use tree::{create_api_page, create_link, create_page, delete_page, edit_link, list_pages, move_page, rename_page, set_description, set_in_header};
+pub use tree::{create_api_page, create_link, create_page, delete_page, edit_link, list_pages, move_page, rename_page, set_description, set_hidden, set_in_header};
 pub use urls::{RedirectTarget, add_alias, add_redirect, list_aliases, normalize_path, remove_alias, remove_redirect, set_custom_url};
 pub use users::{LoginState, get_user, save_login_state, set_user_role, take_login_state, upsert_user};

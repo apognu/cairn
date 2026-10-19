@@ -160,6 +160,7 @@ mod tests {
       external_url: None,
       path_override: custom.map(Into::into),
       in_header: false,
+      hidden: false,
       header_position: None,
       description: None,
       created_by: UserId::new(),

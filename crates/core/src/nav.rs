@@ -77,6 +77,7 @@ mod tests {
       external_url: None,
       path_override: None,
       in_header,
+      hidden: false,
       header_position: in_header.then(|| "80".into()),
       description: None,
       created_by: UserId::new(),

@@ -9,6 +9,7 @@ const page = (id: string, parent_id: string | null = null, kind: Page["kind"] = 
   external_url: kind === "link" ? "https://example.com" : null,
   path_override: null,
   in_header: false,
+  hidden: false,
   header_position: null,
   position: id,
   slug: id,

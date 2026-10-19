@@ -13,6 +13,7 @@ pub struct Model {
   pub external_url: Option<String>,
   pub path_override: Option<String>,
   pub in_header: bool,
+  pub hidden: bool,
   pub header_position: Option<String>,
   pub description: Option<String>,
   pub created_by: Uuid,
