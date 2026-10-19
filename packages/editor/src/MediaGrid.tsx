@@ -13,11 +13,14 @@ export function MediaGrid({
   selected,
   onChoose,
   onPick,
+  scroll = false,
   children,
 }: {
   selected: string | null;
   onChoose: (asset: Asset) => void;
   onPick?: (asset: Asset) => void;
+  /** Fills the height it is given and scrolls the images under a search field that stays put, as in a dialog. */
+  scroll?: boolean;
   children?: ReactNode;
 }) {
   const id = useId();
@@ -32,8 +35,8 @@ export function MediaGrid({
   }, [typed]);
 
   return (
-    <div>
-      <div className="flex items-center gap-2 mb-3.5">
+    <div className={scroll ? "flex flex-col flex-1 min-h-0" : undefined}>
+      <div className="flex flex-none items-center gap-2 mb-3.5">
         <label htmlFor={id} className="sr-only">
           Search images
         </label>
@@ -50,50 +53,56 @@ export function MediaGrid({
         {children}
       </div>
 
-      {assets.isError && (
-        <p role="alert" className="text-danger">
-          {assets.error.message}
-        </p>
-      )}
-      {assets.isSuccess && all.length === 0 && (
-        <p className="text-muted text-help">
-          {search ? `No image matches “${search}”.` : "No image has been uploaded yet."}
-        </p>
-      )}
+      {/* The padding leaves room for the chosen image's outline, which the scrolling box would otherwise cut. */}
+      <div className={scroll ? "flex-1 min-h-0 overflow-y-auto -mx-1 px-1 pt-1 pb-2" : undefined}>
+        {assets.isError && (
+          <p role="alert" className="text-danger">
+            {assets.error.message}
+          </p>
+        )}
+        {assets.isSuccess && all.length === 0 && (
+          <p className="text-muted text-help">
+            {search ? `No image matches “${search}”.` : "No image has been uploaded yet."}
+          </p>
+        )}
 
-      <ul className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-3 m-0 p-0 list-none" aria-label="Images">
-        {all.map((asset) => (
-          <li key={asset.id} className="min-w-0">
+        <ul
+          className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-3 m-0 p-0 list-none"
+          aria-label="Images"
+        >
+          {all.map((asset) => (
+            <li key={asset.id} className="min-w-0">
+              <button
+                type="button"
+                className="group/tile flex flex-col w-full p-0 border-0 bg-transparent text-left text-text cursor-pointer"
+                aria-pressed={selected === asset.id}
+                onClick={() => onChoose(asset)}
+                onDoubleClick={() => onPick?.(asset)}
+              >
+                <span className="flex items-center justify-center w-full aspect-[4/3] overflow-hidden border border-border rounded-lg bg-hover group-hover/tile:border-input group-aria-pressed/tile:border-accent group-aria-pressed/tile:outline-2 group-aria-pressed/tile:outline-accent">
+                  <img className="w-full h-full object-contain" src={thumbnail(asset)} alt="" loading="lazy" />
+                </span>
+                <span className={`mt-1.5 text-help truncate ${asset.title ? "" : "text-muted"}`}>
+                  {assetLabel(asset)}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+
+        {assets.hasNextPage && (
+          <div className="flex justify-center mt-4">
             <button
               type="button"
-              className="group/tile flex flex-col w-full p-0 border-0 bg-transparent text-left text-text cursor-pointer"
-              aria-pressed={selected === asset.id}
-              onClick={() => onChoose(asset)}
-              onDoubleClick={() => onPick?.(asset)}
+              className={ui.secondary}
+              disabled={assets.isFetchingNextPage}
+              onClick={() => assets.fetchNextPage()}
             >
-              <span className="flex items-center justify-center w-full aspect-[4/3] overflow-hidden border border-border rounded-lg bg-hover group-hover/tile:border-input group-aria-pressed/tile:border-accent group-aria-pressed/tile:outline-2 group-aria-pressed/tile:outline-accent">
-                <img className="w-full h-full object-contain" src={thumbnail(asset)} alt="" loading="lazy" />
-              </span>
-              <span className={`mt-1.5 text-help truncate ${asset.title ? "" : "text-muted"}`}>
-                {assetLabel(asset)}
-              </span>
+              {assets.isFetchingNextPage ? "Loading…" : "Show more"}
             </button>
-          </li>
-        ))}
-      </ul>
-
-      {assets.hasNextPage && (
-        <div className="flex justify-center mt-4">
-          <button
-            type="button"
-            className={ui.secondary}
-            disabled={assets.isFetchingNextPage}
-            onClick={() => assets.fetchNextPage()}
-          >
-            {assets.isFetchingNextPage ? "Loading…" : "Show more"}
-          </button>
-        </div>
-      )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

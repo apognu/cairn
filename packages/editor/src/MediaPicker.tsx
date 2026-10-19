@@ -103,59 +103,64 @@ function MediaPicker({
   return (
     <dialog
       ref={dialog}
-      className={`${ui.dialogBase} w-[min(880px,calc(100vw-32px))] max-h-[calc(100vh-64px)] overflow-y-auto`}
+      className={`${ui.dialogBase} w-[min(1100px,calc(100vw-32px))] max-h-none`}
       aria-labelledby={`${id}-title`}
       onClose={onClose}
     >
-      <h2 id={`${id}-title`} className={ui.dialogTitle}>
-        {replacing ? "Replace the image" : "Choose an image"}
-      </h2>
-      <MediaGrid selected={chosen?.id ?? null} onChoose={setChosen} onPick={choose}>
-        {/* The browser's own file input cannot be styled; it stays reachable by keyboard, drawn as the button after it. */}
-        <input
-          id={`${id}-file`}
-          className="peer sr-only"
-          type="file"
-          accept="image/png,image/jpeg,image/gif,image/webp"
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            e.target.value = "";
-            if (file)
-              uploadImage(file).then(choose, (err: Error) => {
-                setError(err.message);
-              });
-          }}
-        />
-        <label
-          htmlFor={`${id}-file`}
-          className={`${ui.secondary} inline-flex items-center flex-none font-medium peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-accent`}
+      {/* A fixed height, so several rows show and only the images scroll between the search field and the buttons. */}
+      <div className="flex flex-col h-[min(860px,calc(100vh-96px))]">
+        <h2 id={`${id}-title`} className={ui.dialogTitle}>
+          {replacing ? "Replace the image" : "Choose an image"}
+        </h2>
+        <MediaGrid selected={chosen?.id ?? null} onChoose={setChosen} onPick={choose} scroll>
+          {/* The browser's own file input cannot be styled; it stays reachable by keyboard, drawn as the button after it. */}
+          <input
+            id={`${id}-file`}
+            className="peer sr-only"
+            type="file"
+            accept="image/png,image/jpeg,image/gif,image/webp"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              e.target.value = "";
+              if (file)
+                uploadImage(file).then(choose, (err: Error) => {
+                  setError(err.message);
+                });
+            }}
+          />
+          <label
+            htmlFor={`${id}-file`}
+            className={`${ui.secondary} inline-flex items-center flex-none font-medium peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-accent`}
+          >
+            Upload
+          </label>
+        </MediaGrid>
+        {error && (
+          <p role="alert" className="flex-none mb-0 text-danger">
+            {error}
+          </p>
+        )}
+        <div
+          className={`${ui.actions} flex-none flex-wrap items-center -mx-6 mt-3 pt-4 px-6 border-t border-border whitespace-nowrap`}
         >
-          Upload
-        </label>
-      </MediaGrid>
-      {error && (
-        <p role="alert" className="text-danger">
-          {error}
-        </p>
-      )}
-      <div
-        className={`${ui.actions} sticky bottom-0 items-center -mx-6 -mb-6 mt-4 py-3 px-6 border-t border-border bg-bg`}
-      >
-        <span className="mr-auto text-muted text-help truncate">{chosen ? assetLabel(chosen) : "No image chosen"}</span>
-        <button type="button" className={ui.dialogButton} onClick={() => dialog.current?.close()}>
-          Cancel
-        </button>
-        <button
-          type="button"
-          className={ui.dialogButton}
-          disabled={!chosen || chosen.variants?.length === 0}
-          onClick={() => setEditing(true)}
-        >
-          Crop & annotate…
-        </button>
-        <button type="button" className={ui.primary} disabled={!chosen} onClick={() => chosen && choose(chosen)}>
-          {replacing ? "Replace" : "Insert"}
-        </button>
+          <span className="min-w-0 mr-auto text-muted text-help truncate">
+            {chosen ? assetLabel(chosen) : "No image chosen"}
+          </span>
+          <button type="button" className={ui.dialogButton} onClick={() => dialog.current?.close()}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            className={ui.dialogButton}
+            disabled={!chosen || chosen.variants?.length === 0}
+            onClick={() => setEditing(true)}
+          >
+            Crop & annotate…
+          </button>
+          <button type="button" className={ui.primary} disabled={!chosen} onClick={() => chosen && choose(chosen)}>
+            {replacing ? "Replace" : "Insert"}
+          </button>
+        </div>
       </div>
       {editing && chosen && (
         <ImageEditor
