@@ -1,4 +1,5 @@
 import { LibrarySettings } from "./LibrarySettings";
+import { MediaSettings } from "./MediaSettings";
 import { useCan, usePending, useSignedIn } from "./queries";
 import { RedirectsSettings } from "./RedirectsSettings";
 import { ReleasesSettings } from "./ReleasesSettings";
@@ -11,11 +12,21 @@ import { rowClass, titleClass } from "./TreeParts";
 import { UsersSettings } from "./UsersSettings";
 import * as ui from "./ui";
 
-export type SettingsSection = "site" | "library" | "redirects" | "releases" | "review" | "trash" | "users" | "tokens";
+export type SettingsSection =
+  | "site"
+  | "library"
+  | "media"
+  | "redirects"
+  | "releases"
+  | "review"
+  | "trash"
+  | "users"
+  | "tokens";
 
 export const sectionTitle: Record<SettingsSection, string> = {
   site: "Site and theme",
   library: "Library",
+  media: "Media",
   redirects: "Redirects",
   releases: "Releases",
   review: "Pages to review",
@@ -40,6 +51,7 @@ export function SettingsView({
   // Tokens and users belong to signed-in people; `dev` has neither.
   const signedIn = useSignedIn();
   const admin = useCan("admin");
+  const editor = useCan("editor");
 
   return (
     <>
@@ -55,6 +67,7 @@ export function SettingsView({
           {(Object.keys(sectionTitle) as SettingsSection[])
             .filter((key) => key !== "tokens" || signedIn)
             .filter((key) => key !== "users" || (signedIn && admin))
+            .filter((key) => key !== "media" || editor)
             // Site settings are the admins'; the other sections can be read by everyone.
             .filter((key) => key !== "site" || admin)
             .map((key) => (
@@ -85,6 +98,8 @@ export function SettingsView({
           )
         ) : section === "library" ? (
           <LibrarySettings />
+        ) : section === "media" && editor ? (
+          <MediaSettings onOpenPage={onOpenPage} />
         ) : section === "releases" ? (
           <ReleasesSettings />
         ) : section === "review" ? (

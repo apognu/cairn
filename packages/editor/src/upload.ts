@@ -25,19 +25,27 @@ export function useUploads(): number {
   );
 }
 
+/** How an upload is recorded: `keep` adds it to the media library for good, `from` names the image it was edited from. */
+export type UploadOptions = { keep?: boolean; from?: string };
+
 /** Sends an image to the server. The same bytes always come back as the same asset. */
-export async function uploadImage(file: File): Promise<Asset> {
+export async function uploadImage(file: Blob & { name?: string }, options: UploadOptions = {}): Promise<Asset> {
   track(1);
   try {
-    return await send(file);
+    return await send(file, options);
   } finally {
     track(-1);
   }
 }
 
-async function send(file: File): Promise<Asset> {
+async function send(file: Blob & { name?: string }, { keep, from }: UploadOptions): Promise<Asset> {
+  const query = new URLSearchParams();
+  if (file.name) query.set("name", file.name);
+  if (from) query.set("from", from);
+  if (keep) query.set("keep", "true");
+
   // The generated client has no body type for a raw file, so this one call uses fetch; the response type is still generated.
-  const response = await fetch(serverUrl("/api/assets"), {
+  const response = await fetch(serverUrl(`/api/assets?${query}`), {
     method: "POST",
     headers: { "Content-Type": "application/octet-stream" },
     body: file,

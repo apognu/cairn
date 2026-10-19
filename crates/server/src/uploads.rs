@@ -123,17 +123,30 @@ async fn upload(State(state): State<AppState>, Editor(user): Editor, Query(query
   Ok((if created { StatusCode::CREATED } else { StatusCode::OK }, Json(asset)))
 }
 
-/// The original file of an asset, for the editor. `/_a/<id>` and `/_a/<id>.<ext>` both work.
+/// The original file of an asset, for the editor. `/_a/<id>` and `/_a/<id>.<ext>` both work; `/_a/<id>-<width>.webp` is one of its
+/// variants, the same address as on the published site, for thumbnails.
 #[instrument(skip_all, fields(asset = %name))]
 pub(crate) async fn serve(State(state): State<AppState>, Path(name): Path<String>) -> Result<Response, AppError> {
-  let id: AssetId = name.split('.').next().unwrap_or_default().parse().map_err(|_| AppError::Core(CoreError::NotFound))?;
+  let stem = name.split('.').next().unwrap_or_default();
+  // A UUID has dashes of its own: a width can only follow its 36 characters.
+  let (id, width) = match stem.get(36..).and_then(|rest| rest.strip_prefix('-')) {
+    Some(width) => (&stem[..36], Some(width.parse::<u32>().map_err(|_| AppError::Core(CoreError::NotFound))?)),
+    None => (stem, None),
+  };
+  let id: AssetId = id.parse().map_err(|_| AppError::Core(CoreError::NotFound))?;
   let asset = asset_by_id(&state.db, id).await?;
-  let bytes = state.assets.get(&original_key(&asset.sha256)).await?;
+
+  let (key, mime) = match width {
+    Some(width) if asset.variants.iter().any(|v| v.width == width) => (variant_key(&asset.sha256, width), "image/webp"),
+    Some(_) => return Err(CoreError::NotFound.into()),
+    None => (original_key(&asset.sha256), asset.mime.as_str()),
+  };
+  let bytes = state.assets.get(&key).await?;
 
   Ok(
     (
       [
-        (header::CONTENT_TYPE, HeaderValue::from_str(&asset.mime).map_err(|e| CoreError::Other(e.into()))?),
+        (header::CONTENT_TYPE, HeaderValue::from_str(mime).map_err(|e| CoreError::Other(e.into()))?),
         // The file behind an ID never changes, but it may not be published yet: a shared cache must not keep it.
         (header::CACHE_CONTROL, HeaderValue::from_static("private, max-age=31536000, immutable")),
         // Uploads are untrusted: never let a browser treat one as anything but the image it was sniffed as.

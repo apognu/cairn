@@ -2048,7 +2048,9 @@ export interface operations {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                id: components["schemas"]["AssetId"];
+            };
             cookie?: never;
         };
         requestBody?: never;
@@ -2075,7 +2077,9 @@ export interface operations {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                id: components["schemas"]["AssetId"];
+            };
             cookie?: never;
         };
         requestBody?: never;
@@ -2109,7 +2113,9 @@ export interface operations {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                id: components["schemas"]["AssetId"];
+            };
             cookie?: never;
         };
         requestBody: {

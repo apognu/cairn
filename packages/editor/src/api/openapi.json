@@ -144,6 +144,16 @@
       "get": {
         "summary": "One asset with where it is used.",
         "operationId": "getAsset",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/AssetId"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -168,6 +178,16 @@
       "delete": {
         "summary": "Takes an asset out of the media library. Its files go with the next cleanup after the grace period, so a page restored from an older\nversion in the meantime still shows it.",
         "operationId": "deleteAsset",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/AssetId"
+            }
+          }
+        ],
         "responses": {
           "204": {},
           "404": {
@@ -194,6 +214,16 @@
       "patch": {
         "summary": "Names an asset, so it can be found in the media library.",
         "operationId": "renameAsset",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/AssetId"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {

@@ -70,7 +70,7 @@ struct AssetDetail {
 }
 
 /// One asset with where it is used.
-#[utoipa::path(get, path = "/api/assets/{id}", operation_id = "getAsset", responses(
+#[utoipa::path(get, path = "/api/assets/{id}", operation_id = "getAsset", params(("id" = AssetId, Path)), responses(
   (status = 200, body = AssetDetail),
   (status = 404, body = ErrorBody),
 ))]
@@ -103,7 +103,7 @@ struct Rename {
 }
 
 /// Names an asset, so it can be found in the media library.
-#[utoipa::path(patch, path = "/api/assets/{id}", operation_id = "renameAsset", request_body = Rename, responses(
+#[utoipa::path(patch, path = "/api/assets/{id}", operation_id = "renameAsset", params(("id" = AssetId, Path)), request_body = Rename, responses(
   (status = 200, body = Asset),
   (status = 404, body = ErrorBody),
 ))]
@@ -114,7 +114,7 @@ async fn rename(State(state): State<AppState>, Editor(_): Editor, Path(id): Path
 
 /// Takes an asset out of the media library. Its files go with the next cleanup after the grace period, so a page restored from an older
 /// version in the meantime still shows it.
-#[utoipa::path(delete, path = "/api/assets/{id}", operation_id = "deleteAsset", responses(
+#[utoipa::path(delete, path = "/api/assets/{id}", operation_id = "deleteAsset", params(("id" = AssetId, Path)), responses(
   (status = 204),
   (status = 404, body = ErrorBody),
   (status = 409, body = ErrorBody, description = "a page, snippet, the settings or a kept copy still uses it"),
