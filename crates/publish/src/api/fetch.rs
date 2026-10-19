@@ -54,37 +54,71 @@ pub struct SourceFetcher {
   // Never follows a redirect: `releases/latest` answers with one, and its target is the whole answer.
   plain: Client,
   hosts: ApiHosts,
+  mirrors: Arc<Mirrors>,
   max_bytes: usize,
+}
+
+/// The GitHub hosts configured in place of the real ones (a mirror, or a test stand-in), which may be plain HTTP on the private network.
+/// Only these exact origins get that leeway: a source typed by an author is still held to HTTPS on a public address.
+#[derive(Debug, Default)]
+struct Mirrors {
+  origins: Vec<String>,
+  /// Their host names, which may resolve to private addresses.
+  names: Vec<String>,
+}
+
+impl Mirrors {
+  fn of(hosts: &ApiHosts) -> Result<Self, PublishError> {
+    if *hosts == ApiHosts::default() {
+      return Ok(Mirrors::default());
+    }
+
+    let mut mirrors = Mirrors::default();
+    for host in [&hosts.github, &hosts.raw] {
+      let url = Url::parse(host).map_err(|_| PublishError::Other(anyhow::anyhow!("{host} is not a valid address for a GitHub mirror")))?;
+      if !matches!(url.scheme(), "http" | "https") {
+        return Err(PublishError::Other(anyhow::anyhow!("{host} is not an HTTP address for a GitHub mirror")));
+      }
+
+      mirrors.origins.push(url.origin().ascii_serialization());
+      mirrors.names.extend(url.host_str().map(str::to_ascii_lowercase));
+    }
+
+    Ok(mirrors)
+  }
 }
 
 impl SourceFetcher {
   pub fn new(hosts: ApiHosts) -> Result<Self, PublishError> {
-    // A mirror or a test stand-in may be plain HTTP on this machine; nothing else may.
-    let local = hosts != ApiHosts::default();
+    let mirrors = Arc::new(Mirrors::of(&hosts)?);
     let build = |policy: redirect::Policy| {
       Client::builder()
         .connect_timeout(Duration::from_secs(10))
         .timeout(Duration::from_secs(30))
         .user_agent(concat!("cairn/", env!("CARGO_PKG_VERSION")))
         .redirect(policy)
-        .dns_resolver(Arc::new(PublicOnly { local }))
+        .dns_resolver(Arc::new(PublicOnly { mirrors: mirrors.clone() }))
         .build()
         .map_err(|e| PublishError::Other(e.into()))
     };
-    let follow = redirect::Policy::custom(move |attempt| {
-      if attempt.previous().len() >= MAX_REDIRECTS {
-        attempt.error("too many redirects")
-      } else if !allowed(attempt.url(), local) {
-        attempt.error("redirected to a place sources may not use")
-      } else {
-        attempt.follow()
-      }
-    });
+    let follow = {
+      let mirrors = mirrors.clone();
+      redirect::Policy::custom(move |attempt| {
+        if attempt.previous().len() >= MAX_REDIRECTS {
+          attempt.error("too many redirects")
+        } else if !allowed(attempt.url(), &mirrors) {
+          attempt.error("redirected to a place sources may not use")
+        } else {
+          attempt.follow()
+        }
+      })
+    };
 
     Ok(SourceFetcher {
       client: build(follow)?,
       plain: build(redirect::Policy::none())?,
       hosts,
+      mirrors,
       max_bytes: MAX_BYTES,
     })
   }
@@ -147,7 +181,7 @@ impl SourceFetcher {
   /// Downloads one file. Other files a spec points to (`$ref`) come through here too.
   pub async fn get(&self, url: &str) -> Result<Fetched, String> {
     let parsed = Url::parse(url).map_err(|_| format!("{url} is not a valid address"))?;
-    if !allowed(&parsed, self.hosts != ApiHosts::default()) {
+    if !allowed(&parsed, &self.mirrors) {
       return Err(format!("{url} is not an HTTPS address on the public internet"));
     }
 
@@ -195,10 +229,10 @@ fn describe(error: reqwest::Error) -> String {
   }
 }
 
-/// HTTPS, and not an IP address typed into the URL that points inside the network. Names are checked when they resolve.
-fn allowed(url: &Url, local: bool) -> bool {
-  if local {
-    return matches!(url.scheme(), "http" | "https");
+/// A configured mirror, or HTTPS that is not an IP address typed into the URL pointing inside the network. Names are checked when they resolve.
+fn allowed(url: &Url, mirrors: &Mirrors) -> bool {
+  if mirrors.origins.contains(&url.origin().ascii_serialization()) {
+    return true;
   }
 
   let Some(host) = url.host_str() else { return false };
@@ -212,35 +246,58 @@ fn allowed(url: &Url, local: bool) -> bool {
 fn public(ip: IpAddr) -> bool {
   match ip {
     IpAddr::V4(ip) => {
+      let [a, b, c, _] = ip.octets();
       !(ip.is_private()
         || ip.is_loopback()
         || ip.is_link_local()
         || ip.is_unspecified()
         || ip.is_broadcast()
         || ip.is_multicast()
-        || ip.octets()[0] == 0
-        || (ip.octets()[0] == 100 && (64..128).contains(&ip.octets()[1])))
+        || a == 0
+        || a >= 240
+        || (a == 100 && (64..128).contains(&b))
+        || (a == 192 && b == 0 && c == 0)
+        || (a == 198 && (18..20).contains(&b)))
     }
     IpAddr::V6(ip) => {
+      let s = ip.segments();
+      let embedded = |high: u16, low: u16| public(IpAddr::V4(std::net::Ipv4Addr::from((u32::from(high) << 16) | u32::from(low))));
+
       if let Some(mapped) = ip.to_ipv4_mapped() {
         return public(IpAddr::V4(mapped));
       }
-      !(ip.is_loopback() || ip.is_unspecified() || ip.is_multicast() || (ip.segments()[0] & 0xfe00) == 0xfc00 || (ip.segments()[0] & 0xffc0) == 0xfe80)
+      // These carry an IPv4 address that the network may route to: IPv4-compatible (`::a.b.c.d`, which also covers `::` and `::1`),
+      // NAT64 (`64:ff9b::/96`) and 6to4 (`2002::/16`).
+      if s[..6] == [0; 6] || s[..6] == [0x64, 0xff9b, 0, 0, 0, 0] {
+        return embedded(s[6], s[7]);
+      }
+      if s[0] == 0x2002 {
+        return embedded(s[1], s[2]);
+      }
+
+      !(ip.is_multicast()
+        || (s[0] & 0xfe00) == 0xfc00
+        || (s[0] & 0xffc0) == 0xfe80
+        // Deprecated site-local, local-use NAT64 and Teredo, which hide where they lead.
+        || (s[0] & 0xffc0) == 0xfec0
+        || (s[0] == 0x64 && s[1] == 0xff9b && s[2] == 1)
+        || (s[0] == 0x2001 && s[1] == 0))
     }
   }
 }
 
-/// Resolves names like the system does, then drops the private addresses, so a name pointing inside the network fails to connect.
+/// Resolves names like the system does, then drops the private addresses, so a name pointing inside the network fails to connect. A
+/// configured mirror may resolve anywhere.
 struct PublicOnly {
-  local: bool,
+  mirrors: Arc<Mirrors>,
 }
 
 impl Resolve for PublicOnly {
   fn resolve(&self, name: Name) -> Resolving {
-    let local = self.local;
+    let mirror = self.mirrors.names.iter().any(|m| m.eq_ignore_ascii_case(name.as_str()));
 
     Box::pin(async move {
-      let found: Vec<SocketAddr> = tokio::net::lookup_host((name.as_str(), 0)).await?.filter(|a| local || public(a.ip())).collect();
+      let found: Vec<SocketAddr> = tokio::net::lookup_host((name.as_str(), 0)).await?.filter(|a| mirror || public(a.ip())).collect();
       if found.is_empty() {
         return Err(format!("{} does not resolve to a public address", name.as_str()).into());
       }
@@ -393,12 +450,46 @@ mod tests {
       ("https://[::1]/a.yaml", false),
       ("https://[::ffff:10.0.0.1]/a.yaml", false),
       ("https://[fd00::1]/a.yaml", false),
+      ("https://198.18.0.1/a.yaml", false),
+      ("https://192.0.0.1/a.yaml", false),
+      ("https://240.0.0.1/a.yaml", false),
+      // IPv6 addresses that carry a private IPv4 one, and the same forms around a public one.
+      ("https://[::10.0.0.1]/a.yaml", false),
+      ("https://[64:ff9b::a9fe:a9fe]/a.yaml", false),
+      ("https://[2002:a00:1::]/a.yaml", false),
+      ("https://[64:ff9b::808:808]/a.yaml", true),
+      ("https://[2002:808:808::]/a.yaml", true),
+      ("https://[64:ff9b:1::1]/a.yaml", false),
+      ("https://[2001:0:4136:e378::1]/a.yaml", false),
+      ("https://[fec0::1]/a.yaml", false),
+      ("https://[2606:4700::1111]/a.yaml", true),
       ("ftp://example.com/a.yaml", false),
     ];
 
     for (url, ok) in cases {
-      assert_eq!(allowed(&Url::parse(url).unwrap(), false), ok, "{url}");
+      assert_eq!(allowed(&Url::parse(url).unwrap(), &Mirrors::default()), ok, "{url}");
     }
+  }
+
+  #[tokio::test]
+  async fn a_mirror_opens_only_its_own_origin() {
+    let fetcher = stand_in().await;
+    let mirror = Url::parse(&fetcher.hosts.github).unwrap();
+    let port = mirror.port().unwrap();
+
+    // (URL, allowed): the mirror itself, then what an author could type to reach the network around it.
+    for (url, ok) in [
+      (format!("{}/a.yaml", fetcher.hosts.github), true),
+      (format!("http://127.0.0.1:{}/a.yaml", port + 1), false),
+      (format!("https://127.0.0.1:{port}/a.yaml"), false),
+      ("http://169.254.169.254/latest/meta-data".to_string(), false),
+      ("http://10.0.0.5/a.yaml".to_string(), false),
+    ] {
+      assert_eq!(allowed(&Url::parse(&url).unwrap(), &fetcher.mirrors), ok, "{url}");
+    }
+
+    let error = fetcher.get("http://169.254.169.254/latest/meta-data").await.unwrap_err();
+    assert!(error.contains("not an HTTPS address"), "{error}");
   }
 
   #[tokio::test]
