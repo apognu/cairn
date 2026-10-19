@@ -11,3 +11,6 @@ playwright-report/
 .e2e-api-data/
 .e2e-tmp-data/
 .e2e-serve-data/
+
+# Local configuration with secrets
+.env*
