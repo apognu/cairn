@@ -29,7 +29,7 @@ pub use assets::{NewAsset, asset_by_hash, asset_by_id, assets_by_ids, get_or_cre
 pub use cleanup::{asset_hashes, delete_assets, unused_assets};
 #[cfg(any(test, feature = "testing"))]
 pub use connect::connect_for_tests;
-pub use connect::{StoreError, connect, connect_url};
+pub use connect::{StoreError, connect, connect_url, ping};
 pub use content::SqlContentStore;
 pub use history::{HistoryEntry, Trashed, list_trash, page_history, restore_page, restore_title};
 pub use library::{Entry, TermInput, delete_entry, list_entries, load_library, save_snippet, save_term, save_variable};

@@ -13,7 +13,7 @@ use cairn_publish::PublishTarget;
 use crate::{
   app::{AppState, editor_app},
   error::AppError,
-  site, uploads,
+  health, site, uploads,
 };
 
 pub(crate) fn serve_router(state: AppState) -> Router {
@@ -22,7 +22,8 @@ pub(crate) fn serve_router(state: AppState) -> Router {
     .route("/_a/{name}", get(asset_or_site))
     .route("/_preview/{release}", get(preview_root))
     .route("/_preview/{release}/", get(preview_root))
-    .route("/_preview/{release}/{*path}", get(preview));
+    .route("/_preview/{release}/{*path}", get(preview))
+    .merge(health::routes());
 
   // Only a self-hosted site is served here; the others are served elsewhere, so the root leads to the editor instead.
   match state.publisher.target() {
@@ -197,11 +198,25 @@ mod tests {
       ("/api/pages", false, StatusCode::NOT_FOUND, "nothing here"),
       ("/_editor/api/pages", false, StatusCode::UNAUTHORIZED, ""),
       ("/_editor/api/pages", true, StatusCode::OK, ""),
+      ("/-/healthz", false, StatusCode::OK, "ok"),
+      ("/-/readyz", false, StatusCode::OK, "ok"),
     ] {
       let (found, text) = get(&app, path, signed_in.then_some(cookie.as_str())).await;
 
       assert_eq!(found, status, "{path} signed_in={signed_in}");
       assert!(body.is_empty() || text == body, "{path}: {text}");
     }
+  }
+
+  #[tokio::test]
+  async fn a_stopping_server_is_alive_but_not_ready() {
+    let (mut state, _dir) = test_state_serving(|dir| PublishTarget::SelfHosted(FolderTarget::new(dir.join("out")))).await;
+    let (stop, stopping) = tokio::sync::watch::channel(false);
+    state.stopping = stopping;
+    let app = serve_router(state);
+
+    stop.send_replace(true);
+    assert_eq!(get(&app, "/-/healthz", None).await, (StatusCode::OK, "ok".to_string()));
+    assert_eq!(get(&app, "/-/readyz", None).await, (StatusCode::SERVICE_UNAVAILABLE, "stopping".to_string()));
   }
 }

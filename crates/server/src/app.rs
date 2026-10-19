@@ -131,7 +131,10 @@ pub(crate) fn editor_app(auth: cairn_auth::Auth) -> Router<AppState> {
 
 /// The router `dev` serves: with no login, it also refuses requests that did not come from this machine's own editor.
 pub fn dev_router(state: AppState) -> Router {
-  editor_app(state.auth.clone()).layer(middleware::from_fn(local_host_only)).with_state(state)
+  editor_app(state.auth.clone())
+    .merge(crate::health::routes())
+    .layer(middleware::from_fn(local_host_only))
+    .with_state(state)
 }
 
 /// Without a login, a page on another origin could drive the API through a DNS-rebinding name that resolves to 127.0.0.1; refusing foreign Host headers closes that.

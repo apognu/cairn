@@ -80,6 +80,11 @@ pub async fn connect_url(url: &str) -> Result<DatabaseConnection, StoreError> {
   Ok(db)
 }
 
+/// Whether the database answers, for the readiness check.
+pub async fn ping(db: &DatabaseConnection) -> Result<(), StoreError> {
+  Ok(db.ping().await?)
+}
+
 /// A fresh migrated database for a test: a file in `dir`, or when `TEST_DATABASE_URL` names a Postgres server, a new database on it
 /// (they are not dropped; the server is a throwaway one).
 #[cfg(any(test, feature = "testing"))]

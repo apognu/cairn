@@ -12,8 +12,8 @@ use crate::{
   tree::{check_url, list_pages, settle_urls},
 };
 
-/// The first path segments the published site uses for its own files.
-const RESERVED: [&str; 3] = ["assets", "_a", "pagefind"];
+/// The first path segments the published site uses for its own files, and `-` for the server's health checks.
+const RESERVED: [&str; 4] = ["assets", "_a", "pagefind", "-"];
 
 /// A path as stored: lowercase, with a leading and a trailing slash, made of letters, digits, `-`, `_` and `.` (never `.` or `..` alone).
 pub fn normalize_path(input: &str) -> Result<String, StoreError> {
@@ -245,6 +245,7 @@ mod tests {
       ("/a//b", None),
       ("/a/../b", None),
       ("/assets/x", None),
+      ("/-/healthz", None),
       ("/a b", None),
     ] {
       assert_eq!(normalize_path(input).ok().as_deref(), expected, "{input}");
