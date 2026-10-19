@@ -5,16 +5,18 @@ import {
   useBacklinks,
   useCan,
   usePageReview,
+  usePages,
   usePageUrl,
   useRemoveAlias,
   useSetCustomUrl,
   useSetDescription,
   useSetHeader,
+  useSetHidden,
   useSetPageReview,
   useUsers,
 } from "./queries";
 import { useSidePanel } from "./sidePanel";
-import type { Page } from "./tree";
+import { hiddenBy, type Page } from "./tree";
 import * as ui from "./ui";
 
 /** The lists of aliases and of pages linking here. */
@@ -34,6 +36,10 @@ export function PageSettings({ page, onClose }: { page: Page; onClose: () => voi
   const addAlias = useAddAlias(page.id);
   const removeAlias = useRemoveAlias(page.id);
   const setHeader = useSetHeader();
+  const setHidden = useSetHidden();
+  // A page under a hidden one is hidden with it, whatever its own setting.
+  const hiddenParent = hiddenBy(usePages().data ?? []).get(page.id);
+  const inherited = hiddenParent && hiddenParent.id !== page.id ? hiddenParent : undefined;
   const backlinks = useBacklinks(page.id);
   const setDescription = useSetDescription();
   const [description, setDescriptionText] = useState(page.description ?? "");
@@ -50,7 +56,7 @@ export function PageSettings({ page, onClose }: { page: Page; onClose: () => voi
 
   const data = url.data;
   // Errors show next to what caused them; these have no field of their own.
-  const error = removeAlias.error ?? setHeader.error ?? setDescription.error;
+  const error = removeAlias.error ?? setHeader.error ?? setHidden.error ?? setDescription.error;
   const saveUrl = (path: string | null) => setCustom.mutate({ custom_url: path });
   const savedDescription = useRef(page.description ?? "");
   const saveDescription = () => {
@@ -207,6 +213,24 @@ export function PageSettings({ page, onClose }: { page: Page; onClose: () => voi
               Show in header
             </label>
             <small className="text-muted">A page with subpages becomes a section with a sidebar of its own.</small>
+          </fieldset>
+
+          <fieldset className={`${ui.drawerSection} border-0 p-0`}>
+            <legend className={ui.drawerHeading}>Publishing</legend>
+            <label className={ui.checkInField}>
+              <input
+                type="checkbox"
+                checked={page.hidden || inherited !== undefined}
+                disabled={setHidden.isPending || inherited !== undefined}
+                onChange={(e) => setHidden.mutate({ id: page.id, hidden: e.target.checked })}
+              />
+              Hide from the published site
+            </label>
+            <small className="text-muted">
+              {inherited
+                ? `Hidden because “${inherited.title}” is hidden.`
+                : "Left out from the next publish on, with its subpages. Links to it show as plain text."}
+            </small>
           </fieldset>
 
           <section className={ui.drawerSection}>

@@ -44,7 +44,16 @@ export function rowClass({
 }
 
 /** The title button of a row. Top-level pages read as the sidebar's section headings. */
-export function titleClass({ selected, depth }: { selected: boolean; depth: number }): string {
+/** `hidden`: the page is not published, being hidden itself or under a hidden page. */
+export function titleClass({
+  selected,
+  depth,
+  hidden = false,
+}: {
+  selected: boolean;
+  depth: number;
+  hidden?: boolean;
+}): string {
   const look =
     depth === 0
       ? `text-[11.5px] font-semibold tracking-[0.06em] uppercase ${selected ? "text-accent" : "text-muted"}`
@@ -52,7 +61,7 @@ export function titleClass({ selected, depth }: { selected: boolean; depth: numb
         ? "font-semibold"
         : "";
 
-  return `flex-1 min-w-0 py-1 px-0 border-0 bg-transparent text-left cursor-pointer overflow-hidden text-ellipsis whitespace-nowrap ${look}`;
+  return `flex-1 min-w-0 py-1 px-0 border-0 bg-transparent text-left cursor-pointer overflow-hidden text-ellipsis whitespace-nowrap ${look} ${hidden ? "opacity-60" : ""}`;
 }
 
 export function IconButton({ label, glyph, onClick }: { label: string; glyph: string; onClick: () => void }) {

@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { blockLines, diffLines } from "./diff";
-import { buildTree, type DropZone, dropTarget, moveTarget, type Page, pageUrls } from "./tree";
+import { buildTree, type DropZone, dropTarget, hiddenBy, moveTarget, type Page, pageUrls } from "./tree";
 
 const page = (id: string, parent_id: string | null = null, kind: Page["kind"] = "page"): Page => ({
   id,
@@ -80,6 +80,16 @@ test("urls follow slugs and custom paths", () => {
     { ...page("home-link", null, "link") },
   ];
   expect(pageUrls(tree)).toEqual({ guide: "/guide", hooks: "/hooks", retries: "/hooks/retries" });
+});
+
+test("a hidden page hides the pages below it", () => {
+  const tree = [page("a"), { ...page("b"), hidden: true }, page("b1", "b"), page("b11", "b1"), page("c")];
+  const hidden = hiddenBy(tree);
+  expect([...hidden].map(([id, by]) => [id, by.id])).toEqual([
+    ["b", "b"],
+    ["b1", "b"],
+    ["b11", "b"],
+  ]);
 });
 
 test("diffs list what a restore adds and removes", () => {

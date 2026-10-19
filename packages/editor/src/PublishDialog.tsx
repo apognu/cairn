@@ -137,11 +137,23 @@ export function PublishDialog({ onClose, onPublished }: { onClose: () => void; o
         <div className={ui.warning} role="alert">
           <Icon name="info" size={18} className={ui.warningIcon} />
           <div>
-            <strong>{broken.length === 1 ? "1 link points" : `${broken.length} links point`} to a deleted page</strong>
+            <strong>
+              {broken.length === 1 ? "1 link points" : `${broken.length} links point`} to a{" "}
+              {broken.every((b) => b.hidden)
+                ? "hidden"
+                : broken.some((b) => b.hidden)
+                  ? "deleted or hidden"
+                  : "deleted"}{" "}
+              page
+            </strong>
             <ul className={ui.warningList}>
               {broken.map((b) => (
                 <li key={`${b.source_id}-${b.target_title}`}>
-                  {b.source_title} <span className="text-muted">links to {b.target_title}</span>
+                  {b.source_title}{" "}
+                  <span className="text-muted">
+                    links to {b.target_title}
+                    {b.hidden ? ", which is hidden" : ""}
+                  </span>
                 </li>
               ))}
             </ul>

@@ -123,6 +123,13 @@ export function useSetHeader() {
   );
 }
 
+/** Leaves a page and its subpages out of the published site (or puts them back), from the next publish on. */
+export function useSetHidden() {
+  return usePageMutation(async ({ id, hidden }: { id: string; hidden: boolean }) =>
+    unwrap(await api.PUT("/api/pages/{id}/hidden", { params: { path: { id } }, body: { hidden } })),
+  );
+}
+
 export function useDeletePage() {
   return usePageMutation(async (id: string) => {
     const { error, response } = await api.DELETE("/api/pages/{id}", { params: { path: { id } } });

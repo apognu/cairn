@@ -18,6 +18,7 @@ import {
   buildTree,
   type DropZone,
   dropTarget,
+  hiddenBy,
   type MoveAction,
   moveTarget,
   type Page,
@@ -62,6 +63,7 @@ export function Sidebar({ pages, loading, selected, onSelect }: Props) {
   const canEdit = useCan("editor");
   // Every page due for a review, whoever owns it: the whole team sees what needs checking.
   const due = new Map((useStalePages().data ?? []).map((s) => [s.page_id, s]));
+  const hidden = hiddenBy(pages);
 
   const run = (action: Promise<unknown>, done?: () => void) =>
     action.then(
@@ -235,7 +237,7 @@ export function Sidebar({ pages, loading, selected, onSelect }: Props) {
           ) : (
             <button
               type="button"
-              className={titleClass({ selected: selected === page.id, depth })}
+              className={titleClass({ selected: selected === page.id, depth, hidden: hidden.has(page.id) })}
               aria-current={selected === page.id}
               // A link has no content to edit: clicking it edits where it goes.
               onClick={() => (page.kind === "link" ? setEditing({ kind: "rename", id: page.id }) : onSelect(page.id))}
@@ -248,6 +250,14 @@ export function Sidebar({ pages, loading, selected, onSelect }: Props) {
               {page.title}
               {page.kind === "link" && <Icon name="external" size={12} className="ml-1.5 text-muted align-[-1px]" />}
             </button>
+          )}
+          {page.hidden && (
+            <span
+              className={`flex-none ${ui.badge("hidden", "mx-1")} leading-[1.2]`}
+              title="Not published, and neither are its subpages"
+            >
+              Hidden
+            </span>
           )}
           {due.has(page.id) && (
             <span

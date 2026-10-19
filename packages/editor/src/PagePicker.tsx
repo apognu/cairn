@@ -2,7 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Icon } from "./icons";
 import { useApiOperations, useApiOperationsOf, useCreatePage, usePageHeadings, usePages, usePending } from "./queries";
 import type { Page } from "./tree";
-import { pageUrls } from "./tree";
+import { hiddenBy, pageUrls } from "./tree";
 import * as ui from "./ui";
 
 const searchRow = "flex gap-2 p-2.5";
@@ -49,6 +49,8 @@ export function PagePicker({ onPage, anchors = false, onUrl, onClose, nearPage, 
   const all = (pages.data ?? []).filter((p) => p.kind !== "link");
   const urls = useMemo(() => pageUrls(pages.data ?? []), [pages.data]);
   const drafts = new Set(pending.data?.changes.filter((c) => c.kinds.includes("new")).map((c) => c.page_id));
+  // A link to a hidden page is kept, but shows as plain text on the site.
+  const hidden = useMemo(() => hiddenBy(pages.data ?? []), [pages.data]);
 
   // New pages start next to the page being edited, which is where a related page usually belongs.
   const parent = chosenParent ?? pages.data?.find((p) => p.id === nearPage)?.parent_id ?? "";
@@ -306,6 +308,14 @@ export function PagePicker({ onPage, anchors = false, onUrl, onClose, nearPage, 
                     <span className="min-w-0">
                       <strong>{row.title}</strong>
                       {drafts.has(row.id) && <span className={ui.badge(undefined, "mr-1 ml-2")}>Draft</span>}
+                      {hidden.has(row.id) && (
+                        <span
+                          className={ui.badge(undefined, "mr-1 ml-2")}
+                          title="Not published: links to it show as plain text"
+                        >
+                          Hidden
+                        </span>
+                      )}
                       {anchors && row.kind === "api" && <span className={ui.badge(undefined, "mr-1 ml-2")}>API</span>}
                       <small className="block text-muted font-mono text-label overflow-hidden text-ellipsis">
                         {urls[row.id]}

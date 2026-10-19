@@ -143,3 +143,22 @@ export function pageUrls(pages: Page[]): Record<string, string> {
 
   return urls;
 }
+
+/** For each page left out of publishing, the page that hides it: itself, or its nearest hidden ancestor. */
+export function hiddenBy(pages: Page[]): Map<string, Page> {
+  const byId = new Map(pages.map((p) => [p.id, p]));
+  const hidden = new Map<string, Page>();
+
+  for (const page of pages) {
+    // Bounded like the server's walk, against corrupt data.
+    let p: Page | undefined = page;
+    for (let depth = 0; p && depth < 64; depth++, p = p.parent_id ? byId.get(p.parent_id) : undefined) {
+      if (p.hidden) {
+        hidden.set(page.id, p);
+        break;
+      }
+    }
+  }
+
+  return hidden;
+}
