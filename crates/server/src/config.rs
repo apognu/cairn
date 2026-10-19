@@ -40,7 +40,7 @@ pub(crate) struct Config {
 #[derive(Debug, Clone)]
 pub(crate) struct GithubSettings {
   pub(crate) client_id: String,
-  pub(crate) client_secret: String,
+  pub(crate) client_secret: cairn_core::Secret,
   /// Organizations (`acme`) and teams (`acme/docs`) whose members may sign in, and email domains.
   pub(crate) access: cairn_auth::AccessRules,
   /// Overridable for tests and GitHub Enterprise.
@@ -67,7 +67,7 @@ pub(crate) enum TargetChoice {
 pub(crate) struct OidcSettings {
   pub(crate) issuer: String,
   pub(crate) client_id: String,
-  pub(crate) client_secret: String,
+  pub(crate) client_secret: cairn_core::Secret,
   pub(crate) scopes: Vec<String>,
   pub(crate) groups_claim: String,
   /// A session unused for this long ends.
@@ -140,7 +140,7 @@ fn github(var: &dyn Fn(&str) -> Option<String>) -> anyhow::Result<Option<GithubS
 
   Ok(Some(GithubSettings {
     client_id,
-    client_secret: var("GITHUB_CLIENT_SECRET").context("GITHUB_CLIENT_SECRET is required with GITHUB_CLIENT_ID")?,
+    client_secret: var("GITHUB_CLIENT_SECRET").context("GITHUB_CLIENT_SECRET is required with GITHUB_CLIENT_ID")?.into(),
     access,
     web_url: var("GITHUB_AUTH_URL").unwrap_or_else(|| "https://github.com".into()).trim_end_matches('/').to_string(),
     api_url: var("GITHUB_API_URL").unwrap_or_else(|| "https://api.github.com".into()).trim_end_matches('/').to_string(),
@@ -209,7 +209,7 @@ impl Config {
         region: var("ASSETS_S3_REGION").unwrap_or_else(|| "us-east-1".into()),
         endpoint: var("ASSETS_S3_ENDPOINT"),
         access_key: var("ASSETS_S3_ACCESS_KEY_ID"),
-        secret_key: var("ASSETS_S3_SECRET_ACCESS_KEY"),
+        secret_key: var("ASSETS_S3_SECRET_ACCESS_KEY").map(Into::into),
         prefix,
       }),
       "gcs" => cairn_assets::AssetBackend::Gcs(cairn_assets::GcsSettings {
@@ -244,7 +244,7 @@ impl Config {
         ),
         "cloudflare" => TargetChoice::Cloudflare(cairn_publish::CloudflareConfig {
           account_id: required("CLOUDFLARE_ACCOUNT_ID").context("PUBLISH_TARGET=cloudflare needs CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN and CLOUDFLARE_WORKER")?,
-          api_token: required("CLOUDFLARE_API_TOKEN")?,
+          api_token: required("CLOUDFLARE_API_TOKEN")?.into(),
           worker: required("CLOUDFLARE_WORKER")?,
           api_url: var("CLOUDFLARE_API_URL")
             .unwrap_or_else(|| "https://api.cloudflare.com/client/v4".into())
@@ -253,7 +253,7 @@ impl Config {
         }),
         "cloudflare-pages" => TargetChoice::Pages(cairn_publish::PagesConfig {
           account_id: required("CLOUDFLARE_ACCOUNT_ID").context("PUBLISH_TARGET=cloudflare-pages needs CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN and CLOUDFLARE_PAGES_PROJECT")?,
-          api_token: required("CLOUDFLARE_API_TOKEN")?,
+          api_token: required("CLOUDFLARE_API_TOKEN")?.into(),
           project: required("CLOUDFLARE_PAGES_PROJECT")?,
           production_branch: var("CLOUDFLARE_PAGES_BRANCH").unwrap_or_else(|| "main".into()),
           preview_branch: var("CLOUDFLARE_PAGES_PREVIEW_BRANCH").unwrap_or_else(|| "preview".into()),
@@ -269,7 +269,7 @@ impl Config {
             region: var("S3_REGION").unwrap_or_else(|| "us-east-1".into()),
             prefix: var("S3_PREFIX").unwrap_or_default(),
             access_key: required("S3_ACCESS_KEY_ID")?,
-            secret_key: required("S3_SECRET_ACCESS_KEY")?,
+            secret_key: required("S3_SECRET_ACCESS_KEY")?.into(),
             // A custom endpoint (MinIO, R2, …) is nearly always addressed by path; AWS by bucket name.
             path_style: var("S3_PATH_STYLE").map_or(endpoint.is_some(), |v| v.eq_ignore_ascii_case("true")),
             endpoint,
@@ -281,7 +281,7 @@ impl Config {
       oidc: OidcSettings {
         issuer: required("OIDC_ISSUER").context("sign-in is mandatory outside `dev`: set OIDC_ISSUER, OIDC_CLIENT_ID and OIDC_CLIENT_SECRET")?,
         client_id: required("OIDC_CLIENT_ID")?,
-        client_secret: required("OIDC_CLIENT_SECRET")?,
+        client_secret: required("OIDC_CLIENT_SECRET")?.into(),
         scopes: var("OIDC_SCOPES").map_or_else(|| vec!["groups".to_string()], |v| v.split([',', ' ']).filter(|s| !s.is_empty()).map(String::from).collect()),
         groups_claim: var("OIDC_GROUPS_CLAIM").unwrap_or_else(|| "groups".into()),
         access: access(&var)?,

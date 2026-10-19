@@ -26,7 +26,7 @@ const COMPATIBILITY_DATE: &str = "2025-09-01";
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CloudflareConfig {
   pub account_id: String,
-  pub api_token: String,
+  pub api_token: cairn_core::Secret,
   /// The Worker that serves the site.
   pub worker: String,
   /// `https://api.cloudflare.com/client/v4`; other values are for tests.
@@ -138,7 +138,7 @@ impl CloudflareTarget {
     let response = self
       .http
       .post(self.script("/deployments"))
-      .bearer_auth(&self.config.api_token)
+      .bearer_auth(self.config.api_token.expose())
       .json(&body)
       .send()
       .await
@@ -158,7 +158,7 @@ impl CloudflareTarget {
     let response = self
       .http
       .post(self.script("/assets-upload-session"))
-      .bearer_auth(&self.config.api_token)
+      .bearer_auth(self.config.api_token.expose())
       .json(&json!({ "manifest": manifest }))
       .send()
       .await
@@ -235,7 +235,7 @@ impl CloudflareTarget {
       );
 
     let request = if create { self.http.put(self.script("")) } else { self.http.post(self.script("/versions")) };
-    let response = request.bearer_auth(&self.config.api_token).multipart(form).send().await.map_err(request_error)?;
+    let response = request.bearer_auth(self.config.api_token.expose()).multipart(form).send().await.map_err(request_error)?;
     let version: VersionResult = read(response).await?;
 
     Ok(version.id)
@@ -246,7 +246,7 @@ impl CloudflareTarget {
   async fn preview_url(&self, version: &str) -> Option<String> {
     self.enable_previews().await;
 
-    let response = self.http.get(self.url("/workers/subdomain")).bearer_auth(&self.config.api_token).send().await.ok()?;
+    let response = self.http.get(self.url("/workers/subdomain")).bearer_auth(self.config.api_token.expose()).send().await.ok()?;
     let subdomain: Subdomain = read(response).await.ok()?;
 
     Some(format!("https://{}-{}.{}.workers.dev", version.split('-').next()?, self.config.worker, subdomain.subdomain))
@@ -258,7 +258,7 @@ impl CloudflareTarget {
   /// them on (a token without the right) only leaves the preview without a working address.
   async fn enable_previews(&self) {
     let url = self.script("/subdomain");
-    let Ok(response) = self.http.get(&url).bearer_auth(&self.config.api_token).send().await else {
+    let Ok(response) = self.http.get(&url).bearer_auth(self.config.api_token.expose()).send().await else {
       return;
     };
     let Ok(settings) = read::<Value>(response).await else { return };
@@ -267,7 +267,7 @@ impl CloudflareTarget {
     }
 
     let body = json!({ "enabled": settings["enabled"].as_bool().unwrap_or(true), "previews_enabled": true });
-    match self.http.post(&url).bearer_auth(&self.config.api_token).json(&body).send().await {
+    match self.http.post(&url).bearer_auth(self.config.api_token.expose()).json(&body).send().await {
       Ok(response) if response.status().is_success() => tracing::info!(worker = %self.config.worker, "preview URLs enabled for the Worker"),
       _ => tracing::warn!(worker = %self.config.worker, "could not enable preview URLs for the Worker; its previews will not open"),
     }
@@ -654,7 +654,7 @@ mod tests {
     let var = |name| std::env::var(name).unwrap_or_else(|_| panic!("{name} is not set"));
     let target = CloudflareTarget::new(CloudflareConfig {
       account_id: var("CLOUDFLARE_ACCOUNT_ID"),
-      api_token: var("CLOUDFLARE_API_TOKEN"),
+      api_token: var("CLOUDFLARE_API_TOKEN").into(),
       worker: var("CLOUDFLARE_WORKER"),
       api_url: "https://api.cloudflare.com/client/v4".into(),
     })

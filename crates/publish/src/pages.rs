@@ -24,7 +24,7 @@ const BUCKET_FILES: usize = 500;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PagesConfig {
   pub account_id: String,
-  pub api_token: String,
+  pub api_token: cairn_core::Secret,
   pub project: String,
   /// The branch whose deployments are the site (`main` for a project created here).
   pub production_branch: String,
@@ -103,7 +103,7 @@ impl PagesTarget {
     let response = self
       .http
       .post(self.project("/deployments"))
-      .bearer_auth(&self.config.api_token)
+      .bearer_auth(self.config.api_token.expose())
       .multipart(form)
       .send()
       .await
@@ -182,14 +182,14 @@ impl PagesTarget {
 
   async fn upload_token(&self) -> Result<String, PublishError> {
     let url = self.project("/upload-token");
-    let response = self.http.get(&url).bearer_auth(&self.config.api_token).send().await.map_err(request_error)?;
+    let response = self.http.get(&url).bearer_auth(self.config.api_token.expose()).send().await.map_err(request_error)?;
 
     match read::<Token>(response).await {
       Ok(token) => Ok(token.jwt),
       // The project does not exist yet: make it, then ask again.
       Err(PublishError::Other(error)) if error.to_string().contains("answered 404") => {
         self.create_project().await?;
-        let response = self.http.get(&url).bearer_auth(&self.config.api_token).send().await.map_err(request_error)?;
+        let response = self.http.get(&url).bearer_auth(self.config.api_token.expose()).send().await.map_err(request_error)?;
 
         Ok(read::<Token>(response).await?.jwt)
       }
@@ -199,7 +199,14 @@ impl PagesTarget {
 
   async fn create_project(&self) -> Result<(), PublishError> {
     let body = json!({ "name": self.config.project, "production_branch": self.config.production_branch });
-    let response = self.http.post(self.project("")).bearer_auth(&self.config.api_token).json(&body).send().await.map_err(request_error)?;
+    let response = self
+      .http
+      .post(self.project(""))
+      .bearer_auth(self.config.api_token.expose())
+      .json(&body)
+      .send()
+      .await
+      .map_err(request_error)?;
 
     read_ok(response).await
   }
@@ -388,7 +395,7 @@ mod tests {
     let var = |name| std::env::var(name).unwrap_or_else(|_| panic!("{name} is not set"));
     let target = PagesTarget::new(PagesConfig {
       account_id: var("CLOUDFLARE_ACCOUNT_ID"),
-      api_token: var("CLOUDFLARE_API_TOKEN"),
+      api_token: var("CLOUDFLARE_API_TOKEN").into(),
       project: var("CLOUDFLARE_PAGES_PROJECT"),
       production_branch: "main".into(),
       preview_branch: "preview".into(),

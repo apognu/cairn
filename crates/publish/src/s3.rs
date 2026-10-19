@@ -33,7 +33,7 @@ pub struct S3Config {
   /// Where in the bucket the site lives, without slashes at the ends; empty for the root.
   pub prefix: String,
   pub access_key: String,
-  pub secret_key: String,
+  pub secret_key: cairn_core::Secret,
   /// `<endpoint>/<bucket>/…` instead of `<bucket>.<endpoint>/…`: what MinIO and most other servers want.
   pub path_style: bool,
 }
@@ -68,7 +68,7 @@ impl S3Target {
 
     Ok(Self {
       bucket,
-      credentials: Credentials::new(config.access_key, config.secret_key),
+      credentials: Credentials::new(config.access_key, config.secret_key.expose()),
       http,
       prefix: config.prefix.trim_matches('/').to_string(),
     })

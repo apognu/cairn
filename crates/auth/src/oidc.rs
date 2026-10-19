@@ -18,7 +18,7 @@ type Client = CoreClient<EndpointSet, EndpointNotSet, EndpointNotSet, EndpointNo
 pub struct OidcConfig {
   pub issuer: String,
   pub client_id: String,
-  pub client_secret: String,
+  pub client_secret: cairn_core::Secret,
   /// Scopes asked besides `openid`.
   pub scopes: Vec<String>,
   /// The ID token claim holding the user's groups.
@@ -88,7 +88,7 @@ impl Oidc {
       config: OidcConfig {
         issuer: "https://idp.example".into(),
         client_id: "editor".into(),
-        client_secret: String::new(),
+        client_secret: Default::default(),
         scopes: vec![],
         groups_claim: "groups".into(),
       },
@@ -102,7 +102,7 @@ impl Oidc {
     CoreClient::from_provider_metadata(
       self.metadata.clone(),
       ClientId::new(self.config.client_id.clone()),
-      Some(ClientSecret::new(self.config.client_secret.clone())),
+      Some(ClientSecret::new(self.config.client_secret.expose().to_string())),
     )
     .set_redirect_uri(self.redirect.clone())
   }

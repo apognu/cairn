@@ -25,7 +25,7 @@ pub struct S3Settings {
   pub endpoint: Option<String>,
   /// Without keys the usual AWS sources are used (environment, instance or task role).
   pub access_key: Option<String>,
-  pub secret_key: Option<String>,
+  pub secret_key: Option<cairn_core::Secret>,
   /// Where in the bucket the files go, without slashes at the ends; empty for the root.
   pub prefix: String,
 }
@@ -59,7 +59,7 @@ impl ObjectAssetStore {
           builder = builder.with_endpoint(endpoint).with_allow_http(endpoint.starts_with("http://"));
         }
         if let (Some(key), Some(secret)) = (&s3.access_key, &s3.secret_key) {
-          builder = builder.with_access_key_id(key).with_secret_access_key(secret);
+          builder = builder.with_access_key_id(key).with_secret_access_key(secret.expose());
         }
 
         prefixed(Arc::new(builder.build().context("the S3 asset store is not usable")?), &s3.prefix)

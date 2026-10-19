@@ -12,7 +12,7 @@ pub const GITHUB_ISSUER: &str = "https://github.com";
 #[derive(Debug, Clone)]
 pub struct GithubConfig {
   pub client_id: String,
-  pub client_secret: String,
+  pub client_secret: cairn_core::Secret,
   /// Where the browser goes to authorize and where the code is traded (`https://github.com`); other values are for tests and GitHub Enterprise.
   pub web_url: String,
   /// The API (`https://api.github.com`).
@@ -138,7 +138,7 @@ impl Github {
       .header("accept", "application/json")
       .form(&[
         ("client_id", self.config.client_id.as_str()),
-        ("client_secret", self.config.client_secret.as_str()),
+        ("client_secret", self.config.client_secret.expose()),
         ("code", code),
         ("redirect_uri", self.redirect.as_str()),
         ("code_verifier", verifier),
