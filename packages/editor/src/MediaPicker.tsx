@@ -24,7 +24,7 @@ export function openMediaPicker(editor: Editor, request: MediaPickerRequest): vo
 }
 
 /** Puts the chosen image in the page, as an undo step of its own even right after another change. */
-function apply(editor: Editor, request: MediaPickerRequest, asset: Asset): void {
+export function placeImage(editor: Editor, request: MediaPickerRequest, asset: Asset): void {
   const chain = editor
     .chain()
     .focus()
@@ -67,7 +67,7 @@ export function MediaPickerHost({ editor }: { editor: Editor }) {
   return createPortal(
     <MediaPicker
       replacing={request.mode === "replace"}
-      onChoose={(asset) => apply(editor, request, asset)}
+      onChoose={(asset) => placeImage(editor, request, asset)}
       onClose={() => {
         setRequest(null);
         editor.commands.focus();

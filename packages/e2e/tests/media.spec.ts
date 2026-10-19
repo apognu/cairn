@@ -172,3 +172,68 @@ test("cropping an image saves a new image made from it and leaves the original a
   const original = (await (await request.get(`/api/assets/${source.id}`)).json()).asset;
   expect([original.width, original.height]).toEqual([200, 120]);
 });
+
+test("an image in a page is annotated with an arrow and a label, and the copy replaces it in one undo step", async ({
+  page,
+  request,
+}) => {
+  const run = Math.random().toString(36).slice(2, 8);
+  const source = await addToLibrary(request, `screen-${run}.png`, picture(400, 240));
+  const created = await (
+    await request.post("/api/pages", { data: { parent_id: null, title: `Annotated ${run}`, before: null } })
+  ).json();
+  await saveDraft(
+    request,
+    created.id,
+    { type: "doc", content: [{ type: "image", attrs: { assetId: source.id, alt: "A screen" } }] },
+    null,
+  );
+
+  await page.goto("/");
+  await page.getByRole("button", { name: `Annotated ${run}`, exact: true }).click();
+  const image = (await editablePage(page)).locator("figure img");
+  await image.click();
+  await page.getByRole("button", { name: "Crop & annotate…" }).click();
+
+  const editor = page.getByRole("dialog", { name: `Edit “screen-${run}.png”` });
+  const canvas = editor.getByRole("img");
+  await expect(canvas).toHaveAttribute("aria-label", /with 0 annotations/);
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("the canvas has no box");
+  const at = (x: number, y: number) => ({ x: box.x + box.width * x, y: box.y + box.height * y });
+
+  await editor.getByRole("button", { name: "Arrow", exact: true }).click();
+  await page.mouse.move(at(0.2, 0.8).x, at(0.2, 0.8).y);
+  await page.mouse.down();
+  await page.mouse.move(at(0.5, 0.5).x, at(0.5, 0.5).y, { steps: 6 });
+  await page.mouse.up();
+
+  await editor.getByRole("button", { name: "Text", exact: true }).click();
+  await page.mouse.click(at(0.6, 0.3).x, at(0.6, 0.3).y);
+  await editor.getByLabel("Label text").fill("Click here");
+  await editor.getByLabel("Label text").press("Enter");
+  await expect(canvas).toHaveAttribute("aria-label", /with 2 annotations/);
+
+  // Selected, deleted, and brought back.
+  await editor.getByRole("button", { name: "Select", exact: true }).click();
+  await page.mouse.click(at(0.6, 0.3).x + 8, at(0.6, 0.3).y);
+  await editor.getByRole("button", { name: "Delete", exact: true }).click();
+  await expect(canvas).toHaveAttribute("aria-label", /with 1 annotation\b/);
+  await editor.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect(canvas).toHaveAttribute("aria-label", /with 2 annotations/);
+
+  await editor.getByRole("button", { name: "Save and replace" }).click();
+  await expect(editor).toBeHidden();
+  await expect(image).not.toHaveAttribute("src", `/_a/${source.id}`);
+  const copyId = ((await image.getAttribute("src")) ?? "").replace("/_a/", "");
+  const copy = (await (await request.get(`/api/assets/${copyId}`)).json()).asset;
+  expect([copy.derived_from, copy.width, copy.height, copy.name]).toEqual([
+    source.id,
+    400,
+    240,
+    `screen-${run}-edited.png`,
+  ]);
+
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect(image).toHaveAttribute("src", `/_a/${source.id}`);
+});

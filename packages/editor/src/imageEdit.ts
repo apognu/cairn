@@ -78,3 +78,68 @@ export function rounded(rect: Rect): Rect {
 export function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
+
+export type Color = "accent" | "red" | "black" | "white";
+export type Weight = "small" | "medium" | "large";
+
+export type Arrow = { id: number; kind: "arrow"; from: Point; to: Point; color: Color; weight: Weight };
+/** A line of text whose top left corner is `at`, on a rounded background in its color when `pill` is set. */
+export type Label = { id: number; kind: "text"; at: Point; text: string; color: Color; weight: Weight; pill: boolean };
+export type Shape = Arrow | Label;
+
+/** Annotations scale with the picture, so a label reads the same on a phone shot and on a wide screenshot. */
+export function unit(image: Size): number {
+  return Math.max(0.5, Math.max(image.width, image.height) / 1000);
+}
+
+const STROKES: Record<Weight, number> = { small: 3, medium: 5, large: 8 };
+const FONT_SIZES: Record<Weight, number> = { small: 16, medium: 24, large: 36 };
+
+export function strokeWidth(weight: Weight, image: Size): number {
+  return STROKES[weight] * unit(image);
+}
+
+export function fontSize(weight: Weight, image: Size): number {
+  return FONT_SIZES[weight] * unit(image);
+}
+
+/** How far a point is from the segment between `a` and `b`. */
+export function distanceToSegment(point: Point, a: Point, b: Point): number {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const length = dx * dx + dy * dy;
+  const t = length === 0 ? 0 : clamp(((point.x - a.x) * dx + (point.y - a.y) * dy) / length, 0, 1);
+
+  return Math.hypot(point.x - (a.x + t * dx), point.y - (a.y + t * dy));
+}
+
+/** The topmost shape under the point. Labels are hit by their box, which only the canvas can measure: `boxes` holds them by ID. */
+export function shapeAt(
+  shapes: Shape[],
+  point: Point,
+  reach: number,
+  image: Size,
+  boxes: Map<number, Rect>,
+): Shape | null {
+  for (const shape of [...shapes].reverse()) {
+    if (
+      shape.kind === "arrow" &&
+      distanceToSegment(point, shape.from, shape.to) <= strokeWidth(shape.weight, image) / 2 + reach
+    )
+      return shape;
+    const box = boxes.get(shape.id);
+    if (shape.kind === "text" && box && contains(box, point)) return shape;
+  }
+
+  return null;
+}
+
+export function shapeMoved(shape: Shape, dx: number, dy: number): Shape {
+  if (shape.kind === "text") return { ...shape, at: { x: shape.at.x + dx, y: shape.at.y + dy } };
+
+  return {
+    ...shape,
+    from: { x: shape.from.x + dx, y: shape.from.y + dy },
+    to: { x: shape.to.x + dx, y: shape.to.y + dy },
+  };
+}

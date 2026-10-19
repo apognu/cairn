@@ -1,5 +1,15 @@
 import { expect, test } from "bun:test";
-import { between, handleAt, MIN_CROP, moved, type Rect, resized, rounded } from "./imageEdit";
+import {
+  between,
+  distanceToSegment,
+  handleAt,
+  MIN_CROP,
+  moved,
+  type Rect,
+  resized,
+  rounded,
+  shapeAt,
+} from "./imageEdit";
 
 const image = { width: 100, height: 80 };
 const rect: Rect = { x: 20, y: 20, w: 40, h: 30 };
@@ -26,4 +36,31 @@ test("corners are found before edges, and the copy gets whole pixels", () => {
   expect(handleAt(rect, { x: 40, y: 50 }, 4)).toBe("s");
   expect(handleAt(rect, { x: 40, y: 35 }, 4)).toBeNull();
   expect(rounded({ x: 0.4, y: 1.6, w: 10.3, h: 5.2 })).toEqual({ x: 0, y: 2, w: 11, h: 5 });
+});
+
+test("the topmost shape under the pointer is found: arrows by their line, labels by their box", () => {
+  const big = { width: 1000, height: 500 };
+  const arrow = {
+    id: 1,
+    kind: "arrow",
+    from: { x: 0, y: 0 },
+    to: { x: 100, y: 100 },
+    color: "red",
+    weight: "small",
+  } as const;
+  const label = {
+    id: 2,
+    kind: "text",
+    at: { x: 40, y: 40 },
+    text: "Here",
+    color: "black",
+    weight: "small",
+    pill: true,
+  } as const;
+  const boxes = new Map([[2, { x: 40, y: 40, w: 60, h: 20 }]]);
+
+  expect(shapeAt([arrow, label], { x: 50, y: 48 }, 4, big, boxes)?.id).toBe(2);
+  expect(shapeAt([label, arrow], { x: 50, y: 48 }, 4, big, boxes)?.id).toBe(1);
+  expect(shapeAt([arrow], { x: 80, y: 20 }, 4, big, boxes)).toBeNull();
+  expect(distanceToSegment({ x: 200, y: 0 }, { x: 0, y: 0 }, { x: 100, y: 0 })).toBe(100);
 });

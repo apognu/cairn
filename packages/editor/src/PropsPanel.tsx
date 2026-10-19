@@ -3,11 +3,13 @@ import { propsSchema } from "@cairn/sdk";
 import type { Editor } from "@tiptap/core";
 import { NodeSelection } from "@tiptap/pm/state";
 import { useEditorState } from "@tiptap/react";
-import { useEffect, useId } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { CodeBlockFields } from "./CodeBlockFields";
+import { ImageEditor } from "./ImageEditor";
 import { Icon } from "./icons";
-import { openMediaPicker } from "./MediaPicker";
+import { openMediaPicker, placeImage } from "./MediaPicker";
+import { type Asset, useAsset } from "./media";
 import { PropsHead } from "./PropsHead";
 import { SchemaForm } from "./SchemaForm";
 import { useSideDrawer } from "./sidePanel";
@@ -149,6 +151,10 @@ function ComponentFields({ editor, active }: { editor: Editor; active: Extract<A
 
 function ImageFields({ editor, attrs, at }: { editor: Editor; attrs: Record<string, unknown>; at: number }) {
   const id = useId();
+  // The image being edited, kept as it was when the editor opened: saving puts the copy in the page, which changes `attrs`.
+  const [editing, setEditing] = useState<Asset | null>(null);
+  const saved = useRef(false);
+  const asset = useAsset(typeof attrs.assetId === "string" ? attrs.assetId : null).data?.asset;
   const alt = String(attrs.alt ?? "");
   const caption = String(attrs.caption ?? "");
   const decorative = attrs.decorative === true;
@@ -170,7 +176,31 @@ function ImageFields({ editor, attrs, at }: { editor: Editor; attrs: Record<stri
         <button type="button" className={ui.secondary} onClick={() => openMediaPicker(editor, { mode: "replace", at })}>
           Replace…
         </button>
+        <button
+          type="button"
+          className={ui.secondary}
+          disabled={!asset || asset.variants?.length === 0}
+          onClick={() => setEditing(asset ?? null)}
+        >
+          Crop & annotate…
+        </button>
       </div>
+      {editing && (
+        <ImageEditor
+          asset={editing}
+          saveLabel="Save and replace"
+          onSaved={(copy) => {
+            placeImage(editor, { mode: "replace", at }, copy);
+            saved.current = true;
+          }}
+          onClose={() => {
+            setEditing(null);
+            // After a save the page has changed: the focus goes back to it, so Undo there takes the copy out again.
+            if (saved.current) editor.commands.focus();
+            saved.current = false;
+          }}
+        />
+      )}
       <div className={ui.field}>
         <label htmlFor={`${id}-alt`} className={ui.fieldLabel}>
           Alt text
