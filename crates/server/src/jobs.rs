@@ -3,7 +3,7 @@
 use axum::{Json, extract::State};
 use cairn_auth::Admin;
 use cairn_core::StalePage;
-use jiff::{SignedDuration, Timestamp};
+use jiff::Timestamp;
 use serde::Serialize;
 use tracing::instrument;
 use utoipa::ToSchema;
@@ -14,8 +14,8 @@ use crate::{
   error::{AppError, ErrorBody},
 };
 
-/// How long an upload nothing uses is kept, and how long a saved version holds the images it shows (`ASSET_GRACE`).
-pub(crate) const DEFAULT_ASSET_GRACE: SignedDuration = SignedDuration::from_hours(30 * 24);
+/// How long an upload nothing uses is kept, and how long a saved version holds the images it shows, unless `ASSET_GRACE` says otherwise.
+pub(crate) const DEFAULT_ASSET_GRACE: &str = "720h";
 
 pub(crate) fn routes() -> OpenApiRouter<AppState> {
   OpenApiRouter::new().routes(routes!(run))

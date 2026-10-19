@@ -204,7 +204,7 @@ pub(crate) async fn test_state_serving(target: impl FnOnce(&std::path::Path) -> 
     )
     .unwrap(),
     stopping: tokio::sync::watch::channel(false).1,
-    asset_grace: crate::jobs::DEFAULT_ASSET_GRACE,
+    asset_grace: jiff::SignedDuration::from_hours(30 * 24),
     pool,
     content,
     assets,

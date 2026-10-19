@@ -202,7 +202,7 @@ pub async fn run_dev(bind: SocketAddr, site_bind: SocketAddr, data_dir: PathBuf)
     &data_dir,
     None,
     &cairn_assets::AssetBackend::Local(data_dir.join("assets")),
-    jobs::DEFAULT_ASSET_GRACE,
+    config::duration_var("ASSET_GRACE", env::var("ASSET_GRACE").ok(), jobs::DEFAULT_ASSET_GRACE)?,
     site_url,
     AuthSetup::Local,
     target,

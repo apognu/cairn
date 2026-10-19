@@ -167,6 +167,14 @@ fn access(var: &dyn Fn(&str) -> Option<String>) -> anyhow::Result<cairn_auth::Ac
   Ok(rules)
 }
 
+/// The duration a variable holds (`8h`, `30d`, `2s`), or `default` when it is unset or blank.
+pub(crate) fn duration_var(name: &str, value: Option<String>, default: &str) -> anyhow::Result<SignedDuration> {
+  let value = value.map(|v| v.trim().to_string()).filter(|v| !v.is_empty());
+  let span: Span = value.as_deref().unwrap_or(default).parse().with_context(|| format!("{name} is not a duration like 8h"))?;
+
+  span.to_duration(SpanRelativeTo::days_are_24_hours()).with_context(|| format!("{name} is not a duration like 8h"))
+}
+
 impl Config {
   pub(crate) fn from_env() -> anyhow::Result<Self> {
     Self::from_lookup(|name| std::env::var(name).ok())
@@ -178,11 +186,7 @@ impl Config {
     let parsed =
       |name: &str, default: &str| -> anyhow::Result<_> { SocketAddr::from_str(&var(name).unwrap_or_else(|| default.into())).with_context(|| format!("{name} is not an address like 0.0.0.0:8080")) };
 
-    let duration = |name: &str, default: &str| -> anyhow::Result<SignedDuration> {
-      let span: Span = var(name).unwrap_or_else(|| default.into()).parse().with_context(|| format!("{name} is not a duration like 8h"))?;
-
-      span.to_duration(SpanRelativeTo::days_are_24_hours()).with_context(|| format!("{name} is not a duration like 8h"))
-    };
+    let duration = |name: &str, default: &str| duration_var(name, var(name), default);
 
     let public_url = required("PUBLIC_URL")?.trim_end_matches('/').to_string();
     // The host without its port; an IPv6 address keeps its brackets, whose colons are not a port's.
@@ -231,7 +235,7 @@ impl Config {
       database_url: var("DATABASE_URL").map(|url| validate_database_url(&url)).transpose()?,
       data_dir,
       assets,
-      asset_grace: duration("ASSET_GRACE", "720h")?,
+      asset_grace: duration("ASSET_GRACE", crate::jobs::DEFAULT_ASSET_GRACE)?,
       site_url: var("SITE_URL").map_or_else(|| public_url.clone(), |url| url.trim_end_matches('/').to_string()),
       public_url,
       trusted_proxies: crate::proxy::TrustedProxies::parse(&var("TRUSTED_PROXIES").unwrap_or_default()).map_err(|e| anyhow::anyhow!("TRUSTED_PROXIES: {e}"))?,
